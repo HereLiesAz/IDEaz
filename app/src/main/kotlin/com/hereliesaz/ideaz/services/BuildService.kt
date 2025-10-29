@@ -1,4 +1,4 @@
-package com.hereliesaz.peridiumide.services
+package com.hereliesaz.ideaz.services
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -8,19 +8,19 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import com.hereliesaz.peridiumide.IBuildCallback
-import com.hereliesaz.peridiumide.IBuildService
-import com.hereliesaz.peridiumide.buildlogic.Aapt2Compile
+import com.hereliesaz.ideaz.IBuildCallback
+import com.hereliesaz.ideaz.IBuildService
+import com.hereliesaz.ideaz.buildlogic.Aapt2Compile
 
-import com.hereliesaz.peridiumide.utils.ToolManager
+import com.hereliesaz.ideaz.utils.ToolManager
 import java.io.File
-import com.hereliesaz.peridiumide.MainActivity
-import com.hereliesaz.peridiumide.buildlogic.Aapt2Link
-import com.hereliesaz.peridiumide.buildlogic.ApkBuild
-import com.hereliesaz.peridiumide.buildlogic.ApkSign
-import com.hereliesaz.peridiumide.buildlogic.BuildOrchestrator
-import com.hereliesaz.peridiumide.buildlogic.D8Compile
-import com.hereliesaz.peridiumide.buildlogic.KotlincCompile
+import com.hereliesaz.ideaz.MainActivity
+import com.hereliesaz.ideaz.buildlogic.Aapt2Link
+import com.hereliesaz.ideaz.buildlogic.ApkBuild
+import com.hereliesaz.ideaz.buildlogic.ApkSign
+import com.hereliesaz.ideaz.buildlogic.BuildOrchestrator
+import com.hereliesaz.ideaz.buildlogic.D8Compile
+import com.hereliesaz.ideaz.buildlogic.KotlincCompile
 import android.content.pm.PackageInstaller
 import android.app.PendingIntent
 
