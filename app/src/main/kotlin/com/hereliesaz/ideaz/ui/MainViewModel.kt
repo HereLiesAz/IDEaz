@@ -15,8 +15,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import com.hereliesaz.ideaz.git.GitManager
 import java.io.File
+import com.hereliesaz.ideaz.services.UIInspectionService
+import com.hereliesaz.ideaz.ui.inspection.InspectionEvents
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 
 class MainViewModel : ViewModel() {
+
+    init {
+        InspectionEvents.events
+            .onEach { event ->
+                _buildLog.value += "\n$event"
+            }
+            .launchIn(viewModelScope)
+    }
 
     private val _buildLog = MutableStateFlow("")
     val buildLog = _buildLog.asStateFlow()
@@ -25,21 +37,22 @@ class MainViewModel : ViewModel() {
     val buildStatus = _buildStatus.asStateFlow()
 
     private var buildService: IBuildService? = null
-    private var isServiceBound = false
+    private var isBuildServiceBound = false
 
-    private val serviceConnection = object : ServiceConnection {
+    private val buildServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             buildService = IBuildService.Stub.asInterface(service)
-            isServiceBound = true
-            _buildStatus.value = "Service Connected"
+            isBuildServiceBound = true
+            _buildStatus.value = "Build Service Connected"
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
             buildService = null
-            isServiceBound = false
-            _buildStatus.value = "Service Disconnected"
+            isBuildServiceBound = false
+            _buildStatus.value = "Build Service Disconnected"
         }
     }
+
 
     private val buildCallback = object : IBuildCallback.Stub() {
         override fun onSuccess(apkPath: String) {
@@ -58,20 +71,21 @@ class MainViewModel : ViewModel() {
     }
 
     fun bindService(context: Context) {
-        val intent = Intent("com.hereliesaz.ideaz.BUILD_SERVICE")
-        intent.component = ComponentName(context, BuildService::class.java)
-        context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        Intent("com.hereliesaz.ideaz.BUILD_SERVICE").also { intent ->
+            intent.component = ComponentName(context, BuildService::class.java)
+            context.bindService(intent, buildServiceConnection, Context.BIND_AUTO_CREATE)
+        }
     }
 
     fun unbindService(context: Context) {
-        if (isServiceBound) {
-            context.unbindService(serviceConnection)
-            isServiceBound = false
+        if (isBuildServiceBound) {
+            context.unbindService(buildServiceConnection)
+            isBuildServiceBound = false
         }
     }
 
     fun startBuild(context: Context) {
-        if (isServiceBound) {
+        if (isBuildServiceBound) {
             viewModelScope.launch {
                 _buildStatus.value = "Building..."
                 _buildLog.value = ""

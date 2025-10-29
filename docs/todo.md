@@ -28,8 +28,8 @@ This phase focuses on building the user-facing application and establishing comm
 This phase implements the first half of the core visual interaction loop: tapping a UI element to find its source code.
 
 - [x] **3.1: Implement the Accessibility Service**
-- [ ] **3.2: Implement Inspector-to-Host IPC**
-- [ ] **3.3: Generate the Source Map during the build**
+- [x] **3.2: Implement Inspector-to-Host IPC**
+- [x] **3.3: Generate the Source Map during the build**
 - [ ] **3.4: Implement Source Lookup in the Host App**
 
 ---
