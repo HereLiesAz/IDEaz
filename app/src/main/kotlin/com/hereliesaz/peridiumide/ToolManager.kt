@@ -31,7 +31,9 @@ object ToolManager {
         return File(getToolDir(context), toolName).absolutePath
     }
 
+    private const val TOOL_DIR = "tools"
+
     private fun getToolDir(context: Context): File {
-        return File(context.filesDir, "tools")
+        return File(context.filesDir, TOOL_DIR)
     }
 }

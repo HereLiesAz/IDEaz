@@ -1,14 +1,14 @@
-# Cortex IDE: Documentation File Descriptions
+# Peridium IDE: Documentation File Descriptions
 
-This document provides a brief overview of the purpose of each documentation file in the `docs` folder for the intent-driven Cortex IDE project.
+This document provides a brief overview of the purpose of each documentation file in the `docs` folder for the intent-driven Peridium IDE project.
 
--   **`UI_UX.md`**: Describes the "post-code" user experience, focusing on the "Live App" view, the "Cortex Overlay" for interaction, and the "Select and Instruct" user journey.
+-   **`UI_UX.md`**: Describes the "post-code" user experience, focusing on the "Live App" view, the "Peridium Overlay" for interaction, and the "Select and Instruct" user journey.
 
--   **`auth.md`**: Outlines the dual-layer security model: standard social sign-on for user authentication to the Cortex IDE app, and the "Bring Your Own Key" (BYOK) model for authenticating calls to the Jules API.
+-   **`auth.md`**: Outlines the dual-layer security model: standard social sign-on for user authentication to the Peridium IDE app, and the "Bring Your Own Key" (BYOK) model for authenticating calls to the Jules API.
 
--   **`conduct.md`**: Establishes the Code of Conduct for all contributors to the Cortex IDE project.
+-   **`conduct.md`**: Establishes the Code of Conduct for all contributors to the Peridium IDE project.
 
--   **`data_layer.md`**: Describes the dual data layer architecture: the "Invisible Repository" (Git) that acts as the source of truth for the user's app, and the local, on-device storage (EncryptedSharedPreferences, Room) used by the Cortex IDE app itself.
+-   **`data_layer.md`**: Describes the dual data layer architecture: the "Invisible Repository" (Git) that acts as the source of truth for the user's app, and the local, on-device storage (EncryptedSharedPreferences, Room) used by the Peridium IDE app itself.
 
 -   **`fauxpas.md`**: A guide to common pitfalls in the "Screenshot-First" architecture, such as insecure API key storage and providing poor user feedback.
 
@@ -18,13 +18,13 @@ This document provides a brief overview of the purpose of each documentation fil
 
 -   **`performance.md`**: Focuses on the unique performance challenges of the on-device architecture, such as the speed of the `Git -> Compile -> Relaunch` loop and the responsiveness of the visual overlay.
 
--   **`screens.md`**: Provides an overview of the minimal UI of the Cortex IDE app itself, including the "Live App View," the "Cortex Overlay," and the "Cortex Hub" settings screen.
+-   **`screens.md`**: Provides an overview of the minimal UI of the Peridium IDE app itself, including the "Live App View," the "Peridium Overlay," and the "Peridium Hub" settings screen.
 
 -   **`task_flow.md`**: Narrates the end-to-end user journey with concrete scenarios, including a successful visual change and an automated debugging loop where the AI corrects its own compile error.
 
 -   **`testing.md`**: Outlines the testing strategy for the "Screenshot-First" architecture, emphasizing E2E tests using `UI Automator`.
 
--   **`workflow.md`**: Defines the development workflow (GitFlow) for the Cortex IDE project itself, and clarifies how it differs from the internal, automated workflow used by the AI agent.
+-   **`workflow.md`**: Defines the development workflow (GitFlow) for the Peridium IDE project itself, and clarifies how it differs from the internal, automated workflow used by the AI agent.
 
 - **`app/src/main/java/com/hereliesaz/peridiumide/services/BuildService.kt`**: A background service that runs in a separate process to manage the on-device build toolchain. It receives build requests from the Host App and reports back the status and logs.
 

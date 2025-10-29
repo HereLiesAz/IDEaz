@@ -9,12 +9,8 @@ object ProcessExecutor {
                 .redirectErrorStream(true)
                 .start()
 
-            val reader = InputStreamReader(process.inputStream)
-            reader.use {
-                val output = it.readText()
-                if (output.isNotEmpty()) {
-                    println(output)
-                }
+            process.inputStream.bufferedReader().useLines { lines ->
+                lines.forEach(::println)
             }
 
             val exitCode = process.waitFor()
