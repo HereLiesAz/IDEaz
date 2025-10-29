@@ -1,15 +1,17 @@
 package com.hereliesaz.peridiumide.buildlogic
 
-class BuildOrchestrator(private val buildSteps: List<BuildStep>) {
+import com.hereliesaz.peridiumide.buildlogic.BuildStep
+
+class BuildOrchestrator(private val steps: List<BuildStep>) {
 
     fun execute(): Boolean {
-        for (step in buildSteps) {
-            if (!step.execute()) {
-                println("Build failed at step: ${step::class.simpleName}")
-                return false
+        return steps.all { step ->
+            println("Executing build step: ${step.javaClass.simpleName}")
+            val result = step.execute()
+            if (!result) {
+                println("Build step failed: ${step.javaClass.simpleName}")
             }
+            result
         }
-        println("Build finished successfully")
-        return true
     }
 }

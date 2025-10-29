@@ -6,32 +6,32 @@ import java.io.FileOutputStream
 
 object ToolManager {
 
-    private const val TOOLS_DIR = "tools"
-
-    fun getToolPath(context: Context, toolName: String): String {
-        return File(getToolsDir(context), toolName).absolutePath
-    }
+    private val TOOLS = listOf("aapt2", "apksigner", "d8", "kotlinc", "debug.keystore", "android.jar")
 
     fun extractTools(context: Context) {
-        val toolsDir = getToolsDir(context)
-        if (toolsDir.exists()) {
-            // Assume tools are already extracted
-            return
+        val toolDir = getToolDir(context)
+        if (!toolDir.exists()) {
+            toolDir.mkdirs()
         }
-        toolsDir.mkdirs()
-        val assets = context.assets
-        assets.list("")?.forEach { toolName ->
-            val toolFile = File(toolsDir, toolName)
-            assets.open(toolName).use { inStream ->
-                FileOutputStream(toolFile).use { outStream ->
-                    inStream.copyTo(outStream)
+
+        TOOLS.forEach { toolName ->
+            val toolFile = File(toolDir, toolName)
+            if (!toolFile.exists()) {
+                context.assets.open(toolName).use { inputStream ->
+                    FileOutputStream(toolFile).use { outputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
                 }
+                toolFile.setExecutable(true, false)
             }
-            toolFile.setExecutable(true)
         }
     }
 
-    private fun getToolsDir(context: Context): File {
-        return File(context.filesDir, TOOLS_DIR)
+    fun getToolPath(context: Context, toolName: String): String {
+        return File(getToolDir(context), toolName).absolutePath
+    }
+
+    private fun getToolDir(context: Context): File {
+        return File(context.filesDir, "tools")
     }
 }
