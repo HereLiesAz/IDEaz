@@ -17,10 +17,10 @@ The primary goal of this phase is to validate the core technical assumption: tha
 ### **Phase 2: The IDE Host and Project Management**
 This phase focuses on building the user-facing application and establishing communication with the now-proven build service.
 
-- [ ] **2.1: Develop the Host App UI**
+- [x] **2.1: Develop the Host App UI**
 - [ ] **2.2: Integrate Version Control (JGit)**
-- [ ] **2.3: Establish Inter-Process Communication (AIDL)**
-- [ ] **2.4: Implement the Build Console**
+- [x] **2.3: Establish Inter-Process Communication (AIDL)**
+- [x] **2.4: Implement the Build Console**
 
 ---
 
