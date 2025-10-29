@@ -11,15 +11,16 @@ import androidx.core.app.NotificationCompat
 import com.hereliesaz.peridiumide.IBuildCallback
 import com.hereliesaz.peridiumide.IBuildService
 import com.hereliesaz.peridiumide.buildlogic.Aapt2Compile
+
+import com.hereliesaz.peridiumide.utils.ToolManager
+import java.io.File
+import com.hereliesaz.peridiumide.MainActivity
 import com.hereliesaz.peridiumide.buildlogic.Aapt2Link
 import com.hereliesaz.peridiumide.buildlogic.ApkBuild
 import com.hereliesaz.peridiumide.buildlogic.ApkSign
 import com.hereliesaz.peridiumide.buildlogic.BuildOrchestrator
 import com.hereliesaz.peridiumide.buildlogic.D8Compile
 import com.hereliesaz.peridiumide.buildlogic.KotlincCompile
-import com.hereliesaz.peridiumide.utils.ToolManager
-import java.io.File
-import com.hereliesaz.peridiumide.MainActivity
 
 class BuildService : Service() {
 
@@ -98,7 +99,14 @@ class BuildService : Service() {
         val buildOrchestrator = BuildOrchestrator(
             listOf(
                 Aapt2Compile(aapt2Path, resDir, compiledResDir),
-                Aapt2Link(aapt2Path, compiledResDir, androidJarPath, manifestPath, outputApkPath, outputJavaPath),
+                Aapt2Link(
+                    aapt2Path,
+                    compiledResDir,
+                    androidJarPath,
+                    manifestPath,
+                    outputApkPath,
+                    outputJavaPath
+                ),
                 KotlincCompile(kotlincPath, androidJarPath, javaDir, classesDir),
                 D8Compile(d8Path, androidJarPath, classesDir, classesDir),
                 ApkBuild(finalApkPath, outputApkPath, classesDir),

@@ -1,4 +1,4 @@
-package com.hereliesaz.peridiumide.utils
+package com.hereliesaz.peridiumide
 
 import android.content.Context
 import java.io.File
