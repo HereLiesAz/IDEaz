@@ -7,9 +7,9 @@ This document provides a granular, step-by-step checklist for an AI agent to fol
 ## **Phase 1: Minimum Viable Product (MVP) - Core Backend API and Foundational Android IDE Shell**
 
 ### Backend Development (Weeks 1-4)
-- [ ] **Task 1.1:** Initialize a new Python project using the FastAPI framework.
-- [ ] **Task 1.2:** Define the basic project structure and dependencies (`requirements.txt`).
-- [ ] **Task 1.3:** Using Pydantic models, define the JSON schemas for `POST /v1/agent/execute` and `POST /v1/completion/inline`.
+- [x] **Task 1.1:** Initialize a new Python project using the FastAPI framework.
+- [x] **Task 1.2:** Define the basic project structure and dependencies (`requirements.txt`).
+- [ ] **Task 1.3:** Using Pydantic models, define the JSON schemas for `POST /v1/agent/execute` and `POST /v/completion/inline`.
 - [ ] **Task 1.4:** Implement a "mock" AI service. This service should receive requests and return hardcoded, static JSON responses that mimic the structure of a real AI response.
 - [ ] **Task 1.5:** Write a `Dockerfile` to containerize the FastAPI application.
 - [ ] **Task 1.6:** Deploy the containerized mock backend to Google Cloud Run using CPU resources only.
