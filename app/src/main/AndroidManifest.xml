@@ -18,9 +18,13 @@
 
         <service
             android:name=".services.BuildService"
-            android:exported="false"
+            android:exported="true"
             android:foregroundServiceType="dataSync"
-            android:process=":build_process" />
+            android:process=":build_process">
+            <intent-filter>
+                <action android:name="com.hereliesaz.ideaz.BUILD_SERVICE" />
+            </intent-filter>
+        </service>
 
         <activity
             android:name=".MainActivity"

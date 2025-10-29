@@ -119,11 +119,12 @@ class BuildService : Service() {
             )
         )
 
-        if (buildOrchestrator.execute()) {
+        val result = buildOrchestrator.execute()
+        if (result.success) {
             callback.onSuccess(finalApkPath)
             installApk(finalApkPath)
         } else {
-            callback.onFailure("Build failed")
+            callback.onFailure(result.output)
         }
     }
 
