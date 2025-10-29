@@ -10,7 +10,7 @@ We will use the **GitFlow** branching model to manage the development of the Cor
 -   `develop`: The primary development branch for integrating new features.
 
 **Supporting Branches:**
--   **Feature Branches (`feature/<feature-name>`):** For developing new features for the IDE (e.g., `feature/improve-overlay-selection`). Created from `develop`.
+-   **Feature Branches (`feature/<feature-name>`):** For developing new features for the IDE (e.g., `feature/improve-screenshot-annotation`). Created from `develop`.
 -   **Release Branches (`release/vX.X.X`):** For preparing a new public release of the Cortex IDE app. Created from `develop`.
 -   **Hotfix Branches (`hotfix/<issue-name>`):** For fixing critical bugs in the production version of the Cortex IDE app. Created from `main`.
 

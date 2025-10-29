@@ -9,15 +9,15 @@ The entire user experience is built around the user interacting with their live,
 1.  **The Live App (The User View):** This is the user's primary and only interface. It is the running, compiled Android application they are building. The experience is always WYSIWYG ("what you see is what you get").
 
 2.  **The Cortex Overlay (The Interactive Canvas):** When the user enters "Edit Mode," a transparent overlay service is activated over the Live App. This canvas is the core of the interaction model.
-    -   It intercepts user touches and selections.
-    -   It captures screenshots and analyzes the screen to identify the UI component the user is targeting.
+    -   It takes a screenshot of the current screen.
+    -   It allows the user to draw a box to select an area.
     -   It presents a contextual prompt, allowing the user to provide natural language instructions for the selected element.
 
 ## The User Journey: "Select and Instruct"
 The core workflow is a simple, powerful, and asynchronous loop:
 
 1.  **Enter Edit Mode:** The user taps a single "Edit" button to activate the Cortex Overlay.
-2.  **Visual Selection:** The user taps directly on any element in their live app. The overlay highlights the element to confirm the selection.
+2.  **Visual Selection:** The user draws a box around an element in the screenshot of their live app. The overlay highlights the element to confirm the selection.
 3.  **Contextual Instruction:** A small text prompt appears. The user types their desired change in plain English (e.g., "Make this button orange").
 4.  **Asynchronous Feedback:** A non-intrusive notification indicates that the AI agent is working. The user is never blocked.
 5.  **Seamless Relaunch:** Once the AI agent has completed the code modification and the app has been recompiled on the device, the Live App automatically restarts, seamlessly showing the new change.

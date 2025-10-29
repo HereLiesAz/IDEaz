@@ -13,7 +13,7 @@ The architecture is designed to create a seamless, magical experience where the 
 ### **1. The Core Components**
 
 *   **The User's App (The Live View):** This is the actual, compiled, and running Android application that the user is building. It is the primary and only interface for the user.
-*   **The Cortex Overlay (The Interactive Canvas):** A transparent Android service that runs on top of the User's App. When activated, this overlay intercepts user touches, captures screenshots, and allows the user to select a region of their live app and provide a natural language prompt for a change.
+*   **The Cortex Overlay (The Interactive Canvas):** A simple, transparent Android service that runs on top of the User's App. When activated, it captures the screen, allows the user to select an area, and captures their text prompt. It does **not** require Accessibility Service permissions.
 *   **The Cortex Service (The On-Device Orchestrator):** A persistent background service on the Android device that manages the entire development loop. It is the heart of the IDE.
 *   **The Invisible Repository:** A private Git repository that stores the source code for the User's App. This is the ultimate source of truth, managed entirely by the Cortex Service and the Jules API.
 
@@ -22,8 +22,8 @@ The architecture is designed to create a seamless, magical experience where the 
 The development process is a continuous, automated loop orchestrated by the Cortex Service:
 
 1.  **Intent Capture:** The user activates the Cortex Overlay, selects a part of their live app (e.g., a button), and types an instruction: "Make this button red."
-2.  **Contextualization:** The Cortex Service captures a screenshot and the user's prompt. It performs an analysis to provide context for the AI (e.g., "The user has selected the button with ID `submit_button` on the screen `LoginActivity`").
-3.  **AI Task (Jules API Call):** The Cortex Service makes a direct call to the Jules API, sending the prompt and the contextual information. It uses a **user-provided API key** for this, following the "Bring Your Own Key" (BYOK) model to eliminate server costs and security risks.
+2.  **Contextualization:** The Cortex Service takes a screenshot of the user's app, highlights the area the user selected, and packages this image with the user's text prompt.
+3.  **AI Task (Jules API Call):** The Cortex Service makes a direct, multi-modal call to the Jules API. The payload includes the **screenshot image** and a prompt like: "Here is a screenshot of the app. The user selected the highlighted area and said: '[user's prompt]'. Please identify the relevant source code and perform the change." It uses a **user-provided API key** for this, following the "Bring Your Own Key" (BYOK) model.
 4.  **AI Action:** The Jules agent receives the request, checks out the source code from the Invisible Repository in its own ephemeral environment, makes the necessary code changes, and commits them to a new branch.
 5.  **Automated Git Pull:** The Cortex Service, running on the user's device, detects the new commit and automatically performs a `git pull` to sync the local source code.
 6.  **On-Device Compilation:** The Cortex Service triggers an on-device Gradle build to compile the updated source code into a new Android application package (APK).

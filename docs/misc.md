@@ -8,6 +8,6 @@ This document is a collection of miscellaneous notes, ideas, and information rel
 -   **A/B Testing:** A user could select a button and say, "Let's test this. Make it blue for 50% of users and green for the other 50%, and tell me which one gets more clicks after a week." The AI would be responsible for implementing the entire A/B testing framework.
 
 ## Open Questions
--   How reliable can the visual-to-code mapping be? What are the edge cases (e.g., dynamically generated UI)?
+-   How accurate will the AI be at mapping screenshots to code? What happens if it edits the wrong component?
 -   What is the user experience if the AI gets stuck in a debugging loop (e.g., repeatedly failing to fix a compile error)? When should we surface a "failed" state to the user?
 -   How do we handle a user wanting to "undo" a change that has already been compiled and launched? Is a `git revert` fast enough for a good user experience?

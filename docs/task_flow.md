@@ -10,11 +10,11 @@ This document describes the end-to-end user journey within the Cortex IDE. The u
 
 1.  **Activate Edit Mode:** The user is looking at their running application on their Android device. They tap a floating "Cortex" button to activate the IDE's overlay. The screen dims slightly, and a message "Select an element to change" appears.
 
-2.  **Visual Selection & Intent:** The user taps on a login button. The overlay draws a highlighted box around the button. A text input field appears.
+2.  **Visual Selection & Intent:** The user draws a box around a login button. The overlay shows the highlighted selection on a static screenshot. A text input field appears.
     > **User Input:** "Make this button red."
 
 3.  **Automated AI Workflow:** The user taps "Submit." A small, non-intrusive notification appears: "Jules is working on your request..." In the background, the on-device Cortex Service:
-    a.  Captures the context and sends the request to the Jules API.
+    a.  Captures the annotated screenshot and sends the request to the Jules API.
     b.  Waits for the Jules agent to commit the code change to the Invisible Repository.
     c.  Automatically pulls the latest commit.
     d.  Triggers an on-device compilation of the app.
