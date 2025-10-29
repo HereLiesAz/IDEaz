@@ -10,7 +10,7 @@ class KotlincCompile(
     private val classesDir: String
 ) : BuildStep {
 
-    override fun execute(): Boolean {
+    override fun execute(): BuildResult {
         val classesDirFile = File(classesDir)
         if (!classesDirFile.exists()) {
             classesDirFile.mkdirs()
@@ -27,6 +27,7 @@ class KotlincCompile(
             javaDir
         )
 
-        return ProcessExecutor.execute(command)
+        val processResult = ProcessExecutor.execute(command)
+        return BuildResult(processResult.exitCode == 0, processResult.output)
     }
 }
