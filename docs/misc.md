@@ -1,9 +1,9 @@
-# Cortex IDE: Miscellaneous
+# Peridium IDE: Miscellaneous
 
-This document is a collection of miscellaneous notes, ideas, and information related to the intent-driven Cortex IDE project.
+This document is a collection of miscellaneous notes, ideas, and information related to the intent-driven Peridium IDE project.
 
 ## Future Feature Ideas
--   **Visual Version Control:** Instead of a Git UI, allow users to visually compare two versions of their app side-by-side. A prompt like "Show me what the app looked like yesterday" would have the Cortex Service check out a previous commit, compile it, and run it in a split-screen view.
+-   **Visual Version Control:** Instead of a Git UI, allow users to visually compare two versions of their app side-by-side. A prompt like "Show me what the app looked like yesterday" would have the Peridium Service check out a previous commit, compile it, and run it in a split-screen view.
 -   **AI-Powered Analytics:** The user could ask, "Which button on my home screen is clicked the most?" The AI would be responsible for adding the necessary analytics tracking code to the repository and then presenting the results to the user.
 -   **A/B Testing:** A user could select a button and say, "Let's test this. Make it blue for 50% of users and green for the other 50%, and tell me which one gets more clicks after a week." The AI would be responsible for implementing the entire A/B testing framework.
 
