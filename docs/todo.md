@@ -52,3 +52,18 @@ The final phase transforms the functional prototype into a polished, performant,
 - [ ] **5.3: Implement the AI Debugger**
 - [ ] **5.4: Enhance the Code Editor**
 - [ ] **5.5: Polish and Test (Theming, UI/UX Review, Performance)**
+
+---
+
+### **Phase 6: Advanced UI/UX and Background Operation Enhancements**
+This phase focuses on improving the user experience during long-running background tasks, providing constant and clear feedback.
+
+- [ ] **6.1: Implement Live Output Bottom Card**
+    - Create a reusable pull-up bottom card component.
+    - Integrate the card to show live terminal output during Git operations (pull, commit).
+    - Connect the card to the On-Device Build Service to stream the live build logcat.
+    - Connect the card to the Jules API client to display the live AI activity log.
+- [ ] **6.2: Implement Persistent Status Notification**
+    - Enhance the `BuildService` and other background operations to manage a persistent notification.
+    - The notification content should be updated to always show the three most recent lines of the live output log from the bottom card.
+    - Ensure this keeps the service alive and provides at-a-glance status while the user is in other apps.
