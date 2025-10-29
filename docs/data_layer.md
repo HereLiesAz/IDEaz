@@ -1,36 +1,32 @@
-# Cortex IDE: Data Layer
+# Cortex IDE: Data Layer & Source of Truth
 
-## Overview
-This document describes the data persistence strategy for the Cortex IDE Android client. The data layer is responsible for storing and managing all local data, including user settings, application metadata, and potentially cached project information. The architecture follows modern Android best practices to ensure data is managed in a robust, scalable, and performant way.
+This document describes the dual data layer architecture of the Cortex IDE project. It's crucial to distinguish between the data layer for the **user's application** and the internal data storage for the **Cortex IDE app itself**.
 
-## Architecture
-The data layer is a key component of the overall Model-View-ViewModel (MVVM) architecture of the Cortex IDE client. Data access will be abstracted through the **Repository pattern**. UI components (Views) will interact with ViewModels, which in turn will request data from Repositories. These Repositories will be the single source of truth for all data, and they will be responsible for fetching data from the appropriate data source, whether that's a local database or a remote API.
+---
 
-This separation of concerns makes the application more modular, testable, and easier to maintain.
+## 1. The User's Application: The "Invisible Repository"
+**The ultimate source of truth for the application a user builds is a dedicated, private Git repository.**
 
-## Local Storage Technologies
-The Cortex IDE client will utilize two primary technologies for local data storage, chosen to fit different use cases.
+In the Cortex IDE paradigm, the user does not directly interact with a database or data models. They express intent in natural language (e.g., "I need to track customers with a name and email"), and the Jules AI agent is responsible for generating all the necessary code to represent and manage that data.
 
-### 1. Room Persistence Library
-**Use Case:** User settings, application metadata, and other structured relational data.
+This code, including database schemas, migrations, and API logic, is committed to the "Invisible Repository." This Git-native approach means the user's application benefits from a robust data management strategy by default:
 
-**Description:**
-Room is the recommended persistence library for Android. It provides an abstraction layer over SQLite to allow for more robust database access while harnessing the full power of SQLite. It will be used for:
--   Storing user preferences (e.g., theme, font size).
--   Managing application metadata (e.g., list of recently opened projects).
--   Caching simple, structured data that needs to be persisted across app sessions.
+-   **Versioned Schema:** Every change to the data model is a versioned commit, providing a complete history.
+-   **Atomic Changes:** Data model changes are committed along with the UI and logic changes that depend on them, ensuring the application is always in a consistent state.
+-   **Rollbacks:** Reverting to a previous data model is as simple as reverting a commit, a task handled by the AI.
 
-**Implementation:**
--   **Entities:** Plain Kotlin data classes will be used to define the database tables.
--   **DAOs (Data Access Objects):** Interfaces will define the database operations (queries, inserts, updates, deletes) using annotations. Room will generate the implementation at compile time.
--   **Database:** A central `RoomDatabase` class will tie the entities and DAOs together.
+---
 
-### 2. Direct SQLite Implementation
-**Use Case:** Complex project indexing and other performance-critical database operations.
+## 2. The Cortex IDE App: Internal Data Storage
+**The Cortex IDE app itself uses local, on-device storage for its own operational data.**
 
-**Description:**
-While Room is excellent for most use cases, there may be scenarios where direct access to the underlying SQLite database is necessary for maximum performance and control. The primary candidate for this is the local project indexing required for features like code completion or symbol navigation, which might involve complex queries or bulk data operations that are more efficiently handled with raw SQL.
+The IDE needs to store settings and sensitive information to function correctly. This data is stored locally on the user's Android device.
 
-**Implementation:**
--   If needed, a custom `SQLiteOpenHelper` will be implemented to manage the schema and versioning of this specialized database.
--   This will be used for tasks that are too complex or performance-sensitive for Room's abstraction, such as building and querying an index of a project's codebase. The decision to use direct SQLite will be made on a case-by-case basis after profiling and identifying performance bottlenecks with the Room implementation.
+-   **Primary Use Cases:**
+    -   Storing the user's personal Jules API key.
+    -   Saving user preferences and app settings.
+    -   Caching metadata about the user's project.
+
+-   **Technologies:**
+    -   **`EncryptedSharedPreferences`:** This is the **mandatory** technology for storing the user's Jules API key. It encrypts the key at rest, providing a critical layer of security.
+    -   **Room Persistence Library:** For other structured data like user preferences and project metadata, the standard Room library (an abstraction over SQLite) will be used.
