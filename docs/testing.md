@@ -1,74 +1,41 @@
-# Cortex IDE: Testing Strategy
+# Cortex IDE: Testing Strategy (Intent-Driven On-Device Architecture)
 
-This document outlines the testing strategy for the Cortex IDE project. A robust testing pyramid will be implemented to ensure the application is reliable, maintainable, and performs as expected. Testing will be a core part of the development workflow for both the Android client and the backend service.
+This document outlines the testing strategy for the Cortex IDE. Testing this unique architecture requires a focus on integration and end-to-end (E2E) tests that validate the core automated loop.
 
 ## Guiding Principles
-- **Test Pyramid:** We will focus on a healthy test pyramid, with a large base of fast, reliable unit tests, a smaller layer of integration tests, and a very selective set of end-to-end (E2E) tests.
-- **Automation:** All tests should be automated and integrated into the CI/CD pipeline. A pull request that breaks existing tests should be blocked from merging.
-- **Code Coverage:** While not a perfect metric, we will aim for a high level of code coverage to ensure that all critical paths are tested.
+-   **Focus on Integration:** While unit tests are valuable, the most critical tests will be integration tests that ensure the components of the Cortex Service work together.
+-   **E2E Validation:** The primary success metric is the successful completion of the end-to-end user journey. E2E tests will be the most important part of our testing suite.
+-   **Mocking the AI:** The Jules API will be a mocked dependency for all automated tests to ensure they are fast, reliable, and do not incur API costs.
 
 ---
 
-## Android Client Testing
+## 1. Unit Tests
+-   **Scope:** Test individual classes and utility functions in isolation.
+-   **Frameworks:** `JUnit 5`, `MockK`.
+-   **Examples:**
+    -   Testing the logic that parses compile error logs to extract meaningful information.
+    -   Testing utility functions for managing the local Git repository.
 
-The Android client will be tested at three main levels.
+## 2. Integration Tests (The Core of the Strategy)
+-   **Scope:** Test the interaction between the different components of the on-device Cortex Service. These will run on the Android runtime.
+-   **Frameworks:** `AndroidX Test`.
+-   **Location:** `app/src/androidTest/java`
+-   **Key Scenarios:**
+    -   **The Git-to-Compile Loop:** Can the Cortex Service successfully `git pull` a change from a test repository and compile it on the device?
+    -   **The Debugging Loop:** If a pulled commit is *designed* to fail compilation, does the Cortex Service correctly capture the error and trigger a (mocked) call to the Jules API with the error log?
+    -   **API Key Management:** Can the app securely save and retrieve a user's API key using EncryptedSharedPreferences?
 
-### 1. Unit Tests
-- **Scope:** Test individual classes in isolation, such as ViewModels, Repositories, and utility functions.
-- **Frameworks:** `JUnit 5`, `Mockito-Kotlin` or `MockK` for creating mock objects.
-- **Location:** `app/src/test/java`
-- **Examples:**
-    - Given a specific user action, does the ViewModel update its `StateFlow` to the correct state?
-    - Does a Repository correctly parse a successful response from a mocked API?
-    - Does a utility function for formatting code work as expected for various inputs?
-
-### 2. Integration Tests
-- **Scope:** Test the interaction between different components of the app. These will run on the Android runtime (device or emulator).
-- **Frameworks:** `AndroidX Test`, `Espresso` (for traditional views if any), `Room`'s testing library.
-- **Location:** `app/src/androidTest/java`
-- **Examples:**
-    - Does the Room database correctly insert and retrieve data?
-    - When a user action is simulated, does the ViewModel correctly fetch data from the Repository and update the state?
-    - Does the client-side agent correctly package context from different sources?
-
-### 3. UI / End-to-End (E2E) Tests
-- **Scope:** Test the application's UI and user flows from the user's perspective. These are the most expensive tests and will be reserved for critical user journeys.
-- **Frameworks:** `Jetpack Compose Testing APIs` (`createComposeRule`).
-- **Location:** `app/src/androidTest/java`
-- **Examples:**
-    - The main task flow: Can a user open a project, tap a UI element, enter a prompt, and see the code and preview update correctly? (This will use a mocked backend).
-    - Can a user successfully clone a Git repository?
-    - Does the File Explorer UI correctly reflect the file system?
-
----
-
-## Backend Service Testing
-
-The FastAPI backend will also follow a similar testing pyramid.
-
-### 1. Unit Tests
-- **Scope:** Test individual functions and business logic in isolation.
-- **Framework:** `pytest`
-- **Location:** `tests/unit`
-- **Examples:**
-    - Does the code chunking utility correctly split a source code file into functions/classes?
-    - Does a data validation Pydantic model reject malformed input?
-
-### 2. API Integration Tests
-- **Scope:** Test the API endpoints without making external calls to a real LLM or vector database.
-- **Framework:** `pytest` with `httpx` and `FastAPI`'s `TestClient`.
-- **Location:** `tests/integration`
-- **Examples:**
-    - Does the `/v1/agent/execute` endpoint return a `200 OK` status for a valid request and a `400 Bad Request` for an invalid one?
-    - When the LLM service is mocked, does the API endpoint correctly process the mocked response and return it to the client?
-    - Test the logic of the RAG pipeline by mocking the vector DB and the LLM to ensure they are called with the expected data.
-
-### 3. End-to-End (E2E) Tests
-- **Scope:** Test the entire backend workflow for a small, controlled scenario. These tests will be run sparingly.
-- **Location:** `tests/e2e`
-- **Examples:**
-    - A full RAG pipeline test:
-        1.  Index a small, known set of code documents.
-        2.  Send a query to the `/v1/agent/execute` endpoint.
-        3.  Assert that the final response generated by the real LLM is reasonable and based on the indexed documents.
-    - This will require a dedicated test environment with a running vector DB and access to an LLM.
+## 3. UI / End-to-End (E2E) Tests
+-   **Scope:** Test the full, end-to-end user flow, from visual interaction to app relaunch.
+-   **Frameworks:** `AndroidX Test` with `UI Automator`. UI Automator is essential here as it allows us to test interactions with the user's live app, which runs in a separate process from the Cortex IDE's own UI.
+-   **Location:** `app/src/androidTest/java`
+-   **Key Scenarios:**
+    -   **The "Happy Path":**
+        1.  Launch a simple, pre-compiled test app.
+        2.  Activate the Cortex Overlay.
+        3.  Use UI Automator to simulate a tap on a button in the test app.
+        4.  Verify that the overlay's contextual prompt appears.
+        5.  Simulate entering a prompt and submitting.
+        6.  Verify that the Cortex Service correctly triggers a (mocked) Jules API call.
+        7.  Verify that the test app is eventually re-launched.
+    -   **Visual Selection Accuracy:** Can we verify that a tap on a specific coordinate results in the correct UI element context being generated? (This will be a difficult but important test to write).

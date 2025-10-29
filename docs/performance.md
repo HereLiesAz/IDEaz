@@ -1,35 +1,25 @@
-# Cortex IDE: Performance Considerations
+# Cortex IDE: Performance Considerations (On-Device Architecture)
 
-Performance is a critical aspect of the Cortex IDE, as it directly impacts user experience, resource consumption, and operational cost. This document outlines key performance considerations and strategies for both the Android client and the backend AI service.
+Performance for the Cortex IDE is measured by the perceived speed and reliability of the automated `Git -> Compile -> Relaunch` loop, and the responsiveness of the visual overlay.
 
-## Android Client Performance
+## 1. On-Device Compile Loop Performance
+This is the most critical performance bottleneck. The entire user experience depends on this loop being as fast as possible.
 
-### 1. UI Rendering and Responsiveness
-A fluid and responsive UI is essential for a professional development tool.
--   **Jetpack Compose Optimization:** The UI will be built entirely with Jetpack Compose. We must follow best practices to minimize unnecessary recompositions, such as using `remember`, deriving state with `derivedStateOf`, and passing lambdas instead of state values to child Composables where appropriate.
--   **High-Performance Code Editor:** The custom code editor Composable must be highly optimized to handle large files without jank. This involves using lazy rendering for text (e.g., in a `LazyColumn`), efficient syntax highlighting, and virtualizing the text buffer.
--   **Avoiding Main Thread Blocking:** As detailed in `fauxpas.md`, all long-running operations (file I/O, networking) **must** be performed off the main thread using Kotlin Coroutines to prevent ANRs and ensure the UI remains interactive at all times.
+-   **Compilation Speed:** The on-device Gradle build is the slowest part of the process. We must heavily optimize the Gradle configuration for speed, potentially by:
+    -   Enabling the Gradle Daemon.
+    -   Using incremental compilation.
+    -   Exploring other Gradle performance optimizations suitable for an Android environment.
+-   **`git pull` Speed:** Network speed will impact how quickly the Cortex Service can pull new commits from the "Invisible Repository." The app should provide clear feedback to the user during this step.
+-   **App Relaunch Speed:** The process of installing the new APK and restarting the user's application should be as seamless as possible to reduce user disorientation.
 
-### 2. Resource Management
-Mobile devices have limited resources, so efficient management of memory and CPU is paramount.
--   **Memory Leaks:** We must be vigilant about preventing memory leaks. Using `viewModelScope` for coroutines and collecting `Flows` with `collectAsStateWithLifecycle` helps tie background work to the appropriate lifecycle.
--   **Efficient Background Processing:** Use WorkManager for any deferrable, long-running background tasks that need to survive process death.
--   **On-Device Compilation:** The on-device Gradle build system must be configured for performance. This includes enabling the Gradle Daemon and configuring memory settings appropriately for a mobile environment.
+## 2. Cortex Overlay Performance
+The visual overlay must feel instant and responsive.
 
-### 3. Network Performance
--   **Intelligent Context Batching:** The client-side agent is a key performance feature. It must intelligently bundle local project context into a single, concise API request to the backend, minimizing network chattiness, reducing latency, and conserving battery life.
--   **Efficient Serialization:** Use an efficient library like `kotlinx.serialization` to parse JSON responses from the backend.
+-   **Low Latency:** The time from the user tapping the screen to the selection highlight and contextual prompt appearing must be minimal. The overlay service needs to be lightweight and highly optimized.
+-   **Screenshot & Analysis:** The process of capturing a screenshot and analyzing it to determine context for the AI must be fast enough not to introduce noticeable lag. This process should be offloaded to a background thread to keep the UI responsive.
 
-## Backend Service Performance
+## 3. Background Service Reliability
+The on-device "Cortex Service" must be robust and reliable, even on a resource-constrained mobile device.
 
-### 1. API Server Throughput
--   **FastAPI:** The backend is built with FastAPI specifically for its high performance and asynchronous capabilities. By using `async/await` for all I/O-bound operations (like calls to the LLM inference server), the API can handle a high number of concurrent requests efficiently.
-
-### 2. AI Model Inference
-This is the most computationally expensive part of the system and a primary focus for optimization.
--   **Specialized Inference Servers:** The blueprint mandates the use of a high-performance inference server like **vLLM** or **Text Generation Inference (TGI)**. These tools use techniques like continuous batching and PagedAttention to dramatically increase LLM throughput on a single GPU, which directly translates to lower latency for users and reduced operational costs.
--   **Model Quantization:** After initial deployment, we will explore model quantization techniques (e.g., converting FP16 models to INT8) to reduce the model's memory footprint and potentially speed up inference, with careful testing to ensure no significant loss in accuracy.
-
-### 3. Scalability and Cold Starts
--   **Serverless with Google Cloud Run:** The backend is deployed on Cloud Run to leverage its automatic scaling. The service can scale from zero to thousands of instances based on traffic.
--   **Mitigating Cold Starts:** The "scale to zero" benefit of serverless can introduce "cold start" latency on the first request. To mitigate this for the GPU-enabled service, we will configure a **minimum instance count of 1**. This keeps one container warm and ready to serve requests instantly, providing a balance between cost-effectiveness and low-latency responsiveness for active users.
+-   **Resource Management:** The service must be careful with CPU and memory usage to avoid being killed by the Android OS. Long-running tasks like compilation must be handled gracefully.
+-   **Battery Consumption:** Continuous background processing can drain the battery. The Cortex Service should be designed to be idle whenever possible and only consume significant resources when actively processing a user's request. `WorkManager` should be used to schedule tasks efficiently.
