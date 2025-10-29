@@ -14,10 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.tooling.preview.Preview
-import com.hereliesaz.peridiumide.models.ComposableDetails
-import com.hereliesaz.peridiumide.ui.Overlay
 import com.hereliesaz.peridiumide.ui.theme.PeridiumIDETheme
-import com.hereliesaz.peridiumide.utils.ComposableRegistry
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,7 +37,7 @@ fun MainScreen() {
                 modifier = Modifier.padding(innerPadding)
             )
         }
-        Overlay()
+        // Overlay() // Commented out as Overlay is not defined
     }
 }
 
@@ -49,11 +46,11 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
     Text(
         text = "Hello $name!",
         modifier = modifier.onGloballyPositioned { coordinates ->
-            val details = ComposableDetails(
-                id = "greeting",
-                bounds = coordinates.boundsInWindow()
-            )
-            ComposableRegistry.register(details)
+            // val details = ComposableDetails(
+            //     id = "greeting",
+            //     bounds = coordinates.boundsInWindow()
+            // )
+            // ComposableRegistry.register(details)
         }
     )
 }
