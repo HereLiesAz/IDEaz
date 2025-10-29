@@ -9,7 +9,7 @@ class Aapt2Compile(
     private val compiledResDir: String
 ) : BuildStep {
 
-    override fun execute(): Boolean {
+    override fun execute(): BuildResult {
         val compiledResDirFile = File(compiledResDir)
         if (!compiledResDirFile.exists()) {
             compiledResDirFile.mkdirs()
@@ -24,6 +24,7 @@ class Aapt2Compile(
             compiledResDir
         )
 
-        return ProcessExecutor.execute(command)
+        val processResult = ProcessExecutor.execute(command)
+        return BuildResult(processResult.exitCode == 0, processResult.output)
     }
 }

@@ -10,7 +10,7 @@ class ApkSign(
     private val apkPath: String
 ) : BuildStep {
 
-    override fun execute(): Boolean {
+    override fun execute(): BuildResult {
         val command = listOf(
             "java",
             "-jar",
@@ -25,6 +25,7 @@ class ApkSign(
             apkPath
         )
 
-        return ProcessExecutor.execute(command)
+        val processResult = ProcessExecutor.execute(command)
+        return BuildResult(processResult.exitCode == 0, processResult.output)
     }
 }
