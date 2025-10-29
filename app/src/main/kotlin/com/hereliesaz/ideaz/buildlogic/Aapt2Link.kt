@@ -12,13 +12,11 @@ class Aapt2Link(
     private val outputJavaPath: String
 ) : BuildStep {
 
-    override fun execute(): Boolean {
+    override fun execute(): BuildResult {
         val outputJavaDir = File(outputJavaPath)
         if (!outputJavaDir.exists()) {
             outputJavaDir.mkdirs()
         }
-
-        val compiledResFiles = File(compiledResDir).listFiles()?.map { it.absolutePath } ?: emptyList()
 
         val command = mutableListOf(
             aapt2Path,
@@ -32,9 +30,13 @@ class Aapt2Link(
             "--java",
             outputJavaPath
         )
-        command.addAll(compiledResFiles)
 
+        File(compiledResDir).listFiles()?.forEach {
+            command.add("-R")
+            command.add(it.absolutePath)
+        }
 
-        return ProcessExecutor.execute(command)
+        val processResult = ProcessExecutor.execute(command)
+        return BuildResult(processResult.exitCode == 0, processResult.output)
     }
 }
