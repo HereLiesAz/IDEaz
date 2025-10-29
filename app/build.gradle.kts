@@ -34,6 +34,12 @@ android {
     }
     buildFeatures {
         compose = true
+        aidl = true
+    }
+    sourceSets {
+        getByName("main") {
+            aidl.srcDirs("src/main/aidl")
+        }
     }
 }
 

@@ -15,6 +15,7 @@
         <service
             android:name="com.hereliesaz.peridiumide.services.BuildService"
             android:exported="false"
+            android:foregroundServiceType="dataSync"
             android:process=":build_process" />
 
         <activity
