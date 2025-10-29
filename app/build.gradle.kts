@@ -4,13 +4,13 @@ plugins {
 }
 
 android {
-    namespace = "com.hereliesaz.peridiumide"
+    namespace = "com.peridium.ide"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.hereliesaz.peridiumide"
+        applicationId = "com.peridium.ide"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
@@ -38,6 +38,10 @@ android {
 }
 
 dependencies {
+    // JGit for Git operations
+    implementation("org.eclipse.jgit:org.eclipse.jgit:5.13.0.202109080827-r")
+    implementation("org.slf4j:slf4j-android:1.7.32")
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
