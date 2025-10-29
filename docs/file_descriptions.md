@@ -1,27 +1,27 @@
 # Cortex IDE: Documentation File Descriptions
 
-This document provides a brief overview of the purpose of each documentation file in the `docs` folder for the Cortex IDE project.
+This document provides a brief overview of the purpose of each documentation file in the `docs` folder for the intent-driven Cortex IDE project.
 
--   **`UI_UX.md`**: Outlines the user interface and user experience design principles for the Cortex IDE Android application. It covers the core UI components, the visual-first approach, and the use of the Material 3 design system.
+-   **`UI_UX.md`**: Describes the "post-code" user experience, focusing on the "Live App" view, the "Cortex Overlay" for interaction, and the "Select and Instruct" user journey.
 
--   **`auth.md`**: Describes the authentication strategy for the application. It details the token-based authentication flow (OAuth 2.0/JWT), the roles of the client and backend, and critical security considerations.
+-   **`auth.md`**: Outlines the dual-layer security model: standard social sign-on for user authentication to the Cortex IDE app, and the "Bring Your Own Key" (BYOK) model for authenticating calls to the Jules API.
 
--   **`conduct.md`**: Establishes the Code of Conduct for all contributors to the project. It is based on the Contributor Covenant and aims to foster an open, welcoming, and inclusive community.
+-   **`conduct.md`**: Establishes the Code of Conduct for all contributors to the Cortex IDE project.
 
--   **`data_layer.md`**: Details the local data persistence strategy for the Android client. It explains the use of the Room persistence library for structured data and the potential use of direct SQLite for more complex, performance-critical tasks.
+-   **`data_layer.md`**: Describes the dual data layer architecture: the "Invisible Repository" (Git) that acts as the source of truth for the user's app, and the local, on-device storage (EncryptedSharedPreferences, Room) used by the Cortex IDE app itself.
 
--   **`fauxpas.md`**: A proactive guide that lists common development pitfalls ("faux pas") and the best practices to avoid them. It covers topics like threading, state management, API communication, and security.
+-   **`fauxpas.md`**: A guide to common pitfalls in the "Screenshot-First" architecture, such as insecure API key storage and providing poor user feedback.
 
 -   **`file_descriptions.md`**: This file. It serves as a meta-document to help navigate the project's documentation.
 
--   **`misc.md`**: A catch-all document for any miscellaneous notes, ideas, or information that does not fit neatly into any of the other more specific documentation files.
+-   **`misc.md`**: A catch-all document for future feature ideas (e.g., Visual Version Control) and open questions related to the intent-driven model.
 
--   **`performance.md`**: Focuses on performance considerations for both the Android client and the backend service. It discusses strategies for optimizing UI rendering, minimizing network latency, and ensuring efficient AI model inference.
+-   **`performance.md`**: Focuses on the unique performance challenges of the on-device architecture, such as the speed of the `Git -> Compile -> Relaunch` loop and the responsiveness of the visual overlay.
 
--   **`screens.md`**: Provides a high-level overview of the different screens and major UI surfaces within the Cortex IDE application, such as the main editor screen, the agent log, and the settings screen.
+-   **`screens.md`**: Provides an overview of the minimal UI of the Cortex IDE app itself, including the "Live App View," the "Cortex Overlay," and the "Cortex Hub" settings screen.
 
--   **`task_flow.md`**: Describes the end-to-end user workflow for a typical development task within Cortex IDE. It illustrates how a user interacts with the visual previewer, the AI agent, and the core IDE features to accomplish a goal.
+-   **`task_flow.md`**: Narrates the end-to-end user journey with concrete scenarios, including a successful visual change and an automated debugging loop where the AI corrects its own compile error.
 
--   **`testing.md`**: Outlines the testing strategy for the project. It covers the different levels of testing, including unit tests, integration tests, and end-to-end (E2E) UI tests for the Android client, as well as API testing for the backend.
+-   **`testing.md`**: Outlines the testing strategy for the "Screenshot-First" architecture, emphasizing E2E tests using `UI Automator`.
 
--   **`workflow.md`**: Defines the recommended development workflow for contributors. It covers topics like branch management (e.g., GitFlow), code review processes, and the continuous integration/continuous deployment (CI/CD) pipeline.
+-   **`workflow.md`**: Defines the development workflow (GitFlow) for the Cortex IDE project itself, and clarifies how it differs from the internal, automated workflow used by the AI agent.
