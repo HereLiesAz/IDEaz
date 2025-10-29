@@ -21,8 +21,12 @@ import com.hereliesaz.peridiumide.buildlogic.ApkSign
 import com.hereliesaz.peridiumide.buildlogic.BuildOrchestrator
 import com.hereliesaz.peridiumide.buildlogic.D8Compile
 import com.hereliesaz.peridiumide.buildlogic.KotlincCompile
+import android.content.pm.PackageInstaller
+import android.app.PendingIntent
 
 class BuildService : Service() {
+
+    private lateinit var packageInstaller: PackageInstaller
 
     companion object {
         private const val NOTIFICATION_CHANNEL_ID = "PERIDIUM_BUILD_CHANNEL_ID"
@@ -37,6 +41,7 @@ class BuildService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        packageInstaller = packageManager.packageInstaller
         createNotificationChannel()
         ToolManager.extractTools(this)
     }
@@ -116,14 +121,29 @@ class BuildService : Service() {
 
         if (buildOrchestrator.execute()) {
             callback.onSuccess(finalApkPath)
-            val intent = Intent(this, MainActivity::class.java).apply {
-                action = "INSTALL_APK"
-                putExtra("apk_path", finalApkPath)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            startActivity(intent)
+            installApk(finalApkPath)
         } else {
             callback.onFailure("Build failed")
         }
+    }
+
+    private fun installApk(apkPath: String) {
+        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+        val sessionId = packageInstaller.createSession(params)
+        val session = packageInstaller.openSession(sessionId)
+
+        val file = File(apkPath)
+        val inputStream = file.inputStream()
+        val outputStream = session.openWrite("PeridiumIDE", 0, file.length())
+
+        inputStream.copyTo(outputStream)
+        session.fsync(outputStream)
+        outputStream.close()
+        inputStream.close()
+
+        val intent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(this, sessionId, intent, PendingIntent.FLAG_IMMUTABLE)
+        session.commit(pendingIntent.intentSender)
+        session.close()
     }
 }
