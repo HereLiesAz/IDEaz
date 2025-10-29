@@ -1,68 +1,91 @@
-# Conceptual Blueprint for "Cortex IDE": An Intent-Driven, On-Device IDE for Android
+# **Architectural Blueprint for Peridium IDE**
 
-## **Executive Vision: A "Post-Code" Paradigm for Android**
+## **1. Executive Vision: A New Paradigm for Mobile Development**
 
-The Cortex IDE represents a fundamental reimagining of the software development workflow for a mobile-first, AI-native world. It is not a traditional Integrated Development Environment (IDE) but an **intent-driven creation engine**. The user does not write code; they interact with their live, running Android application through a visual overlay, expressing their desired changes in natural language.
+Peridium IDE represents a fundamental leap forward in mobile application development, engineered to drastically compress the iteration cycle. The core thesis is the seamless integration of a visual, on-device UI inspection mechanism with the transformative power of generative artificial intelligence. This approach moves beyond the traditional, text-centric coding paradigm, introducing a more intuitive, interactive, and conversational model of software creation.
 
-The core mission of Cortex IDE is to transition the user's role from a developer to a **high-level director**. An autonomous AI agent, powered by the Jules API, handles the entire software development lifecycle—code generation, modification, compilation, and debugging—in the background, managed entirely by a service running on the user's Android device. The source code is an invisible implementation detail, managed via a Git repository that the user never sees.
+The user does not write code; they visually select an element in their running application and describe the desired change in natural language. An AI agent, powered by the Jules API, handles the entire development lifecycle—code generation, compilation, and debugging—directly on the device.
 
-## **System Architecture: The Automated On-Device Loop**
+---
 
-The architecture is designed to create a seamless, magical experience where the user's intent is translated directly into a functional, updated application.
+## **2. System Architecture: A Multi-Process, On-Device Toolchain**
 
-### **1. The Core Components**
+The architecture is founded on principles of robustness and performance, leveraging a multi-process design to isolate core components and prevent system-wide failures.
 
-*   **The User's App (The Live View):** This is the actual, compiled, and running Android application that the user is building. It is the primary and only interface for the user.
-*   **The Cortex Overlay (The Interactive Canvas):** A simple, transparent Android service that runs on top of the User's App. When activated, it captures the screen, allows the user to select an area, and captures their text prompt. It does **not** require Accessibility Service permissions.
-*   **The Cortex Service (The On-Device Orchestrator):** A persistent background service on the Android device that manages the entire development loop. It is the heart of the IDE.
-*   **The Invisible Repository:** A private Git repository that stores the source code for the User's App. This is the ultimate source of truth, managed entirely by the Cortex Service and the Jules API.
+### **2.1 Architectural Philosophy: Process Isolation**
 
-### **2. The Intent-to-Application Workflow**
+A monolithic architecture, where the IDE, build tools, and target application all reside in a single process, is inherently unstable. Therefore, the foundational design is a **multi-process architecture**, where each major component operates in its own distinct process boundary, communicating via well-defined Inter-Process Communication (IPC) channels.
 
-The development process is a continuous, automated loop orchestrated by the Cortex Service:
+### **2.2 The Four Core Components**
 
-1.  **Intent Capture:** The user activates the Cortex Overlay, selects a part of their live app (e.g., a button), and types an instruction: "Make this button red."
-2.  **Contextualization:** The Cortex Service takes a screenshot of the user's app, highlights the area the user selected, and packages this image with the user's text prompt. This is the "Contextualization" step, a critical and complex part of the architecture where the visual selection is mapped to the underlying source code.
-3.  **AI Task (Jules API Call):** The Cortex Service makes a direct, multi-modal call to the Jules API. The payload includes the **screenshot image** and a prompt like: "Here is a screenshot of the app. The user selected the highlighted area and said: '[user's prompt]'. Please identify the relevant source code and perform the change." It uses a **user-provided API key** for this, following the "Bring Your Own Key" (BYOK) model.
-4.  **AI Action:** The Jules agent receives the request, checks out the source code from the Invisible Repository in its own ephemeral environment, makes the necessary code changes, and commits them to a new branch.
-5.  **Automated Git Pull:** The Cortex Service, running on the user's device, detects the new commit and automatically performs a `git pull` to sync the local source code.
-6.  **On-Device Compilation:** The Cortex Service triggers an on-device Gradle build to compile the updated source code into a new Android application package (APK).
-7.  **Automated Relaunch:** Once the compilation is successful, the Cortex Service automatically installs and relaunches the User's App. The user sees their application restart and now reflects the change (the button is red).
+1.  **Peridium IDE Host Application:** The primary, user-facing application providing the UI for project management, code editing, and AI interaction. It is the central orchestrator of the entire system.
+2.  **On-Device Build Service:** A background `Service` running in a separate process (`:build_process`). It manages the entire on-device build toolchain, receiving build requests from the Host App and reporting back status and logs. This ensures the IDE's UI remains responsive during intensive compilations.
+3.  **UI Inspection Service:** A privileged `AccessibilityService` running in its own dedicated process. It is responsible for drawing the visual overlay on the target application, capturing user input, and querying the view hierarchy to identify selected components.
+4.  **Target Application Process:** The user's application being developed. It runs in its own standard Android sandbox, completely isolated from the Peridium IDE components, ensuring an accurate representation of its real-world behavior.
 
-### **3. The Automated Debugging Loop**
+### **2.3 Inter-Process Communication (IPC) Strategy**
 
-A critical feature of the Cortex Service is its ability to handle compilation errors autonomously.
+Communication between the isolated processes will be handled using the **Android Interface Definition Language (AIDL)**. This provides a robust framework for strongly-typed, thread-safe, and high-performance method calls across process boundaries, using the underlying Binder IPC mechanism.
 
-1.  **Compilation Fails:** If the on-device Gradle build fails after a `git pull`, the Cortex Service intercepts the build log containing the error messages.
-2.  **Automated AI Debugging:** The service immediately triggers a new Jules API call. The prompt includes the original user intent, the code the AI just wrote, and the full compilation error log, with a new instruction: "The code you just wrote failed to compile. Here is the build log. Please fix the error, commit the changes, and try again."
-3.  **AI Corrects Itself:** The Jules agent receives the error, debugs its own code, commits a fix to the repository.
-4.  **The Loop Repeats:** The Cortex Service pulls the new commit, re-compiles, and continues this loop until the application compiles successfully and can be relaunched. The user is simply shown a status like "Jules is debugging an issue..." and is never exposed to a technical error.
+---
 
-## **Implementation Roadmap: On-Device Architecture**
+## **3. The "No-Gradle" On-Device Build Pipeline**
 
-### **Phase 1: The Core On-Device Service**
-*   **Task 1:** Build the foundational Android background service (the "Cortex Service").
-*   **Task 2:** Integrate JGit and implement the automated `git pull` functionality.
-*   **Task 3:** Integrate an on-device Gradle build system, allowing the service to compile an Android project from source.
-*   **Task 4:** Implement the logic to automatically install and relaunch the compiled application.
-*   **Task 5:** Create a settings screen for the user to input and securely store their Jules API key using EncryptedSharedPreferences.
+To achieve the necessary speed and low resource footprint for on-device compilation, Peridium IDE will eschew a full Gradle system in favor of a direct, scripted orchestration of core command-line build tools.
 
-### **Phase 2: The Visual Overlay & AI Integration**
-*   **Task 6:** Build the "Cortex Overlay" as a transparent Android service that can be activated over any running application.
-*   **Task 7:** Implement the UI for the overlay, allowing a user to draw a selection box and enter a text prompt.
-*   **Task 8:** **(R&D Spike)** Develop a method to map the user's visual selection to a component in the source code. This is a critical and complex task. Potential technical approaches to explore during this spike include:
-    *   **Android Accessibility Services:** To programmatically read the view hierarchy and extract component metadata like resource IDs, content descriptions, and text.
-    *   **Layout Analysis:** Combining the screenshot with knowledge of the app's XML or Composable layout files to infer the selected component.
-    *   **Component Tree Introspection:** If the Cortex Overlay can run in the same process as the User's App (e.g., during a debug session), it might be possible to directly access the live Compose component tree or View hierarchy.
-*   **Task 9:** Make the first direct call to the Jules API, sending the user's prompt and context.
-*   **Task 10:** Implement the logic to receive the AI's response and trigger the Git-Compile-Relaunch loop.
+### **3.1 Bundled Toolchain**
 
-### **Phase 3: Automated Debugging & Polish**
-*   **Task 11:** Implement the automated debugging loop: capture compile errors and send them back to the Jules API.
-*   **Task 12:** Build a user-facing UI that provides simple, non-technical status updates on the AI's progress (e.g., "Jules is making changes," "Jules is debugging...").
-*   **Task 13:** Refine the entire user experience, ensuring smooth transitions and clear communication.
+The IDE will bundle its own native binaries for the essential Android build tools, which will be extracted to the app's private storage on first launch:
 
-### **Phase 4: Production Hardening**
-*   **Task 14:** Conduct a thorough security audit, especially around the handling of the user's API key.
-*   **Task 15:** Perform extensive QA testing on a wide range of Android devices.
-*   **Task 16:** Prepare the application for Google Play Store submission, with clear documentation for the BYOK model.
+*   **aapt2:** For compiling and linking Android resources.
+*   **kotlinc-embeddable:** For compiling Kotlin source code to JVM bytecode.
+*   **d8:** For converting JVM bytecode into Android's .dex format.
+*   **apksigner:** For signing the final APK with a debug certificate.
+
+### **3.2 The Build Sequence**
+
+The On-Device Build Service will execute a precise sequence of command-line invocations:
+
+1.  **Resource Compilation (aapt2 compile):** Compiles all XML resources into an intermediate `.flat` format.
+2.  **Resource Linking (aapt2 link):** Links the compiled resources and the `AndroidManifest.xml` to produce a preliminary `resources.apk` and, critically, the `R.java` file.
+3.  **Source Code Compilation (kotlinc):** Compiles the user's source code and the generated `R.java` into `.class` files.
+4.  **Dexing (d8):** Converts all `.class` files into one or more `classes.dex` files.
+5.  **Final APK Packaging:** Creates a final APK by combining the `resources.apk` and the `classes.dex` file(s).
+6.  **Signing (apksigner):** Signs the APK with a bundled debug keystore.
+7.  **Installation:** Triggers the system's package installer to install the newly built APK.
+
+### **3.3 Dependency Resolution & Incremental Builds**
+
+*   **Dependency Management:** Dependencies will be declared in a simple `dependencies.toml` file. The Build Service will include a lightweight Maven artifact resolver to download and cache libraries from Maven Central.
+*   **Incremental Builds:** To achieve near-instant rebuilds, the Build Service will implement a robust incremental build system by storing and comparing file checksums (SHA-256 hashes), intelligently skipping unchanged steps in the build sequence.
+
+---
+
+## **4. Visual Interaction and Source Mapping**
+
+The cornerstone of the IDE is the ability to visually select a UI element and have the AI instantly modify its source code.
+
+### **4.1 Core Technology: Accessibility Service**
+
+The **Android AccessibilityService** is the core technology that enables the IDE to inspect the UI of the target application securely and without requiring root access.
+
+### **4.2 Element Selection and Source Mapping**
+
+1.  **Invisible Overlay:** The UI Inspection Service will draw a transparent overlay to intercept touch events.
+2.  **Node Identification:** When the user taps the screen, the service will use the event coordinates to find the specific `AccessibilityNodeInfo` object corresponding to the UI element at that location.
+3.  **Build-Time Source Map:** To map this runtime view to its source code definition, the Build Service will generate a `source_map.json` file during compilation. This map will contain a direct link between a resource ID (e.g., `"login_button"`) and its exact location (file path and line number) in the XML layout file.
+4.  **Lookup and AI Prompt:** The Host App uses this map to find the precise code snippet to include in the prompt sent to the Jules API, ensuring maximum accuracy for the AI's modification.
+
+---
+
+## **5. AI Integration via the Jules API**
+
+The IDE will use an embedded **JGit** library to manage every project as a local Git repository. This is a prerequisite for interacting with the Jules API, which operates on changesets.
+
+### **5.1 The AI Workflow**
+
+1.  **Commit Current State:** Before any AI interaction, the IDE automatically commits the current state of the project to establish a clean baseline.
+2.  **Construct Rich Prompt:** The IDE constructs a detailed prompt containing the user's natural language instruction, the relevant code snippet (retrieved via the source map), the file path, and any other useful context (e.g., `colors.xml`).
+3.  **Call Jules API:** The IDE creates a session with the Jules API, sending the rich prompt.
+4.  **Receive and Apply Patch:** The AI's final output is a `gitPatch`. The IDE uses JGit to apply this patch to the local repository, modifying the source files.
+5.  **Trigger Rebuild:** The IDE immediately sends an IPC message to the On-Device Build Service to trigger an incremental rebuild, completing the loop.

@@ -11,6 +11,12 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.PeridiumIDE">
+
+        <service
+            android:name="com.peridium.ide.services.BuildService"
+            android:exported="false"
+            android:process=":build_process" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
