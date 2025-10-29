@@ -1,4 +1,4 @@
-package com.hereliesaz.peridiumide
+package com.hereliesaz.ideaz
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -16,7 +16,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.tooling.preview.Preview
 import android.content.Intent
 import android.net.Uri
-import com.hereliesaz.peridiumide.ui.theme.PeridiumIDETheme
+import com.hereliesaz.ideaz.ui.theme.IDEazTheme
 import androidx.core.content.FileProvider
 import java.io.File
 
@@ -31,7 +31,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            PeridiumIDETheme {
+            IDEazTheme {
                 MainScreen()
             }
         }
@@ -68,7 +68,7 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
 @Preview(showBackground = true)
 @Composable
 fun GreetingPreview() {
-    PeridiumIDETheme {
+    IDEazTheme() {
         Greeting("Android")
     }
 }
