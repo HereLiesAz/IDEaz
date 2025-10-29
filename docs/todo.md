@@ -18,7 +18,7 @@ The primary goal of this phase is to validate the core technical assumption: tha
 This phase focuses on building the user-facing application and establishing communication with the now-proven build service.
 
 - [x] **2.1: Develop the Host App UI**
-- [ ] **2.2: Integrate Version Control (JGit)**
+- [x] **2.2: Integrate Version Control (JGit)**
 - [x] **2.3: Establish Inter-Process Communication (AIDL)**
 - [x] **2.4: Implement the Build Console**
 
@@ -27,7 +27,7 @@ This phase focuses on building the user-facing application and establishing comm
 ### **Phase 3: UI Inspection and Source Mapping**
 This phase implements the first half of the core visual interaction loop: tapping a UI element to find its source code.
 
-- [ ] **3.1: Implement the Accessibility Service**
+- [x] **3.1: Implement the Accessibility Service**
 - [ ] **3.2: Implement Inspector-to-Host IPC**
 - [ ] **3.3: Generate the Source Map during the build**
 - [ ] **3.4: Implement Source Lookup in the Host App**

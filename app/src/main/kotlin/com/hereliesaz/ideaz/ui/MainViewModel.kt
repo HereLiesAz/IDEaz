@@ -13,6 +13,8 @@ import com.hereliesaz.ideaz.services.BuildService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.hereliesaz.ideaz.git.GitManager
+import java.io.File
 
 class MainViewModel : ViewModel() {
 
@@ -73,10 +75,13 @@ class MainViewModel : ViewModel() {
             viewModelScope.launch {
                 _buildStatus.value = "Building..."
                 _buildLog.value = ""
-                // Extract project from assets and start build
-                // For now, we'll just use a placeholder path
-                val projectPath = extractProject(context)
-                buildService?.startBuild(projectPath, buildCallback)
+
+                val projectDir = File(extractProject(context))
+                val gitManager = GitManager(projectDir)
+                gitManager.init()
+                _buildLog.value += "Git repository initialized at ${projectDir.absolutePath}\n"
+
+                buildService?.startBuild(projectDir.absolutePath, buildCallback)
             }
         } else {
             _buildStatus.value = "Service not bound"
