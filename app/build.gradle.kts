@@ -5,13 +5,13 @@ plugins {
 }
 
 android {
-    namespace = "com.hereliesaz.peridiumide"
+    namespace = "com.hereliesaz.ideaz"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.hereliesaz.peridiumide"
+        applicationId = "com.hereliesaz.ideaz"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
