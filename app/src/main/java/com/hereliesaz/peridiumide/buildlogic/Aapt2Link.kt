@@ -1,6 +1,6 @@
 package com.hereliesaz.peridiumide.buildlogic
 
-import com.hereliesaz.peridiumide.utils.CommandLineUtils
+import com.hereliesaz.peridiumide.utils.ProcessExecutor
 import java.io.File
 
 class Aapt2Link(
@@ -11,16 +11,30 @@ class Aapt2Link(
     private val outputApkPath: String,
     private val outputJavaPath: String
 ) : BuildStep {
+
     override fun execute(): Boolean {
-        println("Executing Aapt2Link")
-        val command = listOf(
-            aapt2Path, "link",
-            "-I", androidJarPath,
-            "-R", "$compiledResDir/resources.zip",
-            "--manifest", manifestPath,
-            "-o", outputApkPath,
-            "--java", outputJavaPath
+        val outputJavaDir = File(outputJavaPath)
+        if (!outputJavaDir.exists()) {
+            outputJavaDir.mkdirs()
+        }
+
+        val compiledResFiles = File(compiledResDir).listFiles()?.map { it.absolutePath } ?: emptyList()
+
+        val command = mutableListOf(
+            aapt2Path,
+            "link",
+            "-o",
+            outputApkPath,
+            "-I",
+            androidJarPath,
+            "--manifest",
+            manifestPath,
+            "--java",
+            outputJavaPath
         )
-        return CommandLineUtils.execute(command, File("."))
+        command.addAll(compiledResFiles)
+
+
+        return ProcessExecutor.execute(command)
     }
 }

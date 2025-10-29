@@ -1,7 +1,6 @@
 package com.hereliesaz.peridiumide.buildlogic
 
-import com.hereliesaz.peridiumide.utils.CommandLineUtils
-import java.io.File
+import com.hereliesaz.peridiumide.utils.ProcessExecutor
 
 class ApkSign(
     private val apkSignerPath: String,
@@ -10,16 +9,22 @@ class ApkSign(
     private val keyAlias: String,
     private val apkPath: String
 ) : BuildStep {
+
     override fun execute(): Boolean {
-        println("Executing ApkSign")
         val command = listOf(
-            apkSignerPath, "sign",
-            "--ks", keystorePath,
-            "--ks-pass", "pass:$keystorePass",
-            "--key-pass", "pass:$keystorePass",
-            "--ks-key-alias", keyAlias,
+            "java",
+            "-jar",
+            apkSignerPath,
+            "sign",
+            "--ks",
+            keystorePath,
+            "--ks-pass",
+            "pass:$keystorePass",
+            "--ks-key-alias",
+            keyAlias,
             apkPath
         )
-        return CommandLineUtils.execute(command, File("."))
+
+        return ProcessExecutor.execute(command)
     }
 }
