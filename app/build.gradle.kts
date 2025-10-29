@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.android)
 }
 
 android {
@@ -40,6 +41,9 @@ android {
         getByName("main") {
             aidl.srcDirs("src/main/aidl")
         }
+    }
+    kotlinOptions {
+        jvmTarget = "11"
     }
 }
 
