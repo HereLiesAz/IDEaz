@@ -1,53 +1,34 @@
-# Cortex IDE: Application Screens
+# Cortex IDE: Application Screens & UI Phases
 
-This document provides a high-level overview of the major screens and UI surfaces within the Cortex IDE Android application.
+This document provides a high-level overview of the major screens and UI phases within the Cortex IDE. The user interface is designed to be minimal and contextual, guiding the user through the intent-driven creation process.
 
-## 1. Main IDE Screen
-This is the primary workspace where developers will spend most of their time. It is a multi-panel screen designed for efficient coding and interaction with the AI agent.
+## 1. The Live App View
+This is the primary state of the application. It is not a screen within the Cortex IDE itself, but rather the **user's own application**, running live on their device.
 
-**Key Components:**
--   **Code Editor:** The central panel where the user can view and edit source code files. It features syntax highlighting, touch-based controls, and inline AI suggestions.
--   **Visual Previewer:** A resizable panel, typically adjacent to the Code Editor, that provides a live, interactive preview of the Jetpack Compose UI. This is the main surface for the "tap-to-prompt" interaction.
--   **File Explorer:** A collapsible side panel that displays the project's directory and file structure in a familiar tree view, allowing for easy navigation.
--   **Contextual Prompt Overlay:** A floating UI element that appears over the Visual Previewer when the user taps a component or selects an area. This is the primary input method for giving instructions to the Cortex AI agent.
+**Key UI Components:**
+-   **The User's App:** The running, compiled application being built.
+-   **Cortex Floating Button:** A persistent floating action button that allows the user to enter "Edit Mode."
 
-## 2. Agent Log & Chat Screen
-This is a secondary screen that provides a detailed history of the AI agent's activities and allows for a more traditional conversational interaction.
+## 2. Edit Mode (The Cortex Overlay)
+This is the main interaction phase, implemented as a transparent service drawn over the user's live app.
 
-**Key Components:**
--   **Action Log:** A chronological, read-only log of every plan and action the agent has taken (e.g., "Generating plan for user authentication," "Modifying `LoginScreen.kt`").
--   **Code Diff Viewer:** Embedded viewers that show the specific code changes (additions and deletions) the agent has made to files.
--   **Chat Input:** A text input box at the bottom of the screen that allows the user to ask the agent high-level questions or give project-wide instructions that aren't tied to a specific UI element.
+**Key UI Components:**
+-   **Screenshot Display:** Shows a static screenshot of the user's app.
+-   **Selection Tool:** Allows the user to draw a box on the screenshot to select an element.
+-   **Contextual Prompt:** A floating text input box that appears next to the selected area, for typing instructions.
+-   **Status Indicator:** A non-intrusive UI element that provides high-level feedback on the AI's status ("Jules is working...", "Jules is debugging...").
 
-## 3. Git Version Control Screen
-A dedicated screen for managing all version control operations.
-
-**Key Components:**
--   **Status View:** Shows a list of modified, staged, and untracked files.
--   **Commit View:** A text area for writing commit messages and a button to perform the commit.
--   **History Log:** A scrollable list of previous commits for the current branch.
--   **Remote Controls:** Buttons for performing `push`, `pull`, and `fetch` operations.
-
-## 4. Integrated Terminal Screen
-Provides a fully functional command-line interface within the IDE.
+## 3. The Cortex Hub Screen
+This is a traditional Android screen within the Cortex IDE app that serves as the main dashboard and entry point.
 
 **Key Components:**
--   **Terminal Emulator:** A standard terminal view that provides shell access.
--   **Session Management:** The ability to open multiple terminal tabs or sessions.
--   **Primary Use Cases:** Running Gradle tasks, executing custom scripts, or using advanced Git commands.
+-   **Project Launcher:** A button to launch the user's most recent application.
+-   **Initial Project Creation:** A text input for the user to describe the new application they want to create from scratch.
+-   **Settings Entrypoint:** A button or icon to navigate to the settings screen.
 
-## 5. Project Management Screen
-The initial screen for creating, opening, or cloning projects.
-
-**Key Components:**
--   **Recent Projects:** A list of recently opened projects for quick access.
--   **Clone from URL:** An input field for a Git repository URL to be cloned locally.
--   **Create New Project:** (Future) A wizard for scaffolding a new, standard Android project.
-
-## 6. Settings Screen
-Allows the user to customize the IDE's behavior and appearance.
+## 4. Settings Screen
+A standard Android screen for configuring the Cortex IDE.
 
 **Key Components:**
--   **Editor Settings:** Options for font size, theme (light/dark/dynamic), and key bindings.
--   **AI Settings:** Preferences related to the AI agent's behavior.
--   **Account Management:** Options for signing in and out of the user's account.
+-   **Jules API Key Input:** A secure text field for the user to enter and save their personal Jules API key. This is the core of the "Bring Your Own Key" model.
+-   **Other Preferences:** Options for managing notifications and other app settings.

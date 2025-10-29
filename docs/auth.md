@@ -1,35 +1,21 @@
-# Cortex IDE: Authentication
+# Cortex IDE: Authentication & API Key Management
 
-## Overview
-This document outlines the authentication strategy for the Cortex IDE. The primary goal is to securely authenticate users to both the Android client and the backend AI service, ensuring that user data and project code are protected.
+This document outlines the authentication strategy for the Cortex IDE application and the management of the user's Jules API key.
 
-## Authentication Flow
-Cortex IDE will use a token-based authentication system, likely based on the OAuth 2.0 protocol and JSON Web Tokens (JWTs). This is a standard, secure, and stateless approach for authenticating users in a client-server architecture.
+## 1. User Authentication for Cortex IDE
+**Goal:** To provide a seamless and secure login experience for users of the Cortex IDE app itself.
 
-The high-level flow is as follows:
-1. The user initiates the login process on the Android client, likely through a third-party identity provider like Google Sign-In.
-2. The client handles the sign-in flow with the provider and receives an authentication token (e.g., an ID token from Google).
-3. The client sends this provider token to the Cortex AI backend service.
-4. The backend service validates the provider token and, if valid, generates its own JWT for the user. This JWT will contain user information and an expiration date.
-5. The backend returns this JWT to the Android client.
-6. The client securely stores the JWT (e.g., in Android's EncryptedSharedPreferences).
-7. For all subsequent requests to the backend API, the client includes the JWT in the `Authorization` header.
-8. The backend API validates the JWT on every incoming request to authenticate the user and authorize the action.
+The authentication for the main app will follow standard, user-friendly web and mobile practices.
 
-## Client-Side Implementation
-- The Android client will be responsible for managing the user's authentication state.
-- It will use the official Google Sign-In library to provide a seamless and secure login experience.
-- User tokens (JWTs) received from the backend will be stored securely on the device using Android's EncryptedSharedPreferences to prevent unauthorized access.
-- The networking layer (Ktor/OkHttp) will be configured to automatically attach the JWT to all outgoing requests to the backend.
+-   **Primary Method: Social Sign-On:** Users will sign in using trusted third-party providers like Google. This avoids the need for traditional password management.
+-   **Authentication Flow:** The app will use a standard OAuth 2.0 flow to authenticate the user and receive a JWT to maintain the session.
 
-## Backend Implementation
-- The FastAPI backend will have a dedicated endpoint (e.g., `/v1/auth/login`) to handle the initial token exchange.
-- It will use a library to validate the incoming token from the identity provider (Google).
-- Upon successful validation, it will generate and sign a JWT using a secret key.
-- All protected API endpoints will require a valid JWT in the `Authorization` header. Middleware will be used to inspect and validate the token on every request before processing it.
+## 2. API Key Management: The "Bring Your Own Key" (BYOK) Model
+**Goal:** To ensure all calls to the Jules API are authenticated without exposing a secret key in the app or requiring a backend server.
 
-## Security Considerations
-- **HTTPS:** All communication between the client and backend will be over HTTPS to encrypt data in transit.
-- **Token Expiration:** JWTs will have a reasonably short expiration time (e.g., 1 hour) to limit the window of opportunity for replay attacks. The client will use a refresh token to obtain a new JWT without requiring the user to log in again.
-- **Secure Storage:** Sensitive data like tokens will never be stored in plaintext. Android's EncryptedSharedPreferences is the minimum requirement.
-- **Secret Management:** The secret key used to sign JWTs on the backend will be stored securely (e.g., in a cloud secret manager) and never hardcoded into the application.
+User authentication is completely separate from API authentication. To use the AI's code generation capabilities, the user must provide their own Jules API key.
+
+-   **User-Provided Key:** The user is responsible for obtaining their own API key from the Jules platform.
+-   **Input and Storage:** The user will enter this key into a dedicated "Settings" screen within the Cortex IDE app. The app will then save this key securely on the device using Android's **EncryptedSharedPreferences**.
+-   **Usage:** When the on-device Cortex Service makes a call to the Jules API, it will retrieve the securely stored key and use it to authenticate the request.
+-   **Security:** This model shifts the responsibility for API costs and access to the user. The app's primary security responsibility is to ensure the key is stored on the device as securely as possible and is only ever sent directly to the Jules API over HTTPS. It is never transmitted elsewhere.
