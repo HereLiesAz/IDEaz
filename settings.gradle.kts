@@ -19,6 +19,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Peridium IDE"
+rootProject.name = "IDEaz"
 include(":app")
  

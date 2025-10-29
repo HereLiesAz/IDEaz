@@ -1,4 +1,4 @@
-package com.hereliesaz.peridiumide
+package com.hereliesaz.ideaz
 
 import org.junit.Test
 

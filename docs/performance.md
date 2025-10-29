@@ -1,6 +1,6 @@
-# Peridium IDE: Performance Considerations
+# IDEaz: Performance Considerations
 
-Performance for Peridium IDE is measured by the perceived speed and reliability of the AI-driven development loop and the responsiveness of the UI inspection service.
+Performance for IDEaz is measured by the perceived speed and reliability of the AI-driven development loop and the responsiveness of the UI inspection service.
 
 ## 1. On-Device "No-Gradle" Build Pipeline Performance
 This is the most critical performance area. The user experience is directly tied to the speed of the on-device build.

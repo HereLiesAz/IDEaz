@@ -1,8 +1,8 @@
-# **Architectural Blueprint for Peridium IDE**
+# **Architectural Blueprint for IDEaz**
 
 ## **1. Executive Vision: A New Paradigm for Mobile Development**
 
-Peridium IDE represents a fundamental leap forward in mobile application development, engineered to drastically compress the iteration cycle. The core thesis is the seamless integration of a visual, on-device UI inspection mechanism with the transformative power of generative artificial intelligence. This approach moves beyond the traditional, text-centric coding paradigm, introducing a more intuitive, interactive, and conversational model of software creation.
+IDEaz represents a fundamental leap forward in mobile application development, engineered to drastically compress the iteration cycle. The core thesis is the seamless integration of a visual, on-device UI inspection mechanism with the transformative power of generative artificial intelligence. This approach moves beyond the traditional, text-centric coding paradigm, introducing a more intuitive, interactive, and conversational model of software creation.
 
 The user does not write code; they visually select an element in their running application and describe the desired change in natural language. An AI agent, powered by the Jules API, handles the entire development lifecycle—code generation, compilation, and debugging—directly on the device.
 
@@ -18,10 +18,10 @@ A monolithic architecture, where the IDE, build tools, and target application al
 
 ### **2.2 The Four Core Components**
 
-1.  **Peridium IDE Host Application:** The primary, user-facing application providing the UI for project management, code editing, and AI interaction. It is the central orchestrator of the entire system.
+1.  **IDEaz Host Application:** The primary, user-facing application providing the UI for project management, code editing, and AI interaction. It is the central orchestrator of the entire system.
 2.  **On-Device Build Service:** A background `Service` running in a separate process (`:build_process`). It manages the entire on-device build toolchain, receiving build requests from the Host App and reporting back status and logs. This ensures the IDE's UI remains responsive during intensive compilations.
 3.  **UI Inspection Service:** A privileged `AccessibilityService` running in its own dedicated process. It is responsible for drawing the visual overlay on the target application, capturing user input, and querying the view hierarchy to identify selected components.
-4.  **Target Application Process:** The user's application being developed. It runs in its own standard Android sandbox, completely isolated from the Peridium IDE components, ensuring an accurate representation of its real-world behavior.
+4.  **Target Application Process:** The user's application being developed. It runs in its own standard Android sandbox, completely isolated from the IDEaz components, ensuring an accurate representation of its real-world behavior.
 
 ### **2.3 Inter-Process Communication (IPC) Strategy**
 
@@ -31,7 +31,7 @@ Communication between the isolated processes will be handled using the **Android
 
 ## **3. The "No-Gradle" On-Device Build Pipeline**
 
-To achieve the necessary speed and low resource footprint for on-device compilation, Peridium IDE will eschew a full Gradle system in favor of a direct, scripted orchestration of core command-line build tools.
+To achieve the necessary speed and low resource footprint for on-device compilation, IDEaz will eschew a full Gradle system in favor of a direct, scripted orchestration of core command-line build tools.
 
 ### **3.1 Bundled Toolchain**
 

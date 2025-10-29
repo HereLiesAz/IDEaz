@@ -1,6 +1,6 @@
-# Cortex IDE: Common Faux Pas & Best Practices (Screenshot-First Architecture)
+# IDEaz: Common Faux Pas & Best Practices (Screenshot-First Architecture)
 
-This document outlines common pitfalls ("faux pas") that developers might encounter while working on the "Screenshot-First" Cortex IDE.
+This document outlines common pitfalls ("faux pas") that developers might encounter while working on the "Screenshot-First" IDEaz.
 
 ### 1. Blocking the Main Thread
 **The Faux Pas:** Performing any part of the `git pull -> compile -> relaunch` loop on Android's main thread.

@@ -1,6 +1,6 @@
-# Peridium IDE: Phased Implementation Roadmap
+# IDEaz: Phased Implementation Roadmap
 
-This document outlines the practical, phased implementation plan for constructing the Peridium IDE, based on the detailed roadmap in the project's official `blueprint.md`.
+This document outlines the practical, phased implementation plan for constructing the IDEaz, based on the detailed roadmap in the project's official `blueprint.md`.
 
 ---
 
