@@ -23,4 +23,12 @@ The core workflow is a simple, powerful, and asynchronous loop:
 5.  **Seamless Relaunch:** Once the AI agent has completed the code modification and the app has been recompiled on the device, the Live App automatically restarts, seamlessly showing the new change.
 
 ## Automated Error Handling
-The user is never shown a technical error. If the AI writes code that fails to compile, the on-device Cortex Service will automatically capture the error, send it back to the AI for a fix, and retry the process, keeping the user informed with a simple "Jules is debugging an issue..." status.
+The user is never shown a technical error. If the AI writes code that fails to compile, a process detailed in the Blueprint, the system handles it autonomously, keeping the user informed with a simple "Jules is debugging an issue..." status.
+
+## A Responsive "Undo" Experience
+A critical part of a seamless user experience is a fast and intuitive "undo" feature. A standard `git revert` followed by a full re-compile and relaunch cycle would feel too slow and cumbersome for a simple undo action.
+
+To address this, the Cortex IDE will implement a more responsive, two-phase undo strategy:
+
+1.  **Instant Visual Rollback:** The Cortex Service will always cache the last known-good APK before installing a new version. When the user requests an "undo," the service will immediately reinstall this cached APK. This provides a near-instant visual rollback, allowing the user to continue their work without a lengthy interruption.
+2.  **Background Source Synchronization:** While the user sees the instant rollback, the Cortex Service will perform the necessary `git revert` operation in the background. It will then trigger a re-compile to ensure that the "Invisible Repository" (the source of truth) is correctly synchronized with the version the user is now seeing. This background process ensures consistency without sacrificing user-perceived performance.

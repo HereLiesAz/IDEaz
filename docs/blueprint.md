@@ -22,7 +22,7 @@ The architecture is designed to create a seamless, magical experience where the 
 The development process is a continuous, automated loop orchestrated by the Cortex Service:
 
 1.  **Intent Capture:** The user activates the Cortex Overlay, selects a part of their live app (e.g., a button), and types an instruction: "Make this button red."
-2.  **Contextualization:** The Cortex Service takes a screenshot of the user's app, highlights the area the user selected, and packages this image with the user's text prompt.
+2.  **Contextualization:** The Cortex Service takes a screenshot of the user's app, highlights the area the user selected, and packages this image with the user's text prompt. This is the "Contextualization" step, a critical and complex part of the architecture where the visual selection is mapped to the underlying source code.
 3.  **AI Task (Jules API Call):** The Cortex Service makes a direct, multi-modal call to the Jules API. The payload includes the **screenshot image** and a prompt like: "Here is a screenshot of the app. The user selected the highlighted area and said: '[user's prompt]'. Please identify the relevant source code and perform the change." It uses a **user-provided API key** for this, following the "Bring Your Own Key" (BYOK) model.
 4.  **AI Action:** The Jules agent receives the request, checks out the source code from the Invisible Repository in its own ephemeral environment, makes the necessary code changes, and commits them to a new branch.
 5.  **Automated Git Pull:** The Cortex Service, running on the user's device, detects the new commit and automatically performs a `git pull` to sync the local source code.
@@ -50,7 +50,10 @@ A critical feature of the Cortex Service is its ability to handle compilation er
 ### **Phase 2: The Visual Overlay & AI Integration**
 *   **Task 6:** Build the "Cortex Overlay" as a transparent Android service that can be activated over any running application.
 *   **Task 7:** Implement the UI for the overlay, allowing a user to draw a selection box and enter a text prompt.
-*   **Task 8:** **(R&D Spike)** Develop a method to map the user's visual selection to a component in the source code. This is a critical and complex task that may involve screen analysis and component tree introspection.
+*   **Task 8:** **(R&D Spike)** Develop a method to map the user's visual selection to a component in the source code. This is a critical and complex task. Potential technical approaches to explore during this spike include:
+    *   **Android Accessibility Services:** To programmatically read the view hierarchy and extract component metadata like resource IDs, content descriptions, and text.
+    *   **Layout Analysis:** Combining the screenshot with knowledge of the app's XML or Composable layout files to infer the selected component.
+    *   **Component Tree Introspection:** If the Cortex Overlay can run in the same process as the User's App (e.g., during a debug session), it might be possible to directly access the live Compose component tree or View hierarchy.
 *   **Task 9:** Make the first direct call to the Jules API, sending the user's prompt and context.
 *   **Task 10:** Implement the logic to receive the AI's response and trigger the Git-Compile-Relaunch loop.
 
