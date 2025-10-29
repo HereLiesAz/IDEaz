@@ -7,10 +7,10 @@ This document outlines the practical, phased implementation plan for constructin
 ### **Phase 1: The Build Pipeline Proof-of-Concept (POC)**
 The primary goal of this phase is to validate the core technical assumption: that a standard Android application can be compiled, packaged, and installed entirely on-device using a custom toolchain.
 
-- [ ] **1.1: Acquire and Prepare Build Tools**
-- [ ] **1.2: Create the Build Service Project**
-- [ ] **1.3: Implement the Core Build Script**
-- [ ] **1.4: Implement Programmatic Installation**
+- [x] **1.1: Acquire and Prepare Build Tools**
+- [x] **1.2: Create the Build Service Project**
+- [x] **1.3: Implement the Core Build Script**
+- [x] **1.4: Implement Programmatic Installation**
 
 ---
 

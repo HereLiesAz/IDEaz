@@ -12,12 +12,13 @@ class ApkBuild(
     private val classesDir: String
 ) : BuildStep {
 
-    override fun execute(): Boolean {
+    override fun execute(): BuildResult {
         try {
             val dexFile = File(classesDir, "classes.dex")
             if (!dexFile.exists()) {
-                println("classes.dex not found!")
-                return false
+                val error = "classes.dex not found!"
+                println(error)
+                return BuildResult(false, error)
             }
 
             File(finalApkPath).delete()
@@ -32,10 +33,12 @@ class ApkBuild(
                 }
                 it.closeEntry()
             }
-            return true
+            val successMessage = "APK built successfully"
+            println(successMessage)
+            return BuildResult(true, successMessage)
         } catch (e: Exception) {
             e.printStackTrace()
-            return false
+            return BuildResult(false, e.message ?: "Unknown error")
         }
     }
 }
