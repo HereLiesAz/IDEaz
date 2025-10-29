@@ -21,6 +21,12 @@ import androidx.core.content.FileProvider
 import java.io.File
 
 class MainActivity : ComponentActivity() {
+
+    companion object {
+        const val ACTION_INSTALL_APK = "INSTALL_APK"
+        const val EXTRA_APK_PATH = "apk_path"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -29,25 +35,6 @@ class MainActivity : ComponentActivity() {
                 MainScreen()
             }
         }
-        if (intent.action == "INSTALL_APK") {
-            intent.getStringExtra("apk_path")?.let {
-                installApk(it)
-            }
-        }
-    }
-
-    fun installApk(apkPath: String) {
-        val apkFile = File(apkPath)
-        val apkUri: Uri = FileProvider.getUriForFile(
-            this,
-            "${applicationContext.packageName}.provider",
-            apkFile
-        )
-        val installIntent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(apkUri, "application/vnd.android.package-archive")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        startActivity(installIntent)
     }
 }
 
