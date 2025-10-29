@@ -8,9 +8,9 @@ This document provides a granular, step-by-step checklist to build the Cortex ID
 
 The goal of this phase is to build the non-UI background service that can autonomously update and compile an Android app from a Git repository.
 
-- [ ] **Task 1.1:** Build the foundational Android background service (the "Cortex Service").
-- [ ] **Task 1.2:** Integrate the JGit library into the service and implement the automated `git pull` functionality.
-- [ ] **Task 1.3:** Integrate an on-device Gradle wrapper and implement the logic for the Cortex Service to trigger a `gradle build`.
+- [x] **Task 1.1:** Build the foundational Android background service (the "Cortex Service").
+- [x] **Task 1.2:** Integrate the JGit library into the service and implement the automated `git pull` functionality.
+- [x] **Task 1.3:** Integrate an on-device Gradle wrapper and implement the logic for the Cortex Service to trigger a `gradle build`.
 - [ ] **Task 1.4:** Implement the logic for the service to automatically install a newly compiled APK and relaunch the application.
 - [ ] **Task 1.5:** Create a "Settings" screen for the user to input and securely save their Jules API key using EncryptedSharedPreferences.
 
