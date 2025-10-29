@@ -19,6 +19,7 @@ import com.hereliesaz.peridiumide.buildlogic.D8Compile
 import com.hereliesaz.peridiumide.buildlogic.KotlincCompile
 import com.hereliesaz.peridiumide.utils.ToolManager
 import java.io.File
+import com.hereliesaz.peridiumide.MainActivity
 
 class BuildService : Service() {
 
@@ -107,6 +108,12 @@ class BuildService : Service() {
 
         if (buildOrchestrator.execute()) {
             callback.onSuccess(finalApkPath)
+            val intent = Intent(this, MainActivity::class.java).apply {
+                action = "INSTALL_APK"
+                putExtra("apk_path", finalApkPath)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
         } else {
             callback.onFailure("Build failed")
         }
