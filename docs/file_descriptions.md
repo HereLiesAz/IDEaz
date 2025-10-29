@@ -52,4 +52,8 @@ This document provides a brief overview of the purpose of each documentation fil
 
 - **`app/src/main/kotlin/com/hereliesaz/ideaz/git/GitManager.kt`**: A class that encapsulates JGit operations, such as initializing a repository.
 
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/services/UIInspectionService.kt`**: An `AccessibilityService` that is responsible for drawing the visual overlay on the target application, capturing user input, and querying the view hierarchy to identify selected components.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/services/UIInspectionService.kt`**: An `AccessibilityService` that is responsible for drawing the visual overlay on the target application, capturing user input, and querying the view hierarchy to identify selected components. It communicates with the host app using a `SharedFlow`.
+
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/ui/inspection/InspectionEvents.kt`**: A singleton object that holds a `SharedFlow` for communication between the `UIInspectionService` and the `MainViewModel`.
+
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/GenerateSourceMap.kt`**: A class that implements the `BuildStep` interface and is responsible for generating a `source_map.json` file that maps resource IDs to their file paths and line numbers.

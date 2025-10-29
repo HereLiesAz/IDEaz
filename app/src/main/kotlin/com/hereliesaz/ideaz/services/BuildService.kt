@@ -23,6 +23,7 @@ import com.hereliesaz.ideaz.buildlogic.D8Compile
 import com.hereliesaz.ideaz.buildlogic.KotlincCompile
 import android.content.pm.PackageInstaller
 import android.app.PendingIntent
+import com.hereliesaz.ideaz.buildlogic.GenerateSourceMap
 
 class BuildService : Service() {
 
@@ -103,6 +104,7 @@ class BuildService : Service() {
 
         val buildOrchestrator = BuildOrchestrator(
             listOf(
+                GenerateSourceMap(resDir, buildDir.absolutePath),
                 Aapt2Compile(aapt2Path, resDir, compiledResDir),
                 Aapt2Link(
                     aapt2Path,
