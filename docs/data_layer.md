@@ -30,3 +30,20 @@ The IDE needs to store settings and sensitive information to function correctly.
 -   **Technologies:**
     -   **`EncryptedSharedPreferences`:** This is the **mandatory** technology for storing the user's Jules API key. It encrypts the key at rest, providing a critical layer of security.
     -   **Room Persistence Library:** For other structured data like user preferences and project metadata, the standard Room library (an abstraction over SQLite) will be used.
+
+---
+
+## 3. Build Process
+
+The build process is managed by the `BuildService` and is orchestrated by the `BuildOrchestrator`. The `BuildOrchestrator` executes a series of build steps, each of which is a class that implements the `BuildStep` interface.
+
+The build steps are:
+
+1.  **Aapt2Compile**: Compiles the Android resources.
+2.  **Aapt2Link**: Links the compiled resources and the `AndroidManifest.xml`.
+3.  **KotlincCompile**: Compiles the Kotlin source code.
+4.  **D8Compile**: Converts the JVM bytecode to `.dex` format.
+5.  **ApkBuild**: Packages the final APK.
+6.  **ApkSign**: Signs the APK.
+
+The status of the build process is reported back to the Host App via an AIDL interface.
