@@ -13,7 +13,7 @@
         android:theme="@style/Theme.PeridiumIDE">
 
         <service
-            android:name="com.peridium.ide.services.BuildService"
+            android:name="com.hereliesaz.peridiumide.services.BuildService"
             android:exported="false"
             android:process=":build_process" />
 
@@ -29,5 +29,7 @@
             </intent-filter>
         </activity>
     </application>
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
 </manifest>
