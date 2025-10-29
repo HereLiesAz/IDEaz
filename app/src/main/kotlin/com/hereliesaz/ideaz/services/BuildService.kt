@@ -1,4 +1,4 @@
-package com.hereliesaz.ideaz.services
+package com.hereliesaz.peridiumide.services
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -8,19 +8,19 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import com.hereliesaz.ideaz.IBuildCallback
-import com.hereliesaz.ideaz.IBuildService
-import com.hereliesaz.ideaz.buildlogic.Aapt2Compile
+import com.hereliesaz.peridiumide.IBuildCallback
+import com.hereliesaz.peridiumide.IBuildService
+import com.hereliesaz.peridiumide.buildlogic.Aapt2Compile
 
-import com.hereliesaz.ideaz.utils.ToolManager
+import com.hereliesaz.peridiumide.utils.ToolManager
 import java.io.File
-import com.hereliesaz.ideaz.MainActivity
-import com.hereliesaz.ideaz.buildlogic.Aapt2Link
-import com.hereliesaz.ideaz.buildlogic.ApkBuild
-import com.hereliesaz.ideaz.buildlogic.ApkSign
-import com.hereliesaz.ideaz.buildlogic.BuildOrchestrator
-import com.hereliesaz.ideaz.buildlogic.D8Compile
-import com.hereliesaz.ideaz.buildlogic.KotlincCompile
+import com.hereliesaz.peridiumide.MainActivity
+import com.hereliesaz.peridiumide.buildlogic.Aapt2Link
+import com.hereliesaz.peridiumide.buildlogic.ApkBuild
+import com.hereliesaz.peridiumide.buildlogic.ApkSign
+import com.hereliesaz.peridiumide.buildlogic.BuildOrchestrator
+import com.hereliesaz.peridiumide.buildlogic.D8Compile
+import com.hereliesaz.peridiumide.buildlogic.KotlincCompile
 import android.content.pm.PackageInstaller
 import android.app.PendingIntent
 
@@ -48,7 +48,7 @@ class BuildService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setContentTitle("IDEaz IDE")
+            .setContentTitle("Peridium IDE")
             .setContentText("Build Service is running.")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .build()
@@ -66,7 +66,7 @@ class BuildService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 NOTIFICATION_CHANNEL_ID,
-                "IDEaz Build Service",
+                "Peridium Build Service",
                 NotificationManager.IMPORTANCE_DEFAULT
             )
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -75,7 +75,7 @@ class BuildService : Service() {
     }
 
     private fun startBuild(projectPath: String, callback: IBuildCallback) {
-        println("IDEazBuildService: Received request to build project at $projectPath")
+        println("PeridiumBuildService: Received request to build project at $projectPath")
 
         val aapt2Path = ToolManager.getToolPath(this, "aapt2")
         val kotlincPath = ToolManager.getToolPath(this, "kotlinc")
@@ -134,7 +134,7 @@ class BuildService : Service() {
 
         val file = File(apkPath)
         val inputStream = file.inputStream()
-        val outputStream = session.openWrite("IDEaz", 0, file.length())
+        val outputStream = session.openWrite("PeridiumIDE", 0, file.length())
 
         inputStream.copyTo(outputStream)
         session.fsync(outputStream)

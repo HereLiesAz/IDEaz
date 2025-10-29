@@ -1,4 +1,4 @@
-package com.hereliesaz.ideaz
+package com.hereliesaz.peridiumide
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -16,17 +16,22 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.tooling.preview.Preview
 import android.content.Intent
 import android.net.Uri
-import com.hereliesaz.ideaz.ui.theme.IDEazTheme
+import com.hereliesaz.peridiumide.ui.theme.PeridiumIDETheme
 import androidx.core.content.FileProvider
 import java.io.File
 
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        const val ACTION_INSTALL_APK = "INSTALL_APK"
+        const val EXTRA_APK_PATH = "apk_path"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            IDEazTheme {
+            PeridiumIDETheme {
                 MainScreen()
             }
         }
@@ -63,7 +68,7 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
 @Preview(showBackground = true)
 @Composable
 fun GreetingPreview() {
-    IDEazTheme {
+    PeridiumIDETheme {
         Greeting("Android")
     }
 }
