@@ -61,6 +61,6 @@ class BuildService : Service() {
         // 6. Package the final APK.
         // 7. Sign the APK.
         // 8. Report status back to Host App via callback.
-        println("PeridiumBuildService: Received request to build project at $projectPath")
+        android.util.Log.d("BuildService", "Received request to build project at $projectPath")
     }
 }
