@@ -20,55 +20,63 @@ import com.hereliesaz.ideaz.ui.theme.IDEazTheme
 import androidx.core.content.FileProvider
 import java.io.File
 
+import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
+import com.hereliesaz.ideaz.ui.MainViewModel
+
 class MainActivity : ComponentActivity() {
 
-    companion object {
-        const val ACTION_INSTALL_APK = "INSTALL_APK"
-        const val EXTRA_APK_PATH = "apk_path"
-    }
+    private val viewModel: MainViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             IDEazTheme {
-                MainScreen()
+                MainScreen(viewModel)
             }
         }
     }
-}
 
-@Composable
-fun MainScreen() {
-    Box(modifier = Modifier.fillMaxSize()) {
-        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            Greeting(
-                name = "Android",
-                modifier = Modifier.padding(innerPadding)
-            )
-        }
-        // Overlay() // Commented out as Overlay is not defined
+    override fun onStart() {
+        super.onStart()
+        viewModel.bindService(this)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        viewModel.unbindService(this)
     }
 }
 
 @Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier.onGloballyPositioned { coordinates ->
-            // val details = ComposableDetails(
-            //     id = "greeting",
-            //     bounds = coordinates.boundsInWindow()
-            // )
-            // ComposableRegistry.register(details)
-        }
-    )
-}
+fun MainScreen(viewModel: MainViewModel) {
+    val buildLog by viewModel.buildLog.collectAsState()
+    val buildStatus by viewModel.buildStatus.collectAsState()
+    val context = LocalContext.current
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    IDEazTheme() {
-        Greeting("Android")
+    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+        ) {
+            Button(onClick = { viewModel.startBuild(context) }) {
+                Text("Build Project")
+            }
+            Text(text = "Status: $buildStatus")
+            Text(
+                text = buildLog,
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+            )
+        }
     }
 }

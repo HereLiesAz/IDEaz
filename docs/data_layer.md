@@ -33,7 +33,15 @@ The IDE needs to store settings and sensitive information to function correctly.
 
 ---
 
-## 3. Build Process
+## 3. On-Device Git Repository
+
+To facilitate the "post-code" workflow and the interaction with the Jules API, the Peridium IDE app manages a local Git repository for the user's project directly on the device. This is handled by the `GitManager` class, which uses the JGit library to perform Git operations.
+
+-   **`GitManager.kt`**: This class encapsulates all the JGit operations, starting with initializing a new repository in the project's directory.
+
+---
+
+## 4. Build Process
 
 The build process is managed by the `BuildService` and is orchestrated by the `BuildOrchestrator`. The `BuildOrchestrator` executes a series of build steps, each of which is a class that implements the `BuildStep` interface.
 
