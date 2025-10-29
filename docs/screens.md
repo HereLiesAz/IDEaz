@@ -13,10 +13,10 @@ This is the primary state of the application. It is not a screen within the Cort
 This is the main interaction phase, implemented as a transparent service drawn over the user's live app.
 
 **Key UI Components:**
--   **Selection Tool:** Allows the user to tap or draw a box around any element on their screen.
--   **Highlighting:** A visual confirmation (e.g., a colored bounding box) that shows the user what element they have selected.
--   **Contextual Prompt:** A floating text input box that appears next to the selected element, for typing instructions.
--   **Status Indicator:** A non-intrusive UI element (e.g., a toast or a subtle notification) that provides high-level feedback on the AI's status ("Jules is working...", "Jules is debugging...").
+-   **Screenshot Display:** Shows a static screenshot of the user's app.
+-   **Selection Tool:** Allows the user to draw a box on the screenshot to select an element.
+-   **Contextual Prompt:** A floating text input box that appears next to the selected area, for typing instructions.
+-   **Status Indicator:** A non-intrusive UI element that provides high-level feedback on the AI's status ("Jules is working...", "Jules is debugging...").
 
 ## 3. The Cortex Hub Screen
 This is a traditional Android screen within the Cortex IDE app that serves as the main dashboard and entry point.

@@ -10,7 +10,7 @@ This document provides a brief overview of the purpose of each documentation fil
 
 -   **`data_layer.md`**: Describes the dual data layer architecture: the "Invisible Repository" (Git) that acts as the source of truth for the user's app, and the local, on-device storage (EncryptedSharedPreferences, Room) used by the Cortex IDE app itself.
 
--   **`fauxpas.md`**: A guide to common pitfalls in this new architecture, such as blocking the main thread with the compile loop, insecurely storing the user's API key, and providing poor user feedback during long AI tasks.
+-   **`fauxpas.md`**: A guide to common pitfalls in the "Screenshot-First" architecture, such as insecure API key storage and providing poor user feedback.
 
 -   **`file_descriptions.md`**: This file. It serves as a meta-document to help navigate the project's documentation.
 
@@ -22,6 +22,6 @@ This document provides a brief overview of the purpose of each documentation fil
 
 -   **`task_flow.md`**: Narrates the end-to-end user journey with concrete scenarios, including a successful visual change and an automated debugging loop where the AI corrects its own compile error.
 
--   **`testing.md`**: Outlines the testing strategy, emphasizing integration and E2E tests using tools like `UI Automator` to validate the on-device compile loop and the visual overlay's interaction with a live application.
+-   **`testing.md`**: Outlines the testing strategy for the "Screenshot-First" architecture, emphasizing E2E tests using `UI Automator`.
 
 -   **`workflow.md`**: Defines the development workflow (GitFlow) for the Cortex IDE project itself, and clarifies how it differs from the internal, automated workflow used by the AI agent.
