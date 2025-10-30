@@ -73,10 +73,14 @@ class BuildService : Service() {
         buildDir.deleteRecursively()
         buildDir.mkdirs()
 
+        val cacheDir = File(filesDir, "cache")
+        cacheDir.mkdirs()
+
         // Dependency Resolution
         val localRepoDir = File(filesDir, "local-repo")
         localRepoDir.mkdirs()
-        val resolver = DependencyResolver(projectDir.absolutePath, localRepoDir.absolutePath)
+        val dependenciesFile = File(projectDir, "dependencies.txt")
+        val resolver = DependencyResolver(projectDir, dependenciesFile, localRepoDir)
         val resolverResult = resolver.execute()
         if (!resolverResult.success) {
             callback.onFailure("Dependency resolution failed: ${resolverResult.output}")
@@ -106,10 +110,10 @@ class BuildService : Service() {
 
         val buildOrchestrator = BuildOrchestrator(
             listOf(
-                GenerateSourceMap(resDir, buildDir.absolutePath),
+                GenerateSourceMap(File(resDir), buildDir, cacheDir),
                 Aapt2Compile(aapt2Path, resDir, compiledResDir),
                 Aapt2Link(aapt2Path, compiledResDir, androidJarPath, manifestPath, outputApkPath, outputJavaPath),
-                KotlincCompile(kotlincPath, androidJarPath, javaDir, classesDir, classpath),
+                KotlincCompile(kotlincPath, androidJarPath, javaDir, File(classesDir), classpath),
                 D8Compile(d8Path, androidJarPath, classesDir, classesDir, classpath),
                 ApkBuild(finalApkPath, outputApkPath, classesDir),
                 ApkSign(apkSignerPath, keystorePath, keystorePass, keyAlias, finalApkPath)

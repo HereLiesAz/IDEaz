@@ -59,10 +59,19 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
 
-    // Maven Dependency Resolution (jcabi-aether)
-    implementation(libs.jcabi.aether)
+    // Maven Dependency Resolution
+    implementation("org.apache.maven:maven-resolver-provider:3.8.1")
+    implementation("org.apache.maven.resolver:maven-resolver-api:1.6.3")
+    implementation("org.apache.maven.resolver:maven-resolver-spi:1.6.3")
+    implementation("org.apache.maven.resolver:maven-resolver-util:1.6.3")
+    implementation("org.apache.maven.resolver:maven-resolver-impl:1.6.3")
+    implementation("org.apache.maven.resolver:maven-resolver-connector-basic:1.6.3")
+    implementation("org.apache.maven.resolver:maven-resolver-transport-file:1.6.3")
+    implementation("org.apache.maven.resolver:maven-resolver-transport-http:1.6.3")
+    implementation("org.slf4j:slf4j-simple:1.7.32")
+    implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
 
-
+    implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.8.0"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
