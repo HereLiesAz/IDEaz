@@ -45,12 +45,6 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
-    packaging {
-        resources {
-            excludes += "META-INF/DEPENDENCIES"
-            excludes += "META-INF/sisu/javax.inject.Named"
-        }
-    }
 }
 
 dependencies {
@@ -77,7 +71,7 @@ dependencies {
     implementation("org.slf4j:slf4j-simple:1.7.32")
     implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
 
-    implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.8.0"))
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
