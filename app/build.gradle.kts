@@ -45,21 +45,9 @@ android {
     kotlinOptions {
         jvmTarget = "11"
     }
-    packaging {
-        resources {
-            pickFirsts += "META-INF/plexus/components.xml"
-            pickFirsts += "META-INF/DEPENDENCIES"
-            pickFirsts += "META-INF/sisu/javax.inject.Named"
-        }
-    }
 }
 
 dependencies {
-    constraints {
-        implementation("com.google.guava:guava:30.1-android") {
-            because("Guava provides core libraries needed by other dependencies, and we need to force a specific version to resolve conflicts.")
-        }
-    }
     // JGit for Git operations
     implementation("org.eclipse.jgit:org.eclipse.jgit:6.9.0.202403050737-r")
     implementation("org.slf4j:slf4j-api:2.0.17")
@@ -71,17 +59,9 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1")
 
-    // Maven Dependency Resolution
-    implementation("org.apache.maven:maven-aether-provider:3.3.9") {
-        exclude(group = "org.eclipse.aether")
-    }
-    implementation("org.eclipse.aether:aether-api:1.1.0")
-    implementation("org.eclipse.aether:aether-spi:1.1.0")
-    implementation("org.eclipse.aether:aether-util:1.1.0")
-    implementation("org.eclipse.aether:aether-impl:1.1.0")
-    implementation("org.eclipse.aether:aether-connector-basic:1.1.0")
-    implementation("org.eclipse.aether:aether-transport-file:1.1.0")
-    implementation("org.eclipse.aether:aether-transport-http:1.1.0")
+    // Maven Dependency Resolution (jcabi-aether)
+    implementation("com.jcabi:jcabi-aether:0.10.1")
+
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

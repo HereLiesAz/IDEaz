@@ -24,7 +24,7 @@ Therefore, the foundational design decision for IDEaz is a multi-process archite
 
 The IDEaz system is logically divided into four primary components, each running in its own process to enforce the architectural philosophy of isolation.
 
-1. **IDEaz Host Application (com.hereliesaz.ideaz):** This is the primary, user-facing component of the system. It is a standard Android application that provides the graphical user interface for all core IDE functions, including project creation and management, a sophisticated code editor, application settings, and the main AI interaction prompts. It serves as the central orchestrator, initiating requests to other services and presenting their results to the user. All user interactions, from writing code to issuing AI commands, originate from this host application.
+1. **IDEaz Host Application (com.hereliesaz.ideaz):** This is the primary, user-facing component of the system. It is a standard Android application that provides the graphical user interface for all core functions, including project management, application settings, and the main AI interaction prompts. It serves as the central orchestrator, initiating requests to other services and presenting their results to the user. All user interactions originate from this host application.
 2. **On-Device Build Service:** This component is implemented as a background Service configured in the AndroidManifest.xml to run in a separate process (using the android:process attribute). Its sole responsibility is to encapsulate and manage the entire on-device build toolchain. It receives build requests from the Host Application, executes the complex sequence of compilation, resource processing, dexing, and packaging, and reports status, logs, and final build artifacts back to the host. By offloading these intensive operations to a background process, the Host Application's UI remains fluid and responsive at all times.
 3. **UI Inspection Service:** This is a highly privileged component implemented as an AccessibilityService, also configured to run in its own dedicated process. Android's accessibility framework provides the necessary APIs for an application to inspect and interact with the UI of other applications, a capability essential for IDEaz's visual selection feature.2 This service is responsible for drawing the invisible, touch-sensitive overlay on top of the running target application, capturing user taps to identify specific UI elements, and programmatically querying the view hierarchy to extract component details.
 4. **Target Application Process:** This is the user's application—the app being developed *with* IDEaz. It runs in its own standard Android application sandbox, completely isolated from all IDEaz components. This is a critical aspect of the architecture, as it ensures that the application is running in an environment identical to how it would run when deployed to a user's device. This guarantees that its behavior, performance, and appearance are accurately represented during the development cycle.
@@ -239,17 +239,6 @@ A robust error handling strategy is essential for a smooth user experience. The 
 
 Designing an IDE for a mobile form factor presents a unique set of challenges and opportunities. The user interface must be dense with functionality yet remain uncluttered, intuitive, and optimized for touch interaction. The design of IDEaz will adhere to modern Android UI patterns and Material Design principles to ensure a high-quality, professional user experience.32
 
-### **5.1 The Main Workspace**
-
-The central hub of the IDE will be the main workspace, designed for efficient code navigation and editing.
-
-* **Layout:** The primary layout will feature a tabbed interface at the top, allowing users to quickly switch between open files. The main content area will be dedicated to the code editor. A persistent bottom action bar will provide access to key functions like Build, Run, and toggling Inspection Mode.
-* **Code Editor:** The code editor is the heart of the IDE. It must be more than a simple text area. Key features will include:
-  * Robust syntax highlighting for both Kotlin and XML, using distinct and readable color schemes.
-  * Basic code completion and suggestion capabilities.
-  * Real-time error and warning highlighting with inline squiggles.
-  * A custom, context-aware keyboard bar that appears above the standard on-screen keyboard. This bar will provide one-tap access to frequently used programming symbols such as ( ), { }, \[ \], ;, :, \<, \>, and /, significantly reducing the friction of coding on a touch device.
-* **File Explorer:** A slide-out navigation drawer, accessible from the left edge of the screen or via a "hamburger" icon, will provide a hierarchical view of the project's file structure. It will support standard file operations like create, rename, and delete.
 
 ### **5.2 The AI Interaction Flow**
 
@@ -366,9 +355,6 @@ The final phase transforms the functional prototype into a polished, performant,
 * \[ \] **5.3: Implement the AI Debugger:**
   * Add the "Debug with AI" button and the chat UI to the build console.
   * Implement the logic to send build error logs to the Jules API and display the response.
-* \[ \] **5.4: Enhance the Code Editor:**
-  * Integrate a third-party library or build a custom solution for syntax highlighting and basic code completion.
-  * Implement the custom keyboard bar for programming symbols.
 * \[ \] **5.5: Polish and Test:**
   * Conduct a full UI/UX review and polish all visual elements and interactions.
   * Implement the light/dark theming system.
