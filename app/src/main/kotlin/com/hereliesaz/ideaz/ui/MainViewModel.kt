@@ -19,6 +19,10 @@ import kotlinx.coroutines.launch
 import java.io.File
 import com.hereliesaz.ideaz.models.SourceMapEntry
 import com.hereliesaz.ideaz.utils.SourceMapParser
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import com.hereliesaz.ideaz.services.UIInspectionService
 
 class MainViewModel : ViewModel() {
 
@@ -191,5 +195,24 @@ class MainViewModel : ViewModel() {
                 _aiStatus.value = "Error debugging: ${e.message}"
             }
         }
+    }
+
+    private val inspectionReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val resourceId = intent?.getStringExtra("RESOURCE_ID")
+            if (resourceId != null) {
+                lookupSource(resourceId)
+            }
+        }
+    }
+
+    fun startInspection(context: Context) {
+        LocalBroadcastManager.getInstance(context).registerReceiver(inspectionReceiver, IntentFilter("com.hereliesaz.ideaz.INSPECTION_RESULT"))
+        context.startService(Intent(context, UIInspectionService::class.java))
+    }
+
+    fun stopInspection(context: Context) {
+        LocalBroadcastManager.getInstance(context).unregisterReceiver(inspectionReceiver)
+        context.stopService(Intent(context, UIInspectionService::class.java))
     }
 }

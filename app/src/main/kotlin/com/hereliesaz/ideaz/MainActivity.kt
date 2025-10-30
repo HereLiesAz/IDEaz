@@ -68,6 +68,7 @@ fun MainScreen(viewModel: MainViewModel) {
     val debugResult by viewModel.debugResult.collectAsState()
     val context = LocalContext.current
     var showPromptPopup by remember { mutableStateOf(false) }
+    var isInspecting by remember { mutableStateOf(false) }
 
     if (showPromptPopup) {
         PromptPopup(
@@ -90,6 +91,16 @@ fun MainScreen(viewModel: MainViewModel) {
             }
             Button(onClick = { showPromptPopup = true }) {
                 Text("Send Prompt")
+            }
+            Button(onClick = {
+                isInspecting = !isInspecting
+                if (isInspecting) {
+                    viewModel.startInspection(context)
+                } else {
+                    viewModel.stopInspection(context)
+                }
+            }) {
+                Text(if (isInspecting) "Stop Inspection" else "Start Inspection")
             }
             Button(
                 onClick = { viewModel.applyPatch(context) },
