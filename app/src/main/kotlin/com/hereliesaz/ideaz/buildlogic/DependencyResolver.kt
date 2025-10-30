@@ -9,6 +9,11 @@ import org.eclipse.aether.graph.Dependency
 import org.eclipse.aether.repository.LocalRepository
 import org.eclipse.aether.repository.RemoteRepository
 import org.eclipse.aether.resolution.DependencyRequest
+import org.eclipse.aether.connector.basic.BasicRepositoryConnectorFactory
+import org.eclipse.aether.spi.connector.RepositoryConnectorFactory
+import org.eclipse.aether.spi.connector.transport.TransporterFactory
+import org.eclipse.aether.transport.file.FileTransporterFactory
+import org.eclipse.aether.transport.http.HttpTransporterFactory
 import org.eclipse.aether.util.graph.selector.AndDependencySelector
 import org.eclipse.aether.util.graph.selector.OptionalDependencySelector
 import org.eclipse.aether.util.graph.selector.ScopeDependencySelector
@@ -61,16 +66,16 @@ class DependencyResolver(
     private fun newRepositorySystem(): RepositorySystem {
         val locator = MavenRepositorySystemUtils.newServiceLocator()
         locator.addService(
-            org.eclipse.aether.spi.connector.RepositoryConnectorFactory::class.java,
-            org.eclipse.aether.connector.basic.BasicRepositoryConnectorFactory::class.java
+            RepositoryConnectorFactory::class.java,
+            BasicRepositoryConnectorFactory::class.java
         )
         locator.addService(
-            org.eclipse.aether.spi.connector.transport.TransporterFactory::class.java,
-            org.eclipse.aether.transport.file.FileTransporterFactory::class.java
+            TransporterFactory::class.java,
+            FileTransporterFactory::class.java
         )
         locator.addService(
-            org.eclipse.aether.spi.connector.transport.TransporterFactory::class.java,
-            org.eclipse.aether.transport.http.HttpTransporterFactory::class.java
+            TransporterFactory::class.java,
+            HttpTransporterFactory::class.java
         )
         return locator.getService(RepositorySystem::class.java)
     }
