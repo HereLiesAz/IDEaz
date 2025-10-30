@@ -48,7 +48,7 @@ This phase completes the core feature loop by integrating the Jules API.
 The final phase transforms the functional prototype into a polished, performant, and feature-rich application.
 
 - [x] **5.1: Implement Incremental Builds**
-- [ ] **5.2: Implement On-Device Dependency Resolution**
+- [x] **5.2: Implement On-Device Dependency Resolution**
 - [ ] **5.3: Implement the AI Debugger**
 - [ ] **5.4: Enhance the Code Editor**
 - [ ] **5.5: Polish and Test (Theming, UI/UX Review, Performance)**
