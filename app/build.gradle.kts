@@ -48,6 +48,7 @@ android {
     packaging {
         resources {
             excludes += "META-INF/DEPENDENCIES"
+            excludes += "META-INF/sisu/javax.inject.Named"
         }
     }
 }
