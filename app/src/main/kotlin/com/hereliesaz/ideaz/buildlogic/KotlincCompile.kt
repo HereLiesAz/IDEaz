@@ -10,7 +10,7 @@ class KotlincCompile(
     private val kotlincPath: String,
     private val androidJarPath: String,
     private val javaDir: String,
-    private val classesDir: String,
+    private val classesDir: File,
     private val classpath: String
 ) : BuildStep {
 
@@ -19,9 +19,8 @@ class KotlincCompile(
     }
 
     override fun execute(): BuildResult {
-        val classesDirFile = File(classesDir)
-        if (!classesDirFile.exists()) {
-            classesDirFile.mkdirs()
+        if (!classesDir.exists()) {
+            classesDir.mkdirs()
         }
 
         val sourceFiles = File(javaDir).walk().filter { it.isFile && it.extension == "kt" }.toList()
@@ -44,7 +43,7 @@ class KotlincCompile(
             "-classpath",
             fullClasspath,
             "-d",
-            classesDir,
+            classesDir.absolutePath,
             javaDir
         )
 
