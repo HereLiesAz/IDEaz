@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.hereliesaz.ideaz.ui.MainViewModel
 import com.hereliesaz.ideaz.ui.PromptPopup
+import com.hereliesaz.ideaz.ui.EnhancedCodeEditor
 
 class MainActivity : ComponentActivity() {
 
@@ -62,6 +63,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen(viewModel: MainViewModel) {
     val buildLog by viewModel.buildLog.collectAsState()
+    val codeContent by viewModel.codeContent.collectAsState()
     val buildStatus by viewModel.buildStatus.collectAsState()
     val aiStatus by viewModel.aiStatus.collectAsState()
     val patch by viewModel.patch.collectAsState()
@@ -109,11 +111,11 @@ fun MainScreen(viewModel: MainViewModel) {
                 Text(text = "Explanation: ${it.explanation}")
                 Text(text = "Suggested Fix: ${it.suggestedFix}")
             }
-            Text(
-                text = buildLog,
+            EnhancedCodeEditor(
+                code = buildLog,
+                onValueChange = { },
                 modifier = Modifier
                     .weight(1f)
-                    .verticalScroll(rememberScrollState())
             )
         }
     }

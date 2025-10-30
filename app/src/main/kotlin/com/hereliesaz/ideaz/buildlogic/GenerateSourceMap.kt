@@ -5,8 +5,9 @@ import java.io.File
 data class SourceMapEntry(val id: String, val file: String, val line: Int)
 
 class GenerateSourceMap(
-    private val resDir: String,
-    private val buildDir: String
+    private val resDir: File,
+    private val buildDir: File,
+    private val cacheDir: File
 ) : BuildStep {
 
     override fun execute(): BuildResult {
