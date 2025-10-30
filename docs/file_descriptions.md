@@ -26,24 +26,34 @@ This document provides a brief overview of the purpose of each documentation fil
 
 -   **`workflow.md`**: Defines the development workflow (GitFlow) for the Peridium IDE project itself, and clarifies how it differs from the internal, automated workflow used by the AI agent.
 
-- **`app/src/main/java/com/hereliesaz/peridiumide/services/BuildService.kt`**: A background service that runs in a separate process to manage the on-device build toolchain. It receives build requests from the Host App and reports back the status and logs.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/services/BuildService.kt`**: A background service that runs in a separate process to manage the on-device build toolchain. It receives build requests from the Host App and reports back the status and logs.
 
-- **`app/src/main/java/com/hereliesaz/peridiumide/buildlogic/BuildStep.kt`**: An interface that defines a contract for all the build steps, with an `execute` method that returns whether the step was successful.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/BuildStep.kt`**: An interface that defines a contract for all the build steps, with an `execute` method that returns a `BuildResult` object containing the success status and the process output.
 
-- **`app/src/main/java/com/hereliesaz/peridiumide/buildlogic/Aapt2Compile.kt`**: A class that implements the `BuildStep` interface and is responsible for compiling the Android resources using `aapt2`.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/Aapt2Compile.kt`**: A class that implements the `BuildStep` interface and is responsible for compiling the Android resources using `aapt2`.
 
-- **`app/src/main/java/com/hereliesaz/peridiumide/buildlogic/Aapt2Link.kt`**: A class that implements the `BuildStep` interface and is responsible for linking the compiled resources and the `AndroidManifest.xml` to produce a preliminary `resources.apk` and the `R.java` file.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/Aapt2Link.kt`**: A class that implements the `BuildStep` interface and is responsible for linking the compiled resources and the `AndroidManifest.xml` to produce a preliminary `resources.apk` and the `R.java` file.
 
-- **`app/src/main/java/com/hereliesaz/peridiumide/buildlogic/KotlincCompile.kt`**: A class that implements the `BuildStep` interface and is responsible for compiling the Kotlin source code to JVM bytecode using `kotlinc`.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/KotlincCompile.kt`**: A class that implements the `BuildStep` interface and is responsible for compiling the Kotlin source code to JVM bytecode using `kotlinc`.
 
-- **`app/src/main/java/com/hereliesaz/peridiumide/buildlogic/D8Compile.kt`**: A class that implements the `BuildStep` interface and is responsible for converting the JVM bytecode into Android's `.dex` format using `d8`.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/D8Compile.kt`**: A class that implements the `BuildStep` interface and is responsible for converting the JVM bytecode into Android's `.dex` format using `d8`.
 
-- **`app/src/main/java/com/hereliesaz/peridiumide/buildlogic/ApkBuild.kt`**: A class that implements the `BuildStep` interface and is responsible for packaging the final APK.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/ApkBuild.kt`**: A class that implements the `BuildStep` interface and is responsible for packaging the final APK.
 
-- **`app/src/main/java/com/hereliesaz/peridiumide/buildlogic/ApkSign.kt`**: A class that implements the `BuildStep` interface and is responsible for signing the APK with a debug certificate using `apksigner`.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/ApkSign.kt`**: A class that implements the `BuildStep` interface and is responsible for signing the APK with a debug certificate using `apksigner`.
 
-- **`app/src/main/java/com/hereliesaz/peridiumide/buildlogic/BuildOrchestrator.kt`**: A class that is responsible for executing the build steps in the correct order.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/BuildOrchestrator.kt`**: A class that is responsible for executing the build steps in the correct order.
 
-- **`app/src/main/java/com/hereliesaz/peridiumide/utils/CommandLineUtils.kt`**: A utility object that provides methods to execute command-line processes.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/utils/ProcessExecutor.kt`**: A utility object that provides methods to execute command-line processes.
 
-- **`app/src/main/java/com/hereliesaz/peridiumide/utils/ToolManager.kt`**: A utility object that manages the extraction of build tools from the app's assets.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/utils/ToolManager.kt`**: A utility object that manages the extraction of build tools from the app's assets.
+
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/ui/MainViewModel.kt`**: The ViewModel for the `MainActivity`. It manages the UI state, handles the `BuildService` connection, and orchestrates the build process.
+
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/models/SourceMapEntry.kt`**: A data class that represents an entry in the source map.
+
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/utils/SourceMapParser.kt`**: A utility class that is responsible for parsing the `source_map.json` file.
+
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/api/JulesApiService.kt`**: A Retrofit interface that defines the methods for interacting with the Jules API.
+
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/api/ApiClient.kt`**: A singleton object that provides a configured Retrofit instance for the `JulesApiService`.

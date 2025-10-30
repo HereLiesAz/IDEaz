@@ -1,8 +1,9 @@
 package com.hereliesaz.ideaz.api
 
-import retrofit2.http.GET
+import retrofit2.http.Body
+import retrofit2.http.POST
 
 interface JulesApiService {
-    @GET("placeholder")
-    suspend fun getPlaceholder(): String
+    @POST("v1/prompt")
+    suspend fun sendPrompt(@Body prompt: String): String
 }
