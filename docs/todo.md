@@ -30,14 +30,14 @@ This phase implements the first half of the core visual interaction loop: tappin
 - [x] **3.1: Implement the Accessibility Service**
 - [x] **3.2: Implement Inspector-to-Host IPC**
 - [x] **3.3: Generate the Source Map during the build**
-- [ ] **3.4: Implement Source Lookup in the Host App**
+- [x] **3.4: Implement Source Lookup in the Host App**
 
 ---
 
 ### **Phase 4: AI Integration**
 This phase completes the core feature loop by integrating the Jules API.
 
-- [ ] **4.1: Integrate the API Client (Retrofit, Ktor, etc.)**
+- [x] **4.1: Integrate the API Client (Retrofit, Ktor, etc.)**
 - [ ] **4.2: Implement the AI Prompt Workflow**
 - [ ] **4.3: Implement Patch Application (JGit)**
 - [ ] **4.4: Automate the Rebuild after patch application**

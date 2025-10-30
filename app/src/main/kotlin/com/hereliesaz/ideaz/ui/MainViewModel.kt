@@ -13,22 +13,11 @@ import com.hereliesaz.ideaz.services.BuildService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import com.hereliesaz.ideaz.git.GitManager
 import java.io.File
-import com.hereliesaz.ideaz.services.UIInspectionService
-import com.hereliesaz.ideaz.ui.inspection.InspectionEvents
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
+import com.hereliesaz.ideaz.models.SourceMapEntry
+import com.hereliesaz.ideaz.utils.SourceMapParser
 
 class MainViewModel : ViewModel() {
-
-    init {
-        InspectionEvents.events
-            .onEach { event ->
-                _buildLog.value += "\n$event"
-            }
-            .launchIn(viewModelScope)
-    }
 
     private val _buildLog = MutableStateFlow("")
     val buildLog = _buildLog.asStateFlow()
@@ -53,12 +42,30 @@ class MainViewModel : ViewModel() {
         }
     }
 
+    fun lookupSource(id: String) {
+        val entry = sourceMap[id]
+        if (entry != null) {
+            _buildLog.value += "\nSource for $id found at ${entry.file}:${entry.line}"
+        } else {
+            _buildLog.value += "\nSource for $id not found"
+        }
+    }
+
+    private var sourceMap: Map<String, SourceMapEntry> = emptyMap()
 
     private val buildCallback = object : IBuildCallback.Stub() {
         override fun onSuccess(apkPath: String) {
             viewModelScope.launch {
                 _buildLog.value += "\nBuild successful: $apkPath"
                 _buildStatus.value = "Build Successful"
+
+                val buildDir = File(apkPath).parentFile
+                if (buildDir != null) {
+                    val parser = SourceMapParser(buildDir)
+                    sourceMap = parser.parse()
+                    _buildLog.value += "\nSource map loaded. Found ${sourceMap.size} entries."
+                    lookupSource("sample_text")
+                }
             }
         }
 
@@ -91,10 +98,6 @@ class MainViewModel : ViewModel() {
                 _buildLog.value = ""
 
                 val projectDir = File(extractProject(context))
-                val gitManager = GitManager(projectDir)
-                gitManager.init()
-                _buildLog.value += "Git repository initialized at ${projectDir.absolutePath}\n"
-
                 buildService?.startBuild(projectDir.absolutePath, buildCallback)
             }
         } else {
