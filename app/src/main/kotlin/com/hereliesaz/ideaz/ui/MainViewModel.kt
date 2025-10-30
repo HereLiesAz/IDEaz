@@ -37,6 +37,9 @@ class MainViewModel : ViewModel() {
     private val _debugResult = MutableStateFlow<DebugResult?>(null)
     val debugResult = _debugResult.asStateFlow()
 
+    private val _codeContent = MutableStateFlow("")
+    val codeContent = _codeContent.asStateFlow()
+
     private var buildService: IBuildService? = null
     private var isBuildServiceBound = false
 
@@ -191,5 +194,28 @@ class MainViewModel : ViewModel() {
                 _aiStatus.value = "Error debugging: ${e.message}"
             }
         }
+    }
+
+    fun updateCodeContent(newContent: String) {
+        _codeContent.value = newContent
+    }
+
+    private val inspectionReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val resourceId = intent?.getStringExtra("RESOURCE_ID")
+            if (resourceId != null) {
+                lookupSource(resourceId)
+            }
+        }
+    }
+
+    fun startInspection(context: Context) {
+        androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(context).registerReceiver(inspectionReceiver, android.content.IntentFilter("com.hereliesaz.ideaz.INSPECTION_RESULT"))
+        context.startService(Intent(context, com.hereliesaz.ideaz.services.UIInspectionService::class.java))
+    }
+
+    fun stopInspection(context: Context) {
+        androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(context).unregisterReceiver(inspectionReceiver)
+        context.stopService(Intent(context, com.hereliesaz.ideaz.services.UIInspectionService::class.java))
     }
 }

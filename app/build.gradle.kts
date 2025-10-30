@@ -12,7 +12,7 @@ android {
 
     defaultConfig {
         applicationId = "com.hereliesaz.ideaz"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -59,9 +59,22 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
 
-    // Maven Dependency Resolution (jcabi-aether)
-    implementation(libs.jcabi.aether)
+    // Maven Dependency Resolution
+    implementation("org.apache.maven:maven-resolver-provider:3.8.1")
+    implementation("org.apache.maven.resolver:maven-resolver-api:1.6.3")
+    implementation("org.apache.maven.resolver:maven-resolver-spi:1.6.3")
+    implementation("org.apache.maven.resolver:maven-resolver-util:1.6.3")
+    implementation("org.apache.maven.resolver:maven-resolver-impl:1.6.3")
+    implementation("org.apache.maven.resolver:maven-resolver-connector-basic:1.6.3")
+    implementation("org.apache.maven.resolver:maven-resolver-transport-file:1.6.3")
+    implementation("org.apache.maven.resolver:maven-resolver-transport-http:1.6.3")
+    implementation("org.slf4j:slf4j-simple:1.7.32")
+    implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
 
+    implementation("com.github.HereLiesAz:AzNavRail:4.3")
+    implementation("androidx.navigation:navigation-compose:2.7.7")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0")
+    implementation("androidx.compose.runtime:runtime-livedata:1.6.7")
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
