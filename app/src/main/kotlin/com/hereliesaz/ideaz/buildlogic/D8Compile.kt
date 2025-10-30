@@ -10,7 +10,7 @@ class D8Compile(
     private val outputDir: String
 ) : BuildStep {
 
-    override fun execute(): Boolean {
+    override fun execute(): BuildResult {
         val outputDirFile = File(outputDir)
         if (!outputDirFile.exists()) {
             outputDirFile.mkdirs()
@@ -25,10 +25,11 @@ class D8Compile(
             "--lib",
             androidJarPath,
             "--output",
-            outputDir,
+            outputDir
         )
         command.addAll(classFiles)
 
-        return ProcessExecutor.execute(command)
+        val processResult = ProcessExecutor.execute(command)
+        return BuildResult(processResult.exitCode == 0, processResult.output)
     }
 }
