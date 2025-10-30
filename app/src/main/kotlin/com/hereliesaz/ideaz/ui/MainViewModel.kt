@@ -19,10 +19,6 @@ import kotlinx.coroutines.launch
 import java.io.File
 import com.hereliesaz.ideaz.models.SourceMapEntry
 import com.hereliesaz.ideaz.utils.SourceMapParser
-import android.content.BroadcastReceiver
-import android.content.IntentFilter
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
-import com.hereliesaz.ideaz.services.UIInspectionService
 
 class MainViewModel : ViewModel() {
 
@@ -40,6 +36,9 @@ class MainViewModel : ViewModel() {
 
     private val _debugResult = MutableStateFlow<DebugResult?>(null)
     val debugResult = _debugResult.asStateFlow()
+
+    private val _codeContent = MutableStateFlow("")
+    val codeContent = _codeContent.asStateFlow()
 
     private var buildService: IBuildService? = null
     private var isBuildServiceBound = false
@@ -197,7 +196,11 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    private val inspectionReceiver = object : BroadcastReceiver() {
+    fun updateCodeContent(newContent: String) {
+        _codeContent.value = newContent
+    }
+
+    private val inspectionReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val resourceId = intent?.getStringExtra("RESOURCE_ID")
             if (resourceId != null) {
@@ -207,12 +210,12 @@ class MainViewModel : ViewModel() {
     }
 
     fun startInspection(context: Context) {
-        LocalBroadcastManager.getInstance(context).registerReceiver(inspectionReceiver, IntentFilter("com.hereliesaz.ideaz.INSPECTION_RESULT"))
-        context.startService(Intent(context, UIInspectionService::class.java))
+        androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(context).registerReceiver(inspectionReceiver, android.content.IntentFilter("com.hereliesaz.ideaz.INSPECTION_RESULT"))
+        context.startService(Intent(context, com.hereliesaz.ideaz.services.UIInspectionService::class.java))
     }
 
     fun stopInspection(context: Context) {
-        LocalBroadcastManager.getInstance(context).unregisterReceiver(inspectionReceiver)
-        context.stopService(Intent(context, UIInspectionService::class.java))
+        androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(context).unregisterReceiver(inspectionReceiver)
+        context.stopService(Intent(context, com.hereliesaz.ideaz.services.UIInspectionService::class.java))
     }
 }
