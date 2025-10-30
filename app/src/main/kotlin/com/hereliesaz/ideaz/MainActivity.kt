@@ -33,6 +33,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.hereliesaz.ideaz.ui.MainViewModel
 import com.hereliesaz.ideaz.ui.PromptPopup
+import com.hereliesaz.ideaz.ui.EnhancedCodeEditor
+import androidx.compose.foundation.layout.Row
+import androidx.navigation.compose.rememberNavController
+import com.hereliesaz.aznavrail.AzNavRail
 
 class MainActivity : ComponentActivity() {
 
@@ -62,12 +66,15 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen(viewModel: MainViewModel) {
     val buildLog by viewModel.buildLog.collectAsState()
+    val codeContent by viewModel.codeContent.collectAsState()
     val buildStatus by viewModel.buildStatus.collectAsState()
     val aiStatus by viewModel.aiStatus.collectAsState()
     val patch by viewModel.patch.collectAsState()
     val debugResult by viewModel.debugResult.collectAsState()
     val context = LocalContext.current
     var showPromptPopup by remember { mutableStateOf(false) }
+    var isInspecting by remember { mutableStateOf(false) }
+    val navController = rememberNavController()
 
     if (showPromptPopup) {
         PromptPopup(
@@ -80,41 +87,48 @@ fun MainScreen(viewModel: MainViewModel) {
     }
 
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-        Column(
+        Row(
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize()
         ) {
-            Button(onClick = { viewModel.startBuild(context) }) {
-                Text("Build Project")
-            }
-            Button(onClick = { showPromptPopup = true }) {
-                Text("Send Prompt")
-            }
-            Button(
-                onClick = { viewModel.applyPatch(context) },
-                enabled = patch != null
-            ) {
-                Text("Apply Patch")
-            }
-            if (buildStatus == "Build Failed") {
-                Button(onClick = { viewModel.debugBuild() }) {
-                    Text("Debug with AI")
+            AzNavRail(navController = navController) {
+                azRailItem(id = "build", text = "Build", onClick = { viewModel.startBuild(context) })
+                azRailItem(id = "prompt", text = "Prompt", onClick = { showPromptPopup = true })
+                azRailItem(id = "patch", text = "Patch", onClick = { viewModel.applyPatch(context) }, disabled = patch == null)
+                if (buildStatus == "Build Failed") {
+                    azRailItem(id = "debug", text = "Debug", onClick = { viewModel.debugBuild() })
                 }
+                azRailToggle(
+                    id = "inspect",
+                    isChecked = isInspecting,
+                    toggleOnText = "Stop Inspecting",
+                    toggleOffText = "Start Inspecting",
+                    onClick = {
+                        isInspecting = !isInspecting
+                        if (isInspecting) {
+                            viewModel.startInspection(context)
+                        } else {
+                            viewModel.stopInspection(context)
+                        }
+                    }
+                )
             }
-            Text(text = "Build Status: $buildStatus")
-            Text(text = "AI Status: $aiStatus")
-            debugResult?.let {
-                Text(text = "AI Debugger Result:")
-                Text(text = "Explanation: ${it.explanation}")
-                Text(text = "Suggested Fix: ${it.suggestedFix}")
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = "Build Status: $buildStatus")
+                Text(text = "AI Status: $aiStatus")
+                debugResult?.let {
+                    Text(text = "AI Debugger Result:")
+                    Text(text = "Explanation: ${it.explanation}")
+                    Text(text = "Suggested Fix: ${it.suggestedFix}")
+                }
+                EnhancedCodeEditor(
+                    code = buildLog,
+                    onValueChange = { },
+                    modifier = Modifier
+                        .weight(1f)
+                )
             }
-            Text(
-                text = buildLog,
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-            )
         }
     }
 }
