@@ -20,6 +20,7 @@ import com.hereliesaz.ideaz.buildlogic.ApkBuild
 import com.hereliesaz.ideaz.buildlogic.ApkSign
 import com.hereliesaz.ideaz.buildlogic.BuildOrchestrator
 import com.hereliesaz.ideaz.buildlogic.D8Compile
+import com.hereliesaz.ideaz.buildlogic.DependencyResolver
 import com.hereliesaz.ideaz.buildlogic.KotlincCompile
 import android.content.pm.PackageInstaller
 import android.app.PendingIntent
@@ -101,9 +102,15 @@ class BuildService : Service() {
         val resDir = File(projectDir, "app/src/main/res").absolutePath
         val manifestPath = File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath
         val javaDir = File(projectDir, "app/src/main/java").absolutePath
+        val dependenciesFile = File(projectDir, "app/dependencies.txt")
+        val cacheDir = File(filesDir, "dependency_cache")
+
+        val dependencyResolver = DependencyResolver(projectDir, dependenciesFile, cacheDir)
+        val fullClasspath = "${androidJarPath}${File.pathSeparator}${dependencyResolver.resolvedClasspath}"
 
         val buildOrchestrator = BuildOrchestrator(
             listOf(
+                dependencyResolver,
                 GenerateSourceMap(resDir, buildDir.absolutePath),
                 Aapt2Compile(aapt2Path, resDir, compiledResDir),
                 Aapt2Link(
@@ -114,8 +121,8 @@ class BuildService : Service() {
                     outputApkPath,
                     outputJavaPath
                 ),
-                KotlincCompile(kotlincPath, androidJarPath, javaDir, classesDir),
-                D8Compile(d8Path, androidJarPath, classesDir, classesDir),
+                KotlincCompile(kotlincPath, fullClasspath, javaDir, classesDir),
+                D8Compile(d8Path, fullClasspath, classesDir, classesDir),
                 ApkBuild(finalApkPath, outputApkPath, classesDir),
                 ApkSign(apkSignerPath, keystorePath, keystorePass, keyAlias, finalApkPath)
             )
