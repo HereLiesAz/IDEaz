@@ -27,7 +27,7 @@ This phase focuses on building the user-facing application and establishing comm
 ### **Phase 3: UI Inspection and Source Mapping**
 This phase implements the first half of the core visual interaction loop: tapping a UI element to find its source code.
 
-- [ ] **3.1: Implement the Accessibility Service**
+- [x] **3.1: Implement the Accessibility Service**
 - [x] **3.2: Implement Inspector-to-Host IPC**
 - [x] **3.3: Generate the Source Map during the build**
 - [x] **3.4: Implement Source Lookup in the Host App**
@@ -50,7 +50,7 @@ The final phase transforms the functional prototype into a polished, performant,
 - [x] **5.1: Implement Incremental Builds**
 - [x] **5.2: Implement On-Device Dependency Resolution**
 - [ ] **5.3: Implement the AI Debugger**
-- [ ] **5.4: Enhance the Code Editor**
+- [x] **5.4: Enhance the Code Editor**
 - [ ] **5.5: Polish and Test (Theming, UI/UX Review, Performance)**
 
 ---
