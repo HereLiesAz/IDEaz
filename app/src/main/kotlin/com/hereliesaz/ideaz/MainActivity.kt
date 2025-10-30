@@ -27,8 +27,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.hereliesaz.ideaz.ui.MainViewModel
+import com.hereliesaz.ideaz.ui.PromptPopup
 
 class MainActivity : ComponentActivity() {
 
@@ -59,7 +63,20 @@ class MainActivity : ComponentActivity() {
 fun MainScreen(viewModel: MainViewModel) {
     val buildLog by viewModel.buildLog.collectAsState()
     val buildStatus by viewModel.buildStatus.collectAsState()
+    val aiStatus by viewModel.aiStatus.collectAsState()
+    val patch by viewModel.patch.collectAsState()
     val context = LocalContext.current
+    var showPromptPopup by remember { mutableStateOf(false) }
+
+    if (showPromptPopup) {
+        PromptPopup(
+            onDismiss = { showPromptPopup = false },
+            onSubmit = { prompt ->
+                viewModel.sendPrompt(prompt)
+                showPromptPopup = false
+            }
+        )
+    }
 
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
         Column(
@@ -70,7 +87,17 @@ fun MainScreen(viewModel: MainViewModel) {
             Button(onClick = { viewModel.startBuild(context) }) {
                 Text("Build Project")
             }
-            Text(text = "Status: $buildStatus")
+            Button(onClick = { showPromptPopup = true }) {
+                Text("Send Prompt")
+            }
+            Button(
+                onClick = { viewModel.applyPatch(context) },
+                enabled = patch != null
+            ) {
+                Text("Apply Patch")
+            }
+            Text(text = "Build Status: $buildStatus")
+            Text(text = "AI Status: $aiStatus")
             Text(
                 text = buildLog,
                 modifier = Modifier
