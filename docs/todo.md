@@ -38,8 +38,8 @@ This phase implements the first half of the core visual interaction loop: tappin
 This phase completes the core feature loop by integrating the Jules API.
 
 - [x] **4.1: Integrate the API Client (Retrofit, Ktor, etc.)**
-- [ ] **4.2: Implement the AI Prompt Workflow**
-- [ ] **4.3: Implement Patch Application (JGit)**
+- [x] **4.2: Implement the AI Prompt Workflow**
+- [x] **4.3: Implement Patch Application (JGit)**
 - [ ] **4.4: Automate the Rebuild after patch application**
 
 ---
