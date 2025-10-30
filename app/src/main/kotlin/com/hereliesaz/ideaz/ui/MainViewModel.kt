@@ -13,12 +13,13 @@ import com.hereliesaz.ideaz.api.ApiClient
 import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.models.DebugResult
 import com.hereliesaz.ideaz.services.BuildService
+import com.hereliesaz.ideaz.ui.inspection.InspectionEvents
+import com.hereliesaz.ideaz.utils.SourceMapParser
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
-import com.hereliesaz.ideaz.models.SourceMapEntry
-import com.hereliesaz.ideaz.utils.SourceMapParser
 
 class MainViewModel : ViewModel() {
 
