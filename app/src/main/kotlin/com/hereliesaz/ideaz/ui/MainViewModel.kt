@@ -163,12 +163,15 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch {
             _aiStatus.value = "Applying patch..."
             try {
-                val projectDir = context.filesDir.resolve("project")
-                val gitManager = GitManager(projectDir)
-                gitManager.applyPatch(patch.value!!)
-                _aiStatus.value = "Patch applied"
+                patch.value?.let {
+                    val projectDir = context.filesDir.resolve("project")
+                    val gitManager = GitManager(projectDir)
+                    gitManager.applyPatch(it)
+                    _aiStatus.value = "Patch applied, rebuilding..."
+                    startBuild(context)
+                }
             } catch (e: Exception) {
-                _aiStatus.value = "Error: ${e.message}"
+                _aiStatus.value = "Error applying patch: ${e.message}"
             }
         }
     }

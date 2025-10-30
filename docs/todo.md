@@ -40,14 +40,14 @@ This phase completes the core feature loop by integrating the Jules API.
 - [x] **4.1: Integrate the API Client (Retrofit, Ktor, etc.)**
 - [x] **4.2: Implement the AI Prompt Workflow**
 - [x] **4.3: Implement Patch Application (JGit)**
-- [ ] **4.4: Automate the Rebuild after patch application**
+- [x] **4.4: Automate the Rebuild after patch application**
 
 ---
 
 ### **Phase 5: Refinement and Advanced Features**
 The final phase transforms the functional prototype into a polished, performant, and feature-rich application.
 
-- [ ] **5.1: Implement Incremental Builds**
+- [x] **5.1: Implement Incremental Builds**
 - [ ] **5.2: Implement On-Device Dependency Resolution**
 - [ ] **5.3: Implement the AI Debugger**
 - [ ] **5.4: Enhance the Code Editor**
