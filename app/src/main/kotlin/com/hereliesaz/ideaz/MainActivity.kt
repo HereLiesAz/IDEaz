@@ -1,38 +1,29 @@
 package com.hereliesaz.ideaz
 
+import android.content.Intent
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.tooling.preview.Preview
-import android.content.Intent
-import android.net.Uri
-import com.hereliesaz.ideaz.ui.theme.IDEazTheme
-import androidx.core.content.FileProvider
-import java.io.File
-
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.hereliesaz.ideaz.ui.MainViewModel
 import com.hereliesaz.ideaz.ui.PromptPopup
+import com.hereliesaz.ideaz.ui.theme.IDEazTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -65,15 +56,18 @@ fun MainScreen(viewModel: MainViewModel) {
     val buildStatus by viewModel.buildStatus.collectAsState()
     val aiStatus by viewModel.aiStatus.collectAsState()
     val patch by viewModel.patch.collectAsState()
+    val showPromptPopup by viewModel.showPromptPopup.collectAsState()
     val context = LocalContext.current
-    var showPromptPopup by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        viewModel.listenForInspectionEvents()
+    }
 
     if (showPromptPopup) {
         PromptPopup(
-            onDismiss = { showPromptPopup = false },
+            onDismiss = { viewModel.dismissPopup() },
             onSubmit = { prompt ->
                 viewModel.sendPrompt(prompt)
-                showPromptPopup = false
             }
         )
     }
@@ -87,8 +81,11 @@ fun MainScreen(viewModel: MainViewModel) {
             Button(onClick = { viewModel.startBuild(context) }) {
                 Text("Build Project")
             }
-            Button(onClick = { showPromptPopup = true }) {
-                Text("Send Prompt")
+            Button(onClick = {
+                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                context.startActivity(intent)
+            }) {
+                Text("Toggle Inspection Mode")
             }
             Button(
                 onClick = { viewModel.applyPatch(context) },
