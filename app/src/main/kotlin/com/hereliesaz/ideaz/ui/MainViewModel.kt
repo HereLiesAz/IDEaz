@@ -10,19 +10,15 @@ import androidx.lifecycle.viewModelScope
 import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.IBuildService
 import com.hereliesaz.ideaz.api.ApiClient
-import com.hereliesaz.ideaz.api.CreateSessionRequest
-import com.hereliesaz.ideaz.api.GithubRepoContext
-import com.hereliesaz.ideaz.api.SourceContext
 import com.hereliesaz.ideaz.git.GitManager
-import com.hereliesaz.ideaz.models.SourceMapEntry
+import com.hereliesaz.ideaz.models.DebugResult
 import com.hereliesaz.ideaz.services.BuildService
-import com.hereliesaz.ideaz.ui.inspection.InspectionEvents
-import com.hereliesaz.ideaz.utils.SourceMapParser
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
+import com.hereliesaz.ideaz.models.SourceMapEntry
+import com.hereliesaz.ideaz.utils.SourceMapParser
 
 class MainViewModel : ViewModel() {
 
@@ -38,10 +34,8 @@ class MainViewModel : ViewModel() {
     private val _patch = MutableStateFlow<String?>(null)
     val patch = _patch.asStateFlow()
 
-    private val _showPromptPopup = MutableStateFlow(false)
-    val showPromptPopup = _showPromptPopup.asStateFlow()
-
-    private var selectedResourceId: String? = null
+    private val _debugResult = MutableStateFlow<DebugResult?>(null)
+    val debugResult = _debugResult.asStateFlow()
 
     private var buildService: IBuildService? = null
     private var isBuildServiceBound = false
@@ -156,66 +150,15 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    fun listenForInspectionEvents() {
-        viewModelScope.launch {
-            InspectionEvents.events.collect { event ->
-                val resourceId = event.substringAfter("Node selected: ").trim()
-                selectedResourceId = resourceId
-                _buildLog.value += "\nSelected: $resourceId"
-                lookupSource(resourceId.substringAfter(":id/"))
-                _showPromptPopup.value = true
-            }
-        }
-    }
-
-    fun dismissPopup() {
-        _showPromptPopup.value = false
-    }
-
     fun sendPrompt(prompt: String) {
-        _showPromptPopup.value = false
-        val fullPrompt = "Selected element: $selectedResourceId\nUser instruction: $prompt"
-
         viewModelScope.launch {
-            _aiStatus.value = "Creating session..."
+            _aiStatus.value = "Sending..."
             try {
-                // In a real app, we would add more context, like the file content
-                val request = CreateSessionRequest(
-                    prompt = fullPrompt,
-                    sourceContext = SourceContext(GithubRepoContext())
-                )
-                val sessionResponse = ApiClient.julesApiService.createSession(request)
-                _aiStatus.value = "Session created: ${sessionResponse.id}. Polling for patch..."
-
-                pollForPatch(sessionResponse.id)
-
+                val response = ApiClient.julesApiService.sendPrompt(prompt)
+                _patch.value = response
+                _aiStatus.value = "Patch received"
             } catch (e: Exception) {
                 _aiStatus.value = "Error: ${e.message}"
-            }
-        }
-    }
-
-    private fun pollForPatch(sessionId: String) {
-        viewModelScope.launch {
-            var patchReceived = false
-            while (!patchReceived) {
-                try {
-                    val activities = ApiClient.julesApiService.getActivities(sessionId)
-                    val lastActivity = activities.lastOrNull()
-                    _aiStatus.value = "Polling... Last status: ${lastActivity?.status}"
-
-                    val patchText = lastActivity?.changeSet?.gitPatch
-                    if (patchText != null) {
-                        _patch.value = patchText
-                        _aiStatus.value = "Patch received!"
-                        patchReceived = true
-                    } else {
-                        delay(2000) // Poll every 2 seconds
-                    }
-                } catch (e: Exception) {
-                    _aiStatus.value = "Error polling: ${e.message}"
-                    patchReceived = true // Stop polling on error
-                }
             }
         }
     }
@@ -233,6 +176,19 @@ class MainViewModel : ViewModel() {
                 }
             } catch (e: Exception) {
                 _aiStatus.value = "Error applying patch: ${e.message}"
+            }
+        }
+    }
+
+    fun debugBuild() {
+        viewModelScope.launch {
+            _aiStatus.value = "Debugging..."
+            try {
+                val result = ApiClient.julesApiService.debugBuild(buildLog.value)
+                _debugResult.value = result
+                _aiStatus.value = "Debugging complete"
+            } catch (e: Exception) {
+                _aiStatus.value = "Error debugging: ${e.message}"
             }
         }
     }
