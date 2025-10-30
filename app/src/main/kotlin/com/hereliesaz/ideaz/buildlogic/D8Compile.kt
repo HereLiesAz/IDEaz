@@ -7,7 +7,8 @@ class D8Compile(
     private val d8Path: String,
     private val androidJarPath: String,
     private val classesDir: String,
-    private val outputDir: String
+    private val outputDir: String,
+    private val classpath: String
 ) : BuildStep {
 
     override fun execute(): BuildResult {
@@ -22,11 +23,20 @@ class D8Compile(
             "java",
             "-jar",
             d8Path,
-            "--lib",
-            androidJarPath,
             "--output",
             outputDir
         )
+
+        // Add android.jar and all resolved dependencies to the classpath
+        command.add("--lib")
+        command.add(androidJarPath)
+        if (classpath.isNotEmpty()) {
+            classpath.split(File.pathSeparator).forEach {
+                command.add("--lib")
+                command.add(it)
+            }
+        }
+
         command.addAll(classFiles)
 
         val processResult = ProcessExecutor.execute(command)

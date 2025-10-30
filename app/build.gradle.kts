@@ -59,6 +59,9 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1")
 
+    // Maven Dependency Resolution (jcabi-aether)
+    implementation("com.jcabi:jcabi-aether:0.10.1")
+
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

@@ -10,7 +10,8 @@ class KotlincCompile(
     private val kotlincPath: String,
     private val androidJarPath: String,
     private val javaDir: String,
-    private val classesDir: String
+    private val classesDir: String,
+    private val classpath: String
 ) : BuildStep {
 
     private val cacheFile: File by lazy {
@@ -30,12 +31,18 @@ class KotlincCompile(
             return BuildResult(true, "Source files are up-to-date. Skipping compilation.")
         }
 
+        val fullClasspath = if (classpath.isNotEmpty()) {
+            androidJarPath + File.pathSeparator + classpath
+        } else {
+            androidJarPath
+        }
+
         val command = listOf(
             "java",
             "-jar",
             kotlincPath,
             "-classpath",
-            androidJarPath,
+            fullClasspath,
             "-d",
             classesDir,
             javaDir
