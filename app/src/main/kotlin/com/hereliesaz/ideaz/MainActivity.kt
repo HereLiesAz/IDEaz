@@ -19,11 +19,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Modifier
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.hereliesaz.ideaz.ui.MainViewModel
 import com.hereliesaz.ideaz.ui.PromptPopup
-import com.hereliesaz.ideaz.ui.theme.IDEazTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -56,8 +57,19 @@ fun MainScreen(viewModel: MainViewModel) {
     val buildStatus by viewModel.buildStatus.collectAsState()
     val aiStatus by viewModel.aiStatus.collectAsState()
     val patch by viewModel.patch.collectAsState()
-    val showPromptPopup by viewModel.showPromptPopup.collectAsState()
+    val debugResult by viewModel.debugResult.collectAsState()
     val context = LocalContext.current
+    var showPromptPopup by remember { mutableStateOf(false) }
+
+    if (showPromptPopup) {
+        PromptPopup(
+            onDismiss = { showPromptPopup = false },
+            onSubmit = { prompt ->
+                viewModel.sendPrompt(prompt)
+                showPromptPopup = false
+            }
+        )
+    }
 
     LaunchedEffect(Unit) {
         viewModel.listenForInspectionEvents()
@@ -81,11 +93,8 @@ fun MainScreen(viewModel: MainViewModel) {
             Button(onClick = { viewModel.startBuild(context) }) {
                 Text("Build Project")
             }
-            Button(onClick = {
-                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                context.startActivity(intent)
-            }) {
-                Text("Toggle Inspection Mode")
+            Button(onClick = { showPromptPopup = true }) {
+                Text("Send Prompt")
             }
             Button(
                 onClick = { viewModel.applyPatch(context) },
@@ -93,8 +102,18 @@ fun MainScreen(viewModel: MainViewModel) {
             ) {
                 Text("Apply Patch")
             }
+            if (buildStatus == "Build Failed") {
+                Button(onClick = { viewModel.debugBuild() }) {
+                    Text("Debug with AI")
+                }
+            }
             Text(text = "Build Status: $buildStatus")
             Text(text = "AI Status: $aiStatus")
+            debugResult?.let {
+                Text(text = "AI Debugger Result:")
+                Text(text = "Explanation: ${it.explanation}")
+                Text(text = "Suggested Fix: ${it.suggestedFix}")
+            }
             Text(
                 text = buildLog,
                 modifier = Modifier
