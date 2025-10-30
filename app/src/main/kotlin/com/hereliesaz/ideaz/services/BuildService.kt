@@ -10,20 +10,12 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.IBuildService
-import com.hereliesaz.ideaz.buildlogic.Aapt2Compile
-
+import com.hereliesaz.ideaz.MainActivity
+import com.hereliesaz.ideaz.buildlogic.*
 import com.hereliesaz.ideaz.utils.ToolManager
 import java.io.File
-import com.hereliesaz.ideaz.MainActivity
-import com.hereliesaz.ideaz.buildlogic.Aapt2Link
-import com.hereliesaz.ideaz.buildlogic.ApkBuild
-import com.hereliesaz.ideaz.buildlogic.ApkSign
-import com.hereliesaz.ideaz.buildlogic.BuildOrchestrator
-import com.hereliesaz.ideaz.buildlogic.D8Compile
-import com.hereliesaz.ideaz.buildlogic.KotlincCompile
 import android.content.pm.PackageInstaller
 import android.app.PendingIntent
-import com.hereliesaz.ideaz.buildlogic.GenerateSourceMap
 
 class BuildService : Service() {
 
@@ -76,8 +68,23 @@ class BuildService : Service() {
     }
 
     private fun startBuild(projectPath: String, callback: IBuildCallback) {
-        println("PeridiumBuildService: Received request to build project at $projectPath")
+        val projectDir = File(projectPath)
+        val buildDir = File(filesDir, "build")
+        buildDir.deleteRecursively()
+        buildDir.mkdirs()
 
+        // Dependency Resolution
+        val localRepoDir = File(filesDir, "local-repo")
+        localRepoDir.mkdirs()
+        val resolver = DependencyResolver(projectDir.absolutePath, localRepoDir.absolutePath)
+        val resolverResult = resolver.execute()
+        if (!resolverResult.success) {
+            callback.onFailure("Dependency resolution failed: ${resolverResult.output}")
+            return
+        }
+        val classpath = resolverResult.output
+
+        // Tool Paths
         val aapt2Path = ToolManager.getToolPath(this, "aapt2")
         val kotlincPath = ToolManager.getToolPath(this, "kotlinc")
         val d8Path = ToolManager.getToolPath(this, "d8")
@@ -87,17 +94,12 @@ class BuildService : Service() {
         val keyAlias = "androiddebugkey"
         val androidJarPath = ToolManager.getToolPath(this, "android.jar")
 
-        val buildDir = File(filesDir, "build")
-        buildDir.deleteRecursively()
-        buildDir.mkdirs()
-
+        // Build Directories
         val compiledResDir = File(buildDir, "compiled_res").absolutePath
         val outputApkPath = File(buildDir, "app.apk").absolutePath
         val outputJavaPath = File(buildDir, "gen").absolutePath
         val classesDir = File(buildDir, "classes").absolutePath
         val finalApkPath = File(buildDir, "app-signed.apk").absolutePath
-
-        val projectDir = File(projectPath)
         val resDir = File(projectDir, "app/src/main/res").absolutePath
         val manifestPath = File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath
         val javaDir = File(projectDir, "app/src/main/java").absolutePath
@@ -106,16 +108,9 @@ class BuildService : Service() {
             listOf(
                 GenerateSourceMap(resDir, buildDir.absolutePath),
                 Aapt2Compile(aapt2Path, resDir, compiledResDir),
-                Aapt2Link(
-                    aapt2Path,
-                    compiledResDir,
-                    androidJarPath,
-                    manifestPath,
-                    outputApkPath,
-                    outputJavaPath
-                ),
-                KotlincCompile(kotlincPath, androidJarPath, javaDir, classesDir),
-                D8Compile(d8Path, androidJarPath, classesDir, classesDir),
+                Aapt2Link(aapt2Path, compiledResDir, androidJarPath, manifestPath, outputApkPath, outputJavaPath),
+                KotlincCompile(kotlincPath, androidJarPath, javaDir, classesDir, classpath),
+                D8Compile(d8Path, androidJarPath, classesDir, classesDir, classpath),
                 ApkBuild(finalApkPath, outputApkPath, classesDir),
                 ApkSign(apkSignerPath, keystorePath, keystorePass, keyAlias, finalApkPath)
             )
