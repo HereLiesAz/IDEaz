@@ -9,6 +9,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.IBuildService
+import com.hereliesaz.ideaz.api.ApiClient
+import com.hereliesaz.ideaz.git.GitManager
+import com.hereliesaz.ideaz.models.DebugResult
 import com.hereliesaz.ideaz.services.BuildService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,6 +27,15 @@ class MainViewModel : ViewModel() {
 
     private val _buildStatus = MutableStateFlow("Idle")
     val buildStatus = _buildStatus.asStateFlow()
+
+    private val _aiStatus = MutableStateFlow("Idle")
+    val aiStatus = _aiStatus.asStateFlow()
+
+    private val _patch = MutableStateFlow<String?>(null)
+    val patch = _patch.asStateFlow()
+
+    private val _debugResult = MutableStateFlow<DebugResult?>(null)
+    val debugResult = _debugResult.asStateFlow()
 
     private var buildService: IBuildService? = null
     private var isBuildServiceBound = false
@@ -134,6 +146,49 @@ class MainViewModel : ViewModel() {
             }
             files.forEach {
                 copyAsset(context, "$assetPath/$it", "$destPath/$it")
+            }
+        }
+    }
+
+    fun sendPrompt(prompt: String) {
+        viewModelScope.launch {
+            _aiStatus.value = "Sending..."
+            try {
+                val response = ApiClient.julesApiService.sendPrompt(prompt)
+                _patch.value = response
+                _aiStatus.value = "Patch received"
+            } catch (e: Exception) {
+                _aiStatus.value = "Error: ${e.message}"
+            }
+        }
+    }
+
+    fun applyPatch(context: Context) {
+        viewModelScope.launch {
+            _aiStatus.value = "Applying patch..."
+            try {
+                patch.value?.let {
+                    val projectDir = context.filesDir.resolve("project")
+                    val gitManager = GitManager(projectDir)
+                    gitManager.applyPatch(it)
+                    _aiStatus.value = "Patch applied, rebuilding..."
+                    startBuild(context)
+                }
+            } catch (e: Exception) {
+                _aiStatus.value = "Error applying patch: ${e.message}"
+            }
+        }
+    }
+
+    fun debugBuild() {
+        viewModelScope.launch {
+            _aiStatus.value = "Debugging..."
+            try {
+                val result = ApiClient.julesApiService.debugBuild(buildLog.value)
+                _debugResult.value = result
+                _aiStatus.value = "Debugging complete"
+            } catch (e: Exception) {
+                _aiStatus.value = "Error debugging: ${e.message}"
             }
         }
     }
