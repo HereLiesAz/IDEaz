@@ -1,5 +1,6 @@
 [versions]
 agp = "8.13.0"
+aznavrail = "4.3"
 coreKtx = "1.17.0"
 jcabiAether = "0.10.1"
 junit = "4.13.2"
@@ -19,17 +20,23 @@ mavenResolverSpi = "2.0.13"
 mavenResolverTransportFile = "2.0.13"
 mavenResolverTransportHttp = "1.9.24"
 mavenResolverUtil = "2.0.13"
+navigationCompose = "2.9.5"
 okhttp = "5.2.1"
 orgEclipseJgit = "6.9.0.202403050737-r"
 retrofit = "3.0.0"
 retrofit2KotlinxSerializationConverter = "1.0.0"
+runtimeLivedata = "1.9.4"
 slf4jAndroid = "2.0.17-0"
 slf4jApi = "2.0.17"
 slf4jSimple = "2.0.17"
 
 [libraries]
+androidx-compose-runtime-livedata = { module = "androidx.compose.runtime:runtime-livedata", version.ref = "runtimeLivedata" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycleRuntimeKtx" }
 androidx-localbroadcastmanager = { module = "androidx.localbroadcastmanager:localbroadcastmanager", version.ref = "localbroadcastmanager" }
+androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
+aznavrail = { module = "com.github.HereLiesAz:AzNavRail", version.ref = "aznavrail" }
 jcabi-aether = { module = "com.jcabi:jcabi-aether", version.ref = "jcabiAether" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
