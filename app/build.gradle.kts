@@ -30,8 +30,8 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures {
         compose = true
@@ -43,24 +43,24 @@ android {
         }
     }
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "17"
     }
 }
 
 dependencies {
     // JGit for Git operations
-    implementation("org.eclipse.jgit:org.eclipse.jgit:6.9.0.202403050737-r")
-    implementation("org.slf4j:slf4j-api:2.0.17")
-    implementation("uk.uuid.slf4j:slf4j-android:2.0.17-0")
+    implementation(libs.org.eclipse.jgit)
+    implementation(libs.slf4j.api)
+    implementation(libs.slf4j.android)
 
     // Networking for Jules API
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")
-    implementation("com.squareup.okhttp3:okhttp:4.10.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1")
+    implementation(libs.retrofit)
+    implementation(libs.retrofit2.kotlinx.serialization.converter)
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
 
     // Maven Dependency Resolution (jcabi-aether)
-    implementation("com.jcabi:jcabi-aether:0.10.1")
+    implementation(libs.jcabi.aether)
 
 
     implementation(libs.androidx.core.ktx)
