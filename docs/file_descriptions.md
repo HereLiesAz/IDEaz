@@ -50,10 +50,10 @@ This document provides a brief overview of the purpose of each documentation fil
 
 - **`app/src/main/kotlin/com/hereliesaz/ideaz/ui/MainViewModel.kt`**: The ViewModel for the `MainActivity`. It manages the UI state, handles the `BuildService` connection, and orchestrates the build process.
 
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/git/GitManager.kt`**: A class that encapsulates JGit operations, such as initializing a repository.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/models/SourceMapEntry.kt`**: A data class that represents an entry in the source map.
 
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/services/UIInspectionService.kt`**: An `AccessibilityService` that is responsible for drawing the visual overlay on the target application, capturing user input, and querying the view hierarchy to identify selected components. It communicates with the host app using a `SharedFlow`.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/utils/SourceMapParser.kt`**: A utility class that is responsible for parsing the `source_map.json` file.
 
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/ui/inspection/InspectionEvents.kt`**: A singleton object that holds a `SharedFlow` for communication between the `UIInspectionService` and the `MainViewModel`.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/api/JulesApiService.kt`**: A Retrofit interface that defines the methods for interacting with the Jules API.
 
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/GenerateSourceMap.kt`**: A class that implements the `BuildStep` interface and is responsible for generating a `source_map.json` file that maps resource IDs to their file paths and line numbers.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/api/ApiClient.kt`**: A singleton object that provides a configured Retrofit instance for the `JulesApiService`.
