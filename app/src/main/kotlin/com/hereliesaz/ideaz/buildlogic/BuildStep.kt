@@ -1,8 +1,8 @@
 package com.hereliesaz.ideaz.buildlogic
 
-data class BuildResult(val success: Boolean, val output: String)
-
 import com.hereliesaz.ideaz.IBuildCallback
+
+data class BuildResult(val success: Boolean, val output: String)
 
 interface BuildStep {
     fun execute(callback: IBuildCallback? = null): BuildResult

@@ -37,6 +37,7 @@ import com.hereliesaz.ideaz.ui.EnhancedCodeEditor
 import androidx.compose.foundation.layout.Row
 import androidx.navigation.compose.rememberNavController
 import com.hereliesaz.aznavrail.AzNavRail
+import com.hereliesaz.ideaz.ui.LiveOutputBottomCard
 
 class MainActivity : ComponentActivity() {
 
