@@ -56,6 +56,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         viewModel.bindService(this)
+        viewModel.listSessions()
     }
 
     override fun onStop() {
@@ -70,8 +71,9 @@ fun MainScreen(viewModel: MainViewModel) {
     val codeContent by viewModel.codeContent.collectAsState()
     val buildStatus by viewModel.buildStatus.collectAsState()
     val aiStatus by viewModel.aiStatus.collectAsState()
-    val patch by viewModel.patch.collectAsState()
-    val debugResult by viewModel.debugResult.collectAsState()
+    val session by viewModel.session.collectAsState()
+    val sessions by viewModel.sessions.collectAsState()
+    val activities by viewModel.activities.collectAsState()
     val context = LocalContext.current
     var showPromptPopup by remember { mutableStateOf(false) }
     var isInspecting by remember { mutableStateOf(false) }
@@ -96,7 +98,7 @@ fun MainScreen(viewModel: MainViewModel) {
             AzNavRail(navController = navController) {
                 azRailItem(id = "build", text = "Build", onClick = { viewModel.startBuild(context) })
                 azRailItem(id = "prompt", text = "Prompt", onClick = { showPromptPopup = true })
-                azRailItem(id = "patch", text = "Patch", onClick = { viewModel.applyPatch(context) }, disabled = patch == null)
+                azRailItem(id = "patch", text = "Patch", onClick = { viewModel.applyPatch(context) }, disabled = activities.lastOrNull()?.artifacts?.firstOrNull()?.changeSet?.gitPatch == null)
                 if (buildStatus == "Build Failed") {
                     azRailItem(id = "debug", text = "Debug", onClick = { viewModel.debugBuild() })
                 }
@@ -114,14 +116,24 @@ fun MainScreen(viewModel: MainViewModel) {
                         }
                     }
                 )
+                azRailItem(id = "refresh", text = "Refresh Sessions", onClick = { viewModel.listSessions() })
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = "Build Status: $buildStatus")
                 Text(text = "AI Status: $aiStatus")
-                debugResult?.let {
-                    Text(text = "AI Debugger Result:")
-                    Text(text = "Explanation: ${it.explanation}")
-                    Text(text = "Suggested Fix: ${it.suggestedFix}")
+                session?.let {
+                    Text(text = "Session: ${it.name}")
+                    it.outputs.firstOrNull()?.pullRequest?.let { pr ->
+                        Text(text = "Pull Request: ${pr.title}")
+                    }
+                }
+                Text(text = "Sessions:")
+                sessions.forEach {
+                    Text(text = it.name)
+                }
+                Text(text = "Activities:")
+                activities.forEach {
+                    Text(text = it.description)
                 }
                 LiveOutputBottomCard(
                     logStream = viewModel.buildLog,
