@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.ui
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -20,20 +21,25 @@ fun SettingsScreen(
     var apiKey by remember { mutableStateOf(settingsViewModel.getApiKey(context) ?: "") }
 
     Column {
+        // Re-added the top 20% spacer
         Spacer(modifier = Modifier.weight(0.2f))
+
         Column(modifier = Modifier.weight(0.8f)) {
             Text("Settings")
             Spacer(modifier = Modifier.height(16.dp))
             TextField(
                 value = apiKey,
                 onValueChange = { apiKey = it },
-                label = { Text("Jules API Key") }
+                label = {
+                    Text("Jules API Key") }
             )
             Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = {
                 settingsViewModel.saveApiKey(context, apiKey)
+                Toast.makeText(context, "API Key Saved", Toast.LENGTH_SHORT).show()
             }) {
                 Text("Save")
+
             }
         }
     }
