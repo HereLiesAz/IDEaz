@@ -12,6 +12,7 @@ android {
     defaultConfig {
         applicationId = "com.hereliesaz.ideaz"
         minSdk = 26
+
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -24,6 +25,7 @@ android {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
+
                 "proguard-rules.pro"
             )
         }
@@ -37,6 +39,7 @@ android {
     }
     buildFeatures {
         compose = true
+
         aidl = true
     }
     sourceSets {
@@ -49,6 +52,7 @@ android {
             excludes.add("META-INF/DEPENDENCIES")
             excludes.add("META-INF/LICENSE")
             excludes.add("META-INF/NOTICE")
+
             excludes.add("META-INF/sisu/javax.inject.Named")
             excludes.add("mime.types")
             excludes.add("META-INF/THIRD-PARTY.txt")
@@ -85,7 +89,11 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
 
+
     implementation(libs.androidx.localbroadcastmanager)
+
+    // Compose Unstyled Bottom Sheet
+    implementation(libs.compose.unstyled.core)
 
     implementation(libs.aznavrail)
     implementation(libs.androidx.navigation.compose)

@@ -12,13 +12,16 @@ object ToolManager {
         val toolDir = getToolDir(context)
         if (!toolDir.exists()) {
             toolDir.mkdirs()
+
         }
 
         TOOLS.forEach { toolName ->
             val toolFile = File(toolDir, toolName)
             if (!toolFile.exists()) {
-                context.assets.open("tools/$toolName").use { inputStream ->
+                // Corrected path: from "tools/$toolName" to just toolName
+                context.assets.open(toolName).use { inputStream ->
                     FileOutputStream(toolFile).use { outputStream ->
+
                         inputStream.copyTo(outputStream)
                     }
                 }
@@ -27,6 +30,7 @@ object ToolManager {
             android.util.Log.d("ToolManager", "Set executable for ${toolFile.absolutePath}: $success")
 
         }
+
     }
 
     fun getToolPath(context: Context, toolName: String): String {

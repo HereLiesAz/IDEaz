@@ -21,22 +21,23 @@ fun LiveOutputBottomCard(
     modifier: Modifier = Modifier
 ) {
     val logMessages by logStream.collectAsState(initial = "")
+
     val logLines = logMessages.lines()
 
     Column(
         modifier = modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(16.dp)
     ) {
-        Text("Live Output", style = MaterialTheme.typography.headlineSmall)
-        Spacer(modifier = Modifier.height(8.dp))
+        // Removed "Live Output" title and Spacer
         LazyColumn(modifier = Modifier.weight(1f)) {
+
             items(logLines) { line ->
                 Text(
                     text = line,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp) // Add padding to lines
                 )
             }
         }
