@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.buildlogic
 
+import com.hereliesaz.ideaz.IBuildCallback
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -12,12 +13,13 @@ class ApkBuild(
     private val classesDir: String
 ) : BuildStep {
 
-    override fun execute(): BuildResult {
+    override fun execute(callback: IBuildCallback?): BuildResult {
         try {
             val dexFile = File(classesDir, "classes.dex")
             if (!dexFile.exists()) {
                 val error = "classes.dex not found!"
                 println(error)
+                callback?.onLog(error)
                 return BuildResult(false, error)
             }
 
@@ -35,11 +37,13 @@ class ApkBuild(
             }
             val successMessage = "APK built successfully"
             println(successMessage)
+            callback?.onLog(successMessage)
             return BuildResult(true, successMessage)
         } catch (e: Exception) {
             e.printStackTrace()
-            return BuildResult(false, e.message ?: "Unknown error")
+            val errorMessage = e.message ?: "Unknown error"
+            callback?.onLog(errorMessage)
+            return BuildResult(false, errorMessage)
         }
     }
 }
-
