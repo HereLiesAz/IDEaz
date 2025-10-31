@@ -31,8 +31,8 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
+    kotlin {
+        jvmToolchain(17)
     }
     buildFeatures {
         compose = true
@@ -43,29 +43,29 @@ android {
             aidl.srcDirs("src/main/aidl")
         }
     }
-    packagingOptions {
-        exclude("META-INF/DEPENDENCIES")
-        exclude("META-INF/LICENSE")
-        exclude("META-INF/NOTICE")
-    }
     packaging {
-        resources.excludes.add("META-INF/DEPENDENCIES")
-        resources.excludes.add("META-INF/sisu/javax.inject.Named")
+        resources {
+            excludes.add("META-INF/DEPENDENCIES")
+            excludes.add("META-INF/LICENSE")
+            excludes.add("META-INF/NOTICE")
+            excludes.add("META-INF/sisu/javax.inject.Named")
+            excludes.add("mime.types")
+            excludes.add("META-INF/THIRD-PARTY.txt")
+            excludes.add("META-INF/plexus/components.xml")
+            excludes.add("META-INF/ASL2.0")
+        }
     }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+    buildToolsVersion = "36.1.0"
+    ndkVersion = "29.0.14206865"
 }
 
 dependencies {
-    implementation(platform("org.eclipse.aether:aether-bom:1.1.0"))
-    implementation("org.eclipse.aether:aether-api")
-    implementation("org.eclipse.aether:aether-spi")
-    implementation("org.eclipse.aether:aether-util")
-    implementation("org.eclipse.aether:aether-impl")
-    implementation("org.eclipse.aether:aether-connector-basic")
-    implementation("org.eclipse.aether:aether-transport-file")
-    implementation("org.eclipse.aether:aether-transport-http")
-    implementation("org.apache.maven:maven-aether-provider:3.3.9")
+    implementation(libs.jcabi.aether)
 
-    implementation("org.slf4j:slf4j-simple:1.7.36")
+    implementation(libs.slf4j.simple)
 
     constraints {
         implementation("com.google.guava:guava:32.1.3-android") {
@@ -84,16 +84,6 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
 
-    // Maven Dependency Resolution
-    implementation(libs.maven.resolver.provider)
-    implementation(libs.maven.resolver.api)
-    implementation(libs.maven.resolver.spi)
-    implementation(libs.maven.resolver.util)
-    implementation(libs.maven.resolver.impl)
-    implementation(libs.maven.resolver.connector.basic)
-    implementation(libs.maven.resolver.transport.file)
-    implementation(libs.maven.resolver.transport.http)
-    implementation(libs.slf4j.simple)
     implementation(libs.androidx.localbroadcastmanager)
 
     implementation(libs.aznavrail)
