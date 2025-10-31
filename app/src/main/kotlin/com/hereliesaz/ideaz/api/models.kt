@@ -3,33 +3,160 @@ package com.hereliesaz.ideaz.api
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class SourceContext(
-    val githubRepoContext: GithubRepoContext
-)
-
-@Serializable
-data class GithubRepoContext(
-    val startingBranch: String = "main"
-)
-
-@Serializable
-data class CreateSessionRequest(
+data class Session(
+    val name: String,
+    val id: String,
     val prompt: String,
-    val sourceContext: SourceContext
+    val sourceContext: SourceContext,
+    val title: String,
+    val requirePlanApproval: Boolean,
+    val automationMode: String,
+    val createTime: String,
+    val updateTime: String,
+    val state: String,
+    val url: String,
+    val outputs: List<SessionOutput>
 )
 
 @Serializable
-data class ChangeSet(
-    val gitPatch: String
+data class SourceContext(
+    val source: String,
+    val githubRepoContext: GitHubRepoContext? = null
+)
+
+@Serializable
+data class GitHubRepoContext(
+    val startingBranch: String
+)
+
+@Serializable
+data class SessionOutput(
+    val pullRequest: PullRequest? = null
+)
+
+@Serializable
+data class PullRequest(
+    val url: String,
+    val title: String,
+    val description: String
 )
 
 @Serializable
 data class Activity(
-    val changeSet: ChangeSet? = null,
-    val status: String
+    val name: String,
+    val id: String,
+    val description: String,
+    val createTime: String,
+    val originator: String,
+    val artifacts: List<Artifact>,
+    val agentMessaged: AgentMessaged? = null,
+    val userMessaged: UserMessaged? = null,
+    val planGenerated: PlanGenerated? = null,
+    val planApproved: PlanApproved? = null,
+    val progressUpdated: ProgressUpdated? = null,
+    val sessionCompleted: SessionCompleted? = null,
+    val sessionFailed: SessionFailed? = null
 )
 
 @Serializable
-data class CreateSessionResponse(
-    val id: String
+data class AgentMessaged(
+    val agentMessage: String
+)
+
+@Serializable
+data class UserMessaged(
+    val userMessage: String
+)
+
+@Serializable
+data class PlanGenerated(
+    val plan: Plan
+)
+
+@Serializable
+data class Plan(
+    val id: String,
+    val steps: List<PlanStep>,
+    val createTime: String
+)
+
+@Serializable
+data class PlanStep(
+    val id: String,
+    val title: String,
+    val description: String,
+    val index: Int
+)
+
+@Serializable
+data class PlanApproved(
+    val planId: String
+)
+
+@Serializable
+data class ProgressUpdated(
+    val title: String,
+    val description: String
+)
+
+@Serializable
+class SessionCompleted
+
+@Serializable
+data class SessionFailed(
+    val reason: String
+)
+
+@Serializable
+data class Artifact(
+    val changeSet: ChangeSet? = null,
+    val media: Media? = null,
+    val bashOutput: BashOutput? = null
+)
+
+@Serializable
+data class ChangeSet(
+    val source: String,
+    val gitPatch: GitPatch? = null
+)
+
+@Serializable
+data class GitPatch(
+    val unidiffPatch: String,
+    val baseCommitId: String,
+    val suggestedCommitMessage: String
+)
+
+@Serializable
+data class Media(
+    val data: String,
+    val mimeType: String
+)
+
+@Serializable
+data class BashOutput(
+    val command: String,
+    val output: String,
+    val exitCode: Int
+)
+
+@Serializable
+data class Source(
+    val name: String,
+    val id: String,
+    val githubRepo: GitHubRepo? = null
+)
+
+@Serializable
+data class GitHubRepo(
+    val owner: String,
+    val repo: String,
+    val isPrivate: Boolean,
+    val defaultBranch: GitHubBranch,
+    val branches: List<GitHubBranch>
+)
+
+@Serializable
+data class GitHubBranch(
+    val displayName: String
 )
