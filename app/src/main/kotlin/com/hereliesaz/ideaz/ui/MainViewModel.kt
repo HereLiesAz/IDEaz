@@ -10,8 +10,9 @@ import androidx.lifecycle.viewModelScope
 import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.IBuildService
 import com.hereliesaz.ideaz.api.ApiClient
+import com.hereliesaz.ideaz.api.Session
+import com.hereliesaz.ideaz.api.UserMessaged
 import com.hereliesaz.ideaz.git.GitManager
-import com.hereliesaz.ideaz.models.DebugResult
 import com.hereliesaz.ideaz.services.BuildService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +20,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 import com.hereliesaz.ideaz.models.SourceMapEntry
 import com.hereliesaz.ideaz.utils.SourceMapParser
+import com.hereliesaz.ideaz.api.Activity
 
 class MainViewModel : ViewModel() {
 
@@ -31,11 +33,14 @@ class MainViewModel : ViewModel() {
     private val _aiStatus = MutableStateFlow("Idle")
     val aiStatus = _aiStatus.asStateFlow()
 
-    private val _patch = MutableStateFlow<String?>(null)
-    val patch = _patch.asStateFlow()
+    private val _session = MutableStateFlow<Session?>(null)
+    val session = _session.asStateFlow()
 
-    private val _debugResult = MutableStateFlow<DebugResult?>(null)
-    val debugResult = _debugResult.asStateFlow()
+    private val _activities = MutableStateFlow<List<Activity>>(emptyList())
+    val activities = _activities.asStateFlow()
+
+    private val _sessions = MutableStateFlow<List<Session>>(emptyList())
+    val sessions = _sessions.asStateFlow()
 
     private val _codeContent = MutableStateFlow("")
     val codeContent = _codeContent.asStateFlow()
@@ -162,9 +167,18 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch {
             _aiStatus.value = "Sending..."
             try {
-                val response = ApiClient.julesApiService.sendPrompt(prompt)
-                _patch.value = response
-                _aiStatus.value = "Patch received"
+                val sources = ApiClient.julesApiService.listSources()
+                if (sources.isNotEmpty()) {
+                    val source = sources.first()
+                    val sourceContext = com.hereliesaz.ideaz.api.SourceContext(source.name, com.hereliesaz.ideaz.api.GitHubRepoContext("main"))
+                    val session = com.hereliesaz.ideaz.api.Session("", "", prompt, sourceContext, "", false, "AUTO_CREATE_PR", "", "", "","", emptyList())
+                    val response = ApiClient.julesApiService.createSession(session)
+                    _session.value = response
+                    _aiStatus.value = "Session created"
+                    listActivities()
+                } else {
+                    _aiStatus.value = "No sources found"
+                }
             } catch (e: Exception) {
                 _aiStatus.value = "Error: ${e.message}"
             }
@@ -175,7 +189,7 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch {
             _aiStatus.value = "Applying patch..."
             try {
-                patch.value?.let {
+                _activities.value.lastOrNull()?.artifacts?.firstOrNull()?.changeSet?.gitPatch?.unidiffPatch?.let {
                     val projectDir = context.filesDir.resolve("project")
                     val gitManager = GitManager(projectDir)
                     gitManager.applyPatch(it)
@@ -192,14 +206,41 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch {
             _aiStatus.value = "Debugging..."
             try {
-                val result = ApiClient.julesApiService.debugBuild(buildLog.value)
-                _debugResult.value = result
-                _aiStatus.value = "Debugging complete"
+                session.value?.let {
+                    val message = UserMessaged(buildLog.value)
+                    val updatedSession = ApiClient.julesApiService.sendMessage(it.name, message)
+                    _session.value = updatedSession
+                    _aiStatus.value = "Debugging complete"
+                    listActivities()
+                }
             } catch (e: Exception) {
                 _aiStatus.value = "Error debugging: ${e.message}"
             }
         }
     }
+
+    fun listSessions() {
+        viewModelScope.launch {
+            try {
+                _sessions.value = ApiClient.julesApiService.listSessions()
+            } catch (e: Exception) {
+                _aiStatus.value = "Error listing sessions: ${e.message}"
+            }
+        }
+    }
+
+    fun listActivities() {
+        viewModelScope.launch {
+            try {
+                session.value?.let {
+                    _activities.value = ApiClient.julesApiService.listActivities(it.name)
+                }
+            } catch (e: Exception) {
+                _aiStatus.value = "Error listing activities: ${e.message}"
+            }
+        }
+    }
+
 
     fun updateCodeContent(newContent: String) {
         _codeContent.value = newContent
