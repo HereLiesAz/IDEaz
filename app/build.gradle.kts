@@ -6,9 +6,7 @@ plugins {
 
 android {
     namespace = "com.hereliesaz.ideaz"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.hereliesaz.ideaz"
@@ -33,6 +31,9 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
     buildFeatures {
         compose = true
         aidl = true
@@ -42,20 +43,36 @@ android {
             aidl.srcDirs("src/main/aidl")
         }
     }
-    kotlinOptions {
-        jvmTarget = "17"
+    packagingOptions {
+        exclude("META-INF/DEPENDENCIES")
+        exclude("META-INF/LICENSE")
+        exclude("META-INF/NOTICE")
     }
     packaging {
         resources.excludes.add("META-INF/DEPENDENCIES")
         resources.excludes.add("META-INF/sisu/javax.inject.Named")
-        resources.excludes.add("mime.types")
-        resources.excludes.add("META-INF/THIRD-PARTY.txt")
-        resources.excludes.add("META-INF/plexus/components.xml")
-        resources.excludes.add("META-INF/ASL2.0")
     }
 }
 
 dependencies {
+    implementation(platform("org.eclipse.aether:aether-bom:1.1.0"))
+    implementation("org.eclipse.aether:aether-api")
+    implementation("org.eclipse.aether:aether-spi")
+    implementation("org.eclipse.aether:aether-util")
+    implementation("org.eclipse.aether:aether-impl")
+    implementation("org.eclipse.aether:aether-connector-basic")
+    implementation("org.eclipse.aether:aether-transport-file")
+    implementation("org.eclipse.aether:aether-transport-http")
+    implementation("org.apache.maven:maven-aether-provider:3.3.9")
+
+    implementation("org.slf4j:slf4j-simple:1.7.36")
+
+    constraints {
+        implementation("com.google.guava:guava:32.1.3-android") {
+            because("Guava Android is smaller and avoids conflicts")
+        }
+    }
+
     // JGit for Git operations
     implementation(libs.org.eclipse.jgit)
     implementation(libs.slf4j.api)
@@ -68,7 +85,14 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     // Maven Dependency Resolution
-    implementation(libs.jcabi.aether)
+    implementation(libs.maven.resolver.provider)
+    implementation(libs.maven.resolver.api)
+    implementation(libs.maven.resolver.spi)
+    implementation(libs.maven.resolver.util)
+    implementation(libs.maven.resolver.impl)
+    implementation(libs.maven.resolver.connector.basic)
+    implementation(libs.maven.resolver.transport.file)
+    implementation(libs.maven.resolver.transport.http)
     implementation(libs.slf4j.simple)
     implementation(libs.androidx.localbroadcastmanager)
 
@@ -85,6 +109,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
