@@ -28,13 +28,17 @@ class DependencyResolver(
         callback?.onLog("Resolving dependencies...")
 
         return try {
+            val google = RemoteRepository("google", "default", "https://maven.google.com/")
             val central = RemoteRepository("central", "default", "https://repo.maven.apache.org/maven2/")
-            val aether = Aether(listOf(central), cacheDir)
+            val jitpack = RemoteRepository("jitpack", "default", "https://jitpack.io")
+            val aether = Aether(listOf(google, central, jitpack), cacheDir)
 
             dependenciesFile.readLines().forEach { line ->
-                callback?.onLog("  - $line")
-                val artifact = DefaultArtifact(line)
-                aether.resolve(artifact, "runtime")
+                if (line.isNotBlank()) {
+                    callback?.onLog("  - $line")
+                    val artifact = DefaultArtifact(line)
+                    aether.resolve(artifact, "runtime")
+                }
             }
 
             callback?.onLog("Dependencies resolved successfully.")
