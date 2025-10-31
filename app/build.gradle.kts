@@ -48,6 +48,10 @@ android {
     packaging {
         resources.excludes.add("META-INF/DEPENDENCIES")
         resources.excludes.add("META-INF/sisu/javax.inject.Named")
+        resources.excludes.add("mime.types")
+        resources.excludes.add("META-INF/THIRD-PARTY.txt")
+        resources.excludes.add("META-INF/plexus/components.xml")
+        resources.excludes.add("META-INF/ASL2.0")
     }
 }
 
@@ -64,14 +68,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     // Maven Dependency Resolution
-    implementation(libs.maven.resolver.provider)
-    implementation(libs.maven.resolver.api)
-    implementation(libs.maven.resolver.spi)
-    implementation(libs.maven.resolver.util)
-    implementation(libs.maven.resolver.impl)
-    implementation(libs.maven.resolver.connector.basic)
-    implementation(libs.maven.resolver.transport.file)
-    implementation(libs.maven.resolver.transport.http)
+    implementation(libs.jcabi.aether)
     implementation(libs.slf4j.simple)
     implementation(libs.androidx.localbroadcastmanager)
 
