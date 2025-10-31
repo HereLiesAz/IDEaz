@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.buildlogic
 
+import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.utils.ProcessExecutor
 import java.io.File
 import java.io.FileInputStream
@@ -18,7 +19,7 @@ class KotlincCompile(
         File(classesDir, ".kotlinc_cache")
     }
 
-    override fun execute(): BuildResult {
+    override fun execute(callback: IBuildCallback?): BuildResult {
         if (!classesDir.exists()) {
             classesDir.mkdirs()
         }
@@ -47,7 +48,7 @@ class KotlincCompile(
             javaDir
         )
 
-        val processResult = ProcessExecutor.execute(command)
+        val processResult = ProcessExecutor.execute(command, callback)
 
         if (processResult.exitCode == 0) {
             updateCache(currentTimestamps)

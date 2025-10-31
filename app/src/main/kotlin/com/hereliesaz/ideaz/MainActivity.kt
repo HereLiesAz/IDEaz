@@ -122,11 +122,9 @@ fun MainScreen(viewModel: MainViewModel) {
                     Text(text = "Explanation: ${it.explanation}")
                     Text(text = "Suggested Fix: ${it.suggestedFix}")
                 }
-                EnhancedCodeEditor(
-                    code = buildLog,
-                    onValueChange = { },
-                    modifier = Modifier
-                        .weight(1f)
+                LiveOutputBottomCard(
+                    logStream = viewModel.buildLog,
+                    modifier = Modifier.weight(1f)
                 )
             }
         }

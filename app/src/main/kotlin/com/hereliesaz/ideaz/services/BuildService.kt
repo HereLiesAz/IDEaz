@@ -22,7 +22,7 @@ class BuildService : Service() {
     private lateinit var packageInstaller: PackageInstaller
 
     companion object {
-        private const val NOTIFICATION_CHANNEL_ID = "PERIDIUM_BUILD_CHANNEL_ID"
+        private const val NOTIFICATION_CHANNEL_ID = "IDEAZ_BUILD_CHANNEL_ID"
         private const val NOTIFICATION_ID = 1
     }
 
@@ -41,7 +41,7 @@ class BuildService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setContentTitle("Peridium IDE")
+            .setContentTitle("IDEaz IDE")
             .setContentText("Build Service is running.")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .build()
@@ -59,7 +59,7 @@ class BuildService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 NOTIFICATION_CHANNEL_ID,
-                "Peridium Build Service",
+                "IDEaz Build Service",
                 NotificationManager.IMPORTANCE_DEFAULT
             )
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -120,7 +120,7 @@ class BuildService : Service() {
             )
         )
 
-        val result = buildOrchestrator.execute()
+        val result = buildOrchestrator.execute(callback)
         if (result.success) {
             callback.onSuccess(finalApkPath)
             installApk(finalApkPath)
@@ -136,7 +136,7 @@ class BuildService : Service() {
 
         val file = File(apkPath)
         val inputStream = file.inputStream()
-        val outputStream = session.openWrite("PeridiumIDE", 0, file.length())
+        val outputStream = session.openWrite("IDEazIDE", 0, file.length())
 
         inputStream.copyTo(outputStream)
         session.fsync(outputStream)

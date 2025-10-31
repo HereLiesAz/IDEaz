@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.buildlogic
 
+import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.utils.ProcessExecutor
 import java.io.File
 
@@ -12,7 +13,7 @@ class Aapt2Link(
     private val outputJavaPath: String
 ) : BuildStep {
 
-    override fun execute(): BuildResult {
+    override fun execute(callback: IBuildCallback?): BuildResult {
         val outputJavaDir = File(outputJavaPath)
         if (!outputJavaDir.exists()) {
             outputJavaDir.mkdirs()
@@ -36,7 +37,7 @@ class Aapt2Link(
             command.add(it.absolutePath)
         }
 
-        val processResult = ProcessExecutor.execute(command)
+        val processResult = ProcessExecutor.execute(command, callback)
         return BuildResult(processResult.exitCode == 0, processResult.output)
     }
 }

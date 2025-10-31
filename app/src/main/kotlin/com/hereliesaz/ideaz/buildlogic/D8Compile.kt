@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.buildlogic
 
+import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.utils.ProcessExecutor
 import java.io.File
 
@@ -11,7 +12,7 @@ class D8Compile(
     private val classpath: String
 ) : BuildStep {
 
-    override fun execute(): BuildResult {
+    override fun execute(callback: IBuildCallback?): BuildResult {
         val outputDirFile = File(outputDir)
         if (!outputDirFile.exists()) {
             outputDirFile.mkdirs()
@@ -39,7 +40,7 @@ class D8Compile(
 
         command.addAll(classFiles)
 
-        val processResult = ProcessExecutor.execute(command)
+        val processResult = ProcessExecutor.execute(command, callback)
         return BuildResult(processResult.exitCode == 0, processResult.output)
     }
 }
