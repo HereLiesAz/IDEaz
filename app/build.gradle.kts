@@ -45,6 +45,10 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    packaging {
+        resources.excludes.add("META-INF/DEPENDENCIES")
+        resources.excludes.add("META-INF/sisu/javax.inject.Named")
+    }
 }
 
 dependencies {
