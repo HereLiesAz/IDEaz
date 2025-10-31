@@ -1,13 +1,13 @@
-# Peridium IDE: Data Layer & Source of Truth
+# IDEaz IDE: Data Layer & Source of Truth
 
-This document describes the dual data layer architecture of the Peridium IDE project. It's crucial to distinguish between the data layer for the **user's application** and the internal data storage for the **Peridium IDE app itself**.
+This document describes the dual data layer architecture of the IDEaz IDE project. It's crucial to distinguish between the data layer for the **user's application** and the internal data storage for the **IDEaz IDE app itself**.
 
 ---
 
 ## 1. The User's Application: The "Invisible Repository"
 **The ultimate source of truth for the application a user builds is a dedicated, private Git repository.**
 
-In the Peridium IDE paradigm, the user does not directly interact with a database or data models. They express intent in natural language (e.g., "I need to track customers with a name and email"), and the Jules AI agent is responsible for generating all the necessary code to represent and manage that data.
+In the IDEaz IDE paradigm, the user does not directly interact with a database or data models. They express intent in natural language (e.g., "I need to track customers with a name and email"), and the Jules AI agent is responsible for generating all the necessary code to represent and manage that data.
 
 This code, including database schemas, migrations, and API logic, is committed to the "Invisible Repository." This Git-native approach means the user's application benefits from a robust data management strategy by default:
 
@@ -17,8 +17,8 @@ This code, including database schemas, migrations, and API logic, is committed t
 
 ---
 
-## 2. The Peridium IDE App: Internal Data Storage
-**The Peridium IDE app itself uses local, on-device storage for its own operational data.**
+## 2. The IDEaz IDE App: Internal Data Storage
+**The IDEaz IDE app itself uses local, on-device storage for its own operational data.**
 
 The IDE needs to store settings and sensitive information to function correctly. This data is stored locally on the user's Android device.
 
@@ -35,7 +35,7 @@ The IDE needs to store settings and sensitive information to function correctly.
 
 ## 3. On-Device Git Repository
 
-To facilitate the "post-code" workflow and the interaction with the Jules API, the Peridium IDE app manages a local Git repository for the user's project directly on the device. This is handled by the `GitManager` class, which uses the JGit library to perform Git operations.
+To facilitate the "post-code" workflow and the interaction with the Jules API, the IDEaz IDE app manages a local Git repository for the user's project directly on the device. This is handled by the `GitManager` class, which uses the JGit library to perform Git operations.
 
 -   **`GitManager.kt`**: This class encapsulates all the JGit operations, starting with initializing a new repository in the project's directory.
 

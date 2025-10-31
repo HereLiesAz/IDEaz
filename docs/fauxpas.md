@@ -1,6 +1,6 @@
-# Peridium IDE: Common Faux Pas & Best Practices (Screenshot-First Architecture)
+# IDEaz IDE: Common Faux Pas & Best Practices (Screenshot-First Architecture)
 
-This document outlines common pitfalls ("faux pas") that developers might encounter while working on the "Screenshot-First" Peridium IDE.
+This document outlines common pitfalls ("faux pas") that developers might encounter while working on the "Screenshot-First" IDEaz IDE.
 
 ### 1. Blocking the Main Thread
 **The Faux Pas:** Performing any part of the `git pull -> compile -> relaunch` loop on Android's main thread.

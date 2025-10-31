@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.buildlogic
 
+import com.hereliesaz.ideaz.IBuildCallback
 import org.apache.maven.repository.internal.MavenRepositorySystemUtils
 import org.eclipse.aether.DefaultRepositorySystemSession
 import org.eclipse.aether.RepositorySystem
@@ -29,7 +30,7 @@ class DependencyResolver(
         get() = cacheDir.listFiles { file -> file.extension == "jar" }
             ?.joinToString(File.pathSeparator) { it.absolutePath } ?: ""
 
-    override fun execute(): BuildResult {
+    override fun execute(callback: IBuildCallback?): BuildResult {
         if (!cacheDir.exists()) {
             cacheDir.mkdirs()
         }
@@ -38,12 +39,14 @@ class DependencyResolver(
             return BuildResult(true, "No dependencies file found. Skipping resolution.")
         }
 
+        callback?.onLog("Resolving dependencies...")
         val system = newRepositorySystem()
         val session = newRepositorySystemSession(system, cacheDir)
 
         val central = RemoteRepository.Builder("central", "default", "https://repo.maven.apache.org/maven2/").build()
 
         val dependencies = dependenciesFile.readLines().map {
+            callback?.onLog("  - $it")
             val artifact = DefaultArtifact(it)
             Dependency(artifact, "compile")
         }
@@ -57,8 +60,10 @@ class DependencyResolver(
 
         return try {
             system.resolveDependencies(session, dependencyRequest)
+            callback?.onLog("Dependencies resolved successfully.")
             BuildResult(true, "Dependencies resolved successfully.")
         } catch (e: Exception) {
+            callback?.onLog("Failed to resolve dependencies: ${e.message}")
             BuildResult(false, "Failed to resolve dependencies: ${e.message}")
         }
     }

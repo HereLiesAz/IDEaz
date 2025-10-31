@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.buildlogic
 
+import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.utils.ProcessExecutor
 import java.io.File
 
@@ -9,7 +10,7 @@ class Aapt2Compile(
     private val compiledResDir: String
 ) : BuildStep {
 
-    override fun execute(): BuildResult {
+    override fun execute(callback: IBuildCallback?): BuildResult {
         val compiledResDirFile = File(compiledResDir)
         if (!compiledResDirFile.exists()) {
             compiledResDirFile.mkdirs()
@@ -24,7 +25,7 @@ class Aapt2Compile(
             compiledResDir
         )
 
-        val processResult = ProcessExecutor.execute(command)
+        val processResult = ProcessExecutor.execute(command, callback)
         return BuildResult(processResult.exitCode == 0, processResult.output)
     }
 }

@@ -1,9 +1,9 @@
-# Peridium IDE: Authentication & API Key Management
+# IDEaz IDE: Authentication & API Key Management
 
-This document outlines the authentication strategy for the Peridium IDE application and the management of the user's Jules API key.
+This document outlines the authentication strategy for the IDEaz IDE application and the management of the user's Jules API key.
 
-## 1. User Authentication for Peridium IDE
-**Goal:** To provide a seamless and secure login experience for users of the Peridium IDE app itself.
+## 1. User Authentication for IDEaz IDE
+**Goal:** To provide a seamless and secure login experience for users of the IDEaz IDE app itself.
 
 The authentication for the main app will follow standard, user-friendly web and mobile practices.
 
@@ -16,6 +16,6 @@ The authentication for the main app will follow standard, user-friendly web and 
 User authentication is completely separate from API authentication. To use the AI's code generation capabilities, the user must provide their own Jules API key.
 
 -   **User-Provided Key:** The user is responsible for obtaining their own API key from the Jules platform.
--   **Input and Storage:** The user will enter this key into a dedicated "Settings" screen within the Peridium IDE app. The app will then save this key securely on the device using Android's **EncryptedSharedPreferences**.
--   **Usage:** When the on-device Peridium Service makes a call to the Jules API, it will retrieve the securely stored key and use it to authenticate the request.
+-   **Input and Storage:** The user will enter this key into a dedicated "Settings" screen within the IDEaz IDE app. The app will then save this key securely on the device using Android's **EncryptedSharedPreferences**.
+-   **Usage:** When the on-device IDEaz Service makes a call to the Jules API, it will retrieve the securely stored key and use it to authenticate the request.
 -   **Security:** This model shifts the responsibility for API costs and access to the user. The app's primary security responsibility is to ensure the key is stored on the device as securely as possible and is only ever sent directly to the Jules API over HTTPS. It is never transmitted elsewhere.

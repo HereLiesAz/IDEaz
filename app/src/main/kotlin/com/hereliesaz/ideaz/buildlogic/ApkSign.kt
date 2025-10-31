@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.buildlogic
 
+import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.utils.ProcessExecutor
 
 class ApkSign(
@@ -10,7 +11,7 @@ class ApkSign(
     private val apkPath: String
 ) : BuildStep {
 
-    override fun execute(): BuildResult {
+    override fun execute(callback: IBuildCallback?): BuildResult {
         val command = listOf(
             "java",
             "-jar",
@@ -25,7 +26,7 @@ class ApkSign(
             apkPath
         )
 
-        val processResult = ProcessExecutor.execute(command)
+        val processResult = ProcessExecutor.execute(command, callback)
         return BuildResult(processResult.exitCode == 0, processResult.output)
     }
 }

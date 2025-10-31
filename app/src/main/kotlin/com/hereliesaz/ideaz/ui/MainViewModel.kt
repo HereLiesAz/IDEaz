@@ -69,6 +69,11 @@ class MainViewModel : ViewModel() {
     private var sourceMap: Map<String, SourceMapEntry> = emptyMap()
 
     private val buildCallback = object : IBuildCallback.Stub() {
+        override fun onLog(message: String) {
+            viewModelScope.launch {
+                _buildLog.value += "$message\n"
+            }
+        }
         override fun onSuccess(apkPath: String) {
             viewModelScope.launch {
                 _buildLog.value += "\nBuild successful: $apkPath"
