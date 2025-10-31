@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -38,6 +39,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.navigation.compose.rememberNavController
 import com.hereliesaz.aznavrail.AzNavRail
 import com.hereliesaz.ideaz.ui.LiveOutputBottomCard
+import com.hereliesaz.ideaz.ui.SettingsScreen
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
 
 class MainActivity : ComponentActivity() {
 
@@ -98,47 +102,62 @@ fun MainScreen(viewModel: MainViewModel) {
             AzNavRail(navController = navController) {
                 azRailItem(id = "build", text = "Build", onClick = { viewModel.startBuild(context) })
                 azRailItem(id = "prompt", text = "Prompt", onClick = { showPromptPopup = true })
-                azRailItem(id = "patch", text = "Patch", onClick = { viewModel.applyPatch(context) }, disabled = activities.lastOrNull()?.artifacts?.firstOrNull()?.changeSet?.gitPatch == null)
-                if (buildStatus == "Build Failed") {
-                    azRailItem(id = "debug", text = "Debug", onClick = { viewModel.debugBuild() })
+                    azRailItem(id = "patch", text = "Patch", onClick = { viewModel.applyPatch(context) }, disabled = activities.lastOrNull()?.artifacts?.firstOrNull()?.changeSet?.gitPatch == null)
+                    if (buildStatus == "Build Failed") {
+                        azRailItem(id = "debug", text = "Debug", onClick = { viewModel.debugBuild() })
+                    }
+                    azRailToggle(
+                        id = "inspect",
+                        isChecked = isInspecting,
+                        toggleOnText = "Stop Inspecting",
+                        toggleOffText = "Start Inspecting",
+                        onClick = {
+                            isInspecting = !isInspecting
+                            if (isInspecting) {
+                                viewModel.startInspection(context)
+                            } else {
+                                viewModel.stopInspection(context)
+                            }
+                        }
+                    )
+                    azRailItem(id = "refresh", text = "Refresh Sessions", onClick = { viewModel.listSessions() })
+                    azRailItem(id = "settings", text = "Settings", onClick = { navController.navigate("settings") })
                 }
-                azRailToggle(
-                    id = "inspect",
-                    isChecked = isInspecting,
-                    toggleOnText = "Stop Inspecting",
-                    toggleOffText = "Start Inspecting",
-                    onClick = {
-                        isInspecting = !isInspecting
-                        if (isInspecting) {
-                            viewModel.startInspection(context)
-                        } else {
-                            viewModel.stopInspection(context)
+                Column(modifier = Modifier.weight(1f)) {
+                    Spacer(modifier = Modifier.weight(0.2f))
+                    NavHost(
+                        navController = navController,
+                        startDestination = "main",
+                        modifier = Modifier.weight(0.8f)
+                    ) {
+                        composable("main") {
+                            Column {
+                                Text(text = "Build Status: $buildStatus")
+                                Text(text = "AI Status: $aiStatus")
+                            session?.let {
+                                Text(text = "Session: ${it.name}")
+                                it.outputs.firstOrNull()?.pullRequest?.let { pr ->
+                                    Text(text = "Pull Request: ${pr.title}")
+                                }
+                            }
+                            Text(text = "Sessions:")
+                            sessions.forEach {
+                                Text(text = it.name)
+                            }
+                            Text(text = "Activities:")
+                            activities.forEach {
+                                Text(text = it.description)
+                            }
+                            LiveOutputBottomCard(
+                                logStream = viewModel.buildLog,
+                                modifier = Modifier.weight(1f)
+                            )
                         }
                     }
-                )
-                azRailItem(id = "refresh", text = "Refresh Sessions", onClick = { viewModel.listSessions() })
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = "Build Status: $buildStatus")
-                Text(text = "AI Status: $aiStatus")
-                session?.let {
-                    Text(text = "Session: ${it.name}")
-                    it.outputs.firstOrNull()?.pullRequest?.let { pr ->
-                        Text(text = "Pull Request: ${pr.title}")
+                    composable("settings") {
+                        SettingsScreen()
                     }
                 }
-                Text(text = "Sessions:")
-                sessions.forEach {
-                    Text(text = it.name)
-                }
-                Text(text = "Activities:")
-                activities.forEach {
-                    Text(text = it.description)
-                }
-                LiveOutputBottomCard(
-                    logStream = viewModel.buildLog,
-                    modifier = Modifier.weight(1f)
-                )
             }
         }
     }
