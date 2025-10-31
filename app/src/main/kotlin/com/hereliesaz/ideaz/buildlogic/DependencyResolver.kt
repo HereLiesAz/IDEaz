@@ -1,23 +1,9 @@
 package com.hereliesaz.ideaz.buildlogic
 
 import com.hereliesaz.ideaz.IBuildCallback
-import org.apache.maven.repository.internal.MavenRepositorySystemUtils
-import org.eclipse.aether.DefaultRepositorySystemSession
-import org.eclipse.aether.RepositorySystem
-import org.eclipse.aether.artifact.DefaultArtifact
-import org.eclipse.aether.collection.CollectRequest
-import org.eclipse.aether.graph.Dependency
-import org.eclipse.aether.repository.LocalRepository
-import org.eclipse.aether.repository.RemoteRepository
-import org.eclipse.aether.resolution.DependencyRequest
-import org.eclipse.aether.connector.basic.BasicRepositoryConnectorFactory
-import org.eclipse.aether.spi.connector.RepositoryConnectorFactory
-import org.eclipse.aether.spi.connector.transport.TransporterFactory
-import org.eclipse.aether.transport.file.FileTransporterFactory
-import org.eclipse.aether.transport.http.HttpTransporterFactory
-import org.eclipse.aether.util.graph.selector.AndDependencySelector
-import org.eclipse.aether.util.graph.selector.OptionalDependencySelector
-import org.eclipse.aether.util.graph.selector.ScopeDependencySelector
+import com.jcabi.aether.Aether
+import org.sonatype.aether.repository.RemoteRepository
+import org.sonatype.aether.util.artifact.DefaultArtifact
 import java.io.File
 
 class DependencyResolver(
@@ -40,59 +26,22 @@ class DependencyResolver(
         }
 
         callback?.onLog("Resolving dependencies...")
-        val system = newRepositorySystem()
-        val session = newRepositorySystemSession(system, cacheDir)
-
-        val central = RemoteRepository.Builder("central", "default", "https://repo.maven.apache.org/maven2/").build()
-
-        val dependencies = dependenciesFile.readLines().map {
-            callback?.onLog("  - $it")
-            val artifact = DefaultArtifact(it)
-            Dependency(artifact, "compile")
-        }
-
-        val collectRequest = CollectRequest()
-        collectRequest.root = dependencies.first()
-        dependencies.drop(1).forEach { collectRequest.addDependency(it) }
-        collectRequest.addRepository(central)
-
-        val dependencyRequest = DependencyRequest(collectRequest, null)
 
         return try {
-            system.resolveDependencies(session, dependencyRequest)
+            val central = RemoteRepository("central", "default", "https://repo.maven.apache.org/maven2/")
+            val aether = Aether(listOf(central), cacheDir)
+
+            dependenciesFile.readLines().forEach { line ->
+                callback?.onLog("  - $line")
+                val artifact = DefaultArtifact(line)
+                aether.resolve(artifact, "runtime")
+            }
+
             callback?.onLog("Dependencies resolved successfully.")
             BuildResult(true, "Dependencies resolved successfully.")
         } catch (e: Exception) {
             callback?.onLog("Failed to resolve dependencies: ${e.message}")
             BuildResult(false, "Failed to resolve dependencies: ${e.message}")
         }
-    }
-
-    private fun newRepositorySystem(): RepositorySystem {
-        val locator = MavenRepositorySystemUtils.newServiceLocator()
-        locator.addService(
-            RepositoryConnectorFactory::class.java,
-            BasicRepositoryConnectorFactory::class.java
-        )
-        locator.addService(
-            TransporterFactory::class.java,
-            FileTransporterFactory::class.java
-        )
-        locator.addService(
-            TransporterFactory::class.java,
-            HttpTransporterFactory::class.java
-        )
-        return locator.getService(RepositorySystem::class.java)
-    }
-
-    private fun newRepositorySystemSession(system: RepositorySystem, cacheDir: File): DefaultRepositorySystemSession {
-        val session = MavenRepositorySystemUtils.newSession()
-        val localRepo = LocalRepository(cacheDir)
-        session.localRepositoryManager = system.newLocalRepositoryManager(session, localRepo)
-        session.dependencySelector = AndDependencySelector(
-            ScopeDependencySelector("test", "provided"),
-            OptionalDependencySelector()
-        )
-        return session
     }
 }

@@ -2,6 +2,7 @@
 agp = "8.13.0"
 aznavrail = "4.3"
 coreKtx = "1.17.0"
+jcabiAether = "0.10.1"
 junit = "4.13.2"
 junitVersion = "1.3.0"
 espressoCore = "3.7.0"
@@ -11,8 +12,6 @@ activityCompose = "1.11.0"
 kotlin = "2.2.21"
 composeBom = "2025.10.01"
 localbroadcastmanager = "1.1.0"
-mavenResolver = "1.9.24"
-mavenResolverProvider = "3.9.11"
 navigationCompose = "2.9.5"
 okhttp = "5.2.1"
 orgEclipseJgit = "6.9.0.202403050737-r"
@@ -30,6 +29,7 @@ androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-
 androidx-localbroadcastmanager = { module = "androidx.localbroadcastmanager:localbroadcastmanager", version.ref = "localbroadcastmanager" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
 aznavrail = { module = "com.github.HereLiesAz:AzNavRail", version.ref = "aznavrail" }
+jcabi-aether = { module = "com.jcabi:jcabi-aether", version.ref = "jcabiAether" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
@@ -44,14 +44,6 @@ androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
-maven-resolver-api = { module = "org.apache.maven.resolver:maven-resolver-api", version.ref = "mavenResolver" }
-maven-resolver-connector-basic = { module = "org.apache.maven.resolver:maven-resolver-connector-basic", version.ref = "mavenResolver" }
-maven-resolver-impl = { module = "org.apache.maven.resolver:maven-resolver-impl", version.ref = "mavenResolver" }
-maven-resolver-provider = { module = "org.apache.maven:maven-resolver-provider", version.ref = "mavenResolverProvider" }
-maven-resolver-spi = { module = "org.apache.maven.resolver:maven-resolver-spi", version.ref = "mavenResolver" }
-maven-resolver-transport-file = { module = "org.apache.maven.resolver:maven-resolver-transport-file", version.ref = "mavenResolver" }
-maven-resolver-transport-http = { module = "org.apache.maven.resolver:maven-resolver-transport-http", version.ref = "mavenResolver" }
-maven-resolver-util = { module = "org.apache.maven.resolver:maven-resolver-util", version.ref = "mavenResolver" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 org-eclipse-jgit = { module = "org.eclipse.jgit:org.eclipse.jgit", version.ref = "orgEclipseJgit" }
 retrofit = { module = "com.squareup.retrofit2:retrofit", version.ref = "retrofit" }
