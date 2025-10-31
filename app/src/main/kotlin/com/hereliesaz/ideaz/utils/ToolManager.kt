@@ -22,8 +22,8 @@ object ToolManager {
                         inputStream.copyTo(outputStream)
                     }
                 }
-                toolFile.setExecutable(true, false)
             }
+            toolFile.setExecutable(true, false)
         }
     }
 

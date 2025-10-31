@@ -12,14 +12,6 @@ activityCompose = "1.11.0"
 kotlin = "2.2.21"
 composeBom = "2025.10.01"
 localbroadcastmanager = "1.1.0"
-mavenResolverApi = "2.0.13"
-mavenResolverConnectorBasic = "2.0.13"
-mavenResolverImpl = "2.0.13"
-mavenResolverProvider = "3.9.11"
-mavenResolverSpi = "2.0.13"
-mavenResolverTransportFile = "2.0.13"
-mavenResolverTransportHttp = "1.9.24"
-mavenResolverUtil = "2.0.13"
 navigationCompose = "2.9.5"
 okhttp = "5.2.1"
 orgEclipseJgit = "6.9.0.202403050737-r"
@@ -52,14 +44,6 @@ androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
-maven-resolver-api = { module = "org.apache.maven.resolver:maven-resolver-api", version.ref = "mavenResolverApi" }
-maven-resolver-connector-basic = { module = "org.apache.maven.resolver:maven-resolver-connector-basic", version.ref = "mavenResolverConnectorBasic" }
-maven-resolver-impl = { module = "org.apache.maven.resolver:maven-resolver-impl", version.ref = "mavenResolverImpl" }
-maven-resolver-provider = { module = "org.apache.maven:maven-resolver-provider", version.ref = "mavenResolverProvider" }
-maven-resolver-spi = { module = "org.apache.maven.resolver:maven-resolver-spi", version.ref = "mavenResolverSpi" }
-maven-resolver-transport-file = { module = "org.apache.maven.resolver:maven-resolver-transport-file", version.ref = "mavenResolverTransportFile" }
-maven-resolver-transport-http = { module = "org.apache.maven.resolver:maven-resolver-transport-http", version.ref = "mavenResolverTransportHttp" }
-maven-resolver-util = { module = "org.apache.maven.resolver:maven-resolver-util", version.ref = "mavenResolverUtil" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 org-eclipse-jgit = { module = "org.eclipse.jgit:org.eclipse.jgit", version.ref = "orgEclipseJgit" }
 retrofit = { module = "com.squareup.retrofit2:retrofit", version.ref = "retrofit" }
