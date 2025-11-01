@@ -40,7 +40,7 @@ class D8Compile(
 
         command.addAll(classFiles)
 
-        val processResult = ProcessExecutor.execute(command, callback)
+        val processResult = ProcessExecutor.execute(command)
         return BuildResult(processResult.exitCode == 0, processResult.output)
     }
 }
