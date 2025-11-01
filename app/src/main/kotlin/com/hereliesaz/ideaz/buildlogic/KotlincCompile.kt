@@ -48,7 +48,7 @@ class KotlincCompile(
             javaDir
         )
 
-        val processResult = ProcessExecutor.execute(command, callback)
+        val processResult = ProcessExecutor.execute(command)
 
         if (processResult.exitCode == 0) {
             updateCache(currentTimestamps)

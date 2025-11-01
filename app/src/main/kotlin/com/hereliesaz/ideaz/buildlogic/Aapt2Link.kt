@@ -37,7 +37,7 @@ class Aapt2Link(
             command.add(it.absolutePath)
         }
 
-        val processResult = ProcessExecutor.execute(command, callback)
+        val processResult = ProcessExecutor.execute(command)
         return BuildResult(processResult.exitCode == 0, processResult.output)
     }
 }
