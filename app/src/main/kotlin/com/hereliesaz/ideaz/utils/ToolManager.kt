@@ -40,15 +40,19 @@ android.util.Log.d("ToolManager", "Asset extraction complete.")
 }
 
 fun getToolPath(context: Context, toolName: String): String {
-return if (NATIVE_BINARIES.containsKey(toolName)) {
-// Get path to executable native binary
-val libName = NATIVE_BINARIES[toolName]
-File(context.applicationInfo.nativeLibraryDir, libName).absolutePath
-} else if (ASSET_FILES.contains(toolName)) {
-// Get path to extracted asset
-File(getAssetDir(context), toolName).absolutePath
-} else {
-throw IllegalArgumentException("Unknown tool: $toolName")
+return when (toolName) {
+    in NATIVE_BINARIES -> {
+        // Get path to executable native binary
+        val libName = NATIVE_BINARIES.getValue(toolName)
+        File(context.applicationInfo.nativeLibraryDir, libName).absolutePath
+    }
+    in ASSET_FILES -> {
+        // Get path to extracted asset
+        File(getAssetDir(context), toolName).absolutePath
+    }
+    else -> {
+        throw IllegalArgumentException("Unknown tool: $toolName")
+    }
 }
 }
 
