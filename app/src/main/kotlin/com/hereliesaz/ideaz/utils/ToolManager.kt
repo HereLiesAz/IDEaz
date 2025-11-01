@@ -6,42 +6,58 @@ import java.io.FileOutputStream
 
 object ToolManager {
 
-    private val TOOLS = listOf("aapt2", "apksigner", "d8", "kotlinc", "debug.keystore", "android.jar")
+// Binaries that must be in jniLibs
+private val NATIVE_BINARIES = mapOf(
+"aapt2" to "libaapt2.so",
+"d8" to "libd8.so",
+"apksigner" to "libapksigner.so"
+)
 
-    fun extractTools(context: Context) {
-        val toolDir = getToolDir(context)
-        if (!toolDir.exists()) {
-            toolDir.mkdirs()
+// Non-binary assets to be extracted
+private val ASSET_FILES = listOf("kotlinc", "debug.keystore", "android.jar")
 
-        }
+fun extractTools(context: Context) {
+val assetDir = getAssetDir(context) // /files/tools
+if (!assetDir.exists()) {
+assetDir.mkdirs()
+}
 
-        TOOLS.forEach { toolName ->
-            val toolFile = File(toolDir, toolName)
-            if (!toolFile.exists()) {
-                // Corrected path: from "tools/$toolName" to just toolName
-                context.assets.open(toolName).use { inputStream ->
-                    FileOutputStream(toolFile).use { outputStream ->
+// Extract non-binary assets
+ASSET_FILES.forEach { toolName ->
+val toolFile = File(assetDir, toolName)
+if (!toolFile.exists()) {
+context.assets.open(toolName).use { inputStream ->
+FileOutputStream(toolFile).use { outputStream ->
+inputStream.copyTo(outputStream)
+}
+}
+}
+}
 
-                        inputStream.copyTo(outputStream)
-                    }
-                }
-            }
-            val success = toolFile.setExecutable(true, false)
-            android.util.Log.d("ToolManager", "Set executable for ${toolFile.absolutePath}: $success")
+// No need to extract native binaries; the OS already did.
+// We also don't need chmod, as nativeLibraryDir is already executable.
+android.util.Log.d("ToolManager", "Asset extraction complete.")
+}
 
-        }
+fun getToolPath(context: Context, toolName: String): String {
+return if (NATIVE_BINARIES.containsKey(toolName)) {
+// Get path to executable native binary
+val libName = NATIVE_BINARIES[toolName]
+File(context.applicationInfo.nativeLibraryDir, libName).absolutePath
+} else if (ASSET_FILES.contains(toolName)) {
+// Get path to extracted asset
+File(getAssetDir(context), toolName).absolutePath
+} else {
+throw IllegalArgumentException("Unknown tool: $toolName")
+}
+}
 
-    }
+private const val ASSET_DIR = "tools"
 
-    fun getToolPath(context: Context, toolName: String): String {
-        return File(getToolDir(context), toolName).absolutePath
-    }
-
-    private const val TOOL_DIR = "tools"
-
-    private fun getToolDir(context: Context): File {
-        val toolDir = File(context.filesDir, TOOL_DIR)
-        android.util.Log.d("ToolManager", "Tool directory: ${toolDir.absolutePath}")
-        return toolDir
-    }
+private fun getAssetDir(context: Context): File {
+// Use filesDir for non-executable assets like JARs and keystores
+val assetDir = File(context.filesDir, ASSET_DIR)
+android.util.Log.d("ToolManager", "Asset directory: ${assetDir.absolutePath}")
+return assetDir
+}
 }

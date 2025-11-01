@@ -25,7 +25,7 @@ class Aapt2Compile(
             compiledResDir
         )
 
-        val processResult = ProcessExecutor.execute(command, callback)
+        val processResult = ProcessExecutor.execute(command)
         return BuildResult(processResult.exitCode == 0, processResult.output)
     }
 }
