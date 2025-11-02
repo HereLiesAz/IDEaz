@@ -51,7 +51,8 @@ return when (toolName) {
         File(getAssetDir(context), toolName).absolutePath
     }
     else -> {
-        throw IllegalArgumentException("Unknown tool: $toolName")
+        val validTools = (NATIVE_BINARIES.keys + ASSET_FILES).joinToString(", ")
+        throw IllegalArgumentException("Unknown tool: $toolName. Valid tool names are: $validTools")
     }
 }
 }
