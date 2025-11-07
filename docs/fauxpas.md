@@ -9,10 +9,10 @@ This document outlines common pitfalls ("faux pas") that developers might encoun
 -   The entire automated loop **must** be managed within a long-running background `Service`. Use Kotlin Coroutines on `Dispatchers.IO` for all file system and networking operations.
 
 ### 2. Insecure API Key Storage
-**The Faux Pas:** Storing the user's provided Jules API key insecurely.
+**The Faux Pas:** Storing the user's provided Jules or Gemini API keys insecurely.
 
 **The Best Practice:**
--   The user's API key **must** be stored using Android's `EncryptedSharedPreferences` to encrypt it at rest.
+-   The user's API keys **must** be stored using Android's `EncryptedSharedPreferences` to encrypt them at rest.
 
 ### 3. Poor User Feedback During AI Tasks
 **The Faux Pas:** Leaving the user with no feedback during the multi-minute compilation and AI processing loop.
@@ -20,7 +20,7 @@ This document outlines common pitfalls ("faux pas") that developers might encoun
 **The Best Practice:**
 -   Provide immediate and continuous feedback. The architecture now supports two distinct feedback channels:
     -   **Contextual (Overlay):** For element-specific AI tasks, the `UIInspectionService` must show a floating log box.
-    -   **Global (Bottom Sheet):** For builds and contextless AI tasks, the main app's bottom sheet must show a live log.
+    -   **Global (Bottom Sheet):** For builds and contextless AI tasks, the main app's bottom sheet must show a live, consolidated log.
 
 ### 4. Inaccurate AI Context from Poor Screenshots
 **The Faux Pas:** Sending low-resolution or poorly annotated screenshots to the Jules API. The AI's ability to map a visual element to code is entirely dependent on the quality of the image it receives. (Note: This is less relevant now as we are using source mapping, but the principle of good context remains).
@@ -37,3 +37,9 @@ This document outlines common pitfalls ("faux pas") that developers might encoun
     -   `UIInspectionService` overlay *only* receives AI chat logs for the task it initiated.
     -   `IdeBottomSheet` *only* receives global build/compile logs and contextless AI chat.
 -   This separation prevents user confusion and keeps the UI clean.
+
+### 6. Ignoring AI Abstraction
+**The Faux Pas:** Hard-coding a call to `ApiClient.julesApiService` for a new feature.
+
+**The Best Practice:**
+-   **Always Route:** All AI-driven tasks must be routed through the `MainViewModel`, which checks the `SettingsViewModel` for the user's preferred AI assignment (Jules, Gemini, etc.) for that specific task.
