@@ -1,5 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#40ff0000" />
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="300dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#CC000000"
+    android:padding="16dp">
+
+    <FrameLayout
+        android:id="@+id/log_container"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:background="#33FFFFFF"
+        android:padding="8dp">
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <TextView
+                android:id="@+id/log_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:fontFamily="monospace"
+                android:text="Initializing AI Task..." />
+        </ScrollView>
+    </FrameLayout>
+
+    <EditText
+        android:id="@+id/prompt_input"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Enter prompt..."
+        android:textColor="#FFFFFF"
+        android:textColorHint="#88FFFFFF"
+        android:layout_marginTop="8dp" />
+
+    <Button
+        android:id="@+id/submit_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:text="Submit" />
+
+</LinearLayout>

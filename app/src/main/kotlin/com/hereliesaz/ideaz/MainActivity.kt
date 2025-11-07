@@ -1,5 +1,10 @@
 package com.hereliesaz.ideaz
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -15,8 +20,29 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+    // --- Broadcast Receiver for events from UIInspectionService ---
+    private val inspectionReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                "com.hereliesaz.ideaz.INSPECTION_RESULT" -> {
+                    val resourceId = intent.getStringExtra("RESOURCE_ID")
+                    if (resourceId != null) {
+                        viewModel.onInspectionResult(resourceId)
+                    }
+                }
+                "com.hereliesaz.ideaz.PROMPT_SUBMITTED" -> {
+                    val resourceId = intent.getStringExtra("RESOURCE_ID")
+                    val prompt = intent.getStringExtra("PROMPT")
+                    if (resourceId != null && prompt != null) {
+                        viewModel.onContextualPromptSubmitted(resourceId, prompt)
+                    }
+                }
+            }
+        }
+    }
+    // --- End Broadcast Receiver ---
 
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
@@ -33,12 +59,24 @@ class MainActivity : ComponentActivity() {
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
         AuthInterceptor.apiKey = sharedPreferences.getString("api_key", null)
 
-        viewModel.bindService(this)
+        viewModel.bindBuildService(this)
         viewModel.listSessions()
+
+        // Register the inspection receiver
+        val filter = IntentFilter().apply {
+            addAction("com.hereliesaz.ideaz.INSPECTION_RESULT")
+            addAction("com.hereliesaz.ideaz.PROMPT_SUBMITTED")
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(inspectionReceiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(inspectionReceiver, filter)
+        }
     }
 
     override fun onStop() {
         super.onStop()
-        viewModel.unbindService(this)
+        viewModel.unbindBuildService(this)
+        unregisterReceiver(inspectionReceiver) // Unregister
     }
 }

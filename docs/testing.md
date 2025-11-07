@@ -15,6 +15,7 @@ This document outlines the testing strategy for the IDEaz IDE. Testing this uniq
 -   **Examples:**
     -   Testing the logic that parses compile error logs.
     -   Testing utility functions for managing the local Git repository.
+    -   Testing the `MainViewModel`'s logic for routing logs to the correct destination (global vs. contextual).
 
 ## 2. Integration Tests
 -   **Scope:** Test the interaction between the different components of the on-device IDEaz Service. These will run on the Android runtime.
@@ -22,16 +23,23 @@ This document outlines the testing strategy for the IDEaz IDE. Testing this uniq
 -   **Key Scenarios:**
     -   **The Git-to-Compile Loop:** Can the IDEaz Service successfully `git pull` a change and compile it on the device?
     -   **The Debugging Loop:** If a pulled commit is designed to fail compilation, does the IDEaz Service correctly capture the error and trigger a (mocked) call to the Jules API?
+    -   **IPC Channel (Contextual):** Can the `MainViewModel` successfully bind to the `UIInspectionService` and send/receive messages via the `IAIOverlay` AIDL interfaces?
     -   **API Key Management:** Can the app securely save and retrieve a user's API key?
 
 ## 3. UI / End-to-End (E2E) Tests
 -   **Scope:** Test the full, end-to-end user flow.
 -   **Frameworks:** `AndroidX Test` with `UI Automator`.
 -   **Key Scenarios:**
-    -   **The "Happy Path":**
+    -   **The "Happy Path" (Contextual):**
         1.  Launch a simple, pre-compiled test app.
-        2.  Activate the IDEaz Overlay.
-        3.  Verify the screenshot is taken and displayed.
-        4.  Simulate drawing a selection and entering a prompt.
-        5.  Verify that the IDEaz Service correctly triggers a (mocked) Jules API call with an image and text.
-        6.  Verify that the test app is eventually re-launched.
+        2.  Activate the IDEaz Overlay via the Host App's "Inspect" button.
+        3.  `UI Automator` simulates a tap on the test app.
+        4.  Verify the floating **prompt UI appears** (drawn by the `UIInspectionService`).
+        5.  `UI Automator` types text into the overlay's prompt and taps "Submit."
+        6.  Verify the prompt UI hides and the **log UI appears**.
+        7.  Mock the `MainViewModel` to send log messages; verify they appear in the overlay log.
+        8.  Mock a successful build; verify the test app is re-launched and the overlay UI disappears.
+    -   **The "Happy Path" (Global):**
+        1.  In the Host App, pull up the `IdeBottomSheet`.
+        2.  `UI Automator` types text into the `ContextlessChatInput` and submits.
+        3.  Verify AI log messages appear in the `LiveOutputBottomCard`.

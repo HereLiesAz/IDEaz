@@ -8,19 +8,21 @@ The entire user experience is built around the user interacting with their live,
 
 1.  **The Live App (The Target Application):** This is the user's primary and only interface. It is the running, compiled Android application they are building, running in its own sandboxed process.
 
-2.  **The IDEaz Overlay (The UI Inspection Service):** When the user enters "Inspection Mode," a privileged `AccessibilityService` is activated. This service draws a transparent overlay over the Live App and captures touch events to identify the UI element the user is selecting. This is the core of the interactive canvas.
+2.  **The IDEaz Overlay (The UI Inspection Service):** When the user enters "Inspection Mode," a privileged `AccessibilityService` is activated. This service draws a transparent overlay over the Live App and captures touch events to identify the UI element the user is selecting.
+
+3.  **The Global Console (The Host App):** A bottom sheet within the main IDEaz app provides a log for **build/compile** output and a separate log for a **contextless AI chat**.
 
 ## The User Journey: "Select and Instruct"
 The core workflow is a simple, powerful, and asynchronous loop:
 
 1.  **Enter Inspection Mode:** The user taps a single "Inspect" button to activate the UI Inspection Service's overlay.
-2.  **Visual Selection:** The user taps on an element in their live app. The overlay highlights the element's bounds to confirm the selection.
-3.  **Contextual Instruction:** A small text prompt appears in the IDEaz Host App. The user types their desired change in plain English (e.g., "Make this button orange").
-4.  **Asynchronous Feedback:** A non-intrusive notification indicates that the AI agent is working. The user is never blocked.
-5.  **Seamless Relaunch:** Once the AI agent has completed the code modification and the app has been recompiled by the On-Device Build Service, the Live App automatically restarts, seamlessly showing the new change.
+2.  **Visual Selection:** The user taps on an element in their live app. The service identifies the element and notifies the Host App.
+3.  **Contextual Instruction:** The Host App commands the service to render a **floating UI** near the selected element. This UI appears with a prompt input box. The user types their desired change in plain English (e.g., "Make this button orange").
+4.  **Asynchronous Feedback:** Once submitted, the input box vanishes and is replaced by a **log view in the same floating UI**. This log streams the **AI chat output** for that specific task. The user is never blocked.
+5.  **Seamless Relaunch:** Once the AI agent has completed the code modification and the app has been recompiled (with build logs streaming to the *global console*), the Live App automatically restarts, seamlessly showing the new change. The floating AI log UI then disappears.
 
 ## Automated Error Handling
-The user is never shown a technical error. If the AI writes code that fails to compile, a process detailed in the Blueprint, the system handles it autonomously, keeping the user informed with a simple "Jules is debugging an issue..." status.
+The user is never shown a technical error. If the AI writes code that fails to compile, the **global build console** will show the error, and the "Debug with AI" feature can be used there. If the AI chat itself fails, the **contextual overlay log** will show the error message.
 
 ## A Responsive "Undo" Experience
 A critical part of a seamless user experience is a fast and intuitive "undo" feature. A standard `git revert` followed by a full re-compile and relaunch cycle would feel too slow.

@@ -14,9 +14,10 @@ The visual overlay provided by the `AccessibilityService` must feel instant and 
 
 -   **Low Latency:** The time from the user tapping the screen to the UI element's properties being identified and sent to the Host App must be minimal. The service must efficiently traverse the accessibility node tree to avoid any noticeable lag.
 -   **Memory Footprint:** As a persistent, privileged service, the UI Inspection Service must have a minimal memory footprint to avoid being terminated by the Android OS.
+-   **UI Rendering Overhead:** The service is now responsible for inflating and managing a floating UI using the `WindowManager`. This adds rendering overhead to the service's process. This UI must be lightweight (simple XML or a very constrained ComposeView) to prevent jank or increased memory pressure.
 
 ## 3. Multi-Process Architecture and IPC
 The stability of the IDE depends on the reliability and performance of its multi-process architecture.
 
--   **AIDL Performance:** Communication between the Host App, the Build Service, and the Inspection Service relies on AIDL. While Binder IPC is highly optimized, the data passed between processes should be kept as concise as possible to avoid serialization overhead.
+-   **AIDL Performance:** Communication between the Host App, the Build Service, and the Inspection Service relies on AIDL. While Binder IPC is highly optimized, the data passed between processes should be kept as concise as possible to avoid serialization overhead. This is especially true for the new, two-way channel to the `UIInspectionService` that will stream AI chat logs.
 -   **Service Reliability:** The On-Device Build Service and the UI Inspection Service must be robust. As they run in separate processes, their resource consumption must be carefully managed to prevent the OS from terminating them, which would disrupt the entire development workflow. The use of separate processes provides stability, ensuring a crash in one component does not affect the others.

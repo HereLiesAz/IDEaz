@@ -60,10 +60,14 @@ This phase focuses on improving the user experience during long-running backgrou
 
 - [ ] **6.1: Implement Live Output Bottom Card**
     - Create a reusable pull-up bottom card component.
-    - Integrate the card to show live terminal output during Git operations (pull, commit).
-    - Connect the card to the On-Device Build Service to stream the live build logcat.
-    - Connect the card to the Jules API client to display the live AI activity log.
-- [ ] **6.2: Implement Persistent Status Notification**
-    - Enhance the `BuildService` and other background operations to manage a persistent notification.
-    - The notification content should be updated to always show the three most recent lines of the live output log from the bottom card.
-    - Ensure this keeps the service alive and provides at-a-glance status while the user is in other apps.
+    - Connect the card to the On-Device Build Service to stream the live **build and compile** logcat.
+    - Connect the card to the Jules API client to display the live AI activity log for the **contextless, global AI chat prompt**.
+- [ ] **6.2: Implement Contextual AI Overlay UI**
+    - Enhance `UIInspectionService` to render a floating UI (using `WindowManager`) when an element is selected.
+    - This UI will consist of a prompt input box and a log view.
+    - Establish a two-way AIDL IPC channel between `MainViewModel` and `UIInspectionService`.
+    - When a user submits a prompt, this UI's log view will stream the **AI chat output** for that specific task.
+    - The prompt input will remain available for the user to reply to AI clarifications.
+- [ ] **6.3: Implement Persistent Status Notification**
+    - Enhance background services to manage a persistent notification.
+    - The notification content should be updated to always show the most recent line of the **global build log** from the bottom card.
