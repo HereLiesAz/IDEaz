@@ -6,32 +6,11 @@
     android:background="#CC000000"
     android:padding="16dp">
 
-    <FrameLayout
-        android:id="@+id/log_container"
-        android:layout_width="match_parent"
-        android:layout_height="200dp"
-        android:background="#33FFFFFF"
-        android:padding="8dp">
-
-        <ScrollView
-            android:layout_width="match_parent"
-            android:layout_height="match_parent">
-
-            <TextView
-                android:id="@+id/log_text"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="#FFFFFF"
-                android:fontFamily="monospace"
-                android:text="Initializing AI Task..." />
-        </ScrollView>
-    </FrameLayout>
-
     <EditText
         android:id="@+id/prompt_input"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Enter prompt..."
+        android:hint="Enter prompt for selection..."
         android:textColor="#FFFFFF"
         android:textColorHint="#88FFFFFF"
         android:layout_marginTop="8dp" />

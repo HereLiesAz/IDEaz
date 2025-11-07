@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -24,17 +25,26 @@ class MainActivity : ComponentActivity() {
     private val inspectionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
-                "com.hereliesaz.ideaz.INSPECTION_RESULT" -> {
-                    val resourceId = intent.getStringExtra("RESOURCE_ID")
-                    if (resourceId != null) {
-                        viewModel.onInspectionResult(resourceId)
-                    }
-                }
-                "com.hereliesaz.ideaz.PROMPT_SUBMITTED" -> {
+
+                "com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE" -> {
                     val resourceId = intent.getStringExtra("RESOURCE_ID")
                     val prompt = intent.getStringExtra("PROMPT")
                     if (resourceId != null && prompt != null) {
-                        viewModel.onContextualPromptSubmitted(resourceId, prompt)
+                        viewModel.onNodePromptSubmitted(resourceId, prompt)
+                    }
+                }
+
+                "com.hereliesaz.ideaz.PROMPT_SUBMITTED_RECT" -> {
+                    val rect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableExtra("RECT", Rect::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra("RECT")
+                    }
+                    val prompt = intent.getStringExtra("PROMPT")
+
+                    if (rect != null && prompt != null) {
+                        viewModel.onRectPromptSubmitted(rect, prompt)
                     }
                 }
             }
@@ -64,8 +74,8 @@ class MainActivity : ComponentActivity() {
 
         // Register the inspection receiver
         val filter = IntentFilter().apply {
-            addAction("com.hereliesaz.ideaz.INSPECTION_RESULT")
-            addAction("com.hereliesaz.ideaz.PROMPT_SUBMITTED")
+            addAction("com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE")
+            addAction("com.hereliesaz.ideaz.PROMPT_SUBMITTED_RECT")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(inspectionReceiver, filter, Context.RECEIVER_EXPORTED)

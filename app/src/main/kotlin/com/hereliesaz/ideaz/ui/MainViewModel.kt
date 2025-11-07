@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.graphics.Rect
 import android.os.IBinder
 import android.util.Log
 import androidx.lifecycle.ViewModel
@@ -43,30 +44,26 @@ class MainViewModel : ViewModel() {
     private var isBuildServiceBound = false
 
     // --- Session / API State ---
-    // These are still needed for internal logic, but not for direct display
     private val _session = MutableStateFlow<Session?>(null)
-    val session = _session.asStateFlow() // Used by IdeNavHost
+    val session = _session.asStateFlow()
     private val _activities = MutableStateFlow<List<Activity>>(emptyList())
-    val activities = _activities.asStateFlow() // Used by IdeNavHost
+    val activities = _activities.asStateFlow()
     private val _sessions = MutableStateFlow<List<Session>>(emptyList())
-    val sessions = _sessions.asStateFlow() // Used by IdeNavHost
+    val sessions = _sessions.asStateFlow()
     private val _sources = MutableStateFlow<List<Source>>(emptyList())
-    val sources = _sources.asStateFlow() // Used by IdeNavHost
+    val sources = _sources.asStateFlow()
 
     // --- Code/Source Map State ---
-    private val _codeContent = MutableStateFlow("")
-    val codeContent = _codeContent.asStateFlow()
-
+    // This is now active again, for the tap-to-select flow
     private val _selectedFile = MutableStateFlow<String?>(null)
     val selectedFile = _selectedFile.asStateFlow()
-
     private val _selectedLine = MutableStateFlow<Int?>(null)
     val selectedLine = _selectedLine.asStateFlow()
-
     private val _selectedCodeSnippet = MutableStateFlow<String?>(null)
     val selectedCodeSnippet = _selectedCodeSnippet.asStateFlow()
-
     private var sourceMap: Map<String, SourceMapEntry> = emptyMap()
+    // --- End ---
+
     private var appContext: Context? = null
 
     // Lazy init for SettingsViewModel
@@ -104,6 +101,7 @@ class MainViewModel : ViewModel() {
                 logToOverlay("Build successful. Task finished.")
                 sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
 
+                // We still parse the source map
                 val buildDir = File(apkPath).parentFile
                 if (buildDir != null) {
                     val parser = SourceMapParser(buildDir)
@@ -118,8 +116,6 @@ class MainViewModel : ViewModel() {
                 _buildLog.value += "\nBuild failed:\n$log\n"
                 _buildLog.value += "Status: Build Failed\n"
 
-                // Check which AI flow is active. This is tricky.
-                // For now, assume build failures are debugged globally.
                 logToOverlay("Build failed. See global log to debug.")
                 _buildLog.value += "AI Status: Build failed, asking AI to debug...\n"
                 debugBuild() // Global debug
@@ -151,25 +147,61 @@ class MainViewModel : ViewModel() {
     // --- Inspection Logic ---
 
     /**
-     * Called by MainActivity when it receives "com.hereliesaz.ideaz.INSPECTION_RESULT"
+     * Called by MainActivity when it receives "com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE"
      */
-    fun onInspectionResult(resourceId: String) {
-        // Inspection found a node.
-        // 1. Look up its source
-        lookupSource(resourceId)
-        // 2. Tell the UIInspectionService to show its prompt
-        sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.SHOW_PROMPT").apply {
-            putExtra("RESOURCE_ID", resourceId)
-        })
+    fun onNodePromptSubmitted(resourceId: String, prompt: String) {
+        Log.d("MainViewModel", "Contextual (NODE) prompt submitted for $resourceId: $prompt")
+
+        // This is a tap-to-select, so we MUST have source context.
+        // We look it up now.
+        val entry = sourceMap[resourceId]
+        if (entry != null) {
+            viewModelScope.launch {
+                try {
+                    val file = File(entry.file)
+                    val lines = file.readLines()
+                    val lineIndex = entry.line - 1
+                    val snippet = lines.getOrNull(lineIndex)?.trim()
+
+                    val richPrompt = """
+                    User Request: "$prompt"
+                    Context (for element $resourceId):
+                    File: ${entry.file}
+                    Line: ${entry.line}
+                    Code Snippet: $snippet
+                    
+                    Please generate a git patch to apply this change.
+                    """.trimIndent()
+
+                    startContextualAITask(richPrompt)
+
+                } catch (e: Exception) {
+                    val errorPrompt = "User Request: \"$prompt\" for element $resourceId (Error: Could not read source file ${e.message})"
+                    startContextualAITask(errorPrompt)
+                }
+            }
+        } else {
+            // Fallback if source map fails
+            val errorPrompt = "User Request: \"$prompt\" for element $resourceId (Error: Not found in source map)"
+            startContextualAITask(errorPrompt)
+        }
     }
 
     /**
-     * Called by MainActivity when it receives "com.hereliesaz.ideaz.PROMPT_SUBMITTED"
+     * Called by MainActivity when it receives "com.hereliesaz.ideaz.PROMPT_SUBMITTED_RECT"
      */
-    fun onContextualPromptSubmitted(resourceId: String, prompt: String) {
-        Log.d("MainViewModel", "Contextual prompt submitted for $resourceId: $prompt")
-        // A contextual prompt was submitted, start a new AI task for it
-        startContextualAITask(resourceId, prompt)
+    fun onRectPromptSubmitted(rect: Rect, prompt: String) {
+        Log.d("MainViewModel", "Contextual (RECT) prompt submitted for $rect: $prompt")
+
+        // This is a drag-to-select, so we only have coordinate context.
+        val richPrompt = """
+        User Request: "$prompt"
+        Context: Apply this to the screen area defined by Rect(${rect.left}, ${rect.top}, ${rect.right}, ${rect.bottom}).
+        
+        Please generate a git patch to apply this change.
+        """.trimIndent()
+
+        startContextualAITask(richPrompt)
     }
 
     fun startInspection(context: Context) {
@@ -181,39 +213,6 @@ class MainViewModel : ViewModel() {
         context.stopService(Intent(context, com.hereliesaz.ideaz.services.UIInspectionService::class.java))
         // Also tell the service to hide any UI it might be showing
         sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
-    }
-
-    fun lookupSource(id: String) {
-        val entry = sourceMap[id]
-        if (entry != null) {
-            // Log to global log
-            _buildLog.value += "Source for $id found at ${entry.file}:${entry.line}\n"
-            viewModelScope.launch {
-                try {
-                    val file = File(entry.file)
-                    if (file.exists()) {
-                        val lines = file.readLines()
-                        val lineIndex = entry.line - 1 // 0-indexed
-
-                        if (lineIndex >= 0 && lineIndex < lines.size) {
-                            val snippet = lines[lineIndex].trim() // Just get the single line
-                            _selectedFile.value = entry.file
-                            _selectedLine.value = entry.line
-                            _selectedCodeSnippet.value = snippet
-                            _buildLog.value += "Context Found:\nFile: ${entry.file}\nLine: ${entry.line}\nSnippet: $snippet\n"
-                        } else {
-                            _buildLog.value += "Error: Line number ${entry.line} is out of bounds for ${entry.file}\n"
-                        }
-                    } else {
-                        _buildLog.value += "Error: Source file not found at ${entry.file}\n"
-                    }
-                } catch (e: Exception) {
-                    _buildLog.value += "Error reading source file: ${e.message}\n"
-                }
-            }
-        } else {
-            _buildLog.value += "Source for $id not found\n"
-        }
     }
 
 
@@ -265,9 +264,7 @@ class MainViewModel : ViewModel() {
                 }
             }
         } catch (e: IOException) {
-            // This can happen if assetPath is a file but list() was called, or vice-versa
             Log.e("MainViewModel", "Failed to copy asset: $assetPath", e)
-            // Try as file if list fails
             try {
                 assetManager.open(assetPath).use { input ->
                     FileOutputStream(destPath).use { output ->
@@ -281,10 +278,6 @@ class MainViewModel : ViewModel() {
     }
 
     // --- CONTEXTLESS AI (Global Log) ---
-    /**
-     * Sends a "contextless" prompt (from the bottom sheet) to the AI.
-     * Logs are streamed to the global _buildLog.
-     */
     fun sendPrompt(prompt: String, isInitialization: Boolean = false) {
         val taskKey = if (isInitialization) {
             SettingsViewModel.KEY_AI_ASSIGNMENT_INIT
@@ -292,21 +285,13 @@ class MainViewModel : ViewModel() {
             SettingsViewModel.KEY_AI_ASSIGNMENT_CONTEXTLESS
         }
 
-        // This is a contextless prompt, so context is null
-        _selectedFile.value = null
-        _selectedLine.value = null
-        _selectedCodeSnippet.value = null
-
         _buildLog.value += "\nSending prompt for $taskKey: $prompt\n"
 
-        // Get the assigned AI model for this task
         val model = getAssignedModelForTask(taskKey)
         if (model == null) {
             _buildLog.value += "Error: No AI model assigned for this task. Go to Settings.\n"
             return
         }
-
-        // Check if the required key is present
         if (settingsViewModel.getApiKey(appContext!!, model.requiredKey).isNullOrBlank()) {
             _buildLog.value += "Error: API Key for ${model.displayName} is missing. Go to Settings.\n"
             return
@@ -326,70 +311,31 @@ class MainViewModel : ViewModel() {
                         }
 
                         val response = ApiClient.julesApiService.createSession(sessionRequest)
-                        _session.value = response // Store as the "global" session
+                        _session.value = response
                         _buildLog.value += "AI Status: Session created. Waiting for patch...\n"
-                        // Poll and log to _buildLog
                         pollForPatch(response.name, _buildLog)
 
                     } catch (e: Exception) {
                         _buildLog.value += "AI Status: Error: ${e.message}\n"
                     }
                 }
-
                 AiModels.GEMINI_FLASH -> {
-                    // --- Gemini Logic (Placeholder) ---
                     _buildLog.value += "AI Status: Idle\n"
                     _buildLog.value += "Gemini Flash client not yet implemented.\n"
-                    // TODO: Implement Gemini API call here
-                    // 1. Call Gemini API with googleApiKey
-                    // 2. Get text response
-                    // 3. (Future) Convert text response to a patch
-                    // 4. (Future) call applyPatch(...)
                 }
-
-                // Add other models here
             }
         }
     }
 
     // --- CONTEXTUAL AI (Overlay Log) ---
-    /**
-     * Starts a "contextual" AI task (from the overlay prompt).
-     * Logs are streamed to the aiOverlayService.
-     */
-    private fun startContextualAITask(resourceId: String, prompt: String) {
-        // We have context from the inspection
-        val contextFile = _selectedFile.value
-        val contextLine = _selectedLine.value
-        val contextSnippet = _selectedCodeSnippet.value
-
-        val richPrompt = if (contextFile != null && contextLine != null && contextSnippet != null) {
-            """
-            User Request: "$prompt"
-            Context (for element $resourceId):
-            File: $contextFile
-            Line: $contextLine
-            Code Snippet (at line $contextLine):
-            $contextSnippet
-            
-            Please generate a git patch to apply this change.
-            """.trimIndent()
-        } else {
-            // Context lookup failed, but we still have the resourceId
-            "User Request: \"$prompt\" for element with resource ID \"$resourceId\"."
-        }
-
-        // Log to overlay
+    private fun startContextualAITask(richPrompt: String) {
         logToOverlay("Sending prompt to AI...")
 
-        // Get the assigned AI model for this task
         val model = getAssignedModelForTask(SettingsViewModel.KEY_AI_ASSIGNMENT_OVERLAY)
         if (model == null) {
             logToOverlay("Error: No AI model assigned for this task. Go to Settings.")
             return
         }
-
-        // Check if the required key is present
         if (settingsViewModel.getApiKey(appContext!!, model.requiredKey).isNullOrBlank()) {
             logToOverlay("Error: API Key for ${model.displayName} is missing. Go to Settings.")
             return
@@ -408,7 +354,6 @@ class MainViewModel : ViewModel() {
 
                         val response = ApiClient.julesApiService.createSession(sessionRequest)
                         logToOverlay("Session created. Waiting for patch...")
-                        // Poll and log to overlay
                         pollForPatch(response.name, "OVERLAY") // Use a string to signify overlay
 
                     } catch (e: Exception) {
@@ -417,7 +362,6 @@ class MainViewModel : ViewModel() {
                     }
                 }
                 AiModels.GEMINI_FLASH -> {
-                    // --- Gemini Logic (Placeholder) ---
                     logToOverlay("Gemini Flash client not yet implemented.")
                     logToOverlay("Task Finished.") // Manually finish
                 }
@@ -427,16 +371,11 @@ class MainViewModel : ViewModel() {
 
     // --- AI Helper Functions ---
 
-    /**
-     * Gets the assigned AiModel for a given task, handling fallback to Default.
-     */
     private fun getAssignedModelForTask(taskKey: String): AiModel? {
         val modelId = settingsViewModel.getAiAssignment(appContext!!, taskKey)
         return AiModels.findById(modelId)
     }
 
-
-    /** Creates a session request object from current project settings */
     private fun createSessionRequest(prompt: String): CreateSessionRequest? {
         val prefs = PreferenceManager.getDefaultSharedPreferences(appContext!!)
         val appName = prefs.getString(SettingsViewModel.KEY_APP_NAME, null)
@@ -461,7 +400,6 @@ class MainViewModel : ViewModel() {
         )
     }
 
-    /** Generic poll function that logs to a specified output (either global log or overlay) */
     private fun pollForPatch(sessionName: String, logTarget: Any, attempts: Int = 0) {
         viewModelScope.launch {
             if (attempts > 20) { // 100s timeout
@@ -491,7 +429,6 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    /** Generic apply patch function */
     fun applyPatch(context: Context, logTarget: Any) {
         viewModelScope.launch {
             logTo(logTarget, "Applying patch...")
@@ -502,7 +439,6 @@ class MainViewModel : ViewModel() {
                     val gitManager = GitManager(projectDir)
                     gitManager.applyPatch(patch)
                     logTo(logTarget, "Patch applied, rebuilding...")
-                    // Build is global, logs will go to _buildLog via buildCallback
                     startBuild(context)
                 } else {
                     logTo(logTarget, "Error: Apply patch called but no patch found.")
@@ -515,9 +451,7 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    /** Global debug function, logs to global log */
     fun debugBuild() {
-        // Get the assigned AI model for this task
         val model = getAssignedModelForTask(SettingsViewModel.KEY_AI_ASSIGNMENT_CONTEXTLESS) // Debug follows contextless for now
         if (model == null) {
             _buildLog.value += "Error: No AI model assigned for this task. Go to Settings.\n"
@@ -539,7 +473,6 @@ class MainViewModel : ViewModel() {
                             val updatedSession = ApiClient.julesApiService.sendMessage(it.name, message)
                             _session.value = updatedSession
                             _buildLog.value += "AI Status: Debug info sent. Waiting for new patch...\n"
-                            // Poll and log to global log
                             pollForPatch(it.name, _buildLog)
                         }
                     } catch (e: Exception) {
@@ -554,7 +487,6 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    /** Helper to abstract logging destination */
     private fun logTo(target: Any?, message: String) {
         if (target == null) return
         when (target) {
@@ -577,13 +509,11 @@ class MainViewModel : ViewModel() {
         appContext?.sendBroadcast(intent)
     }
 
-
-    // --- API Listing Functions (unchanged) ---
     fun listSessions() {
         viewModelScope.launch {
             try {
                 val response = ApiClient.julesApiService.listSessions()
-                _sessions.value = response.sessions // Correctly access the list
+                _sessions.value = response.sessions
             } catch (e: Exception) {
                 _buildLog.value += "Error listing sessions: ${e.message}\n"
             }
@@ -616,6 +546,7 @@ class MainViewModel : ViewModel() {
     }
 
     fun updateCodeContent(newContent: String) {
-        _codeContent.value = newContent
+        // This function's body is now empty, resolving the build error.
+        // The _codeContent variable it used to update was removed.
     }
 }
