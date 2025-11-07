@@ -8,16 +8,18 @@ import retrofit2.Retrofit
 
 object ApiClient {
 
-    private const val BASE_URL = "https://api.jules.ai/"
+    private const val BASE_URL = "https://jules.googleapis.com/" // Corrected Base URL
 
     private val json = Json {
         ignoreUnknownKeys = true
     }
 
     private val okHttpClient = OkHttpClient.Builder()
+        .addInterceptor(AuthInterceptor) // Add the Auth Interceptor
         .build()
 
     private val retrofit = Retrofit.Builder()
+
         .baseUrl(BASE_URL)
         .client(okHttpClient)
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))

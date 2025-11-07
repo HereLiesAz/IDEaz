@@ -21,7 +21,10 @@ import java.io.File
 import com.hereliesaz.ideaz.models.SourceMapEntry
 import com.hereliesaz.ideaz.utils.SourceMapParser
 import com.hereliesaz.ideaz.api.Activity
+import com.hereliesaz.ideaz.api.CreateSessionRequest
+import com.hereliesaz.ideaz.api.Source
 import kotlinx.coroutines.delay
+import androidx.preference.PreferenceManager
 
 class MainViewModel : ViewModel() {
 
@@ -43,6 +46,9 @@ class MainViewModel : ViewModel() {
 
     private val _sessions = MutableStateFlow<List<Session>>(emptyList())
     val sessions = _sessions.asStateFlow()
+
+    private val _sources = MutableStateFlow<List<Source>>(emptyList())
+    val sources = _sources.asStateFlow()
 
     private val _codeContent = MutableStateFlow("")
     val codeContent = _codeContent.asStateFlow()
@@ -130,7 +136,7 @@ class MainViewModel : ViewModel() {
                 if (buildDir != null) {
                     val parser = SourceMapParser(buildDir)
                     sourceMap = parser.parse()
-                    _buildLog.value += "\nSource map loaded.\nFound ${sourceMap.size} entries."
+                    _buildLog.value += "\nSource map loaded. Found ${sourceMap.size} entries."
                     lookupSource("sample_text")
                 }
             }
@@ -154,6 +160,8 @@ class MainViewModel : ViewModel() {
             context.bindService(intent, buildServiceConnection, Context.BIND_AUTO_CREATE)
 
         }
+        // Also load sources when service is bound
+        loadSources()
     }
 
     fun unbindService(context: Context) {
@@ -221,9 +229,24 @@ class MainViewModel : ViewModel() {
         val contextLine = _selectedLine.value
         val contextSnippet = _selectedCodeSnippet.value
 
+        // Load project config from preferences
+        val prefs = PreferenceManager.getDefaultSharedPreferences(appContext!!)
+        val appName = prefs.getString(SettingsViewModel.KEY_APP_NAME, null)
+        val githubUser = prefs.getString(SettingsViewModel.KEY_GITHUB_USER, null)
+        val branchName = prefs.getString(SettingsViewModel.KEY_BRANCH_NAME, "main")!! // Use saved branch
+
+        if (appName == null || githubUser == null) {
+            _aiStatus.value = "Error: Project settings incomplete."
+            _buildLog.value += "\nPlease go to Project settings and set App Name and GitHub User."
+            return
+        }
+
+        // Derive sourceName
+        val sourceName = "sources/github.com/$githubUser/$appName"
+
         val richPrompt = if (contextFile != null && contextLine != null && contextSnippet != null) {
-            // Construct the rich prompt [cite: 459, 740-745]
-            """
+            """ [cite_start]// Construct the rich prompt [cite: 459, 740-745]
+           
             User Request: "$prompt"
             
             Context:
@@ -245,20 +268,26 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch {
             _aiStatus.value = "Sending..."
             try {
-                val sources = ApiClient.julesApiService.listSources()
-                if (sources.isNotEmpty()) {
-                    val source = sources.first()
-                    val sourceContext = com.hereliesaz.ideaz.api.SourceContext(source.name, com.hereliesaz.ideaz.api.GitHubRepoContext("main"))
-                    // Use richPrompt instead of the raw prompt
-                    val session = com.hereliesaz.ideaz.api.Session("", "", richPrompt, sourceContext, "", false, "AUTO_CREATE_PR", "", "", "","", emptyList())
-                    val response = ApiClient.julesApiService.createSession(session)
-                    _session.value = response
-                    _aiStatus.value = "Session created. Waiting for patch..."
-                    // AUTOMATION: Start polling for the patch
-                    pollForPatch(response.name)
-                } else {
-                    _aiStatus.value = "No sources found"
-                }
+                // Use the loaded config
+                val sourceContext = com.hereliesaz.ideaz.api.SourceContext(
+                    source = sourceName,
+                    githubRepoContext = com.hereliesaz.ideaz.api.GitHubRepoContext(branchName)
+                )
+
+                // Use the new CreateSessionRequest object
+                val sessionRequest = CreateSessionRequest(
+                    prompt = richPrompt,
+                    sourceContext = sourceContext,
+                    title = "$appName IDEaz Session",
+                    automationMode = "AUTO_CREATE_PR"
+                )
+
+                val response = ApiClient.julesApiService.createSession(sessionRequest)
+                _session.value = response
+                _aiStatus.value = "Session created. Waiting for patch..."
+                // AUTOMATION: Start polling for the patch
+                pollForPatch(response.name)
+
             } catch (e: Exception) {
                 _aiStatus.value = "Error: ${e.message}"
             }
@@ -334,9 +363,23 @@ class MainViewModel : ViewModel() {
     fun listSessions() {
         viewModelScope.launch {
             try {
-                _sessions.value = ApiClient.julesApiService.listSessions()
+                val response = ApiClient.julesApiService.listSessions()
+                _sessions.value = response.sessions // Correctly access the list
             } catch (e: Exception) {
                 _aiStatus.value = "Error listing sessions: ${e.message}"
+            }
+        }
+    }
+
+    fun loadSources() {
+        viewModelScope.launch {
+            try {
+                _aiStatus.value = "Loading sources..."
+                val response = ApiClient.julesApiService.listSources()
+                _sources.value = response.sources
+                _aiStatus.value = "Sources loaded."
+            } catch (e: Exception) {
+                _aiStatus.value = "Error loading sources: ${e.message}"
             }
         }
     }

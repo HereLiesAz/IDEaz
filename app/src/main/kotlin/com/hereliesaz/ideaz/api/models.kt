@@ -3,25 +3,48 @@ package com.hereliesaz.ideaz.api
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class Session(
-    val name: String,
-    val id: String,
+data class ListSourcesResponse(
+    val sources: List<Source>
+)
+
+@Serializable
+data class ListSessionsResponse(
+    val sessions: List<Session>
+)
+
+@Serializable
+data class CreateSessionRequest(
     val prompt: String,
     val sourceContext: SourceContext,
     val title: String,
-    val requirePlanApproval: Boolean,
-    val automationMode: String,
+    val requirePlanApproval: Boolean? = null,
+    val automationMode: String? = null
+)
+
+@Serializable
+data class Session(
+    val name: String,
+    val id: String,
+
+    val prompt: String,
+    val sourceContext: SourceContext,
+    val title: String,
+    // Made nullable
+    val requirePlanApproval: Boolean? = null,
+    val automationMode: String? = null,
     val createTime: String,
     val updateTime: String,
     val state: String,
     val url: String,
-    val outputs: List<SessionOutput>
+    // Made nullable
+    val outputs: List<SessionOutput>? = null
 )
 
 @Serializable
 data class SourceContext(
     val source: String,
-    val githubRepoContext: GitHubRepoContext? = null
+    val githubRepoContext: GitHubRepoContext?
+    = null
 )
 
 @Serializable
@@ -51,7 +74,8 @@ data class Activity(
     val artifacts: List<Artifact>,
     val agentMessaged: AgentMessaged? = null,
     val userMessaged: UserMessaged? = null,
-    val planGenerated: PlanGenerated? = null,
+    val planGenerated: PlanGenerated?
+    = null,
     val planApproved: PlanApproved? = null,
     val progressUpdated: ProgressUpdated? = null,
     val sessionCompleted: SessionCompleted? = null,
@@ -85,6 +109,7 @@ data class PlanStep(
     val id: String,
     val title: String,
     val description: String,
+
     val index: Int
 )
 
@@ -109,9 +134,11 @@ data class SessionFailed(
 
 @Serializable
 data class Artifact(
-    val changeSet: ChangeSet? = null,
+    val changeSet: ChangeSet?
+    = null,
     val media: Media? = null,
-    val bashOutput: BashOutput? = null
+    val bashOutput: BashOutput?
+    = null
 )
 
 @Serializable
@@ -149,11 +176,14 @@ data class Source(
 
 @Serializable
 data class GitHubRepo(
-    val owner: String,
+    val
+    owner: String,
     val repo: String,
-    val isPrivate: Boolean,
+    // Made nullable
+    val isPrivate: Boolean? = null,
     val defaultBranch: GitHubBranch,
-    val branches: List<GitHubBranch>
+    // Made nullable
+    val branches: List<GitHubBranch>? = null
 )
 
 @Serializable

@@ -1,6 +1,5 @@
 package com.hereliesaz.ideaz.ui
 
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
@@ -11,6 +10,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.background
+import androidx.compose.material3.MaterialTheme
 
 @Composable
 fun ContextlessChatInput(
@@ -25,7 +26,8 @@ fun ContextlessChatInput(
         label = { Text("Contextless Prompt...") },
         modifier = modifier
             .fillMaxWidth()
-            .padding(8.dp),
+            .padding(8.dp)
+            .background(MaterialTheme.colorScheme.surface), // Added opaque background
         keyboardOptions = KeyboardOptions.Default.copy(
             imeAction = ImeAction.Send
         ),
