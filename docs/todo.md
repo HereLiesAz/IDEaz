@@ -65,7 +65,7 @@ This phase focuses on improving the user experience during long-running backgrou
 - [ ] **6.2: Implement Contextual AI Overlay UI**
     - Enhance `UIInspectionService` to render a floating UI (using `WindowManager`) when an element is selected.
     - This UI will consist of a prompt input box and a log view.
-    - Establish a two-way AIDL IPC channel between `MainViewModel` and `UIInspectionService`.
+    - Establish a two-way IPC channel (e.g., Broadcasts) between `MainViewModel` and `UIInspectionService`.
     - When a user submits a prompt, this UI's log view will stream the **AI chat output** for that specific task.
     - The prompt input will remain available for the user to reply to AI clarifications.
 - [ ] **6.3: Implement Persistent Status Notification**

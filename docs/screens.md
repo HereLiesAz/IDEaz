@@ -20,9 +20,7 @@ This is the main interaction phase, where the IDE is active.
     -   **Log State:** After submission, becomes a log box that streams the AI's chat output.
     -   **Reply State:** If the AI asks a question, the prompt input box reappears.
 -   **Global Console (Bottom Sheet):** The visible pull-up card containing:
-    -   **Status Area:** Displays `Build Status`, `AI Status`, etc.
-    -   **Build Log:** A stream of all `aapt2`, `kotlinc`, `d8`, etc. output.
-    -   **Global AI Chat:** A log for the contextless AI chat feature.
+    -   **Consolidated Log:** A single, scrollable view for *all* global output: Build status, AI status, compile logs, and contextless AI chat history.
 -   **Contextless Chat Input:** A text field at the bottom of the bottom sheet for global AI prompts.
 
 ## 3. The IDEaz Hub Screen
@@ -30,17 +28,13 @@ This is a traditional Android screen within the IDEaz IDE app that serves as the
 
 **Key Components:**
 -   **Nav Rail:** Provides navigation to Project Settings, **IDE** (which contains the Interact/Select toggle), and App Settings.
--   **Main Content Area:** Displays status information or settings screens.
--   **Global Console (Bottom Sheet):** A pull-up card containing:
-    -   **Status Area:** Displays `Build Status`, `AI Status`, etc.
-    -   **Build Log:** A stream of all `aapt2`, `kotlinc`, `d8`, etc. output.
-    -   **Global AI Chat:** A log for the contextless AI chat feature.
--   **Contextless Chat Input:** A text field at the bottom of the bottom sheet for global AI prompts.
+-   **Main Content Area:** Displays settings screens. The "main" screen is now empty, as all status has moved to the bottom sheet.
+-   **Global Console (Bottom Sheet):** The pull-up card described in section 2.
 
 ## 4. Settings Screen
 A standard Android screen for configuring the IDEaz IDE.
 
 **Key Components:**
--   **Jules API Key Input:** A secure text field for the user to enter and save their personal Jules API key.
+-   **API Key Inputs:** Secure text fields for the user to enter and save their **Jules API Key** and **Google AI Studio API Key**. Includes buttons to the key-generation pages.
 -   **Project Settings:** Inputs for GitHub repository details.
--   **Other Preferences:** Options for managing notifications and other app settings.
+-   **AI Assignments:** A series of dropdown menus allowing the user to assign an AI model (e.g., "Jules", "Gemini Flash") to each specific task ("Default", "Project Initialization", "Contextless Chat", "Overlay Chat").
