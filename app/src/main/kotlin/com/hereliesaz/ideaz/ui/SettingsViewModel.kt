@@ -5,16 +5,50 @@ import androidx.lifecycle.ViewModel
 import androidx.preference.PreferenceManager
 import com.hereliesaz.ideaz.api.AuthInterceptor
 
+// Define AI models and their requirements
+data class AiModel(val id: String, val displayName: String, val requiredKey: String)
+
+object AiModels {
+    const val JULES_DEFAULT = "JULES_DEFAULT"
+    const val GEMINI_FLASH = "GEMINI_FLASH"
+    const val GEMINI_PRO = "GEMINI_PRO"
+
+    val JULES = AiModel(JULES_DEFAULT, "Jules", SettingsViewModel.KEY_API_KEY)
+    val GEMINI = AiModel(GEMINI_FLASH, "Gemini Flash", SettingsViewModel.KEY_GOOGLE_API_KEY)
+    // Add more models as needed
+    // val GEMINI_PRO_MODEL = AiModel(GEMINI_PRO, "Gemini Pro", SettingsViewModel.KEY_GOOGLE_API_KEY)
+
+    val availableModels = listOf(JULES, GEMINI) //, GEMINI_PRO_MODEL)
+
+    fun findById(id: String?): AiModel? = availableModels.find { it.id == id }
+}
+
+
 class SettingsViewModel : ViewModel() {
 
     companion object {
-        const val KEY_API_KEY = "api_key"
+        const val KEY_API_KEY = "api_key" // Jules
         const val KEY_APP_NAME = "app_name"
         const val KEY_GITHUB_USER = "github_user"
         const val KEY_BRANCH_NAME = "branch_name"
         const val KEY_PROJECT_LIST = "project_list"
-        const val KEY_GOOGLE_API_KEY = "google_api_key"
+        const val KEY_GOOGLE_API_KEY = "google_api_key" // Gemini
+
+        // New keys for AI assignments
+        const val KEY_AI_ASSIGNMENT_DEFAULT = "ai_assignment_default"
+        const val KEY_AI_ASSIGNMENT_INIT = "ai_assignment_init"
+        const val KEY_AI_ASSIGNMENT_CONTEXTLESS = "ai_assignment_contextless"
+        const val KEY_AI_ASSIGNMENT_OVERLAY = "ai_assignment_overlay"
+
+        val aiTasks = mapOf(
+            KEY_AI_ASSIGNMENT_DEFAULT to "Default",
+            KEY_AI_ASSIGNMENT_INIT to "Project Initialization",
+            KEY_AI_ASSIGNMENT_CONTEXTLESS to "Contextless Chat",
+            KEY_AI_ASSIGNMENT_OVERLAY to "Overlay Chat"
+        )
     }
+
+    // --- API Key Save/Get ---
 
     fun saveGoogleApiKey(context: Context, apiKey: String) {
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
@@ -34,11 +68,42 @@ class SettingsViewModel : ViewModel() {
         AuthInterceptor.apiKey = apiKey
     }
 
-    fun getApiKey(context: Context): String?
-    {
+    fun getApiKey(context: Context): String? {
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
         return sharedPreferences.getString(KEY_API_KEY, null)
     }
+
+    fun getApiKey(context: Context, keyName: String): String? {
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+        return sharedPreferences.getString(keyName, null)
+    }
+
+    // --- AI Assignment Save/Get ---
+
+    fun saveAiAssignment(context: Context, taskKey: String, modelId: String) {
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+        sharedPreferences.edit().putString(taskKey, modelId).apply()
+    }
+
+    /**
+     * Gets the assigned model for a task.
+     * If the task is not "Default" and has no specific assignment,
+     * it falls back to the "Default" assignment.
+     */
+    fun getAiAssignment(context: Context, taskKey: String): String? {
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+        val defaultModelId = sharedPreferences.getString(KEY_AI_ASSIGNMENT_DEFAULT, AiModels.JULES_DEFAULT)
+
+        if (taskKey == KEY_AI_ASSIGNMENT_DEFAULT) {
+            return defaultModelId
+        }
+
+        // Fallback logic: Use specific, or if null, use default
+        return sharedPreferences.getString(taskKey, defaultModelId)
+    }
+
+
+    // --- Project Config (Unchanged) ---
 
     fun saveProjectConfig(context: Context, appName: String, githubUser: String, branchName: String) {
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)

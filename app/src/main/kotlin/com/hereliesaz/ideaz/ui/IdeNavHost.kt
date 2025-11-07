@@ -21,8 +21,7 @@ fun IdeNavHost(
     modifier: Modifier = Modifier,
     navController: NavHostController,
     viewModel: MainViewModel,
-    buildStatus: String,
-    aiStatus: String,
+    // MODIFIED: Removed status variables, they are moving to the bottom sheet
     session: Session?,
     sessions: List<Session>,
     activities: List<Activity>,
@@ -34,32 +33,8 @@ fun IdeNavHost(
         modifier = modifier
     ) {
         composable("main") {
-            // This column now ONLY contains status information
-            // Re-added the top 20% spacer
-            Column {
-                Spacer(modifier = Modifier.weight(0.2f))
-                Column(
-                    modifier = Modifier.padding(all = 8.dp).weight(0.8f)
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    Text(text = "Build Status: $buildStatus")
-                    Text(text = "AI Status: $aiStatus")
-                    session?.let {
-                        Text(text = "Session: ${it.name}")
-                        it.outputs?.firstOrNull()?.pullRequest?.let { pr ->
-                            Text(text = "Pull Request: ${pr.title}")
-                        }
-                    }
-                    Text(text = "Sessions:")
-                    sessions.forEach {
-                        Text(text = it.name)
-                    }
-                    Text(text = "Activities:")
-                    activities.forEach {
-                        Text(text = it.description)
-                    }
-                }
-            }
+            // MODIFIED: This is now an empty screen.
+            // The status text has been moved to the IdeBottomSheet.
         }
         composable("settings") {
             SettingsScreen(sessions = sessions)

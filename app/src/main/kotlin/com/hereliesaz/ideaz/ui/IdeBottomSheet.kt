@@ -11,6 +11,8 @@ import androidx.compose.ui.unit.dp
 import com.composables.core.BottomSheet
 import com.composables.core.BottomSheetState
 import com.composables.core.SheetDetent
+import com.hereliesaz.ideaz.api.Activity
+import com.hereliesaz.ideaz.api.Session
 
 @Composable
 fun IdeBottomSheet(
@@ -18,7 +20,12 @@ fun IdeBottomSheet(
     viewModel: MainViewModel,
     peekDetent: SheetDetent,
     halfwayDetent: SheetDetent,
-    chatHeight: Dp
+    chatHeight: Dp,
+    // MODIFIED: Removed all status variables
+    buildStatus: String,
+    aiStatus: String,
+    sessions: List<Session>,
+    activities: List<Activity>
 ) {
     val isChatVisible = sheetState.currentDetent == peekDetent || sheetState.currentDetent == halfwayDetent
 
@@ -26,7 +33,8 @@ fun IdeBottomSheet(
         state = sheetState,
         modifier = Modifier.fillMaxSize()
     ) {
-        // The sheet content is JUST the log card
+        // MODIFIED: The sheet content is JUST the log card
+        // All status text is now part of the logStream in the ViewModel
         LiveOutputBottomCard(
             logStream = viewModel.buildLog,
             modifier = Modifier.fillMaxSize(),

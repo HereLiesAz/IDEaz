@@ -12,13 +12,11 @@ fun IdeNavRail(
     navController: NavHostController,
     viewModel: MainViewModel,
     context: Context,
-    isInspecting: Boolean,
-    buildStatus: String,
-    activities: List<Activity>,
-    onInspectToggle: (Boolean) -> Unit,
+    // MODIFIED: Removed status variables
     onShowPromptPopup: () -> Unit,
     handleActionClick: (() -> Unit) -> Unit,
-    isIdeVisible: Boolean
+    isIdeVisible: Boolean,
+    onModeToggleClick: () -> Unit // New click handler for the toggle
 ) {
     AzNavRail(navController = navController) {
         azSettings(
@@ -29,24 +27,22 @@ fun IdeNavRail(
         )
         azRailItem(id = "project_settings", text = "Project", onClick = { navController.navigate("project_settings") })
 
-        azRailHostItem(id = "main", text = "Status", onClick = { handleActionClick { navController.navigate("main") } })
+        // MODIFIED: Renamed "Status" to "IDE"
+        azRailHostItem(id = "main", text = "IDE", onClick = { handleActionClick { navController.navigate("main") } })
         azRailSubItem(id = "prompt", hostId = "main", text = "Prompt", onClick = { handleActionClick {onShowPromptPopup()} })
         azRailSubItem(id = "build", hostId = "main", text = "Build", onClick = { handleActionClick { viewModel.startBuild(context) } })
 
-        azMenuToggle(
-            id = "inspect",
-            isChecked = isInspecting,
-            toggleOnText = "Stop",
-            toggleOffText = "Inspect",
+        // MODIFIED: Changed from azMenuToggle to azRailSubToggle and nested it under "main"
+        azRailSubToggle(
+            id = "mode_toggle",
+            hostId = "main",
+            isChecked = isIdeVisible, // isIdeVisible is true when sheet is up (Selection Mode)
+            toggleOnText = "Interact", // Button text for Selection Mode
+            toggleOffText = "Select",   // Button text for Interaction Mode
+            shape = AzButtonShape.NONE, // Explicitly adding null for the optional shape parameter
             onClick = {
                 handleActionClick {
-                    val newInspectState = !isInspecting
-                    onInspectToggle(newInspectState) // Update the state
-                    if (newInspectState) {
-                        viewModel.startInspection(context)
-                    } else {
-                        viewModel.stopInspection(context)
-                    }
+                    onModeToggleClick() // Call the lambda from MainScreen
                 }
             }
         )
