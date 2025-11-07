@@ -8,6 +8,11 @@ import android.os.IBinder
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.hereliesaz.ideaz.IBuildCallback
+import com.hereliesaz.ideaz.IBuildService
+import com.hereliesaz.ideaz.api.ApiClient
+import com.hereliesaz.ideaz.api.Session
+import com.hereliesaz.ideaz.api.UserMessaged
 import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.services.BuildService
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,13 +27,8 @@ import com.hereliesaz.ideaz.api.Source
 import com.hereliesaz.ideaz.services.UIInspectionService
 import kotlinx.coroutines.delay
 import androidx.preference.PreferenceManager
-import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.api.GitHubRepoContext
 import com.hereliesaz.ideaz.api.SourceContext
-import com.hereliesaz.ideaz.IBuildService
-import com.hereliesaz.ideaz.api.ApiClient
-import com.hereliesaz.ideaz.api.Session
-import com.hereliesaz.ideaz.api.UserMessaged
 import java.io.FileOutputStream
 import java.io.IOException
 
@@ -36,31 +36,22 @@ class MainViewModel : ViewModel() {
 
     // --- Global Build Log ---
     private val _buildLog = MutableStateFlow("")
-    val buildLog = _buildLog.asStateFlow() // For build logs & contextless AI chat
+    val buildLog = _buildLog.asStateFlow() // This is NOW the single destination for ALL text output
 
     // --- Service Binders ---
     private var buildService: IBuildService? = null
     private var isBuildServiceBound = false
 
-    // --- Global State ---
-    private val _buildStatus = MutableStateFlow("Idle")
-    val buildStatus = _buildStatus.asStateFlow()
-
-    private val _aiStatus = MutableStateFlow("Idle") // For contextless AI
-    val aiStatus = _aiStatus.asStateFlow()
-
     // --- Session / API State ---
-    private val _session = MutableStateFlow<Session?>(null) // For contextless AI
-    val session = _session.asStateFlow()
-
+    // These are still needed for internal logic, but not for direct display
+    private val _session = MutableStateFlow<Session?>(null)
+    val session = _session.asStateFlow() // Used by IdeNavHost
     private val _activities = MutableStateFlow<List<Activity>>(emptyList())
-    val activities = _activities.asStateFlow()
-
+    val activities = _activities.asStateFlow() // Used by IdeNavHost
     private val _sessions = MutableStateFlow<List<Session>>(emptyList())
-    val sessions = _sessions.asStateFlow()
-
+    val sessions = _sessions.asStateFlow() // Used by IdeNavHost
     private val _sources = MutableStateFlow<List<Source>>(emptyList())
-    val sources = _sources.asStateFlow()
+    val sources = _sources.asStateFlow() // Used by IdeNavHost
 
     // --- Code/Source Map State ---
     private val _codeContent = MutableStateFlow("")
@@ -78,19 +69,22 @@ class MainViewModel : ViewModel() {
     private var sourceMap: Map<String, SourceMapEntry> = emptyMap()
     private var appContext: Context? = null
 
+    // Lazy init for SettingsViewModel
+    private val settingsViewModel by lazy { SettingsViewModel() }
+
 
     // --- Build Service Connection ---
     private val buildServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             buildService = IBuildService.Stub.asInterface(service)
             isBuildServiceBound = true
-            _buildStatus.value = "Build Service Connected"
+            _buildLog.value += "Status: Build Service Connected\n"
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
             buildService = null
             isBuildServiceBound = false
-            _buildStatus.value = "Build Service Disconnected"
+            _buildLog.value += "Status: Build Service Disconnected\n"
         }
     }
 
@@ -103,9 +97,8 @@ class MainViewModel : ViewModel() {
         }
         override fun onSuccess(apkPath: String) {
             viewModelScope.launch {
-                _buildLog.value += "\nBuild successful: $apkPath"
-                _buildStatus.value = "Build Successful"
-                _aiStatus.value = "Idle" // Global AI is idle
+                _buildLog.value += "\nBuild successful: $apkPath\n"
+                _buildLog.value += "Status: Build Successful\n"
 
                 // Contextual AI task is finished
                 logToOverlay("Build successful. Task finished.")
@@ -115,20 +108,20 @@ class MainViewModel : ViewModel() {
                 if (buildDir != null) {
                     val parser = SourceMapParser(buildDir)
                     sourceMap = parser.parse()
-                    _buildLog.value += "\nSource map loaded. Found ${sourceMap.size} entries."
+                    _buildLog.value += "Source map loaded. Found ${sourceMap.size} entries.\n"
                 }
             }
         }
 
         override fun onFailure(log: String) {
             viewModelScope.launch {
-                _buildLog.value += "\nBuild failed:\n$log"
-                _buildStatus.value = "Build Failed"
+                _buildLog.value += "\nBuild failed:\n$log\n"
+                _buildLog.value += "Status: Build Failed\n"
 
                 // Check which AI flow is active. This is tricky.
                 // For now, assume build failures are debugged globally.
                 logToOverlay("Build failed. See global log to debug.")
-                _aiStatus.value = "Build failed, asking AI to debug..."
+                _buildLog.value += "AI Status: Build failed, asking AI to debug...\n"
                 debugBuild() // Global debug
             }
         }
@@ -194,7 +187,7 @@ class MainViewModel : ViewModel() {
         val entry = sourceMap[id]
         if (entry != null) {
             // Log to global log
-            _buildLog.value += "\nSource for $id found at ${entry.file}:${entry.line}"
+            _buildLog.value += "Source for $id found at ${entry.file}:${entry.line}\n"
             viewModelScope.launch {
                 try {
                     val file = File(entry.file)
@@ -207,19 +200,19 @@ class MainViewModel : ViewModel() {
                             _selectedFile.value = entry.file
                             _selectedLine.value = entry.line
                             _selectedCodeSnippet.value = snippet
-                            _buildLog.value += "\nContext Found:\nFile: ${entry.file}\nLine: ${entry.line}\nSnippet: $snippet"
+                            _buildLog.value += "Context Found:\nFile: ${entry.file}\nLine: ${entry.line}\nSnippet: $snippet\n"
                         } else {
-                            _buildLog.value += "\nError: Line number ${entry.line} is out of bounds for ${entry.file}"
+                            _buildLog.value += "Error: Line number ${entry.line} is out of bounds for ${entry.file}\n"
                         }
                     } else {
-                        _buildLog.value += "\nError: Source file not found at ${entry.file}"
+                        _buildLog.value += "Error: Source file not found at ${entry.file}\n"
                     }
                 } catch (e: Exception) {
-                    _buildLog.value += "\nError reading source file: ${e.message}"
+                    _buildLog.value += "Error reading source file: ${e.message}\n"
                 }
             }
         } else {
-            _buildLog.value += "\nSource for $id not found"
+            _buildLog.value += "Source for $id not found\n"
         }
     }
 
@@ -228,13 +221,12 @@ class MainViewModel : ViewModel() {
     fun startBuild(context: Context) {
         if (isBuildServiceBound) {
             viewModelScope.launch {
-                _buildStatus.value = "Building..."
-                _buildLog.value = "" // Clear global log
+                _buildLog.value = "Status: Building...\n" // Clear log and set status
                 val projectDir = File(extractProject(context))
                 buildService?.startBuild(projectDir.absolutePath, buildCallback)
             }
         } else {
-            _buildStatus.value = "Service not bound"
+            _buildLog.value += "Status: Service not bound\n"
         }
     }
 
@@ -293,33 +285,69 @@ class MainViewModel : ViewModel() {
      * Sends a "contextless" prompt (from the bottom sheet) to the AI.
      * Logs are streamed to the global _buildLog.
      */
-    fun sendPrompt(prompt: String) {
+    fun sendPrompt(prompt: String, isInitialization: Boolean = false) {
+        val taskKey = if (isInitialization) {
+            SettingsViewModel.KEY_AI_ASSIGNMENT_INIT
+        } else {
+            SettingsViewModel.KEY_AI_ASSIGNMENT_CONTEXTLESS
+        }
+
         // This is a contextless prompt, so context is null
         _selectedFile.value = null
         _selectedLine.value = null
         _selectedCodeSnippet.value = null
 
-        _buildLog.value += "\nSending contextless prompt: $prompt"
+        _buildLog.value += "\nSending prompt for $taskKey: $prompt\n"
+
+        // Get the assigned AI model for this task
+        val model = getAssignedModelForTask(taskKey)
+        if (model == null) {
+            _buildLog.value += "Error: No AI model assigned for this task. Go to Settings.\n"
+            return
+        }
+
+        // Check if the required key is present
+        if (settingsViewModel.getApiKey(appContext!!, model.requiredKey).isNullOrBlank()) {
+            _buildLog.value += "Error: API Key for ${model.displayName} is missing. Go to Settings.\n"
+            return
+        }
 
         viewModelScope.launch {
-            _aiStatus.value = "Sending..."
-            try {
-                val sessionRequest = createSessionRequest(prompt)
-                if (sessionRequest == null) {
-                    _aiStatus.value = "Error: Project settings incomplete."
-                    _buildLog.value += "\nPlease go to Project settings and set App Name and GitHub User."
-                    return@launch
+            _buildLog.value += "AI Status: Sending...\n"
+
+            when (model.id) {
+                AiModels.JULES_DEFAULT -> {
+                    try {
+                        val sessionRequest = createSessionRequest(prompt)
+                        if (sessionRequest == null) {
+                            _buildLog.value += "AI Status: Error: Project settings incomplete.\n"
+                            _buildLog.value += "Please go to Project settings and set App Name and GitHub User.\n"
+                            return@launch
+                        }
+
+                        val response = ApiClient.julesApiService.createSession(sessionRequest)
+                        _session.value = response // Store as the "global" session
+                        _buildLog.value += "AI Status: Session created. Waiting for patch...\n"
+                        // Poll and log to _buildLog
+                        pollForPatch(response.name, _buildLog)
+
+                    } catch (e: Exception) {
+                        _buildLog.value += "AI Status: Error: ${e.message}\n"
+                    }
                 }
 
-                val response = ApiClient.julesApiService.createSession(sessionRequest)
-                _session.value = response // Store as the "global" session
-                _aiStatus.value = "Session created. Waiting for patch..."
-                // Poll and log to _buildLog
-                pollForPatch(response.name, _buildLog)
+                AiModels.GEMINI_FLASH -> {
+                    // --- Gemini Logic (Placeholder) ---
+                    _buildLog.value += "AI Status: Idle\n"
+                    _buildLog.value += "Gemini Flash client not yet implemented.\n"
+                    // TODO: Implement Gemini API call here
+                    // 1. Call Gemini API with googleApiKey
+                    // 2. Get text response
+                    // 3. (Future) Convert text response to a patch
+                    // 4. (Future) call applyPatch(...)
+                }
 
-            } catch (e: Exception) {
-                _aiStatus.value = "Error: ${e.message}"
-                _buildLog.value += "\nError: ${e.message}"
+                // Add other models here
             }
         }
     }
@@ -354,28 +382,59 @@ class MainViewModel : ViewModel() {
         // Log to overlay
         logToOverlay("Sending prompt to AI...")
 
+        // Get the assigned AI model for this task
+        val model = getAssignedModelForTask(SettingsViewModel.KEY_AI_ASSIGNMENT_OVERLAY)
+        if (model == null) {
+            logToOverlay("Error: No AI model assigned for this task. Go to Settings.")
+            return
+        }
+
+        // Check if the required key is present
+        if (settingsViewModel.getApiKey(appContext!!, model.requiredKey).isNullOrBlank()) {
+            logToOverlay("Error: API Key for ${model.displayName} is missing. Go to Settings.")
+            return
+        }
+
         viewModelScope.launch {
-            try {
-                val sessionRequest = createSessionRequest(richPrompt)
-                if (sessionRequest == null) {
-                    logToOverlay("Error: Project settings incomplete. Go to main app.")
-                    logToOverlay("Task Finished.") // Manually finish
-                    return@launch
+            when (model.id) {
+                AiModels.JULES_DEFAULT -> {
+                    try {
+                        val sessionRequest = createSessionRequest(richPrompt)
+                        if (sessionRequest == null) {
+                            logToOverlay("Error: Project settings incomplete. Go to main app.")
+                            logToOverlay("Task Finished.") // Manually finish
+                            return@launch
+                        }
+
+                        val response = ApiClient.julesApiService.createSession(sessionRequest)
+                        logToOverlay("Session created. Waiting for patch...")
+                        // Poll and log to overlay
+                        pollForPatch(response.name, "OVERLAY") // Use a string to signify overlay
+
+                    } catch (e: Exception) {
+                        logToOverlay("Error: ${e.message}")
+                        logToOverlay("Task Finished.") // Manually finish
+                    }
                 }
-
-                val response = ApiClient.julesApiService.createSession(sessionRequest)
-                logToOverlay("Session created. Waiting for patch...")
-                // Poll and log to overlay
-                pollForPatch(response.name, "OVERLAY") // Use a string to signify overlay
-
-            } catch (e: Exception) {
-                logToOverlay("Error: ${e.message}")
-                logToOverlay("Task Finished.") // Manually finish
+                AiModels.GEMINI_FLASH -> {
+                    // --- Gemini Logic (Placeholder) ---
+                    logToOverlay("Gemini Flash client not yet implemented.")
+                    logToOverlay("Task Finished.") // Manually finish
+                }
             }
         }
     }
 
     // --- AI Helper Functions ---
+
+    /**
+     * Gets the assigned AiModel for a given task, handling fallback to Default.
+     */
+    private fun getAssignedModelForTask(taskKey: String): AiModel? {
+        val modelId = settingsViewModel.getAiAssignment(appContext!!, taskKey)
+        return AiModels.findById(modelId)
+    }
+
 
     /** Creates a session request object from current project settings */
     private fun createSessionRequest(prompt: String): CreateSessionRequest? {
@@ -458,19 +517,39 @@ class MainViewModel : ViewModel() {
 
     /** Global debug function, logs to global log */
     fun debugBuild() {
+        // Get the assigned AI model for this task
+        val model = getAssignedModelForTask(SettingsViewModel.KEY_AI_ASSIGNMENT_CONTEXTLESS) // Debug follows contextless for now
+        if (model == null) {
+            _buildLog.value += "Error: No AI model assigned for this task. Go to Settings.\n"
+            return
+        }
+        if (settingsViewModel.getApiKey(appContext!!, model.requiredKey).isNullOrBlank()) {
+            _buildLog.value += "Error: API Key for ${model.displayName} is missing. Go to Settings.\n"
+            return
+        }
+
         viewModelScope.launch {
-            _aiStatus.value = "Debugging build failure..."
-            try {
-                session.value?.let { // Uses the global session
-                    val message = UserMessaged(buildLog.value)
-                    val updatedSession = ApiClient.julesApiService.sendMessage(it.name, message)
-                    _session.value = updatedSession
-                    _aiStatus.value = "Debug info sent. Waiting for new patch..."
-                    // Poll and log to global log
-                    pollForPatch(it.name, _buildLog)
+            _buildLog.value += "AI Status: Debugging build failure...\n"
+
+            when (model.id) {
+                AiModels.JULES_DEFAULT -> {
+                    try {
+                        session.value?.let { // Uses the global session
+                            val message = UserMessaged(buildLog.value)
+                            val updatedSession = ApiClient.julesApiService.sendMessage(it.name, message)
+                            _session.value = updatedSession
+                            _buildLog.value += "AI Status: Debug info sent. Waiting for new patch...\n"
+                            // Poll and log to global log
+                            pollForPatch(it.name, _buildLog)
+                        }
+                    } catch (e: Exception) {
+                        _buildLog.value += "AI Status: Error debugging: ${e.message}\n"
+                    }
                 }
-            } catch (e: Exception) {
-                _aiStatus.value = "Error debugging: ${e.message}"
+                AiModels.GEMINI_FLASH -> {
+                    _buildLog.value += "AI Status: Idle\n"
+                    _buildLog.value += "Gemini debug client not yet implemented.\n"
+                }
             }
         }
     }
@@ -480,7 +559,7 @@ class MainViewModel : ViewModel() {
         if (target == null) return
         when (target) {
             is MutableStateFlow<*> -> {
-                (target as? MutableStateFlow<String>)?.value += "\n$message"
+                (target as? MutableStateFlow<String>)?.value += "$message\n"
             }
             "OVERLAY" -> {
                 logToOverlay(message)
@@ -506,7 +585,7 @@ class MainViewModel : ViewModel() {
                 val response = ApiClient.julesApiService.listSessions()
                 _sessions.value = response.sessions // Correctly access the list
             } catch (e: Exception) {
-                _aiStatus.value = "Error listing sessions: ${e.message}"
+                _buildLog.value += "Error listing sessions: ${e.message}\n"
             }
         }
     }
@@ -514,12 +593,12 @@ class MainViewModel : ViewModel() {
     fun loadSources() {
         viewModelScope.launch {
             try {
-                _aiStatus.value = "Loading sources..."
+                _buildLog.value += "AI Status: Loading sources...\n"
                 val response = ApiClient.julesApiService.listSources()
                 _sources.value = response.sources
-                _aiStatus.value = "Sources loaded."
+                _buildLog.value += "AI Status: Sources loaded.\n"
             } catch (e: Exception) {
-                _aiStatus.value = "Error loading sources: ${e.message}"
+                _buildLog.value += "AI Status: Error loading sources: ${e.message}\n"
             }
         }
     }
@@ -531,7 +610,7 @@ class MainViewModel : ViewModel() {
                     _activities.value = ApiClient.julesApiService.listActivities(it.name)
                 }
             } catch (e: Exception) {
-                _aiStatus.value = "Error listing activities: ${e.message}"
+                _buildLog.value += "Error listing activities: ${e.message}\n"
             }
         }
     }

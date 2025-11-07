@@ -12,6 +12,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,17 +44,15 @@ private val Halfway = SheetDetent("halfway") { containerHeight, _ -> containerHe
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(viewModel: MainViewModel) {
-    // This line was broken, now it's fixed because MainViewModel is fixed
-    val buildLog by viewModel.buildLog.collectAsState()
-    val buildStatus by viewModel.buildStatus.collectAsState()
-    val aiStatus by viewModel.aiStatus.collectAsState()
+    // val buildLog by viewModel.buildLog.collectAsState() // This is now handled by the bottom sheet
+    // val buildStatus by viewModel.buildStatus.collectAsState() // This is now IN the buildLog
+    // val aiStatus by viewModel.aiStatus.collectAsState() // This is now IN the buildLog
     val session by viewModel.session.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
     val activities by viewModel.activities.collectAsState()
     val sources by viewModel.sources.collectAsState()
     val context = LocalContext.current
     var showPromptPopup by remember{ mutableStateOf(false) } // This is for the OLD popup
-    var isInspecting by remember { mutableStateOf(false) }
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
 
@@ -72,15 +71,25 @@ fun MainScreen(viewModel: MainViewModel) {
     val isOnSettings = currentRoute == "settings"
     val isOnProjectSettings = currentRoute == "project_settings"
 
+    // This is now the single source of truth for the mode.
+    // isIdeVisible == true -> "Selection Mode"
+    // isIdeVisible == false -> "Interaction Mode"
     val isIdeVisible = sheetState.currentDetent != AlmostHidden || isOnSettings || isOnProjectSettings
     // --- End Visibility Logic ---
 
-    // Set background color based on sheet state
-    val containerColor = if (isIdeVisible) {
-        MaterialTheme.colorScheme.background
-    } else {
-        Color.Transparent
+    // --- Tie Inspection State to Sheet State ---
+    LaunchedEffect(sheetState.currentDetent) {
+        if (sheetState.currentDetent == AlmostHidden) {
+            // "Interaction Mode"
+            viewModel.stopInspection(context)
+        } else {
+            // "Selection Mode"
+            viewModel.startInspection(context)
+        }
     }
+
+    // Set background color based on sheet state
+    val containerColor = Color.Transparent
 
     // Helper function to navigate away from settings when an action is taken
     val handleActionClick = { action: () -> Unit ->
@@ -90,13 +99,25 @@ fun MainScreen(viewModel: MainViewModel) {
         action()
     }
 
-    // The old modal popup is now only for CONTEXTLESS chat.
-    // We will rename it to make this clear.
+    // --- New: Click handler for the mode toggle button ---
+    // MODIFIED: Explicitly typed as () -> Unit to fix the build error.
+    val onModeToggleClick: () -> Unit = {
+        scope.launch {
+            if (isIdeVisible) {
+                // We are in Selection Mode, switch to Interaction Mode
+                sheetState.animateTo(AlmostHidden)
+            } else {
+                // We are in Interaction Mode, switch to Selection Mode
+                sheetState.animateTo(Peek)
+            }
+        }
+    }
+
     if (showPromptPopup) {
         PromptPopup(
             onDismiss = { showPromptPopup = false },
             onSubmit = { prompt ->
-                viewModel.sendPrompt(prompt) // This is now the contextless prompt
+                viewModel.sendPrompt(prompt)
                 showPromptPopup = false
             }
         )
@@ -112,6 +133,8 @@ fun MainScreen(viewModel: MainViewModel) {
             Row(
                 modifier = Modifier
                     .fillMaxSize()
+                    // MODIFIED: The content background is now applied here,
+                    // so the Scaffold can remain transparent.
                     .then(
                         if (isIdeVisible) Modifier.background(MaterialTheme.colorScheme.background)
                         else Modifier
@@ -122,13 +145,11 @@ fun MainScreen(viewModel: MainViewModel) {
                     navController = navController,
                     viewModel = viewModel,
                     context = context,
-                    isInspecting = isInspecting,
-                    buildStatus = buildStatus,
-                    activities = activities,
-                    onInspectToggle = { isInspecting = it },
-                    onShowPromptPopup = { showPromptPopup = true }, // This button now opens the contextless prompt
+                    // buildStatus and activities no longer needed here
+                    onShowPromptPopup = { showPromptPopup = true },
                     handleActionClick = handleActionClick,
-                    isIdeVisible = isIdeVisible
+                    isIdeVisible = isIdeVisible,
+                    onModeToggleClick = onModeToggleClick // Pass the click handler
                 )
 
                 // This is the main screen content, which we make visible/invisible
@@ -138,8 +159,6 @@ fun MainScreen(viewModel: MainViewModel) {
                         modifier = Modifier.weight(1f),
                         navController = navController,
                         viewModel = viewModel,
-                        buildStatus = buildStatus,
-                        aiStatus = aiStatus,
                         session = session,
                         sessions = sessions,
                         activities = activities,
@@ -157,7 +176,12 @@ fun MainScreen(viewModel: MainViewModel) {
                 viewModel = viewModel,
                 peekDetent = Peek,
                 halfwayDetent = Halfway,
-                chatHeight = chatHeight
+                chatHeight = chatHeight,
+                // MODIFIED: No longer passing status vars
+                buildStatus = "", // Not needed
+                aiStatus = "", // Not needed
+                sessions = emptyList(), // Not needed
+                activities = emptyList() // Not needed
             )
 
             // --- External Chat Input ---
@@ -168,7 +192,7 @@ fun MainScreen(viewModel: MainViewModel) {
             ) {
                 ContextlessChatInput(
                     modifier = Modifier.height(chatHeight),
-                    onSend = { viewModel.sendPrompt(it) } // This correctly calls the contextless prompt
+                    onSend = { viewModel.sendPrompt(it) }
                 )
             }
         }

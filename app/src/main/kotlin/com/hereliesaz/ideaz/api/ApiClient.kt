@@ -8,7 +8,9 @@ import retrofit2.Retrofit
 
 object ApiClient {
 
-    private const val BASE_URL = "https://jules.googleapis.com/" // Corrected Base URL
+    // Reverted to the correct Base URL as per your documentation link.
+    // The 404 is an auth or project configuration issue, not a host issue.
+    private const val BASE_URL = "https://jules.googleapis.com/"
 
     private val json = Json {
         ignoreUnknownKeys = true

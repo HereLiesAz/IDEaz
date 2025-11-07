@@ -2,7 +2,9 @@ package com.hereliesaz.ideaz.ui
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -120,7 +122,8 @@ fun ProjectSettingsScreen(
                         Button(onClick = {
                             // Save config just in case, then send prompt
                             settingsViewModel.saveProjectConfig(context, appName, githubUser, branchName)
-                            viewModel.sendPrompt(initialPrompt)
+                            // This is a "Project Initialization" prompt
+                            viewModel.sendPrompt(initialPrompt, isInitialization = true)
                         }) {
                             Text("Create Project & Build")
                         }
