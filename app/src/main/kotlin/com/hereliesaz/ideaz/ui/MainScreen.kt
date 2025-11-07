@@ -43,6 +43,7 @@ private val Halfway = SheetDetent("halfway") { containerHeight, _ -> containerHe
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(viewModel: MainViewModel) {
+    // This line was broken, now it's fixed because MainViewModel is fixed
     val buildLog by viewModel.buildLog.collectAsState()
     val buildStatus by viewModel.buildStatus.collectAsState()
     val aiStatus by viewModel.aiStatus.collectAsState()
@@ -51,7 +52,7 @@ fun MainScreen(viewModel: MainViewModel) {
     val activities by viewModel.activities.collectAsState()
     val sources by viewModel.sources.collectAsState()
     val context = LocalContext.current
-    var showPromptPopup by remember{ mutableStateOf(false) }
+    var showPromptPopup by remember{ mutableStateOf(false) } // This is for the OLD popup
     var isInspecting by remember { mutableStateOf(false) }
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
@@ -89,11 +90,13 @@ fun MainScreen(viewModel: MainViewModel) {
         action()
     }
 
+    // The old modal popup is now only for CONTEXTLESS chat.
+    // We will rename it to make this clear.
     if (showPromptPopup) {
         PromptPopup(
             onDismiss = { showPromptPopup = false },
             onSubmit = { prompt ->
-                viewModel.sendPrompt(prompt)
+                viewModel.sendPrompt(prompt) // This is now the contextless prompt
                 showPromptPopup = false
             }
         )
@@ -123,7 +126,7 @@ fun MainScreen(viewModel: MainViewModel) {
                     buildStatus = buildStatus,
                     activities = activities,
                     onInspectToggle = { isInspecting = it },
-                    onShowPromptPopup = { showPromptPopup = true },
+                    onShowPromptPopup = { showPromptPopup = true }, // This button now opens the contextless prompt
                     handleActionClick = handleActionClick,
                     isIdeVisible = isIdeVisible
                 )
@@ -165,7 +168,7 @@ fun MainScreen(viewModel: MainViewModel) {
             ) {
                 ContextlessChatInput(
                     modifier = Modifier.height(chatHeight),
-                    onSend = { viewModel.sendPrompt(it) }
+                    onSend = { viewModel.sendPrompt(it) } // This correctly calls the contextless prompt
                 )
             }
         }

@@ -7,28 +7,33 @@ This is the primary state of the application. It is not a screen within the IDEa
 
 **Key UI Components:**
 -   **The User's App:** The running, compiled application being built.
--   **IDEaz Floating Button:** A persistent floating action button that allows the user to enter "Edit Mode."
+-   **IDEaz Floating Button:** A persistent floating action button that allows the user to enter "Edit Mode." (Note: This is a legacy idea, the primary entry is now via the Host App's "Inspect" button).
 
 ## 2. Edit Mode (The IDEaz Overlay)
 This is the main interaction phase, implemented as a transparent service drawn over the user's live app.
 
 **Key UI Components:**
--   **Screenshot Display:** Shows a static screenshot of the user's app.
--   **Selection Tool:** Allows the user to draw a box on the screenshot to select an element.
--   **Contextual Prompt:** A floating text input box that appears next to the selected area, for typing instructions.
--   **Status Indicator:** A non-intrusive UI element that provides high-level feedback on the AI's status ("Jules is working...", "Jules is debugging...").
+-   **Touch Interceptor:** A full-screen, transparent overlay that captures the user's initial tap to select an element.
+-   **Contextual Prompt/Log UI:** A floating window (drawn by the `WindowManager`) that appears after selection. This UI is stateful:
+    -   **Prompt State:** Shows a text input box for the user to type instructions for the selected element.
+    -   **Log State:** After submission, the input box hides, and the window becomes a log box that streams the AI's chat output for that specific task.
+    -   **Reply State:** If the AI asks a question, the prompt input box reappears below the log.
 
 ## 3. The IDEaz Hub Screen
 This is a traditional Android screen within the IDEaz IDE app that serves as the main dashboard and entry point.
 
 **Key Components:**
--   **Project Launcher:** A button to launch the user's most recent application.
--   **Initial Project Creation:** A text input for the user to describe the new application they want to create from scratch.
--   **Settings Entrypoint:** A button or icon to navigate to the settings screen.
+-   **Nav Rail:** Provides navigation to Project Settings, Status, Inspect, and App Settings.
+-   **Main Content Area:** Displays status information or settings screens.
+-   **Global Console (Bottom Sheet):** A pull-up card containing:
+    -   **Build Log:** A stream of all `aapt2`, `kotlinc`, `d8`, etc. output.
+    -   **Global AI Chat:** A log for the contextless AI chat feature.
+-   **Contextless Chat Input:** A text field at the bottom of the bottom sheet for global AI prompts.
 
 ## 4. Settings Screen
 A standard Android screen for configuring the IDEaz IDE.
 
 **Key Components:**
--   **Jules API Key Input:** A secure text field for the user to enter and save their personal Jules API key. This is the core of the "Bring Your Own Key" model.
+-   **Jules API Key Input:** A secure text field for the user to enter and save their personal Jules API key.
+-   **Project Settings:** Inputs for GitHub repository details.
 -   **Other Preferences:** Options for managing notifications and other app settings.
