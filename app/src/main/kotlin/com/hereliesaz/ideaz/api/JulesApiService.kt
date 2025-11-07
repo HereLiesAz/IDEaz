@@ -9,16 +9,17 @@ import retrofit2.http.Query
 interface JulesApiService {
     // Sessions
     @POST("v1alpha/sessions")
-    suspend fun createSession(@Body session: Session): Session
+    suspend fun createSession(@Body session: CreateSessionRequest): Session // Corrected request body
 
     @GET("v1alpha/sessions/{name}")
     suspend fun getSession(@Path("name") name: String): Session
 
     @GET("v1alpha/sessions")
-    suspend fun listSessions(): List<Session>
+    suspend fun listSessions(): ListSessionsResponse // Corrected return type
 
     @POST("v1alpha/{session=sessions/*}:approvePlan")
-    suspend fun approvePlan(@Path("session") session: String): Session
+    suspend fun
+            approvePlan(@Path("session") session: String): Session
 
     @POST("v1alpha/{session=sessions/*}:sendMessage")
     suspend fun sendMessage(@Path("session") session: String, @Body message: UserMessaged): Session
@@ -35,5 +36,5 @@ interface JulesApiService {
     suspend fun getSource(@Path("name") name: String): Source
 
     @GET("v1alpha/sources")
-    suspend fun listSources(): List<Source>
+    suspend fun listSources(): ListSourcesResponse // Corrected return type
 }
