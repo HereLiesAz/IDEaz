@@ -17,13 +17,15 @@ fun IdeNavRail(
     activities: List<Activity>,
     onInspectToggle: (Boolean) -> Unit,
     onShowPromptPopup: () -> Unit,
-    handleActionClick: (() -> Unit) -> Unit
+    handleActionClick: (() -> Unit) -> Unit,
+    isIdeVisible: Boolean
 ) {
     AzNavRail(navController = navController) {
         azSettings(
             // displayAppNameInHeader = true, // Set to true to display the app name instead of the icon
             packRailButtons = true,
-            defaultShape = AzButtonShape.RECTANGLE
+            defaultShape = AzButtonShape.RECTANGLE,
+            enableRailDragging = !isIdeVisible
         )
         azRailItem(id = "project_settings", text = "Project", onClick = { navController.navigate("project_settings") })
 

@@ -54,6 +54,24 @@ fun SettingsScreen(
                 Text("Save")
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+            var googleApiKey by remember { mutableStateOf(settingsViewModel.getGoogleApiKey(context) ?: "") }
+            TextField(
+                value = googleApiKey,
+                onValueChange = { googleApiKey = it },
+                label = {
+                    Text("Google AI Studio API Key")
+                },
+                visualTransformation = PasswordVisualTransformation()
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(onClick = {
+                settingsViewModel.saveGoogleApiKey(context, googleApiKey)
+                Toast.makeText(context, "API Key Saved", Toast.LENGTH_SHORT).show()
+            }) {
+                Text("Save")
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             // Display the list of sessions

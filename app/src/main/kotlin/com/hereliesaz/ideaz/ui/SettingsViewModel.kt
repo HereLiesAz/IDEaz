@@ -13,6 +13,17 @@ class SettingsViewModel : ViewModel() {
         const val KEY_GITHUB_USER = "github_user"
         const val KEY_BRANCH_NAME = "branch_name"
         const val KEY_PROJECT_LIST = "project_list"
+        const val KEY_GOOGLE_API_KEY = "google_api_key"
+    }
+
+    fun saveGoogleApiKey(context: Context, apiKey: String) {
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+        sharedPreferences.edit().putString(KEY_GOOGLE_API_KEY, apiKey).apply()
+    }
+
+    fun getGoogleApiKey(context: Context): String? {
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+        return sharedPreferences.getString(KEY_GOOGLE_API_KEY, null)
     }
 
     fun saveApiKey(context: Context, apiKey: String) {

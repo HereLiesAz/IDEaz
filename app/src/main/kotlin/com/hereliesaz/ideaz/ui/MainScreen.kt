@@ -106,28 +106,30 @@ fun MainScreen(viewModel: MainViewModel) {
 
         // Use a Box to layer the IDE content and the BottomSheet
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-
-            // This is the main screen content, which we make visible/invisible
-            AnimatedVisibility(visible = isIdeVisible) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        // This background makes the IDE opaque when visible
-                        .background(MaterialTheme.colorScheme.background)
-                ) {
-                    // Call the extracted NavRail
-                    IdeNavRail(
-                        navController = navController,
-                        viewModel = viewModel,
-                        context = context,
-                        isInspecting = isInspecting,
-                        buildStatus = buildStatus,
-                        activities = activities,
-                        onInspectToggle = { isInspecting = it },
-                        onShowPromptPopup = { showPromptPopup = true },
-                        handleActionClick = handleActionClick
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (isIdeVisible) Modifier.background(MaterialTheme.colorScheme.background)
+                        else Modifier
                     )
+            ) {
+                // Call the extracted NavRail
+                IdeNavRail(
+                    navController = navController,
+                    viewModel = viewModel,
+                    context = context,
+                    isInspecting = isInspecting,
+                    buildStatus = buildStatus,
+                    activities = activities,
+                    onInspectToggle = { isInspecting = it },
+                    onShowPromptPopup = { showPromptPopup = true },
+                    handleActionClick = handleActionClick,
+                    isIdeVisible = isIdeVisible
+                )
 
+                // This is the main screen content, which we make visible/invisible
+                AnimatedVisibility(visible = isIdeVisible) {
                     // Call the extracted NavHost
                     IdeNavHost(
                         modifier = Modifier.weight(1f),
