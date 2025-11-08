@@ -144,6 +144,7 @@ class SettingsViewModel : ViewModel() {
         // Send a broadcast to notify the running service of the change
         val intent = Intent(ACTION_TARGET_PACKAGE_CHANGED).apply {
             putExtra("PACKAGE_NAME", packageName)
+            setPackage(context.packageName)
         }
         context.sendBroadcast(intent)
     }
