@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
+import com.hereliesaz.aznavrail.AzButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -116,13 +116,11 @@ fun ProjectSettingsScreen(
                             )
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            Button(onClick = {
+                            AzButton(onClick = {
                                 settingsViewModel.saveProjectConfig(context, appName, githubUser, branchName)
                                 settingsViewModel.saveTargetPackageName(context, packageName)
                                 Toast.makeText(context, "Project Config Saved", Toast.LENGTH_SHORT).show()
-                            }) {
-                                Text("Save Config")
-                            }
+                            }, text = "Save Config")
 
                             Spacer(modifier = Modifier.height(24.dp))
                             Text("Initial Prompt", color = MaterialTheme.colorScheme.onBackground)
@@ -134,25 +132,21 @@ fun ProjectSettingsScreen(
                             )
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            Button(onClick = {
+                            AzButton(onClick = {
                                 // This just builds and installs the current template project
                                 // It's the "first APK"
                                 viewModel.startBuild(context)
                                 Toast.makeText(context, "Building template...", Toast.LENGTH_SHORT).show()
-                            }) {
-                                Text("Install/Build Template")
-                            }
+                            }, text = "Install/Build Template")
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            Button(onClick = {
+                            AzButton(onClick = {
                                 // Save config just in case, then send prompt
                                 settingsViewModel.saveProjectConfig(context, appName, githubUser, branchName)
                                 settingsViewModel.saveTargetPackageName(context, packageName)
                                 // This is a "Project Initialization" prompt (the "second APK")
                                 viewModel.sendPrompt(initialPrompt, isInitialization = true)
-                            }) {
-                                Text("Create Project & Build")
-                            }
+                            }, text = "Create Project & Build")
                         }
 
                         // --- CLONE TAB ---
@@ -166,7 +160,7 @@ fun ProjectSettingsScreen(
                                     placeholder = { Text("https://github.com/user/repo") },
                                     modifier = Modifier.weight(1f)
                                 )
-                                Button(onClick = {
+                                AzButton(onClick = {
                                     val currentUser = settingsViewModel.getGithubUser(context)
                                     var owner: String? = null
                                     try {
@@ -179,9 +173,7 @@ fun ProjectSettingsScreen(
                                     } else {
                                         Toast.makeText(context, "Forking is not supported. Please fork on GitHub and register the forked repo with Jules first.", Toast.LENGTH_LONG).show()
                                     }
-                                }) {
-                                    Text("Fork")
-                                }
+                                }, text = "Fork")
                             }
 
                             Spacer(modifier = Modifier.height(24.dp))
@@ -191,7 +183,7 @@ fun ProjectSettingsScreen(
                             } else {
                                 ownedSources.forEach { source ->
                                     val repo = source.githubRepo!!
-                                    Button(
+                                    AzButton(
                                         onClick = {
                                             appName = repo.repo
                                             githubUser = repo.owner
@@ -199,10 +191,9 @@ fun ProjectSettingsScreen(
                                             Toast.makeText(context, "Config loaded. Go to 'Create' tab to save.", Toast.LENGTH_LONG).show()
                                             tabIndex = 0 // Switch to Create tab
                                         },
+                                        text = "${repo.owner}/${repo.repo} (Branch: ${repo.defaultBranch.displayName})",
                                         modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth()
-                                    ) {
-                                        Text("${repo.owner}/${repo.repo} (Branch: ${repo.defaultBranch.displayName})")
-                                    }
+                                    )
                                 }
                             }
                         }
@@ -216,7 +207,7 @@ fun ProjectSettingsScreen(
                                 Text("No saved projects found.", color = MaterialTheme.colorScheme.onBackground)
                             } else {
                                 loadableProjects.forEach { projectString ->
-                                    Button(
+                                    AzButton(
                                         onClick = {
                                             val parts = projectString.split("/")
                                             if (parts.size == 2) {
@@ -227,10 +218,9 @@ fun ProjectSettingsScreen(
                                                 tabIndex = 0 // Switch to Create tab
                                             }
                                         },
+                                        text = projectString,
                                         modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth()
-                                    ) {
-                                        Text(projectString)
-                                    }
+                                    )
                                 }
                             }
                         }

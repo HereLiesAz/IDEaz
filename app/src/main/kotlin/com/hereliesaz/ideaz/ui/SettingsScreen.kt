@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Button
+import com.hereliesaz.aznavrail.AzButton
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -71,19 +71,15 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Button(onClick = {
+                    AzButton(onClick = {
                         settingsViewModel.saveApiKey(context, apiKey)
                         Toast.makeText(context, "Jules Key Saved", Toast.LENGTH_SHORT).show()
-                    }) {
-                        Text("Save")
-                    }
+                    }, text = "Save")
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(onClick = {
+                    AzButton(onClick = {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://jules.google.com/settings"))
                         context.startActivity(intent)
-                    }) {
-                        Text("Get Key")
-                    }
+                    }, text = "Get Key")
                 }
 
 
@@ -98,19 +94,15 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Button(onClick = {
+                    AzButton(onClick = {
                         settingsViewModel.saveGoogleApiKey(context, googleApiKey)
                         Toast.makeText(context, "AI Studio Key Saved", Toast.LENGTH_SHORT).show()
-                    }) {
-                        Text("Save")
-                    }
+                    }, text = "Save")
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(onClick = {
+                    AzButton(onClick = {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/api-keys"))
                         context.startActivity(intent)
-                    }) {
-                        Text("Get Key")
-                    }
+                    }, text = "Get Key")
                 }
 
 
