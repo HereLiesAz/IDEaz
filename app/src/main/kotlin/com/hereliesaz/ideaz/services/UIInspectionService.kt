@@ -109,7 +109,7 @@ class UIInspectionService : AccessibilityService() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(commandReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
-            registerReceiver(commandReceiver, filter)
+            registerReceiver(commandReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         }
     }
 
@@ -248,7 +248,9 @@ class UIInspectionService : AccessibilityService() {
         promptContainer?.visibility = View.GONE
 
         cancelButton?.setOnClickListener {
-            val cancelIntent = Intent("com.hereliesaz.ideaz.CANCEL_TASK_REQUESTED")
+            val cancelIntent = Intent("com.hereliesaz.ideaz.CANCEL_TASK_REQUESTED").apply {
+                setPackage(packageName)
+            }
             sendBroadcast(cancelIntent)
         }
 
@@ -312,6 +314,7 @@ class UIInspectionService : AccessibilityService() {
                 // Send prompt back to ViewModel via broadcast
                 if (resourceId != null) {
                     val promptIntent = Intent("com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE").apply {
+                        setPackage(packageName)
                         putExtra("RESOURCE_ID", resourceId)
                         putExtra("PROMPT", prompt)
                         putExtra("BOUNDS", rect)
@@ -319,6 +322,7 @@ class UIInspectionService : AccessibilityService() {
                     sendBroadcast(promptIntent)
                 } else {
                     val promptIntent = Intent("com.hereliesaz.ideaz.PROMPT_SUBMITTED_RECT").apply {
+                        setPackage(packageName)
                         putExtra("RECT", rect)
                         putExtra("PROMPT", prompt)
                     }
@@ -328,7 +332,9 @@ class UIInspectionService : AccessibilityService() {
         }
 
         cancelButton?.setOnClickListener {
-            val cancelIntent = Intent("com.hereliesaz.ideaz.CANCEL_TASK_REQUESTED")
+            val cancelIntent = Intent("com.hereliesaz.ideaz.CANCEL_TASK_REQUESTED").apply {
+                setPackage(packageName)
+            }
             sendBroadcast(cancelIntent)
         }
 

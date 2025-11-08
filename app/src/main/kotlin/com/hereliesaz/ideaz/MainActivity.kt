@@ -124,7 +124,7 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(inspectionReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
-            registerReceiver(inspectionReceiver, filter)
+            registerReceiver(inspectionReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         }
     }
 
