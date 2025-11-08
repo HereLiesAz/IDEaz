@@ -13,6 +13,7 @@ import android.content.Context
 import android.content.IntentFilter
 import android.view.accessibility.AccessibilityNodeInfo
 import android.graphics.Rect
+import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import android.view.LayoutInflater
@@ -21,24 +22,27 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import com.hereliesaz.ideaz.R
 import android.graphics.Canvas
 import android.graphics.Color
 import kotlin.math.abs
-import kotlin.math.min // <-- FIX 1: Import min
-import kotlin.math.max // <-- FIX 2: Import max
+import kotlin.math.min
+import kotlin.math.max
 
 class UIInspectionService : AccessibilityService() {
 
     private var touchInterceptor: FrameLayout? = null
-    private var logView: View? = null // The log box (sized to the rect)
-    private var promptView: View? = null // The prompt input (below the rect)
+    // MODIFIED: We only have one overlay view now
+    private var overlayView: View? = null
+    private var logContainer: View? = null
+    private var promptContainer: View? = null
 
     private var windowManager: WindowManager? = null
 
-    // --- New variables for drag-selection ---
     private val selectionPaint = Paint().apply {
         color = Color.argb(100, 255, 0, 0) // Semi-transparent red
         style = Paint.Style.FILL
@@ -49,7 +53,6 @@ class UIInspectionService : AccessibilityService() {
     private var endY = 0f
     private var isDragging = false
     private var currentSelectionRect = Rect()
-    // --- End new variables ---
 
     private var touchSlop = 0
 
@@ -57,8 +60,6 @@ class UIInspectionService : AccessibilityService() {
     private val commandReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
-                // This is no longer used, the service shows its own UI
-                // "com.hereliesaz.ideaz.SHOW_PROMPT" -> { ... }
 
                 "com.hereliesaz.ideaz.AI_LOG" -> {
                     val message = intent.getStringExtra("MESSAGE") ?: "..."
@@ -68,6 +69,18 @@ class UIInspectionService : AccessibilityService() {
                 "com.hereliesaz.ideaz.TASK_FINISHED" -> {
                     // Must run UI on main thread
                     touchInterceptor?.post { hideOverlayUI() }
+                }
+                // NEW: Command from VM to re-show the log box *after* screenshot
+                "com.hereliesaz.ideaz.SHOW_LOG_UI" -> {
+                    val rect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableExtra("RECT", Rect::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra("RECT")
+                    }
+                    rect?.let {
+                        touchInterceptor?.post { showLogUI(it) }
+                    }
                 }
             }
         }
@@ -89,12 +102,12 @@ class UIInspectionService : AccessibilityService() {
 
         // Register the command receiver
         val filter = IntentFilter().apply {
-            // addAction("com.hereliesaz.ideaz.SHOW_PROMPT") // No longer needed
             addAction("com.hereliesaz.ideaz.AI_LOG")
             addAction("com.hereliesaz.ideaz.TASK_FINISHED")
+            addAction("com.hereliesaz.ideaz.SHOW_LOG_UI") // Add new action
         }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(commandReceiver, filter, Context.RECEIVER_EXPORTED)
+            registerReceiver(commandReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
             registerReceiver(commandReceiver, filter)
         }
@@ -108,21 +121,18 @@ class UIInspectionService : AccessibilityService() {
     }
 
     private fun showTouchInterceptor() {
-        // MODIFIED: This FrameLayout now handles drawing the selection
         touchInterceptor = object : FrameLayout(this) {
 
-            // This is crucial to allow onDraw to be called
             init { setWillNotDraw(false) }
 
             override fun onDraw(canvas: Canvas) {
                 super.onDraw(canvas)
                 if (isDragging) {
-                    // Draw the real-time selection rectangle
                     currentSelectionRect.set(
-                        min(startX, endX).toInt(), // <-- FIX 3: Use min()
-                        min(startY, endY).toInt(), // <-- FIX 4: Use min()
-                        max(startX, endX).toInt(), // <-- FIX 5: Use max()
-                        max(startY, endY).toInt()  // <-- FIX 6: Use max()
+                        min(startX, endX).toInt(),
+                        min(startY, endY).toInt(),
+                        max(startX, endX).toInt(),
+                        max(startY, endY).toInt()
                     )
                     canvas.drawRect(currentSelectionRect, selectionPaint)
                 }
@@ -130,7 +140,7 @@ class UIInspectionService : AccessibilityService() {
 
             override fun onTouchEvent(event: MotionEvent): Boolean {
                 // Only process drag if no UI is active
-                if (logView != null || promptView != null) {
+                if (overlayView != null) {
                     return super.onTouchEvent(event)
                 }
 
@@ -162,15 +172,14 @@ class UIInspectionService : AccessibilityService() {
                         if (isDragging) {
                             // --- This was a DRAG ---
                             val rect = Rect(
-                                min(startX, endX).toInt(), // <-- FIX 7: Use min()
-                                min(startY, endY).toInt(), // <-- FIX 8: Use min()
-                                max(startX, endX).toInt(), // <-- FIX 9: Use max()
-                                max(startY, endY).toInt()  // <-- FIX 10: Use max()
+                                min(startX, endX).toInt(),
+                                min(startY, endY).toInt(),
+                                max(startX, endX).toInt(),
+                                max(startY, endY).toInt()
                             )
 
                             // Don't trigger if it's too small
                             if (rect.width() > 10 && rect.height() > 10) {
-                                showLogUI(rect)
                                 showPromptUI(rect, null) // Pass null for resourceId
                             }
                         } else {
@@ -178,18 +187,10 @@ class UIInspectionService : AccessibilityService() {
                             val node = findNodeAt(rootInActiveWindow, startX.toInt(), startY.toInt())
                             if (node != null) {
                                 val resourceId = node.viewIdResourceName
-                                if (resourceId != null) {
-                                    val bounds = Rect()
-                                    node.getBoundsInScreen(bounds)
-                                    showLogUI(bounds)
-                                    showPromptUI(bounds, resourceId) // Pass the resourceId
-                                } else {
-                                    // Fallback for nodes without ID, treat as drag
-                                    val bounds = Rect()
-                                    node.getBoundsInScreen(bounds)
-                                    showLogUI(bounds)
-                                    showPromptUI(bounds, null)
-                                }
+                                val bounds = Rect()
+                                node.getBoundsInScreen(bounds)
+
+                                showPromptUI(bounds, resourceId) // Pass the resourceId (can be null)
                             }
                         }
                         isDragging = false
@@ -202,6 +203,8 @@ class UIInspectionService : AccessibilityService() {
         val lp = WindowManager.LayoutParams().apply {
             type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
             format = PixelFormat.TRANSLUCENT
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
             width = WindowManager.LayoutParams.MATCH_PARENT
             height = WindowManager.LayoutParams.MATCH_PARENT
         }
@@ -215,15 +218,19 @@ class UIInspectionService : AccessibilityService() {
         touchInterceptor = null
     }
 
-    // New function to show the log box sized to the Rect
+
+    // NEW function to show *only* the log UI
     private fun showLogUI(rect: Rect) {
-        logView = LayoutInflater.from(this).inflate(R.layout.log_overlay, null)
+        // If overlayView already exists (which it should), just update it
+        if (overlayView == null) {
+            overlayView = LayoutInflater.from(this).inflate(R.layout.inspection_overlay, null)
+        }
 
         val lp = WindowManager.LayoutParams().apply {
             type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
             format = PixelFormat.TRANSLUCENT
-            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE // Log box doesn't take touch
+            // Log box is not focusable or touchable (except cancel)
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
 
             // Set position and size from the drag Rect
             gravity = Gravity.TOP or Gravity.LEFT
@@ -233,12 +240,36 @@ class UIInspectionService : AccessibilityService() {
             height = rect.height()
         }
 
-        windowManager?.addView(logView, lp)
+        logContainer = overlayView?.findViewById(R.id.log_container)
+        promptContainer = overlayView?.findViewById(R.id.prompt_container)
+        val cancelButton = overlayView?.findViewById<ImageButton>(R.id.cancel_button)
+
+        logContainer?.visibility = View.VISIBLE
+        promptContainer?.visibility = View.GONE
+
+        cancelButton?.setOnClickListener {
+            val cancelIntent = Intent("com.hereliesaz.ideaz.CANCEL_TASK_REQUESTED")
+            sendBroadcast(cancelIntent)
+        }
+
+        try {
+            if (overlayView?.windowToken == null) {
+                windowManager?.addView(overlayView, lp)
+            } else {
+                windowManager?.updateViewLayout(overlayView, lp)
+            }
+        } catch (e: Exception) {
+            Log.e("UIInspectionService", "Error showing log UI", e)
+        }
     }
 
-    // Modified function to show the prompt *under* the Rect
+    // MODIFIED: This function now shows the *single* overlay
+    // and positions it based on the rect
     private fun showPromptUI(rect: Rect, resourceId: String?) {
-        promptView = LayoutInflater.from(this).inflate(R.layout.inspection_overlay, null)
+        // Ensure any old UI is gone
+        hideOverlayUI()
+
+        overlayView = LayoutInflater.from(this).inflate(R.layout.inspection_overlay, null)
 
         val lp = WindowManager.LayoutParams().apply {
             type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
@@ -252,23 +283,38 @@ class UIInspectionService : AccessibilityService() {
             // Position it below the log box
             gravity = Gravity.TOP or Gravity.LEFT
             x = rect.left // Align left edge
-            y = rect.bottom + 8 // Position 8dp below the log box
+            y = rect.bottom + 8 // Position 8dp below the rect
         }
 
-        val promptInput = promptView?.findViewById<EditText>(R.id.prompt_input)
-        val submitButton = promptView?.findViewById<Button>(R.id.submit_button)
+        // Get all the components from the single layout
+        logContainer = overlayView?.findViewById(R.id.log_container)
+        promptContainer = overlayView?.findViewById(R.id.prompt_container)
+        val promptInput = overlayView?.findViewById<EditText>(R.id.prompt_input)
+        val submitButton = overlayView?.findViewById<Button>(R.id.submit_button)
+        val cancelButton = overlayView?.findViewById<ImageButton>(R.id.cancel_button)
+
+        // Start with log hidden, prompt visible
+        logContainer?.visibility = View.GONE
+        promptContainer?.visibility = View.VISIBLE
 
         promptInput?.hint = if (resourceId != null) "Prompt for $resourceId..." else "Prompt for selected area..."
 
         submitButton?.setOnClickListener {
             val prompt = promptInput?.text.toString()
             if (prompt.isNotBlank()) {
+
+                // --- MODIFIED SCREENSHOT FLOW ---
+                // 1. Hide the prompt UI immediately
+                hidePromptUI()
+                // 2. Send the broadcast. VM will handle screenshot, THEN show log UI.
+                // ---
+
                 // Send prompt back to ViewModel via broadcast
-                // We send a *different* action based on tap or drag
                 if (resourceId != null) {
                     val promptIntent = Intent("com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE").apply {
                         putExtra("RESOURCE_ID", resourceId)
                         putExtra("PROMPT", prompt)
+                        putExtra("BOUNDS", rect)
                     }
                     sendBroadcast(promptIntent)
                 } else {
@@ -278,17 +324,19 @@ class UIInspectionService : AccessibilityService() {
                     }
                     sendBroadcast(promptIntent)
                 }
-
-                // Hide the prompt UI, but leave the log UI
-                hidePromptUI()
             }
         }
 
-        windowManager?.addView(promptView, lp)
+        cancelButton?.setOnClickListener {
+            val cancelIntent = Intent("com.hereliesaz.ideaz.CANCEL_TASK_REQUESTED")
+            sendBroadcast(cancelIntent)
+        }
+
+        windowManager?.addView(overlayView, lp)
     }
 
     private fun updateLogUI(message: String) {
-        logView?.let {
+        overlayView?.let {
             val logText = it.findViewById<TextView>(R.id.log_text)
             if (logText.text.contains("Initializing")) {
                 logText.text = "> $message" // Replace placeholder
@@ -296,25 +344,30 @@ class UIInspectionService : AccessibilityService() {
                 logText.append("\n> $message")
             }
 
-            // Auto-scroll the log
             val scrollView = it.findViewById<ScrollView>(R.id.log_scroll_view)
             scrollView?.post { scrollView.fullScroll(View.FOCUS_DOWN) }
         }
     }
 
+    // Hides *only* the prompt part of the overlay
     private fun hidePromptUI() {
-        promptView?.let {
-            windowManager?.removeView(it)
+        if (promptContainer?.visibility == View.VISIBLE) {
+            promptContainer?.visibility = View.GONE
         }
-        promptView = null
+
+        // If the main view is still just a prompt, hide the whole thing
+        if (logContainer?.visibility == View.GONE) {
+            hideOverlayUI()
+        }
     }
 
     private fun hideOverlayUI() {
-        hidePromptUI()
-        logView?.let {
+        overlayView?.let {
             windowManager?.removeView(it)
         }
-        logView = null
+        overlayView = null
+        logContainer = null
+        promptContainer = null
     }
 
     // This function is no longer dead.

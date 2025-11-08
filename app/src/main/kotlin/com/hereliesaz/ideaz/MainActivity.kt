@@ -1,15 +1,18 @@
 package com.hereliesaz.ideaz
 
+import android.app.Activity
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Rect
+import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import com.hereliesaz.ideaz.api.AuthInterceptor
 import com.hereliesaz.ideaz.ui.MainScreen
@@ -20,6 +23,23 @@ import androidx.preference.PreferenceManager
 class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
+    private var mediaProjectionManager: MediaProjectionManager? = null
+
+    // --- NEW: ActivityResultLauncher for MediaProjection ---
+    private val screenCaptureLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                // Permission granted. Pass the data to the ViewModel.
+                // FIX: Check for null on result.data before passing
+                result.data?.let {
+                    viewModel.setScreenCapturePermission(result.resultCode, it)
+                }
+            } else {
+                // Permission denied.
+                viewModel.setScreenCapturePermission(Activity.RESULT_CANCELED, null)
+            }
+        }
+    // --- END NEW ---
 
     // --- Broadcast Receiver for events from UIInspectionService ---
     private val inspectionReceiver = object : BroadcastReceiver() {
@@ -29,8 +49,10 @@ class MainActivity : ComponentActivity() {
                 "com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE" -> {
                     val resourceId = intent.getStringExtra("RESOURCE_ID")
                     val prompt = intent.getStringExtra("PROMPT")
-                    if (resourceId != null && prompt != null) {
-                        viewModel.onNodePromptSubmitted(resourceId, prompt)
+                    // NEW: Pass bounds rect for screenshot
+                    val bounds = intent.getParcelableExtra<Rect>("BOUNDS")
+                    if (resourceId != null && prompt != null && bounds != null) {
+                        viewModel.onNodePromptSubmitted(resourceId, prompt, bounds)
                     }
                 }
 
@@ -47,6 +69,18 @@ class MainActivity : ComponentActivity() {
                         viewModel.onRectPromptSubmitted(rect, prompt)
                     }
                 }
+
+                "com.hereliesaz.ideaz.CANCEL_TASK_REQUESTED" -> {
+                    viewModel.requestCancelTask()
+                }
+
+                // NEW: Listen for screenshot
+                "com.hereliesaz.ideaz.SCREENSHOT_TAKEN" -> {
+                    val base64 = intent.getStringExtra("BASE64_SCREENSHOT")
+                    if (base64 != null) {
+                        viewModel.onScreenshotTaken(base64)
+                    }
+                }
             }
         }
     }
@@ -54,10 +88,18 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+
         enableEdgeToEdge()
         setContent {
             IDEazTheme {
-                MainScreen(viewModel)
+                MainScreen(
+                    viewModel = viewModel,
+                    onRequestScreenCapture = {
+                        // Launch the permission dialog
+                        mediaProjectionManager?.createScreenCaptureIntent()?.let { screenCaptureLauncher.launch(it) }
+                    }
+                )
             }
         }
     }
@@ -76,9 +118,11 @@ class MainActivity : ComponentActivity() {
         val filter = IntentFilter().apply {
             addAction("com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE")
             addAction("com.hereliesaz.ideaz.PROMPT_SUBMITTED_RECT")
+            addAction("com.hereliesaz.ideaz.CANCEL_TASK_REQUESTED")
+            addAction("com.hereliesaz.ideaz.SCREENSHOT_TAKEN") // Add new action
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(inspectionReceiver, filter, Context.RECEIVER_EXPORTED)
+            registerReceiver(inspectionReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
             registerReceiver(inspectionReceiver, filter)
         }

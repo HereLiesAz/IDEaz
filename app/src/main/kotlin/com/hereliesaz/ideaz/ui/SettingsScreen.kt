@@ -25,6 +25,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hereliesaz.ideaz.api.Session
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Checkbox
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 
@@ -36,6 +37,12 @@ fun SettingsScreen(
     val context = LocalContext.current
     var apiKey by remember { mutableStateOf(settingsViewModel.getApiKey(context) ?: "") }
     var googleApiKey by remember { mutableStateOf(settingsViewModel.getGoogleApiKey(context) ?: "") }
+
+    // --- NEW: State for Cancel Warning ---
+    var showCancelWarning by remember {
+        mutableStateOf(settingsViewModel.getShowCancelWarning(context))
+    }
+    // --- END NEW ---
 
     Column {
         Spacer(modifier = Modifier.weight(0.2f))
@@ -120,6 +127,26 @@ fun SettingsScreen(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
             }
+
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // --- NEW: Cancel Warning Checkbox ---
+            Text("Preferences")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = showCancelWarning,
+                    onCheckedChange = {
+                        showCancelWarning = it
+                        settingsViewModel.setShowCancelWarning(context, it)
+                    }
+                )
+                Text("Show warning when cancelling AI task")
+            }
+            // --- END NEW ---
 
 
             Spacer(modifier = Modifier.height(24.dp))
