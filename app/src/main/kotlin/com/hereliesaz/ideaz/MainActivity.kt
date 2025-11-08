@@ -14,6 +14,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.hereliesaz.ideaz.api.AuthInterceptor
 import com.hereliesaz.ideaz.ui.MainScreen
 import com.hereliesaz.ideaz.ui.MainViewModel
@@ -94,14 +98,19 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
-            MainScreen(
-                viewModel = viewModel,
-                onRequestScreenCapture = {
-                    // Launch the permission dialog
-                    mediaProjectionManager?.createScreenCaptureIntent()?.let { screenCaptureLauncher.launch(it) }
-                },
-                settingsViewModel = settingsViewModel
-            )
+            var isDarkMode by remember { mutableStateOf(settingsViewModel.isDarkMode(this)) }
+            IDEazTheme(darkTheme = isDarkMode) {
+                MainScreen(
+                    viewModel = viewModel,
+                    onRequestScreenCapture = {
+                        // Launch the permission dialog
+                        mediaProjectionManager?.createScreenCaptureIntent()
+                            ?.let { screenCaptureLauncher.launch(it) }
+                    },
+                    settingsViewModel = settingsViewModel,
+                    onThemeToggle = { isDarkMode = it }
+                )
+            }
         }
     }
 
