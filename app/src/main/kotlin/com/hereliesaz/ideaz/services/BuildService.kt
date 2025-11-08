@@ -29,6 +29,10 @@ class BuildService : Service() {
         override fun startBuild(projectPath: String, callback: IBuildCallback) {
             this@BuildService.startBuild(projectPath, callback)
         }
+
+        override fun updateNotification(message: String) {
+            this@BuildService.updateNotification(message)
+        }
     }
 
     override fun onCreate() {
@@ -63,6 +67,16 @@ class BuildService : Service() {
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
         }
+    }
+
+    private fun updateNotification(message: String) {
+        val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+            .setContentTitle("IDEaz IDE")
+            .setContentText(message)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .build()
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(NOTIFICATION_ID, notification)
     }
 
     private fun startBuild(projectPath: String, callback: IBuildCallback) {
