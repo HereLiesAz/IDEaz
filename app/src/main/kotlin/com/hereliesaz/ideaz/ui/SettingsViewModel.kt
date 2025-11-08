@@ -46,6 +46,8 @@ class SettingsViewModel : ViewModel() {
 
         // New key for cancel warning
         const val KEY_SHOW_CANCEL_WARNING = "show_cancel_warning"
+        const val KEY_DARK_MODE = "dark_mode"
+
 
         val aiTasks = mapOf(
             KEY_AI_ASSIGNMENT_DEFAULT to "Default",
@@ -66,6 +68,18 @@ class SettingsViewModel : ViewModel() {
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
         sharedPreferences.edit().putBoolean(KEY_SHOW_CANCEL_WARNING, show).apply()
     }
+
+    // --- Theme ---
+    fun isDarkMode(context: Context): Boolean {
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+        return sharedPreferences.getBoolean(KEY_DARK_MODE, true) // Default to true
+    }
+
+    fun setDarkMode(context: Context, isDark: Boolean) {
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+        sharedPreferences.edit().putBoolean(KEY_DARK_MODE, isDark).apply()
+    }
+
 
     // --- API Key Save/Get ---
 

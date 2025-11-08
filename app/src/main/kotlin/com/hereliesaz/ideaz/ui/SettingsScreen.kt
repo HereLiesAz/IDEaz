@@ -28,15 +28,19 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.material3.Switch
 
 @Composable
 fun SettingsScreen(
     settingsViewModel: SettingsViewModel = viewModel(),
-    sessions: List<Session> // Accept the sessions list
+    sessions: List<Session>, // Accept the sessions list
+    onThemeToggle: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
     var apiKey by remember { mutableStateOf(settingsViewModel.getApiKey(context) ?: "") }
     var googleApiKey by remember { mutableStateOf(settingsViewModel.getGoogleApiKey(context) ?: "") }
+    var isDarkMode by remember { mutableStateOf(settingsViewModel.isDarkMode(context)) }
+
 
     // --- NEW: State for Cancel Warning ---
     var showCancelWarning by remember {
@@ -44,15 +48,12 @@ fun SettingsScreen(
     }
     // --- END NEW ---
 
-    Column {
-        Spacer(modifier = Modifier.weight(0.2f))
-
-        Column(
-            modifier = Modifier
-                .weight(0.8f)
-                .padding(all = 8.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(all = 8.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
             Text("API Keys")
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -146,6 +147,24 @@ fun SettingsScreen(
                 )
                 Text("Show warning when cancelling AI task")
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Dark Mode")
+                Spacer(modifier = Modifier.width(16.dp))
+                Switch(
+                    checked = isDarkMode,
+                    onCheckedChange = {
+                        isDarkMode = it
+                        settingsViewModel.setDarkMode(context, it)
+                        onThemeToggle(it)
+                    }
+                )
+            }
             // --- END NEW ---
 
 
@@ -161,7 +180,6 @@ fun SettingsScreen(
                 }
             }
         }
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

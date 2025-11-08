@@ -25,7 +25,8 @@ fun IdeNavHost(
     session: Session?,
     sessions: List<Session>,
     activities: List<Activity>,
-    sources: List<Source>
+    sources: List<Source>,
+    onThemeToggle: (Boolean) -> Unit
 ) {
     NavHost(
         navController = navController,
@@ -37,7 +38,7 @@ fun IdeNavHost(
             // The status text has been moved to the IdeBottomSheet.
         }
         composable("settings") {
-            SettingsScreen(sessions = sessions)
+            SettingsScreen(sessions = sessions, onThemeToggle = onThemeToggle)
         }
         composable("project_settings") {
             ProjectSettingsScreen(viewModel = viewModel, sources = sources)

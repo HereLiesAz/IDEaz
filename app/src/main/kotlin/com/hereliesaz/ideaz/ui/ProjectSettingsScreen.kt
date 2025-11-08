@@ -61,13 +61,12 @@ fun ProjectSettingsScreen(
     // State for "Load" tab
     val loadableProjects = projectList.toList()
 
-    Column {
-        Spacer(modifier = Modifier.weight(0.2f))
-        Column(
-            modifier = Modifier
-                .weight(0.8f)
-                .padding(all = 8.dp)
-        ) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(all = 8.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
             TabRow(selectedTabIndex = tabIndex) {
                 tabs.forEachIndexed { index, title ->
                     Tab(text = { Text(title) },
@@ -77,7 +76,7 @@ fun ProjectSettingsScreen(
                 }
             }
 
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            Column {
                 when (tabIndex) {
                     // --- CREATE TAB ---
                     0 -> Column(modifier = Modifier.padding(top = 16.dp)) {
@@ -233,5 +232,4 @@ fun ProjectSettingsScreen(
                 }
             }
         }
-    }
 }
