@@ -511,7 +511,7 @@ class MainViewModel : ViewModel() {
             return null
         }
 
-        val sourceName = "sources/github.com/$githubUser/$appName"
+        val sourceName = "sources/github/$githubUser/$appName"
         val sourceContext = SourceContext(
             source = sourceName,
             githubRepoContext = GitHubRepoContext(branchName)
