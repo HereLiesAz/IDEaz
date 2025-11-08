@@ -1,6 +1,7 @@
 package com.hereliesaz.ideaz.ui
 
 import android.content.Context
+import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.preference.PreferenceManager
 import com.hereliesaz.ideaz.api.AuthInterceptor
@@ -33,6 +34,9 @@ class SettingsViewModel : ViewModel() {
         const val KEY_BRANCH_NAME = "branch_name"
         const val KEY_PROJECT_LIST = "project_list"
         const val KEY_GOOGLE_API_KEY = "google_api_key" // Gemini
+
+        const val KEY_TARGET_PACKAGE_NAME = "target_package_name"
+        const val ACTION_TARGET_PACKAGE_CHANGED = "com.hereliesaz.ideaz.TARGET_PACKAGE_CHANGED"
 
         // New keys for AI assignments
         const val KEY_AI_ASSIGNMENT_DEFAULT = "ai_assignment_default"
@@ -115,6 +119,25 @@ class SettingsViewModel : ViewModel() {
 
         // Fallback logic: Use specific, or if null, use default
         return sharedPreferences.getString(taskKey, defaultModelId)
+    }
+
+    // --- Target Package Name ---
+
+    fun saveTargetPackageName(context: Context, packageName: String) {
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+        sharedPreferences.edit().putString(KEY_TARGET_PACKAGE_NAME, packageName).apply()
+
+        // Send a broadcast to notify the running service of the change
+        val intent = Intent(ACTION_TARGET_PACKAGE_CHANGED).apply {
+            putExtra("PACKAGE_NAME", packageName)
+        }
+        context.sendBroadcast(intent)
+    }
+
+    fun getTargetPackageName(context: Context): String? {
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+        // Default to the template package name if nothing is set
+        return sharedPreferences.getString(KEY_TARGET_PACKAGE_NAME, "com.example.helloworld")
     }
 
 

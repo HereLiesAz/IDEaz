@@ -29,6 +29,7 @@ import android.widget.TextView
 import com.hereliesaz.ideaz.R
 import android.graphics.Canvas
 import android.graphics.Color
+import com.hereliesaz.ideaz.ui.SettingsViewModel
 import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.max
@@ -56,6 +57,9 @@ class UIInspectionService : AccessibilityService() {
 
     private var touchSlop = 0
 
+    private val settingsViewModel by lazy { SettingsViewModel() }
+    private var targetPackageName: String? = null
+
     // --- Broadcast Receiver for commands from ViewModel ---
     private val commandReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -82,6 +86,19 @@ class UIInspectionService : AccessibilityService() {
                         touchInterceptor?.post { showLogUI(it) }
                     }
                 }
+                SettingsViewModel.ACTION_TARGET_PACKAGE_CHANGED -> {
+                    targetPackageName = intent.getStringExtra("PACKAGE_NAME")
+                    // Re-evaluate overlay visibility based on new package name
+                    val currentPackage = rootInActiveWindow?.packageName?.toString()
+                    Log.d("UIInspectionService", "Target package changed to: $targetPackageName. Current app: $currentPackage")
+                    touchInterceptor?.post {
+                        if (currentPackage == targetPackageName) {
+                            if (touchInterceptor == null) showTouchInterceptor()
+                        } else {
+                            if (touchInterceptor != null) hideTouchInterceptor()
+                        }
+                    }
+                }
             }
         }
     }
@@ -89,6 +106,27 @@ class UIInspectionService : AccessibilityService() {
 
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val currentPackage = event.packageName?.toString()
+            Log.d("UIInspectionService", "Window changed. App: $currentPackage, Target: $targetPackageName")
+            if (currentPackage == targetPackageName) {
+                // Use post to ensure this runs on the main thread
+                // and to avoid issues with window state transitions
+                touchInterceptor?.post {
+                    if (touchInterceptor == null) {
+                        Log.d("UIInspectionService", "Target app ($targetPackageName) is in foreground. Showing overlay.")
+                        showTouchInterceptor()
+                    }
+                }
+            } else {
+                touchInterceptor?.post {
+                    if (touchInterceptor != null) {
+                        Log.d("UIInspectionService", "Target app ($targetPackageName) is not in foreground. Hiding overlay.")
+                        hideTouchInterceptor()
+                    }
+                }
+            }
+        }
     }
 
     override fun onInterrupt() {
@@ -98,13 +136,17 @@ class UIInspectionService : AccessibilityService() {
         super.onServiceConnected()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         touchSlop = ViewConfiguration.get(this).scaledTouchSlop
-        showTouchInterceptor()
+
+        // Get the target package name on connect
+        targetPackageName = settingsViewModel.getTargetPackageName(this)
+        Log.d("UIInspectionService", "Service connected. Target package: $targetPackageName")
 
         // Register the command receiver
         val filter = IntentFilter().apply {
             addAction("com.hereliesaz.ideaz.AI_LOG")
             addAction("com.hereliesaz.ideaz.TASK_FINISHED")
             addAction("com.hereliesaz.ideaz.SHOW_LOG_UI") // Add new action
+            addAction(SettingsViewModel.ACTION_TARGET_PACKAGE_CHANGED)
         }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(commandReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -121,6 +163,12 @@ class UIInspectionService : AccessibilityService() {
     }
 
     private fun showTouchInterceptor() {
+        // Prevent showing if it somehow already exists
+        if (touchInterceptor != null) {
+            Log.w("UIInspectionService", "showTouchInterceptor called but interceptor already exists.")
+            return
+        }
+
         touchInterceptor = object : FrameLayout(this) {
 
             init { setWillNotDraw(false) }
@@ -212,6 +260,11 @@ class UIInspectionService : AccessibilityService() {
     }
 
     private fun hideTouchInterceptor() {
+        // Prevent crashing if it's already hidden
+        if (touchInterceptor == null) {
+            Log.w("UIInspectionService", "hideTouchInterceptor called but interceptor was already null.")
+            return
+        }
         touchInterceptor?.let {
             windowManager?.removeView(it)
         }
@@ -363,7 +416,11 @@ class UIInspectionService : AccessibilityService() {
 
     private fun hideOverlayUI() {
         overlayView?.let {
-            windowManager?.removeView(it)
+            try {
+                windowManager?.removeView(it)
+            } catch (e: Exception) {
+                Log.w("UIInspectionService", "Error removing overlay view, it may have already been removed.", e)
+            }
         }
         overlayView = null
         logContainer = null

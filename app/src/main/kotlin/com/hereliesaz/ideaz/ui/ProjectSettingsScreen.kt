@@ -41,6 +41,9 @@ fun ProjectSettingsScreen(
     var appName by remember { mutableStateOf(settingsViewModel.getAppName(context) ?: "IDEazProject") }
     var githubUser by remember { mutableStateOf(settingsViewModel.getGithubUser(context) ?: "") }
     var branchName by remember { mutableStateOf(settingsViewModel.getBranchName(context)) }
+    var packageName by remember {
+        mutableStateOf(settingsViewModel.getTargetPackageName(context) ?: "com.example.helloworld")
+    }
 
     // State for "Create" tab
     var initialPrompt by remember { mutableStateOf("") }
@@ -100,10 +103,18 @@ fun ProjectSettingsScreen(
                             onValueChange = { branchName = it },
                             label = { Text("Branch Name") }
                         )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        TextField(
+                            value = packageName,
+                            onValueChange = { packageName = it },
+                            label = { Text("Package Name") }
+                        )
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Button(onClick = {
                             settingsViewModel.saveProjectConfig(context, appName, githubUser, branchName)
+                            settingsViewModel.saveTargetPackageName(context, packageName)
                             Toast.makeText(context, "Project Config Saved", Toast.LENGTH_SHORT).show()
                         }) {
                             Text("Save Config")
@@ -120,9 +131,20 @@ fun ProjectSettingsScreen(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Button(onClick = {
+                            // This just builds and installs the current template project
+                            // It's the "first APK"
+                            viewModel.startBuild(context)
+                            Toast.makeText(context, "Building template...", Toast.LENGTH_SHORT).show()
+                        }) {
+                            Text("Install/Build Template")
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Button(onClick = {
                             // Save config just in case, then send prompt
                             settingsViewModel.saveProjectConfig(context, appName, githubUser, branchName)
-                            // This is a "Project Initialization" prompt
+                            settingsViewModel.saveTargetPackageName(context, packageName)
+                            // This is a "Project Initialization" prompt (the "second APK")
                             viewModel.sendPrompt(initialPrompt, isInitialization = true)
                         }) {
                             Text("Create Project & Build")
