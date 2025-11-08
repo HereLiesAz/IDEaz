@@ -2,6 +2,7 @@
 agp = "8.13.0"
 aznavrail = "4.4"
 coreKtx = "1.17.0"
+googleGenai = "1.26.0"
 preferenceKtx = "1.2.1"
 jcabiAether = "0.10.1"
 junit = "4.13.2"
@@ -23,6 +24,7 @@ slf4jAndroid = "2.0.17-0"
 slf4jApi = "2.0.17"
 slf4jSimple = "2.0.17"
 composeUnstyledCore = "1.47.2"
+generativeai = "0.9.0"
 
 [libraries]
 androidx-compose-runtime-livedata = { module = "androidx.compose.runtime:runtime-livedata", version.ref = "runtimeLivedata" }
@@ -32,6 +34,7 @@ androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-
 androidx-localbroadcastmanager = { module ="androidx.localbroadcastmanager:localbroadcastmanager", version.ref = "localbroadcastmanager" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
 aznavrail = { module = "com.github.HereLiesAz:AzNavRail", version.ref = "aznavrail" }
+google-genai = { module = "com.google.genai:google-genai", version.ref = "googleGenai" }
 jcabi-aether = { module = "com.jcabi:jcabi-aether", version.ref = "jcabiAether" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
@@ -55,6 +58,7 @@ retrofit2-kotlinx-serialization-converter = { module = "com.jakewharton.retrofit
 slf4j-android = { module = "uk.uuid.slf4j:slf4j-android", version.ref = "slf4jAndroid" }
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4jApi" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4jSimple" }
+generativeai = { module = "com.google.ai.client.generativeai:generativeai", version.ref = "generativeai" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

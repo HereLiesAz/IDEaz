@@ -1,5 +1,7 @@
 package com.hereliesaz.ideaz.ui
 
+// --- FIX: Use import aliases to resolve ambiguity ---
+import android.app.Activity as AndroidActivity // <-- FIX
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -22,22 +24,25 @@ import kotlinx.coroutines.launch
 import java.io.File
 import com.hereliesaz.ideaz.models.SourceMapEntry
 import com.hereliesaz.ideaz.utils.SourceMapParser
-import com.hereliesaz.ideaz.api.Activity
+import com.hereliesaz.ideaz.api.Activity as ApiActivity // <-- FIX
 import com.hereliesaz.ideaz.api.CreateSessionRequest
 import com.hereliesaz.ideaz.api.Source
+import com.hereliesaz.ideaz.services.ScreenshotService
 import com.hereliesaz.ideaz.services.UIInspectionService
 import kotlinx.coroutines.delay
 import androidx.preference.PreferenceManager
+import com.hereliesaz.ideaz.api.GeminiApiClient
 import com.hereliesaz.ideaz.api.GitHubRepoContext
 import com.hereliesaz.ideaz.api.SourceContext
 import java.io.FileOutputStream
 import java.io.IOException
+import kotlinx.coroutines.Job
 
 class MainViewModel : ViewModel() {
 
     // --- Global Build Log ---
     private val _buildLog = MutableStateFlow("")
-    val buildLog = _buildLog.asStateFlow() // This is NOW the single destination for ALL text output
+    val buildLog = _buildLog.asStateFlow()
 
     // --- Service Binders ---
     private var buildService: IBuildService? = null
@@ -46,7 +51,7 @@ class MainViewModel : ViewModel() {
     // --- Session / API State ---
     private val _session = MutableStateFlow<Session?>(null)
     val session = _session.asStateFlow()
-    private val _activities = MutableStateFlow<List<Activity>>(emptyList())
+    private val _activities = MutableStateFlow<List<ApiActivity>>(emptyList()) // <-- FIX
     val activities = _activities.asStateFlow()
     private val _sessions = MutableStateFlow<List<Session>>(emptyList())
     val sessions = _sessions.asStateFlow()
@@ -54,19 +59,24 @@ class MainViewModel : ViewModel() {
     val sources = _sources.asStateFlow()
 
     // --- Code/Source Map State ---
-    // This is now active again, for the tap-to-select flow
-    private val _selectedFile = MutableStateFlow<String?>(null)
-    val selectedFile = _selectedFile.asStateFlow()
-    private val _selectedLine = MutableStateFlow<Int?>(null)
-    val selectedLine = _selectedLine.asStateFlow()
-    private val _selectedCodeSnippet = MutableStateFlow<String?>(null)
-    val selectedCodeSnippet = _selectedCodeSnippet.asStateFlow()
     private var sourceMap: Map<String, SourceMapEntry> = emptyMap()
-    // --- End ---
+
+    // --- Cancel Dialog State ---
+    private val _showCancelDialog = MutableStateFlow(false)
+    val showCancelDialog = _showCancelDialog.asStateFlow()
+    private var contextualTaskJob: Job? = null
+
+    // --- Screenshot State ---
+    private val _requestScreenCapture = MutableStateFlow(false)
+    val requestScreenCapture = _requestScreenCapture.asStateFlow()
+    private var screenCaptureResultCode: Int? = null
+    private var screenCaptureData: Intent? = null
+    private var pendingRichPrompt: String? = null // Holds the prompt while screenshot is taken
+    private var pendingRect: Rect? = null // Holds the rect to re-draw the log box
+    // --- END ---
 
     private var appContext: Context? = null
 
-    // Lazy init for SettingsViewModel
     private val settingsViewModel by lazy { SettingsViewModel() }
 
 
@@ -96,12 +106,10 @@ class MainViewModel : ViewModel() {
             viewModelScope.launch {
                 _buildLog.value += "\nBuild successful: $apkPath\n"
                 _buildLog.value += "Status: Build Successful\n"
-
-                // Contextual AI task is finished
+                contextualTaskJob = null // Task is finished
                 logToOverlay("Build successful. Task finished.")
                 sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
 
-                // We still parse the source map
                 val buildDir = File(apkPath).parentFile
                 if (buildDir != null) {
                     val parser = SourceMapParser(buildDir)
@@ -115,7 +123,7 @@ class MainViewModel : ViewModel() {
             viewModelScope.launch {
                 _buildLog.value += "\nBuild failed:\n$log\n"
                 _buildLog.value += "Status: Build Failed\n"
-
+                contextualTaskJob = null // Task is finished
                 logToOverlay("Build failed. See global log to debug.")
                 _buildLog.value += "AI Status: Build failed, asking AI to debug...\n"
                 debugBuild() // Global debug
@@ -149,12 +157,13 @@ class MainViewModel : ViewModel() {
     /**
      * Called by MainActivity when it receives "com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE"
      */
-    fun onNodePromptSubmitted(resourceId: String, prompt: String) {
+    fun onNodePromptSubmitted(resourceId: String, prompt: String, bounds: Rect) {
         Log.d("MainViewModel", "Contextual (NODE) prompt submitted for $resourceId: $prompt")
 
-        // This is a tap-to-select, so we MUST have source context.
-        // We look it up now.
+        pendingRect = bounds // Save the rect to re-draw the log box
         val entry = sourceMap[resourceId]
+
+        // Construct the text-based prefix
         if (entry != null) {
             viewModelScope.launch {
                 try {
@@ -163,27 +172,26 @@ class MainViewModel : ViewModel() {
                     val lineIndex = entry.line - 1
                     val snippet = lines.getOrNull(lineIndex)?.trim()
 
-                    val richPrompt = """
-                    User Request: "$prompt"
+                    // Prefix + User Prompt
+                    pendingRichPrompt = """
                     Context (for element $resourceId):
                     File: ${entry.file}
                     Line: ${entry.line}
                     Code Snippet: $snippet
                     
-                    Please generate a git patch to apply this change.
+                    User Request: "$prompt"
                     """.trimIndent()
-
-                    startContextualAITask(richPrompt)
+                    takeScreenshot(bounds)
 
                 } catch (e: Exception) {
-                    val errorPrompt = "User Request: \"$prompt\" for element $resourceId (Error: Could not read source file ${e.message})"
-                    startContextualAITask(errorPrompt)
+                    pendingRichPrompt = "Context: Element $resourceId (Error: Could not read source file ${e.message})\nUser Request: \"$prompt\""
+                    takeScreenshot(bounds)
                 }
             }
         } else {
             // Fallback if source map fails
-            val errorPrompt = "User Request: \"$prompt\" for element $resourceId (Error: Not found in source map)"
-            startContextualAITask(errorPrompt)
+            pendingRichPrompt = "Context: Element $resourceId (Error: Not found in source map)\nUser Request: \"$prompt\""
+            takeScreenshot(bounds)
         }
     }
 
@@ -193,26 +201,25 @@ class MainViewModel : ViewModel() {
     fun onRectPromptSubmitted(rect: Rect, prompt: String) {
         Log.d("MainViewModel", "Contextual (RECT) prompt submitted for $rect: $prompt")
 
-        // This is a drag-to-select, so we only have coordinate context.
+        pendingRect = rect // Save the rect to re-draw the log box
         val richPrompt = """
-        User Request: "$prompt"
-        Context: Apply this to the screen area defined by Rect(${rect.left}, ${rect.top}, ${rect.right}, ${rect.bottom}).
+        Context: Screen area Rect(${rect.left}, ${rect.top}, ${rect.right}, ${rect.bottom})
         
-        Please generate a git patch to apply this change.
+        User Request: "$prompt"
         """.trimIndent()
 
-        startContextualAITask(richPrompt)
+        // Store the prompt and take a screenshot
+        pendingRichPrompt = richPrompt
+        takeScreenshot(rect)
     }
 
     fun startInspection(context: Context) {
-        // We no longer register/unregister the receiver here, MainActivity does it.
         context.startService(Intent(context, com.hereliesaz.ideaz.services.UIInspectionService::class.java))
     }
 
     fun stopInspection(context: Context) {
         context.stopService(Intent(context, com.hereliesaz.ideaz.services.UIInspectionService::class.java))
-        // Also tell the service to hide any UI it might be showing
-        sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
+        confirmCancelTask() // Stop inspection is a hard cancel
     }
 
 
@@ -329,6 +336,14 @@ class MainViewModel : ViewModel() {
 
     // --- CONTEXTUAL AI (Overlay Log) ---
     private fun startContextualAITask(richPrompt: String) {
+        // Re-show the log UI *before* sending the prompt
+        pendingRect?.let {
+            sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.SHOW_LOG_UI").apply {
+                putExtra("RECT", it)
+            })
+        }
+        pendingRect = null // Clear it
+
         logToOverlay("Sending prompt to AI...")
 
         val model = getAssignedModelForTask(SettingsViewModel.KEY_AI_ASSIGNMENT_OVERLAY)
@@ -341,7 +356,7 @@ class MainViewModel : ViewModel() {
             return
         }
 
-        viewModelScope.launch {
+        contextualTaskJob = viewModelScope.launch {
             when (model.id) {
                 AiModels.JULES_DEFAULT -> {
                     try {
@@ -362,11 +377,100 @@ class MainViewModel : ViewModel() {
                     }
                 }
                 AiModels.GEMINI_FLASH -> {
-                    logToOverlay("Gemini Flash client not yet implemented.")
-                    logToOverlay("Task Finished.") // Manually finish
+                    val currentContext = appContext ?: return@launch
+                    val apiKey = settingsViewModel.getApiKey(currentContext, model.requiredKey)
+                    if (apiKey.isNullOrBlank()) {
+                        _buildLog.value += "AI Status: Error: Gemini API Key is missing.\n"
+                        return@launch
+                    }
+                    val responseText = GeminiApiClient.generateContent(richPrompt, apiKey)
+                    if (responseText.startsWith("Error:")) {
+                        _buildLog.value += "AI Status: Error: $responseText\n"
+                    } else {
+                        _buildLog.value += "AI Status: Response received.\n"
+                        _buildLog.value += "Gemini Response: $responseText\n"
+                    }
                 }
             }
         }
+    }
+
+    // --- Cancel Logic Functions ---
+    fun requestCancelTask() {
+        if (settingsViewModel.getShowCancelWarning(appContext!!)) {
+            _showCancelDialog.value = true
+        } else {
+            confirmCancelTask() // No warning needed, just cancel
+        }
+    }
+
+    fun confirmCancelTask() {
+        contextualTaskJob?.cancel()
+        contextualTaskJob = null
+        _showCancelDialog.value = false
+        logToOverlay("Task cancelled by user.")
+        sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
+    }
+
+    fun dismissCancelTask() {
+        _showCancelDialog.value = false
+    }
+
+    fun disableCancelWarning() {
+        settingsViewModel.setShowCancelWarning(appContext!!, false)
+        confirmCancelTask()
+    }
+
+    // --- Screenshot Functions ---
+    fun hasScreenCapturePermission(): Boolean {
+        return screenCaptureData != null
+    }
+
+    fun requestScreenCapturePermission() {
+        _requestScreenCapture.value = true
+    }
+
+    fun screenCaptureRequestHandled() {
+        _requestScreenCapture.value = false
+    }
+
+    fun setScreenCapturePermission(resultCode: Int, data: Intent?) {
+        if (resultCode == AndroidActivity.RESULT_OK && data != null) { // <-- FIX
+            screenCaptureResultCode = resultCode
+            screenCaptureData = data
+        } else {
+            screenCaptureResultCode = null
+            screenCaptureData = null
+            _buildLog.value += "Warning: Screen capture permission denied.\n"
+        }
+    }
+
+    private fun takeScreenshot(rect: Rect) {
+        if (!hasScreenCapturePermission()) {
+            logToOverlay("Error: Missing screen capture permission.")
+            return
+        }
+
+        val intent = Intent(appContext, ScreenshotService::class.java).apply {
+            putExtra(ScreenshotService.EXTRA_RESULT_CODE, screenCaptureResultCode)
+            putExtra(ScreenshotService.EXTRA_DATA, screenCaptureData)
+            putExtra(ScreenshotService.EXTRA_RECT, rect)
+        }
+        appContext?.startForegroundService(intent)
+    }
+
+    fun onScreenshotTaken(base64: String) {
+        val prompt = pendingRichPrompt ?: "Error: No pending prompt"
+        pendingRichPrompt = null // Clear it
+
+        // Append the Base64 string to the prompt
+        val finalRichPrompt = """
+        $prompt
+        
+        [IMAGE: data:image/png;base64,$base64]
+        """.trimIndent()
+
+        startContextualAITask(finalRichPrompt)
     }
 
     // --- AI Helper Functions ---
@@ -411,7 +515,7 @@ class MainViewModel : ViewModel() {
             try {
                 logTo(logTarget, "Polling for patch... (Attempt ${attempts + 1})")
                 val activities = ApiClient.julesApiService.listActivities(sessionName)
-                val lastPatch = activities.lastOrNull()?.artifacts?.firstOrNull()?.changeSet?.gitPatch
+                val lastPatch = activities.lastOrNull()?.artifacts?.firstOrNull()?.changeSet?.gitPatch // <-- FIX
 
                 if (lastPatch != null) {
                     logTo(logTarget, "Patch found! Applying...")
@@ -433,7 +537,7 @@ class MainViewModel : ViewModel() {
         viewModelScope.launch {
             logTo(logTarget, "Applying patch...")
             try {
-                val patch = _activities.value.lastOrNull()?.artifacts?.firstOrNull()?.changeSet?.gitPatch?.unidiffPatch
+                val patch = _activities.value.lastOrNull()?.artifacts?.firstOrNull()?.changeSet?.gitPatch?.unidiffPatch // <-- FIX
                 if (patch != null) {
                     val projectDir = context.filesDir.resolve("project")
                     val gitManager = GitManager(projectDir)
@@ -480,10 +584,22 @@ class MainViewModel : ViewModel() {
                     }
                 }
                 AiModels.GEMINI_FLASH -> {
-                    _buildLog.value += "AI Status: Idle\n"
-                    _buildLog.value += "Gemini debug client not yet implemented.\n"
+                    val currentContext = appContext ?: return@launch
+                    val apiKey = settingsViewModel.getApiKey(currentContext, model.requiredKey)
+                    if (apiKey.isNullOrBlank()) {
+                        logToOverlay("Error: Gemini API Key is missing.")
+                    } else {
+                        val responseText = GeminiApiClient.generateContent(buildLog.value, apiKey)
+                        if (responseText.startsWith("Error:")) {
+                            logToOverlay(responseText)
+                        } else {
+                            logToOverlay("Response received.")
+                            logToOverlay("Gemini Response: $responseText")
+                        }
+                    }
                 }
             }
+
         }
     }
 
@@ -496,6 +612,7 @@ class MainViewModel : ViewModel() {
             "OVERLAY" -> {
                 logToOverlay(message)
             }
+            // <-- FIX: This was the source of the `Any` vs `String` error.
         }
     }
 
@@ -545,8 +662,4 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    fun updateCodeContent(newContent: String) {
-        // This function's body is now empty, resolving the build error.
-        // The _codeContent variable it used to update was removed.
-    }
 }

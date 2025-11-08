@@ -2,9 +2,13 @@
 
 This document provides a brief overview of the purpose of each documentation file in the `docs` folder for the intent-driven IDEaz IDE project.
 
--   **`UI_UX.md`**: Describes the "post-code" user experience, focusing on the "Interact" vs. "Select" modes, the "Live App" view, the "IDEaz Overlay" for interaction, and the "Select and Instruct" user journey.
+-   **`UI_UX.md`**: Describes the "post-code" user experience, focusing on the "Interact" vs. "Select" modes, the **hybrid tap-and-drag selection model**, the "Live App" view, and the "Select and Instruct" user journey.
 
 -   **`auth.md`**: Outlines the dual-layer security model: standard social sign-on for user authentication to the IDEaz IDE app, and the "Bring Your Own Key" (BYOK) model for authenticating calls to **both Jules and Gemini APIs**.
+
+-   **`blueprint.md`**: The **primary architectural document**. Details the 4 core components, the IPC strategy, the hybrid tap/drag selection model, and the AI abstraction layer.
+
+-   **`build_pipeline.md`**: (New File) A detailed, step-by-step breakdown of the "No-Gradle" on-device build system, including the toolchain, build sequence, and dependency resolution.
 
 -   **`conduct.md`**: Establishes the Code of Conduct for all contributors to the IDEaz IDE project.
 
@@ -18,9 +22,9 @@ This document provides a brief overview of the purpose of each documentation fil
 
 -   **`performance.md`**: Focuses on the unique performance challenges of the on-device architecture, including the new UI rendering overhead in the `UIInspectionService`.
 
--   **`screens.md`**: Provides an overview of the minimal UI of the IDEaz IDE app itself, detailing the "Contextual Prompt/Log UI," the "Global Console (Bottom Sheet)," and the **AI Assignment settings**.
+-   **`screens.md`**: Provides an overview of the minimal UI of the IDEaz IDE app itself, detailing the **hybrid Contextual Prompt/Log UI (with its cancel button)** and the "Global Console (Bottom Sheet)".
 
--   **`task_flow.md`**: Narrates the end-to-end user journey with concrete scenarios, explicitly describing the separate roles of the floating (contextual) log and the main app's (global) build log, and **how different AI providers are routed**.
+-   **`task_flow.md`**: Narrates the end-to-end user journey with concrete scenarios, explicitly describing the **separate flows for tap-to-select and drag-to-select**, and the **task cancellation flow**.
 
 -   **`testing.md`**: Outlines the testing strategy, emphasizing E2E tests using `UI Automator` to validate the floating overlay UI and the AI routing logic.
 
@@ -48,7 +52,7 @@ This document provides a brief overview of the purpose of each documentation fil
 
 - **`app/src/main/kotlin/com/hereliesaz/ideaz/utils/ToolManager.kt`**: A utility object that manages the extraction of build tools from the app's assets.
 
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/ui/MainViewModel.kt`**: The ViewModel for the `MainActivity`. It manages the UI state, handles the `BuildService` connection, and orchestrates the build process. **It also routes AI requests based on user settings.**
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/ui/MainViewModel.kt`**: The ViewModel for the `MainActivity`. It manages the UI state, handles the `BuildService` connection, and orchestrates the build process. **It also routes AI requests, handles tap/drag contexts, and manages the cancel-task logic.**
 
 - **`app/src/main/kotlin/com/hereliesaz/ideaz/models/SourceMapEntry.kt`**: A data class that represents an entry in the source map.
 

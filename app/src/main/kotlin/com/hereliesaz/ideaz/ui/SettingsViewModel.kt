@@ -40,12 +40,27 @@ class SettingsViewModel : ViewModel() {
         const val KEY_AI_ASSIGNMENT_CONTEXTLESS = "ai_assignment_contextless"
         const val KEY_AI_ASSIGNMENT_OVERLAY = "ai_assignment_overlay"
 
+        // New key for cancel warning
+        const val KEY_SHOW_CANCEL_WARNING = "show_cancel_warning"
+
         val aiTasks = mapOf(
             KEY_AI_ASSIGNMENT_DEFAULT to "Default",
             KEY_AI_ASSIGNMENT_INIT to "Project Initialization",
             KEY_AI_ASSIGNMENT_CONTEXTLESS to "Contextless Chat",
             KEY_AI_ASSIGNMENT_OVERLAY to "Overlay Chat"
         )
+    }
+
+    // --- Cancel Warning ---
+
+    fun getShowCancelWarning(context: Context): Boolean {
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+        return sharedPreferences.getBoolean(KEY_SHOW_CANCEL_WARNING, true) // Default to true
+    }
+
+    fun setShowCancelWarning(context: Context, show: Boolean) {
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+        sharedPreferences.edit().putBoolean(KEY_SHOW_CANCEL_WARNING, show).apply()
     }
 
     // --- API Key Save/Get ---

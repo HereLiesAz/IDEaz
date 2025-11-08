@@ -3,14 +3,16 @@ package com.hereliesaz.ideaz.ui
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -24,15 +26,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.composables.core.SheetDetent
 import com.composables.core.rememberBottomSheetState
-import com.hereliesaz.aznavrail.AzNavRail
-import com.hereliesaz.ideaz.ui.ProjectSettingsScreen
-import com.hereliesaz.ideaz.ui.SettingsScreen
+import com.hereliesaz.ideaz.ui.theme.IDEazTheme
 import kotlinx.coroutines.launch
 
 // 1. Define custom detents
@@ -43,10 +42,10 @@ private val Halfway = SheetDetent("halfway") { containerHeight, _ -> containerHe
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(viewModel: MainViewModel) {
-    // val buildLog by viewModel.buildLog.collectAsState() // This is now handled by the bottom sheet
-    // val buildStatus by viewModel.buildStatus.collectAsState() // This is now IN the buildLog
-    // val aiStatus by viewModel.aiStatus.collectAsState() // This is now IN the buildLog
+fun MainScreen(
+    viewModel: MainViewModel,
+    onRequestScreenCapture: () -> Unit // NEW: Lambda to trigger permission
+) {
     val session by viewModel.session.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
     val activities by viewModel.activities.collectAsState()
@@ -55,6 +54,8 @@ fun MainScreen(viewModel: MainViewModel) {
     var showPromptPopup by remember{ mutableStateOf(false) } // This is for the OLD popup
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
+
+    val showCancelDialog by viewModel.showCancelDialog.collectAsState()
 
     // --- Bottom Sheet State ---
     val configuration = LocalConfiguration.current
@@ -71,9 +72,6 @@ fun MainScreen(viewModel: MainViewModel) {
     val isOnSettings = currentRoute == "settings"
     val isOnProjectSettings = currentRoute == "project_settings"
 
-    // This is now the single source of truth for the mode.
-    // isIdeVisible == true -> "Selection Mode"
-    // isIdeVisible == false -> "Interaction Mode"
     val isIdeVisible = sheetState.currentDetent != AlmostHidden || isOnSettings || isOnProjectSettings
     // --- End Visibility Logic ---
 
@@ -84,14 +82,24 @@ fun MainScreen(viewModel: MainViewModel) {
             viewModel.stopInspection(context)
         } else {
             // "Selection Mode"
-            viewModel.startInspection(context)
+            // NEW: Only start inspection if we have permission.
+            // If not, permission will be requested by the button.
+            if (viewModel.hasScreenCapturePermission()) {
+                viewModel.startInspection(context)
+            }
         }
     }
 
-    // Set background color based on sheet state
+    // NEW: Trigger for permission request
+    LaunchedEffect(viewModel.requestScreenCapture.collectAsState().value) {
+        if (viewModel.requestScreenCapture.value) {
+            onRequestScreenCapture()
+            viewModel.screenCaptureRequestHandled() // Reset the trigger
+        }
+    }
+
     val containerColor = Color.Transparent
 
-    // Helper function to navigate away from settings when an action is taken
     val handleActionClick = { action: () -> Unit ->
         if (isOnSettings || isOnProjectSettings) {
             navController.navigate("main")
@@ -99,15 +107,25 @@ fun MainScreen(viewModel: MainViewModel) {
         action()
     }
 
-    // --- New: Click handler for the mode toggle button ---
-    // MODIFIED: Explicitly typed as () -> Unit to fix the build error.
     val onModeToggleClick: () -> Unit = {
         scope.launch {
             if (isIdeVisible) {
-                // We are in Selection Mode, switch to Interaction Mode
                 sheetState.animateTo(AlmostHidden)
             } else {
-                // We are in Interaction Mode, switch to Selection Mode
+                // NEW: Request permission *before* sliding the sheet up
+                if (!viewModel.hasScreenCapturePermission()) {
+                    viewModel.requestScreenCapturePermission()
+                } else {
+                    sheetState.animateTo(Peek)
+                }
+            }
+        }
+    }
+
+    // NEW: When permission is granted, auto-slide up
+    LaunchedEffect(viewModel.hasScreenCapturePermission()) {
+        if (viewModel.hasScreenCapturePermission() && sheetState.currentDetent == AlmostHidden) {
+            scope.launch {
                 sheetState.animateTo(Peek)
             }
         }
@@ -123,6 +141,24 @@ fun MainScreen(viewModel: MainViewModel) {
         )
     }
 
+    if (showCancelDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissCancelTask() },
+            title = { Text("Cancel Task") },
+            text = { Text("Are you sure you want to cancel this task? All AI progress will be lost.") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmCancelTask() }) {
+                    Text("Confirm")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissCancelTask() }) {
+                    Text("Dismiss")
+                }
+            }
+        )
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = containerColor,
@@ -133,8 +169,6 @@ fun MainScreen(viewModel: MainViewModel) {
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    // MODIFIED: The content background is now applied here,
-                    // so the Scaffold can remain transparent.
                     .then(
                         if (isIdeVisible) Modifier.background(MaterialTheme.colorScheme.background)
                         else Modifier
@@ -145,7 +179,6 @@ fun MainScreen(viewModel: MainViewModel) {
                     navController = navController,
                     viewModel = viewModel,
                     context = context,
-                    // buildStatus and activities no longer needed here
                     onShowPromptPopup = { showPromptPopup = true },
                     handleActionClick = handleActionClick,
                     isIdeVisible = isIdeVisible,
@@ -177,7 +210,6 @@ fun MainScreen(viewModel: MainViewModel) {
                 peekDetent = Peek,
                 halfwayDetent = Halfway,
                 chatHeight = chatHeight,
-                // MODIFIED: No longer passing status vars
                 buildStatus = "", // Not needed
                 aiStatus = "", // Not needed
                 sessions = emptyList(), // Not needed

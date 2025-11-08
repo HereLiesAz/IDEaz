@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">IDEaz</string>
+    <string name="selection_prompt_hint">What do you want to do here?</string>
+    <string name="submit">Submit</string>
+    <string name="cancel">Cancel</string>
+    <string name="starting_task">Starting task...</string>
 </resources>
