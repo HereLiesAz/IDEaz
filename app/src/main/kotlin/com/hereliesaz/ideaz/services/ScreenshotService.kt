@@ -129,6 +129,7 @@ class ScreenshotService : Service() {
 
                 // Send broadcast back to MainViewModel
                 val resultIntent = Intent("com.hereliesaz.ideaz.SCREENSHOT_TAKEN").apply {
+                    setPackage(packageName)
                     putExtra("BASE64_SCREENSHOT", base64String)
                 }
                 sendBroadcast(resultIntent)
