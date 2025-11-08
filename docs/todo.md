@@ -62,7 +62,7 @@ This phase focuses on improving the user experience during long-running backgrou
     - Create a reusable pull-up bottom card component.
     - Connect the card to the On-Device Build Service to stream the live **build and compile** logcat.
     - Connect the card to the Jules API client to display the live AI activity log for the **contextless, global AI chat prompt**.
-- [ ] **6.2: Implement Contextual AI Overlay UI**
+- [x] **6.2: Implement Contextual AI Overlay UI**
     - Enhance `UIInspectionService` to render a floating UI (using `WindowManager`) when an element is selected.
     - This UI will consist of a prompt input box and a log view.
     - Establish a two-way IPC channel (e.g., Broadcasts) between `MainViewModel` and `UIInspectionService`.
