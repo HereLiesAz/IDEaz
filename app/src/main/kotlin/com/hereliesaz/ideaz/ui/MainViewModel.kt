@@ -18,8 +18,7 @@ import com.hereliesaz.ideaz.api.Session
 import com.hereliesaz.ideaz.api.UserMessaged
 import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.services.BuildService
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.io.File
 import com.hereliesaz.ideaz.models.SourceMapEntry
@@ -43,6 +42,14 @@ class MainViewModel : ViewModel() {
     // --- Global Build Log ---
     private val _buildLog = MutableStateFlow("")
     val buildLog = _buildLog.asStateFlow()
+
+    private val _aiLog = MutableStateFlow("")
+    private val aiLog = _aiLog.asStateFlow()
+
+    val combinedLog: StateFlow<String> = combine(buildLog, aiLog) { build, ai ->
+        "$build\n$ai"
+    }.stateIn(viewModelScope, SharingStarted.Lazily, "")
+
 
     // --- Service Binders ---
     private var buildService: IBuildService? = null
@@ -100,6 +107,7 @@ class MainViewModel : ViewModel() {
         override fun onLog(message: String) {
             viewModelScope.launch {
                 _buildLog.value += "$message\n" // Build logs go to global log
+                buildService?.updateNotification(message)
             }
         }
         override fun onSuccess(apkPath: String) {
@@ -306,6 +314,7 @@ class MainViewModel : ViewModel() {
 
         viewModelScope.launch {
             _buildLog.value += "AI Status: Sending...\n"
+            _aiLog.value = "" // Clear previous AI log
 
             when (model.id) {
                 AiModels.JULES_DEFAULT -> {
@@ -475,6 +484,18 @@ class MainViewModel : ViewModel() {
 
     // --- AI Helper Functions ---
 
+    private fun updateAiLog(activities: List<ApiActivity>) {
+        val logBuilder = StringBuilder()
+        logBuilder.append("--- AI Activity ---\n")
+        activities.forEach { activity ->
+            logBuilder.append("[${activity.createTime}] ${activity.description}\n")
+            if (activity.artifacts.isNotEmpty()) {
+                logBuilder.append("  - Artifacts generated\n")
+            }
+        }
+        _aiLog.value = logBuilder.toString()
+    }
+
     private fun getAssignedModelForTask(taskKey: String): AiModel? {
         val modelId = settingsViewModel.getAiAssignment(appContext!!, taskKey)
         return AiModels.findById(modelId)
@@ -515,6 +536,7 @@ class MainViewModel : ViewModel() {
             try {
                 logTo(logTarget, "Polling for patch... (Attempt ${attempts + 1})")
                 val activities = ApiClient.julesApiService.listActivities(sessionName)
+                updateAiLog(activities)
                 val lastPatch = activities.lastOrNull()?.artifacts?.firstOrNull()?.changeSet?.gitPatch // <-- FIX
 
                 if (lastPatch != null) {

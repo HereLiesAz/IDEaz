@@ -63,6 +63,7 @@ class UIInspectionService : AccessibilityService() {
     // --- Broadcast Receiver for commands from ViewModel ---
     private val commandReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
+            Log.d("UIInspectionService", "Received broadcast: ${intent?.action}")
             when (intent?.action) {
 
                 "com.hereliesaz.ideaz.AI_LOG" -> {
@@ -274,6 +275,7 @@ class UIInspectionService : AccessibilityService() {
 
     // NEW function to show *only* the log UI
     private fun showLogUI(rect: Rect) {
+        Log.d("UIInspectionService", "showLogUI called")
         // If overlayView already exists (which it should), just update it
         if (overlayView == null) {
             overlayView = LayoutInflater.from(this).inflate(R.layout.inspection_overlay, null)
@@ -295,8 +297,10 @@ class UIInspectionService : AccessibilityService() {
 
         logContainer = overlayView?.findViewById(R.id.log_container)
         promptContainer = overlayView?.findViewById(R.id.prompt_container)
+        val logText = overlayView?.findViewById<TextView>(R.id.log_text)
         val cancelButton = overlayView?.findViewById<ImageButton>(R.id.cancel_button)
 
+        logText?.text = "Initializing..."
         logContainer?.visibility = View.VISIBLE
         promptContainer?.visibility = View.GONE
 
@@ -321,6 +325,7 @@ class UIInspectionService : AccessibilityService() {
     // MODIFIED: This function now shows the *single* overlay
     // and positions it based on the rect
     private fun showPromptUI(rect: Rect, resourceId: String?) {
+        Log.d("UIInspectionService", "showPromptUI called")
         // Ensure any old UI is gone
         hideOverlayUI()
 

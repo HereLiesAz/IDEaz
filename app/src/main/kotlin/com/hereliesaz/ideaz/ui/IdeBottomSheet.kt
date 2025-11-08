@@ -36,7 +36,7 @@ fun IdeBottomSheet(
         // MODIFIED: The sheet content is JUST the log card
         // All status text is now part of the logStream in the ViewModel
         LiveOutputBottomCard(
-            logStream = viewModel.buildLog,
+            logStream = viewModel.combinedLog,
             modifier = Modifier.fillMaxSize(),
             // Add padding to the bottom so logs can scroll above the chat input
             bottomPadding = if (isChatVisible) chatHeight else 0.dp
