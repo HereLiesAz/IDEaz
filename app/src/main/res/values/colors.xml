@@ -7,4 +7,8 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <color name="inspection_overlay_background">#CC000000</color>
+    <color name="log_container_background">#33FFFFFF</color>
+    <color name="prompt_input_hint">#88FFFFFF</color>
 </resources>

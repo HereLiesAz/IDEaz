@@ -52,6 +52,7 @@ android {
             excludes.add("META-INF/DEPENDENCIES")
             excludes.add("META-INF/LICENSE")
             excludes.add("META-INF/NOTICE")
+            excludes.add("META-INF/INDEX.LIST")
 
             excludes.add("META-INF/sisu/javax.inject.Named")
             excludes.add("mime.types")
@@ -65,6 +66,17 @@ android {
     }
     buildToolsVersion = "36.1.0"
     ndkVersion = "29.0.14206865"
+}
+
+configurations.all {
+    resolutionStrategy {
+        eachDependency {
+            if (requested.group == "commons-logging" && requested.name == "commons-logging") {
+                useTarget("org.slf4j:jcl-over-slf4j:1.7.30")
+                because("Avoids duplicate classes with jcl-over-slf4j")
+            }
+        }
+    }
 }
 
 dependencies {
