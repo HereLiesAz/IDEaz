@@ -12,14 +12,13 @@ import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.IBuildService
 import com.hereliesaz.ideaz.MainActivity
 import com.hereliesaz.ideaz.buildlogic.*
+import com.hereliesaz.ideaz.utils.ApkInstaller
 import com.hereliesaz.ideaz.utils.ToolManager
 import java.io.File
 import android.content.pm.PackageInstaller
 import android.app.PendingIntent
 
 class BuildService : Service() {
-
-    private lateinit var packageInstaller: PackageInstaller
 
     companion object {
         private const val NOTIFICATION_CHANNEL_ID = "IDEAZ_BUILD_CHANNEL_ID"
@@ -34,7 +33,6 @@ class BuildService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        packageInstaller = packageManager.packageInstaller
         createNotificationChannel()
         ToolManager.extractTools(this)
     }
@@ -123,29 +121,9 @@ class BuildService : Service() {
         val result = buildOrchestrator.execute(callback)
         if (result.success) {
             callback.onSuccess(finalApkPath)
-            installApk(finalApkPath)
+            ApkInstaller.installApk(this, finalApkPath)
         } else {
             callback.onFailure(result.output)
         }
-    }
-
-    private fun installApk(apkPath: String) {
-        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
-        val sessionId = packageInstaller.createSession(params)
-        val session = packageInstaller.openSession(sessionId)
-
-        val file = File(apkPath)
-        val inputStream = file.inputStream()
-        val outputStream = session.openWrite("IDEazIDE", 0, file.length())
-
-        inputStream.copyTo(outputStream)
-        session.fsync(outputStream)
-        outputStream.close()
-        inputStream.close()
-
-        val intent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(this, sessionId, intent, PendingIntent.FLAG_IMMUTABLE)
-        session.commit(pendingIntent.intentSender)
-        session.close()
     }
 }
