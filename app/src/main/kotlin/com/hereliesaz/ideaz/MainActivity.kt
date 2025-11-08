@@ -17,12 +17,14 @@ import androidx.activity.viewModels
 import com.hereliesaz.ideaz.api.AuthInterceptor
 import com.hereliesaz.ideaz.ui.MainScreen
 import com.hereliesaz.ideaz.ui.MainViewModel
+import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.ui.theme.IDEazTheme
 import androidx.preference.PreferenceManager
 
 class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
+    private val settingsViewModel: SettingsViewModel by viewModels()
     private var mediaProjectionManager: MediaProjectionManager? = null
 
     // --- NEW: ActivityResultLauncher for MediaProjection ---
@@ -92,15 +94,14 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
-            IDEazTheme {
-                MainScreen(
-                    viewModel = viewModel,
-                    onRequestScreenCapture = {
-                        // Launch the permission dialog
-                        mediaProjectionManager?.createScreenCaptureIntent()?.let { screenCaptureLauncher.launch(it) }
-                    }
-                )
-            }
+            MainScreen(
+                viewModel = viewModel,
+                onRequestScreenCapture = {
+                    // Launch the permission dialog
+                    mediaProjectionManager?.createScreenCaptureIntent()?.let { screenCaptureLauncher.launch(it) }
+                },
+                settingsViewModel = settingsViewModel
+            )
         }
     }
 

@@ -44,9 +44,14 @@ private val Halfway = SheetDetent("halfway") { containerHeight, _ -> containerHe
 @Composable
 fun MainScreen(
     viewModel: MainViewModel,
-    onRequestScreenCapture: () -> Unit // NEW: Lambda to trigger permission
+    onRequestScreenCapture: () -> Unit, // NEW: Lambda to trigger permission
+    settingsViewModel: SettingsViewModel
 ) {
-    val session by viewModel.session.collectAsState()
+    val context = LocalContext.current
+    var isDarkMode by remember { mutableStateOf(settingsViewModel.isDarkMode(context)) }
+
+    IDEazTheme(darkTheme = isDarkMode) {
+        val session by viewModel.session.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
     val activities by viewModel.activities.collectAsState()
     val sources by viewModel.sources.collectAsState()
@@ -195,7 +200,8 @@ fun MainScreen(
                         session = session,
                         sessions = sessions,
                         activities = activities,
-                        sources = sources
+                        sources = sources,
+                        onThemeToggle = { isDarkMode = it }
                     )
                 }
             }
@@ -228,5 +234,5 @@ fun MainScreen(
                 )
             }
         }
-    }
+    }}
 }
