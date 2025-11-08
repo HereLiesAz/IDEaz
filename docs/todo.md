@@ -58,16 +58,16 @@ The final phase transforms the functional prototype into a polished, performant,
 ### **Phase 6: Advanced UI/UX and Background Operation Enhancements**
 This phase focuses on improving the user experience during long-running background tasks, providing constant and clear feedback.
 
-- [ ] **6.1: Implement Live Output Bottom Card**
+- [x] **6.1: Implement Live Output Bottom Card**
     - Create a reusable pull-up bottom card component.
     - Connect the card to the On-Device Build Service to stream the live **build and compile** logcat.
     - Connect the card to the Jules API client to display the live AI activity log for the **contextless, global AI chat prompt**.
-- [ ] **6.2: Implement Contextual AI Overlay UI**
+- [x] **6.2: Implement Contextual AI Overlay UI**
     - Enhance `UIInspectionService` to render a floating UI (using `WindowManager`) when an element is selected.
     - This UI will consist of a prompt input box and a log view.
     - Establish a two-way IPC channel (e.g., Broadcasts) between `MainViewModel` and `UIInspectionService`.
     - When a user submits a prompt, this UI's log view will stream the **AI chat output** for that specific task.
     - The prompt input will remain available for the user to reply to AI clarifications.
-- [ ] **6.3: Implement Persistent Status Notification**
+- [x] **6.3: Implement Persistent Status Notification**
     - Enhance background services to manage a persistent notification.
     - The notification content should be updated to always show the most recent line of the **global build log** from the bottom card.
