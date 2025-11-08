@@ -13,7 +13,7 @@ object AuthInterceptor : Interceptor {
         val builder = originalRequest.newBuilder()
 
         apiKey?.let {
-            builder.header("x-goog-api-key", it)
+            builder.header("X-Goog-Api-Key", it)
         }
 
         val newRequest = builder.build()
