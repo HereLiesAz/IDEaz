@@ -15,10 +15,12 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -47,139 +49,143 @@ fun SettingsScreen(
         mutableStateOf(settingsViewModel.getShowCancelWarning(context))
     }
     // --- END NEW ---
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(all = 8.dp)
-            .verticalScroll(rememberScrollState())
-    ) {
-            Text("API Keys")
-            Spacer(modifier = Modifier.height(16.dp))
+    Column {
+        Spacer(modifier = Modifier.height(screenHeight * 0.1f))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(all = 8.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+                Text("API Keys", color = MaterialTheme.colorScheme.onBackground)
+                Spacer(modifier = Modifier.height(16.dp))
 
-            // Jules API Key
-            TextField(
-                value = apiKey,
-                onValueChange = { apiKey = it },
-                label = { Text("Jules API Key") },
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth()
-            )
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Button(onClick = {
-                    settingsViewModel.saveApiKey(context, apiKey)
-                    Toast.makeText(context, "Jules Key Saved", Toast.LENGTH_SHORT).show()
-                }) {
-                    Text("Save")
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://jules.google.com/settings"))
-                    context.startActivity(intent)
-                }) {
-                    Text("Get Key")
-                }
-            }
-
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Google AI Studio API Key
-            TextField(
-                value = googleApiKey,
-                onValueChange = { googleApiKey = it },
-                label = { Text("Google AI Studio API Key") },
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth()
-            )
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Button(onClick = {
-                    settingsViewModel.saveGoogleApiKey(context, googleApiKey)
-                    Toast.makeText(context, "AI Studio Key Saved", Toast.LENGTH_SHORT).show()
-                }) {
-                    Text("Save")
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/api-keys"))
-                    context.startActivity(intent)
-                }) {
-                    Text("Get Key")
-                }
-            }
-
-
-            Spacer(modifier = Modifier.height(24.dp))
-            Text("AI Assignments")
-
-            // Render dropdowns for each task
-            SettingsViewModel.aiTasks.forEach { (taskKey, taskName) ->
-                var currentModelId by remember(taskKey) {
-                    mutableStateOf(settingsViewModel.getAiAssignment(context, taskKey) ?: AiModels.JULES_DEFAULT)
-                }
-
-                AiAssignmentDropdown(
-                    label = taskName,
-                    selectedModelId = currentModelId,
-                    onModelSelected = { model ->
-                        currentModelId = model.id
-                        settingsViewModel.saveAiAssignment(context, taskKey, model.id)
-                    }
+                // Jules API Key
+                TextField(
+                    value = apiKey,
+                    onValueChange = { apiKey = it },
+                    label = { Text("Jules API Key") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // --- NEW: Cancel Warning Checkbox ---
-            Text("Preferences")
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Checkbox(
-                    checked = showCancelWarning,
-                    onCheckedChange = {
-                        showCancelWarning = it
-                        settingsViewModel.setShowCancelWarning(context, it)
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Button(onClick = {
+                        settingsViewModel.saveApiKey(context, apiKey)
+                        Toast.makeText(context, "Jules Key Saved", Toast.LENGTH_SHORT).show()
+                    }) {
+                        Text("Save")
                     }
-                )
-                Text("Show warning when cancelling AI task")
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Dark Mode")
-                Spacer(modifier = Modifier.width(16.dp))
-                Switch(
-                    checked = isDarkMode,
-                    onCheckedChange = {
-                        isDarkMode = it
-                        settingsViewModel.setDarkMode(context, it)
-                        onThemeToggle(it)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://jules.google.com/settings"))
+                        context.startActivity(intent)
+                    }) {
+                        Text("Get Key")
                     }
+                }
+
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Google AI Studio API Key
+                TextField(
+                    value = googleApiKey,
+                    onValueChange = { googleApiKey = it },
+                    label = { Text("Google AI Studio API Key") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
                 )
-            }
-            // --- END NEW ---
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Button(onClick = {
+                        settingsViewModel.saveGoogleApiKey(context, googleApiKey)
+                        Toast.makeText(context, "AI Studio Key Saved", Toast.LENGTH_SHORT).show()
+                    }) {
+                        Text("Save")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/api-keys"))
+                        context.startActivity(intent)
+                    }) {
+                        Text("Get Key")
+                    }
+                }
 
 
-            Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(24.dp))
+                Text("AI Assignments", color = MaterialTheme.colorScheme.onBackground)
 
-            // Display the list of sessions
-            Text("Active Sessions")
-            if (sessions.isEmpty()) {
-                Text("No active sessions found.")
-            } else {
-                sessions.forEach {
-                    Text(it.name)
+                // Render dropdowns for each task
+                SettingsViewModel.aiTasks.forEach { (taskKey, taskName) ->
+                    var currentModelId by remember(taskKey) {
+                        mutableStateOf(settingsViewModel.getAiAssignment(context, taskKey) ?: AiModels.JULES_DEFAULT)
+                    }
+
+                    AiAssignmentDropdown(
+                        label = taskName,
+                        selectedModelId = currentModelId,
+                        onModelSelected = { model ->
+                            currentModelId = model.id
+                            settingsViewModel.saveAiAssignment(context, taskKey, model.id)
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // --- NEW: Cancel Warning Checkbox ---
+                Text("Preferences", color = MaterialTheme.colorScheme.onBackground)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = showCancelWarning,
+                        onCheckedChange = {
+                            showCancelWarning = it
+                            settingsViewModel.setShowCancelWarning(context, it)
+                        }
+                    )
+                    Text("Show warning when cancelling AI task", color = MaterialTheme.colorScheme.onBackground)
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Dark Mode", color = MaterialTheme.colorScheme.onBackground)
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Switch(
+                        checked = isDarkMode,
+                        onCheckedChange = {
+                            isDarkMode = it
+                            settingsViewModel.setDarkMode(context, it)
+                            onThemeToggle(it)
+                        }
+                    )
+                }
+                // --- END NEW ---
+
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Display the list of sessions
+                Text("Active Sessions", color = MaterialTheme.colorScheme.onBackground)
+                if (sessions.isEmpty()) {
+                    Text("No active sessions found.", color = MaterialTheme.colorScheme.onBackground)
+                } else {
+                    sessions.forEach {
+                        Text(it.name, color = MaterialTheme.colorScheme.onBackground)
+                    }
                 }
             }
-        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -198,7 +204,7 @@ fun AiAssignmentDropdown(
     ) {
         TextField(
             value = selectedModel.displayName,
-            onValueChange = {},
+            onValueChange = { },
             readOnly = true,
             label = { Text(label) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) },
