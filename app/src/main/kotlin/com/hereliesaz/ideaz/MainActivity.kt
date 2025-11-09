@@ -9,6 +9,7 @@ import android.graphics.Rect
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -22,15 +23,17 @@ import com.hereliesaz.ideaz.api.AuthInterceptor
 import com.hereliesaz.ideaz.ui.MainScreen
 import com.hereliesaz.ideaz.ui.MainViewModel
 import com.hereliesaz.ideaz.ui.MainViewModelFactory
-import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.ui.theme.IDEazTheme
 import androidx.preference.PreferenceManager
 
 class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels { MainViewModelFactory(application) }
-    private val settingsViewModel: SettingsViewModel by viewModels()
     private var mediaProjectionManager: MediaProjectionManager? = null
+
+    companion object {
+        private const val TAG = "MainActivity"
+    }
 
     // --- NEW: ActivityResultLauncher for MediaProjection ---
     private val screenCaptureLauncher =
@@ -51,6 +54,7 @@ class MainActivity : ComponentActivity() {
     // --- Broadcast Receiver for events from UIInspectionService ---
     private val inspectionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
+            Log.d(TAG, "onReceive: Received broadcast with action: ${intent?.action}")
             when (intent?.action) {
 
                 "com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE" -> {
@@ -64,7 +68,10 @@ class MainActivity : ComponentActivity() {
                         intent.getParcelableExtra("BOUNDS")
                     }
                     if (resourceId != null && prompt != null && bounds != null) {
+                        Log.d(TAG, "Calling onNodePromptSubmitted from broadcast")
                         viewModel.onNodePromptSubmitted(resourceId, prompt, bounds)
+                    } else {
+                        Log.w(TAG, "Received PROMPT_SUBMITTED_NODE but some data was null")
                     }
                 }
 
@@ -78,11 +85,15 @@ class MainActivity : ComponentActivity() {
                     val prompt = intent.getStringExtra("PROMPT")
 
                     if (rect != null && prompt != null) {
+                        Log.d(TAG, "Calling onRectPromptSubmitted from broadcast")
                         viewModel.onRectPromptSubmitted(rect, prompt)
+                    } else {
+                        Log.w(TAG, "Received PROMPT_SUBMITTED_RECT but some data was null")
                     }
                 }
 
                 "com.hereliesaz.ideaz.CANCEL_TASK_REQUESTED" -> {
+                    Log.d(TAG, "Calling requestCancelTask from broadcast")
                     viewModel.requestCancelTask()
                 }
 
@@ -90,7 +101,10 @@ class MainActivity : ComponentActivity() {
                 "com.hereliesaz.ideaz.SCREENSHOT_TAKEN" -> {
                     val base64 = intent.getStringExtra("BASE64_SCREENSHOT")
                     if (base64 != null) {
+                        Log.d(TAG, "Calling onScreenshotTaken from broadcast")
                         viewModel.onScreenshotTaken(base64)
+                    } else {
+                        Log.w(TAG, "Received SCREENSHOT_TAKEN but base64 was null")
                     }
                 }
             }
@@ -100,11 +114,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.d(TAG, "onCreate: Start")
+        Log.d(TAG, "onCreate: MainViewModel hash: ${viewModel.hashCode()}")
         mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
 
         enableEdgeToEdge()
         setContent {
-            var isDarkMode by remember { mutableStateOf(settingsViewModel.isDarkMode(this)) }
+            var isDarkMode by remember { mutableStateOf(viewModel.settingsViewModel.isDarkMode()) }
             IDEazTheme(darkTheme = isDarkMode) {
                 MainScreen(
                     viewModel = viewModel,
@@ -113,21 +129,26 @@ class MainActivity : ComponentActivity() {
                         mediaProjectionManager?.createScreenCaptureIntent()
                             ?.let { screenCaptureLauncher.launch(it) }
                     },
-                    settingsViewModel = settingsViewModel,
                     onThemeToggle = { isDarkMode = it }
                 )
             }
         }
+        Log.d(TAG, "onCreate: End")
     }
 
     override fun onStart() {
         super.onStart()
+        Log.d(TAG, "onStart: Start")
 
         // Load the API key and provide it to the interceptor
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
         AuthInterceptor.apiKey = sharedPreferences.getString("api_key", null)
+        Log.d(TAG, "onStart: API key loaded")
 
+        viewModel.bindBuildService(this)
+        Log.d(TAG, "onStart: bindBuildService() called")
         viewModel.listSessions()
+        Log.d(TAG, "onStart: listSessions() called")
 
         // Register the inspection receiver
         val filter = IntentFilter().apply {
@@ -141,11 +162,15 @@ class MainActivity : ComponentActivity() {
         } else {
             registerReceiver(inspectionReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         }
+        Log.d(TAG, "onStart: BroadcastReceiver registered")
+        Log.d(TAG, "onStart: End")
     }
 
     override fun onStop() {
         super.onStop()
+        Log.d(TAG, "onStop: Start")
         viewModel.unbindBuildService(this)
         unregisterReceiver(inspectionReceiver) // Unregister
+        Log.d(TAG, "onStop: End")
     }
 }

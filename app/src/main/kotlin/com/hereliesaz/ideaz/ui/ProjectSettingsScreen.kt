@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.ui
 
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,22 +30,28 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.Alignment
 
+private const val TAG = "ProjectSettingsScreen"
+
 @Composable
 fun ProjectSettingsScreen(
     viewModel: MainViewModel,
     sources: List<Source>,
-    settingsViewModel: SettingsViewModel = viewModel()
+    settingsViewModel: SettingsViewModel
 ) {
+    Log.d(TAG, "ProjectSettingsScreen: Composing")
+    Log.d(TAG, "ProjectSettingsScreen: MainViewModel hash: ${viewModel.hashCode()}")
+    Log.d(TAG, "ProjectSettingsScreen: SettingsViewModel hash: ${settingsViewModel.hashCode()}")
+
     val context = LocalContext.current
     var tabIndex by remember { mutableStateOf(0) }
     val tabs = listOf("Create", "Clone", "Load")
 
     // Central state for project config
-    var appName by remember { mutableStateOf(settingsViewModel.getAppName(context) ?: "IDEazProject") }
-    var githubUser by remember { mutableStateOf(settingsViewModel.getGithubUser(context) ?: "") }
-    var branchName by remember { mutableStateOf(settingsViewModel.getBranchName(context)) }
+    var appName by remember { mutableStateOf(settingsViewModel.getAppName() ?: "IDEazProject") }
+    var githubUser by remember { mutableStateOf(settingsViewModel.getGithubUser() ?: "") }
+    var branchName by remember { mutableStateOf(settingsViewModel.getBranchName()) }
     var packageName by remember {
-        mutableStateOf(settingsViewModel.getTargetPackageName(context) ?: "com.example.helloworld")
+        mutableStateOf(settingsViewModel.getTargetPackageName() ?: "com.example.helloworld")
     }
 
     // State for "Create" tab
@@ -52,11 +59,11 @@ fun ProjectSettingsScreen(
 
     // State for "Clone" tab
     var cloneUrl by remember { mutableStateOf("") }
-    val projectList = settingsViewModel.getProjectList(context)
+    val projectList = settingsViewModel.getProjectList()
     val ownedSources = sources.filter {
         val repo = it.githubRepo
         repo != null &&
-                repo.owner == settingsViewModel.getGithubUser(context) &&
+                repo.owner == settingsViewModel.getGithubUser() &&
                 !projectList.contains("${repo.owner}/${repo.repo}")
     }
 
@@ -117,8 +124,8 @@ fun ProjectSettingsScreen(
                             Spacer(modifier = Modifier.height(16.dp))
 
                             AzButton(onClick = {
-                                settingsViewModel.saveProjectConfig(context, appName, githubUser, branchName)
-                                settingsViewModel.saveTargetPackageName(context, packageName)
+                                settingsViewModel.saveProjectConfig(appName, githubUser, branchName)
+                                settingsViewModel.saveTargetPackageName(packageName)
                                 Toast.makeText(context, "Project Config Saved", Toast.LENGTH_SHORT).show()
                             }, text = "Save Config")
 
@@ -142,8 +149,8 @@ fun ProjectSettingsScreen(
 
                             AzButton(onClick = {
                                 // Save config just in case, then send prompt
-                                settingsViewModel.saveProjectConfig(context, appName, githubUser, branchName)
-                                settingsViewModel.saveTargetPackageName(context, packageName)
+                                settingsViewModel.saveProjectConfig(appName, githubUser, branchName)
+                                settingsViewModel.saveTargetPackageName(packageName)
                                 // This is a "Project Initialization" prompt (the "second APK")
                                 viewModel.sendPrompt(initialPrompt, isInitialization = true)
                             }, text = "Create Project & Build")
@@ -161,7 +168,7 @@ fun ProjectSettingsScreen(
                                     modifier = Modifier.weight(1f)
                                 )
                                 AzButton(onClick = {
-                                    val currentUser = settingsViewModel.getGithubUser(context)
+                                    val currentUser = settingsViewModel.getGithubUser()
                                     var owner: String? = null
                                     try {
                                         val path = URL(cloneUrl).path.removePrefix("/").removeSuffix(".git")
@@ -213,7 +220,7 @@ fun ProjectSettingsScreen(
                                             if (parts.size == 2) {
                                                 githubUser = parts[0]
                                                 appName = parts[1]
-                                                branchName = settingsViewModel.getBranchName(context) // Load saved branch
+                                                 branchName = settingsViewModel.getBranchName() // Load saved branch
                                                 Toast.makeText(context, "Config loaded. Go to 'Create' tab to save or build.", Toast.LENGTH_LONG).show()
                                                 tabIndex = 0 // Switch to Create tab
                                             }
