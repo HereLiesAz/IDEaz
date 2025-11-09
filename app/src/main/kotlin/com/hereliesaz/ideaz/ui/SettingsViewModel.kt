@@ -48,6 +48,14 @@ class SettingsViewModel : ViewModel() {
         const val KEY_SHOW_CANCEL_WARNING = "show_cancel_warning"
         const val KEY_DARK_MODE = "dark_mode"
 
+        // New key for log verbosity
+        const val KEY_LOG_VERBOSITY = "log_verbosity"
+
+        // Log verbosity levels
+        const val LOG_VERBOSITY_BUILD = "build"
+        const val LOG_VERBOSITY_AI = "ai"
+        const val LOG_VERBOSITY_COMBINED = "combined"
+
 
         val aiTasks = mapOf(
             KEY_AI_ASSIGNMENT_DEFAULT to "Default",
@@ -56,6 +64,9 @@ class SettingsViewModel : ViewModel() {
             KEY_AI_ASSIGNMENT_OVERLAY to "Overlay Chat"
         )
     }
+
+    private val _logVerbosity = MutableStateFlow(LOG_VERBOSITY_COMBINED)
+    val logVerbosity = _logVerbosity.asStateFlow()
 
     // --- Cancel Warning ---
 
@@ -78,6 +89,19 @@ class SettingsViewModel : ViewModel() {
     fun setDarkMode(context: Context, isDark: Boolean) {
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
         sharedPreferences.edit().putBoolean(KEY_DARK_MODE, isDark).apply()
+    }
+
+    // --- Log Verbosity ---
+
+    fun getLogVerbosity(context: Context): String {
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+        return sharedPreferences.getString(KEY_LOG_VERBOSITY, LOG_VERBOSITY_COMBINED) ?: LOG_VERBOSITY_COMBINED
+    }
+
+    fun setLogVerbosity(context: Context, verbosity: String) {
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+        sharedPreferences.edit().putString(KEY_LOG_VERBOSITY, verbosity).apply()
+        _logVerbosity.value = verbosity
     }
 
 

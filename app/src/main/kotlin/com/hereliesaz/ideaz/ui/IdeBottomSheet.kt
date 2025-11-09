@@ -4,12 +4,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
+import com.hereliesaz.aznavrail.AzButton
+import com.hereliesaz.aznavrail.model.AzButtonShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -41,7 +37,7 @@ fun IdeBottomSheet(
 ) {
     val isChatVisible = sheetState.currentDetent == peekDetent || sheetState.currentDetent == halfwayDetent
     val isHalfwayExpanded = sheetState.currentDetent == halfwayDetent
-    val logMessages by viewModel.combinedLog.collectAsState(initial = "")
+    val logMessages by viewModel.filteredLog.collectAsState(initial = "")
     val clipboardManager = LocalClipboardManager.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -51,7 +47,7 @@ fun IdeBottomSheet(
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             LiveOutputBottomCard(
-                logStream = viewModel.combinedLog,
+                logStream = viewModel.filteredLog,
                 modifier = Modifier.fillMaxSize(),
                 bottomPadding = if (isChatVisible) chatHeight else 0.dp
             )
@@ -62,20 +58,16 @@ fun IdeBottomSheet(
                         .align(Alignment.TopEnd)
                         .padding(16.dp)
                 ) {
-                    IconButton(onClick = { coroutineScope.launch { clipboardManager.setText(AnnotatedString(logMessages)) } }) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = "Copy Log",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    IconButton(onClick = { viewModel.clearLog() }) {
-                        Icon(
-                            imageVector = Icons.Default.Clear,
-                            contentDescription = "Clear Log",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
+                    AzButton(
+                        onClick = { coroutineScope.launch { clipboardManager.setText(AnnotatedString(logMessages)) } },
+                        text = "Copy",
+                        shape = AzButtonShape.RECTANGLE
+                    )
+                    AzButton(
+                        onClick = { viewModel.clearLog() },
+                        text = "Clear",
+                        shape = AzButtonShape.RECTANGLE
+                    )
                 }
             }
         }

@@ -11,11 +11,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import com.hereliesaz.aznavrail.AzButton
+import com.hereliesaz.aznavrail.model.AzButtonShape
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
+import com.hereliesaz.aznavrail.AzTextBox
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.*
@@ -29,7 +31,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.material3.Switch
 
 @Composable
@@ -63,46 +64,48 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Jules API Key
-                TextField(
-                    value = apiKey,
-                    onValueChange = { apiKey = it },
-                    label = { Text("Jules API Key") },
-                    visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth()
-                )
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    AzButton(onClick = {
-                        settingsViewModel.saveApiKey(context, apiKey)
-                        Toast.makeText(context, "Jules Key Saved", Toast.LENGTH_SHORT).show()
-                    }, text = "Save")
+                    AzTextBox(
+                        modifier = Modifier.weight(1f),
+                        value = apiKey,
+                        onValueChange = { apiKey = it },
+                        hint = "Jules API Key",
+                        secret = true,
+                        onSubmit = {
+                            settingsViewModel.saveApiKey(context, apiKey)
+                            Toast.makeText(context, "Jules Key Saved", Toast.LENGTH_SHORT).show()
+                        },
+                        submitButtonContent = { Text("Save") }
+                    )
                     Spacer(modifier = Modifier.width(8.dp))
                     AzButton(onClick = {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://jules.google.com/settings"))
                         context.startActivity(intent)
-                    }, text = "Get Key")
+                    }, text = "Get Key", shape = AzButtonShape.RECTANGLE)
                 }
 
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Google AI Studio API Key
-                TextField(
-                    value = googleApiKey,
-                    onValueChange = { googleApiKey = it },
-                    label = { Text("Google AI Studio API Key") },
-                    visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth()
-                )
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    AzButton(onClick = {
-                        settingsViewModel.saveGoogleApiKey(context, googleApiKey)
-                        Toast.makeText(context, "AI Studio Key Saved", Toast.LENGTH_SHORT).show()
-                    }, text = "Save")
+                    AzTextBox(
+                        modifier = Modifier.weight(1f),
+                        value = googleApiKey,
+                        onValueChange = { googleApiKey = it },
+                        hint = "Google AI Studio API Key",
+                        secret = true,
+                        onSubmit = {
+                            settingsViewModel.saveGoogleApiKey(context, googleApiKey)
+                            Toast.makeText(context, "AI Studio Key Saved", Toast.LENGTH_SHORT).show()
+                        },
+                        submitButtonContent = { Text("Save") }
+                    )
                     Spacer(modifier = Modifier.width(8.dp))
                     AzButton(onClick = {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/api-keys"))
                         context.startActivity(intent)
-                    }, text = "Get Key")
+                    }, text = "Get Key", shape = AzButtonShape.RECTANGLE)
                 }
 
 
@@ -167,6 +170,14 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                Text("Log Verbosity", color = MaterialTheme.colorScheme.onBackground)
+                LogVerbosityDropdown(
+                    settingsViewModel = settingsViewModel
+                )
+
+
+                Spacer(modifier = Modifier.height(24.dp))
+
                 // Display the list of sessions
                 Text("Active Sessions", color = MaterialTheme.colorScheme.onBackground)
                 if (sessions.isEmpty()) {
@@ -215,6 +226,55 @@ fun AiAssignmentDropdown(
                     text = { Text(model.displayName) },
                     onClick = {
                         onModelSelected(model)
+                        isExpanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LogVerbosityDropdown(
+    settingsViewModel: SettingsViewModel
+) {
+    val context = LocalContext.current
+    var isExpanded by remember { mutableStateOf(false) }
+    var selectedVerbosity by remember { mutableStateOf(settingsViewModel.getLogVerbosity(context)) }
+
+    val verbosityOptions = mapOf(
+        SettingsViewModel.LOG_VERBOSITY_BUILD to "Build Log",
+        SettingsViewModel.LOG_VERBOSITY_AI to "AI Log",
+        SettingsViewModel.LOG_VERBOSITY_COMBINED to "Combined"
+    )
+
+    ExposedDropdownMenuBox(
+        expanded = isExpanded,
+        onExpandedChange = { isExpanded = it }
+    ) {
+        TextField(
+            value = verbosityOptions[selectedVerbosity] ?: "Combined",
+            onValueChange = { },
+            readOnly = true,
+            label = { Text("Log Output") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) },
+            colors = ExposedDropdownMenuDefaults.textFieldColors(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor()
+        )
+
+        ExposedDropdownMenu(
+            expanded = isExpanded,
+            onDismissRequest = { isExpanded = false }
+        ) {
+            verbosityOptions.forEach { (key, value) ->
+                DropdownMenuItem(
+                    text = { Text(value) },
+                    onClick = {
+                        selectedVerbosity = key
+                        settingsViewModel.setLogVerbosity(context, key)
                         isExpanded = false
                     }
                 )
