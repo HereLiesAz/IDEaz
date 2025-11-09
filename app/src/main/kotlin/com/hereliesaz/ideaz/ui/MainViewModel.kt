@@ -28,7 +28,6 @@ import com.hereliesaz.ideaz.api.Activity as ApiActivity // <-- FIX
 import com.hereliesaz.ideaz.api.CreateSessionRequest
 import com.hereliesaz.ideaz.api.Source
 import com.hereliesaz.ideaz.services.ScreenshotService
-import com.hereliesaz.ideaz.services.UIInspectionService
 import kotlinx.coroutines.delay
 import androidx.preference.PreferenceManager
 import com.hereliesaz.ideaz.api.GeminiApiClient
@@ -332,7 +331,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // --- CONTEXTLESS AI (Global Log) ---
-    fun sendPrompt(prompt: String, isInitialization: Boolean = false) {
+    fun sendPrompt(prompt: String?, isInitialization: Boolean = false) {
         Log.d(TAG, "sendPrompt called with prompt: '$prompt', isInitialization: $isInitialization")
         val taskKey = if (isInitialization) {
             SettingsViewModel.KEY_AI_ASSIGNMENT_INIT
@@ -588,7 +587,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return model
     }
 
-    private fun createSessionRequest(prompt: String): CreateSessionRequest? {
+    private fun createSessionRequest(prompt: String?): CreateSessionRequest? {
         Log.d(TAG, "createSessionRequest called")
         val appName = settingsViewModel.getAppName()
         val githubUser = settingsViewModel.getGithubUser()

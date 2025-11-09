@@ -14,7 +14,7 @@ data class ListSessionsResponse(
 
 @Serializable
 data class CreateSessionRequest(
-    val prompt: String,
+    val prompt: String?,
     val sourceContext: SourceContext,
     val title: String,
     val requirePlanApproval: Boolean? = null,
