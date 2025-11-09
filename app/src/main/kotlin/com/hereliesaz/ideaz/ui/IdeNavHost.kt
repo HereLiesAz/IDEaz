@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.ui
 
+import android.util.Log
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
@@ -16,32 +17,47 @@ import com.hereliesaz.ideaz.api.Activity
 import com.hereliesaz.ideaz.api.Session
 import com.hereliesaz.ideaz.api.Source
 
+private const val TAG = "IdeNavHost"
+
 @Composable
 fun IdeNavHost(
     modifier: Modifier = Modifier,
     navController: NavHostController,
     viewModel: MainViewModel,
-    // MODIFIED: Removed status variables, they are moving to the bottom sheet
+    settingsViewModel: SettingsViewModel, // Add this
     session: Session?,
     sessions: List<Session>,
     activities: List<Activity>,
     sources: List<Source>,
     onThemeToggle: (Boolean) -> Unit
 ) {
+    Log.d(TAG, "IdeNavHost: Composing")
+    Log.d(TAG, "IdeNavHost: MainViewModel hash: ${viewModel.hashCode()}")
+    Log.d(TAG, "IdeNavHost: SettingsViewModel hash: ${settingsViewModel.hashCode()}")
+
     NavHost(
         navController = navController,
         startDestination = "main",
         modifier = modifier
     ) {
         composable("main") {
-            // MODIFIED: This is now an empty screen.
-            // The status text has been moved to the IdeBottomSheet.
+            // Main content is now just the log view
         }
         composable("settings") {
-            SettingsScreen(sessions = sessions, onThemeToggle = onThemeToggle)
+            // Pass the settingsViewModel down
+            SettingsScreen(
+                sessions = sessions,
+                onThemeToggle = onThemeToggle,
+                settingsViewModel = settingsViewModel
+            )
         }
         composable("project_settings") {
-            ProjectSettingsScreen(viewModel = viewModel, sources = sources)
+            // Pass the settingsViewModel down
+            ProjectSettingsScreen(
+                viewModel = viewModel,
+                sources = sources,
+                settingsViewModel = settingsViewModel
+            )
         }
     }
 }

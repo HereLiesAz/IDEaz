@@ -8,7 +8,7 @@ class MainViewModelFactory(private val application: Application) : ViewModelProv
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(MainViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return MainViewModel(application) as T
+            return ViewModelProvider.AndroidViewModelFactory.getInstance(application).create(modelClass) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
