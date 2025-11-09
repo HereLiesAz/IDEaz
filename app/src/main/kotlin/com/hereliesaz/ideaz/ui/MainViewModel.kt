@@ -2,6 +2,7 @@ package com.hereliesaz.ideaz.ui
 
 // --- FIX: Use import aliases to resolve ambiguity ---
 import android.app.Activity as AndroidActivity // <-- FIX
+import android.app.Application
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -9,7 +10,7 @@ import android.content.ServiceConnection
 import android.graphics.Rect
 import android.os.IBinder
 import android.util.Log
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.IBuildService
@@ -37,7 +38,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import kotlinx.coroutines.Job
 
-class MainViewModel : ViewModel() {
+class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Global Build Log ---
     private val _buildLog = MutableStateFlow("")
@@ -80,25 +81,48 @@ class MainViewModel : ViewModel() {
     private var pendingRect: Rect? = null // Holds the rect to re-draw the log box
     // --- END ---
 
-    private var appContext: Context? = null
+    private val appContext: Context
+    private val settingsViewModel: SettingsViewModel
+    private val buildServiceConnection: ServiceConnection
 
-    private val settingsViewModel by lazy { SettingsViewModel() }
+    init {
+        appContext = application.applicationContext
+        settingsViewModel = SettingsViewModel()
+        buildServiceConnection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+                buildService = IBuildService.Stub.asInterface(service)
+                isBuildServiceBound = true
+                _buildLog.value += "Status: Build Service Connected\n"
+            }
 
-
-    // --- Build Service Connection ---
-    private val buildServiceConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            buildService = IBuildService.Stub.asInterface(service)
-            isBuildServiceBound = true
-            _buildLog.value += "Status: Build Service Connected\n"
+            override fun onServiceDisconnected(name: ComponentName?) {
+                buildService = null
+                isBuildServiceBound = false
+                _buildLog.value += "Status: Build Service Disconnected\n"
+            }
         }
 
-        override fun onServiceDisconnected(name: ComponentName?) {
-            buildService = null
-            isBuildServiceBound = false
-            _buildLog.value += "Status: Build Service Disconnected\n"
+        filteredLog = combine(
+            buildLog,
+            aiLog,
+            settingsViewModel.logVerbosity
+        ) { build, ai, verbosity ->
+            when (verbosity) {
+                SettingsViewModel.LOG_VERBOSITY_BUILD -> build
+                SettingsViewModel.LOG_VERBOSITY_AI -> ai
+                else -> "$build\n$ai"
+            }
+        }.stateIn(viewModelScope, SharingStarted.Lazily, "")
+
+        // Bind Build Service
+        Intent("com.hereliesaz.ideaz.BUILD_SERVICE").also { intent ->
+            intent.component = ComponentName(appContext, BuildService::class.java)
+            appContext.bindService(intent, buildServiceConnection, Context.BIND_AUTO_CREATE)
         }
+        // Also load sources when service is bound
+        loadSources()
     }
+
 
     // --- Build Callback ---
     private val buildCallback = object : IBuildCallback.Stub() {
@@ -138,36 +162,11 @@ class MainViewModel : ViewModel() {
     }
 
     // --- Service Binding ---
-    fun bindBuildService(context: Context) {
-        appContext = context.applicationContext // Store context
-
-        filteredLog = combine(
-            buildLog,
-            aiLog,
-            settingsViewModel.logVerbosity
-        ) { build, ai, verbosity ->
-            when (verbosity) {
-                SettingsViewModel.LOG_VERBOSITY_BUILD -> build
-                SettingsViewModel.LOG_VERBOSITY_AI -> ai
-                else -> "$build\n$ai"
-            }
-        }.stateIn(viewModelScope, SharingStarted.Lazily, "")
-
-        // Bind Build Service
-        Intent("com.hereliesaz.ideaz.BUILD_SERVICE").also { intent ->
-            intent.component = ComponentName(context, BuildService::class.java)
-            context.bindService(intent, buildServiceConnection, Context.BIND_AUTO_CREATE)
-        }
-        // Also load sources when service is bound
-        loadSources()
-    }
-
     fun unbindBuildService(context: Context) {
         if (isBuildServiceBound) {
             context.unbindService(buildServiceConnection)
             isBuildServiceBound = false
         }
-        appContext = null // Clear context
     }
 
     fun clearLog() {
