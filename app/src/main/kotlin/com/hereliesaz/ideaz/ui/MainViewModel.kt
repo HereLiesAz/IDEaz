@@ -36,8 +36,10 @@ import com.hereliesaz.ideaz.api.SourceContext
 import java.io.FileOutputStream
 import java.io.IOException
 import kotlinx.coroutines.Job
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 
-class MainViewModel : ViewModel() {
+class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Global Build Log ---
     private val _buildLog = MutableStateFlow("")
@@ -80,10 +82,13 @@ class MainViewModel : ViewModel() {
     private var pendingRect: Rect? = null // Holds the rect to re-draw the log box
     // --- END ---
 
-    private var appContext: Context? = null
+    private val appContext: Context
+    private val settingsViewModel: SettingsViewModel
 
-    private val settingsViewModel by lazy { SettingsViewModel() }
-
+    init {
+        appContext = application.applicationContext
+        settingsViewModel = SettingsViewModel()
+    }
 
     // --- Build Service Connection ---
     private val buildServiceConnection = object : ServiceConnection {
