@@ -46,8 +46,16 @@ class MainViewModel : ViewModel() {
     private val _aiLog = MutableStateFlow("")
     private val aiLog = _aiLog.asStateFlow()
 
-    val combinedLog: StateFlow<String> = combine(buildLog, aiLog) { build, ai ->
-        "$build\n$ai"
+    val filteredLog: StateFlow<String> = combine(
+        buildLog,
+        aiLog,
+        settingsViewModel.logVerbosity
+    ) { build, ai, verbosity ->
+        when (verbosity) {
+            SettingsViewModel.LOG_VERBOSITY_BUILD -> build
+            SettingsViewModel.LOG_VERBOSITY_AI -> ai
+            else -> "$build\n$ai"
+        }
     }.stateIn(viewModelScope, SharingStarted.Lazily, "")
 
 
@@ -556,8 +564,6 @@ class MainViewModel : ViewModel() {
             } catch (e: Exception) {
                 logTo(logTarget, "Error polling for patch: ${e.message}")
                 if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
-
-                    if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
             }
         }
     }
