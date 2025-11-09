@@ -32,7 +32,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.composables.core.SheetDetent
 import com.composables.core.rememberBottomSheetState
-import com.hereliesaz.ideaz.ui.theme.IDEazTheme
 import kotlinx.coroutines.launch
 
 // 1. Define custom detents

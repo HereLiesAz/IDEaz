@@ -1,6 +1,7 @@
 package com.hereliesaz.ideaz.ui
 
 import android.content.Intent
+import android.inputmethodservice.Keyboard
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
@@ -67,13 +68,16 @@ fun SettingsScreen(
                 .padding(all = 8.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-                Text("API Keys", color = MaterialTheme.colorScheme.onBackground)
+                Text("API Keys", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
                 Spacer(modifier = Modifier.height(16.dp))
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
 
+                Text("Jules API Key", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
+            }
                 // Jules API Key
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     AzTextBox(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.fillMaxWidth(),
                         value = apiKey,
                         onValueChange = { apiKey = it },
                         hint = "Jules API Key",
@@ -84,40 +88,49 @@ fun SettingsScreen(
                         },
                         submitButtonContent = { Text("Save") }
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Row(Modifier.width(60.dp) , verticalAlignment = Alignment.CenterVertically) {
                     AzButton(onClick = {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://jules.google.com/settings"))
                         context.startActivity(intent)
-                    }, text = "Get Key", shape = AzButtonShape.RECTANGLE)
+                    }, text = "Get Key", shape = AzButtonShape.NONE)
                 }
 
+            Row(Modifier.fillMaxWidth() , verticalAlignment = Alignment.CenterVertically) {
+                Spacer(modifier = Modifier.height(24.dp))
 
-                Spacer(modifier = Modifier.height(16.dp))
+            }
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
 
+                Text("AI Studio API Key", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
+            }
                 // Google AI Studio API Key
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     AzTextBox(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.fillMaxWidth(),
                         value = googleApiKey,
                         onValueChange = { googleApiKey = it },
-                        hint = "Google AI Studio API Key",
+                        hint = "AI Studio API Key",
                         secret = true,
                         onSubmit = {
                             settingsViewModel.saveGoogleApiKey(googleApiKey)
                             Toast.makeText(context, "AI Studio Key Saved", Toast.LENGTH_SHORT).show()
                         },
                         submitButtonContent = { Text("Save") }
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    )}
+                    Row(Modifier.width(60.dp) , verticalAlignment = Alignment.CenterVertically) {
                     AzButton(onClick = {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/api-keys"))
                         context.startActivity(intent)
-                    }, text = "Get Key", shape = AzButtonShape.RECTANGLE)
+                    }, text = "Get Key", shape = AzButtonShape.NONE)
                 }
 
-
+            Row(Modifier.fillMaxWidth() , verticalAlignment = Alignment.CenterVertically) {
                 Spacer(modifier = Modifier.height(24.dp))
-                Text("AI Assignments", color = MaterialTheme.colorScheme.onBackground)
+
+            }
+                Spacer(modifier = Modifier.height(24.dp))
+                Text("AI Assignments", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
 
                 // Render dropdowns for each task
                 SettingsViewModel.aiTasks.forEach { (taskKey, taskName) ->
@@ -140,7 +153,7 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // --- NEW: Cancel Warning Checkbox ---
-                Text("Preferences", color = MaterialTheme.colorScheme.onBackground)
+                Text("Preferences", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
