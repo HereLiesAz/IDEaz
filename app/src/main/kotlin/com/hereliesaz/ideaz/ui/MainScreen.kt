@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import com.hereliesaz.aznavrail.AzButton
+import com.hereliesaz.aznavrail.model.AzButtonShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -149,10 +150,10 @@ fun MainScreen(
             title = { Text("Cancel Task") },
             text = { Text("Are you sure you want to cancel this task? All AI progress will be lost.") },
             confirmButton = {
-                AzButton(onClick = { viewModel.confirmCancelTask() }, text = "Confirm")
+                AzButton(onClick = { viewModel.confirmCancelTask() }, text = "Confirm", shape = AzButtonShape.RECTANGLE)
             },
             dismissButton = {
-                AzButton(onClick = { viewModel.dismissCancelTask() }, text = "Dismiss")
+                AzButton(onClick = { viewModel.dismissCancelTask() }, text = "Dismiss", shape = AzButtonShape.RECTANGLE)
             }
         )
     }
