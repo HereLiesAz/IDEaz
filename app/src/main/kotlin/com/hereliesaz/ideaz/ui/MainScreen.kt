@@ -46,7 +46,6 @@ private val Halfway = SheetDetent("halfway") { containerHeight, _ -> containerHe
 fun MainScreen(
     viewModel: MainViewModel,
     onRequestScreenCapture: () -> Unit, // NEW: Lambda to trigger permission
-    settingsViewModel: SettingsViewModel,
     onThemeToggle: (Boolean) -> Unit
 ) {
     val session by viewModel.session.collectAsState()
@@ -191,6 +190,7 @@ fun MainScreen(
                         modifier = Modifier.weight(1f),
                         navController = navController,
                         viewModel = viewModel,
+                        settingsViewModel = viewModel.settingsViewModel,
                         session = session,
                         sessions = sessions,
                         activities = activities,

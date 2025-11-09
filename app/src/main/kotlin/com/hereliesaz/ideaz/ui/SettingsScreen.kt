@@ -2,6 +2,7 @@ package com.hereliesaz.ideaz.ui
 
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,21 +34,27 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.ui.Alignment
 import androidx.compose.material3.Switch
 
+private const val TAG = "SettingsScreen"
+
 @Composable
 fun SettingsScreen(
-    settingsViewModel: SettingsViewModel = viewModel(),
+    settingsViewModel: SettingsViewModel,
     sessions: List<Session>, // Accept the sessions list
     onThemeToggle: (Boolean) -> Unit
 ) {
+    Log.d(TAG, "SettingsScreen: Composing")
+    Log.d(TAG, "SettingsScreen: Composing")
+    Log.d(TAG, "SettingsScreen: SettingsViewModel hash: ${settingsViewModel.hashCode()}")
+
     val context = LocalContext.current
-    var apiKey by remember { mutableStateOf(settingsViewModel.getApiKey(context) ?: "") }
-    var googleApiKey by remember { mutableStateOf(settingsViewModel.getGoogleApiKey(context) ?: "") }
-    var isDarkMode by remember { mutableStateOf(settingsViewModel.isDarkMode(context)) }
+    var apiKey by remember { mutableStateOf(settingsViewModel.getApiKey() ?: "") }
+    var googleApiKey by remember { mutableStateOf(settingsViewModel.getGoogleApiKey() ?: "") }
+    var isDarkMode by remember { mutableStateOf(settingsViewModel.isDarkMode()) }
 
 
     // --- NEW: State for Cancel Warning ---
     var showCancelWarning by remember {
-        mutableStateOf(settingsViewModel.getShowCancelWarning(context))
+        mutableStateOf(settingsViewModel.getShowCancelWarning())
     }
     // --- END NEW ---
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
@@ -72,7 +79,7 @@ fun SettingsScreen(
                         hint = "Jules API Key",
                         secret = true,
                         onSubmit = {
-                            settingsViewModel.saveApiKey(context, apiKey)
+                            settingsViewModel.saveApiKey(apiKey)
                             Toast.makeText(context, "Jules Key Saved", Toast.LENGTH_SHORT).show()
                         },
                         submitButtonContent = { Text("Save") }
@@ -96,7 +103,7 @@ fun SettingsScreen(
                         hint = "Google AI Studio API Key",
                         secret = true,
                         onSubmit = {
-                            settingsViewModel.saveGoogleApiKey(context, googleApiKey)
+                            settingsViewModel.saveGoogleApiKey(googleApiKey)
                             Toast.makeText(context, "AI Studio Key Saved", Toast.LENGTH_SHORT).show()
                         },
                         submitButtonContent = { Text("Save") }
@@ -115,7 +122,7 @@ fun SettingsScreen(
                 // Render dropdowns for each task
                 SettingsViewModel.aiTasks.forEach { (taskKey, taskName) ->
                     var currentModelId by remember(taskKey) {
-                        mutableStateOf(settingsViewModel.getAiAssignment(context, taskKey) ?: AiModels.JULES_DEFAULT)
+                        mutableStateOf(settingsViewModel.getAiAssignment(taskKey) ?: AiModels.JULES_DEFAULT)
                     }
 
                     AiAssignmentDropdown(
@@ -123,7 +130,7 @@ fun SettingsScreen(
                         selectedModelId = currentModelId,
                         onModelSelected = { model ->
                             currentModelId = model.id
-                            settingsViewModel.saveAiAssignment(context, taskKey, model.id)
+                            settingsViewModel.saveAiAssignment(taskKey, model.id)
                         }
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -142,7 +149,7 @@ fun SettingsScreen(
                         checked = showCancelWarning,
                         onCheckedChange = {
                             showCancelWarning = it
-                            settingsViewModel.setShowCancelWarning(context, it)
+                            settingsViewModel.setShowCancelWarning(it)
                         }
                     )
                     Text("Show warning when cancelling AI task", color = MaterialTheme.colorScheme.onBackground)
@@ -160,7 +167,7 @@ fun SettingsScreen(
                         checked = isDarkMode,
                         onCheckedChange = {
                             isDarkMode = it
-                            settingsViewModel.setDarkMode(context, it)
+                            settingsViewModel.setDarkMode(it)
                             onThemeToggle(it)
                         }
                     )
@@ -239,9 +246,8 @@ fun AiAssignmentDropdown(
 fun LogVerbosityDropdown(
     settingsViewModel: SettingsViewModel
 ) {
-    val context = LocalContext.current
     var isExpanded by remember { mutableStateOf(false) }
-    var selectedVerbosity by remember { mutableStateOf(settingsViewModel.getLogVerbosity(context)) }
+    var selectedVerbosity by remember { mutableStateOf(settingsViewModel.getLogVerbosity()) }
 
     val verbosityOptions = mapOf(
         SettingsViewModel.LOG_VERBOSITY_BUILD to "Build Log",
@@ -274,7 +280,7 @@ fun LogVerbosityDropdown(
                     text = { Text(value) },
                     onClick = {
                         selectedVerbosity = key
-                        settingsViewModel.setLogVerbosity(context, key)
+                        settingsViewModel.setLogVerbosity(key)
                         isExpanded = false
                     }
                 )

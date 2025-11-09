@@ -57,7 +57,7 @@ class UIInspectionService : AccessibilityService() {
 
     private var touchSlop = 0
 
-    private val settingsViewModel by lazy { SettingsViewModel() }
+    private lateinit var settingsViewModel: SettingsViewModel
     private var targetPackageName: String? = null
 
     // --- Broadcast Receiver for commands from ViewModel ---
@@ -139,7 +139,8 @@ class UIInspectionService : AccessibilityService() {
         touchSlop = ViewConfiguration.get(this).scaledTouchSlop
 
         // Get the target package name on connect
-        targetPackageName = settingsViewModel.getTargetPackageName(this)
+        settingsViewModel = SettingsViewModel(application)
+        targetPackageName = settingsViewModel.getTargetPackageName()
         Log.d("UIInspectionService", "Service connected. Target package: $targetPackageName")
 
         // Register the command receiver
