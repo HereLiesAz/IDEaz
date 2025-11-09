@@ -46,17 +46,7 @@ class MainViewModel : ViewModel() {
     private val _aiLog = MutableStateFlow("")
     private val aiLog = _aiLog.asStateFlow()
 
-    val filteredLog: StateFlow<String> = combine(
-        buildLog,
-        aiLog,
-        settingsViewModel.logVerbosity
-    ) { build, ai, verbosity ->
-        when (verbosity) {
-            SettingsViewModel.LOG_VERBOSITY_BUILD -> build
-            SettingsViewModel.LOG_VERBOSITY_AI -> ai
-            else -> "$build\n$ai"
-        }
-    }.stateIn(viewModelScope, SharingStarted.Lazily, "")
+    lateinit var filteredLog: StateFlow<String>
 
 
     // --- Service Binders ---
@@ -150,6 +140,18 @@ class MainViewModel : ViewModel() {
     // --- Service Binding ---
     fun bindBuildService(context: Context) {
         appContext = context.applicationContext // Store context
+
+        filteredLog = combine(
+            buildLog,
+            aiLog,
+            settingsViewModel.logVerbosity
+        ) { build, ai, verbosity ->
+            when (verbosity) {
+                SettingsViewModel.LOG_VERBOSITY_BUILD -> build
+                SettingsViewModel.LOG_VERBOSITY_AI -> ai
+                else -> "$build\n$ai"
+            }
+        }.stateIn(viewModelScope, SharingStarted.Lazily, "")
 
         // Bind Build Service
         Intent("com.hereliesaz.ideaz.BUILD_SERVICE").also { intent ->
@@ -533,8 +535,7 @@ class MainViewModel : ViewModel() {
         return CreateSessionRequest(
             prompt = prompt,
             sourceContext = sourceContext,
-            title = "$appName IDEaz Session",
-            automationMode = "AUTO_CREATE_PR"
+            title = "$appName IDEaz Session"
         )
     }
 
