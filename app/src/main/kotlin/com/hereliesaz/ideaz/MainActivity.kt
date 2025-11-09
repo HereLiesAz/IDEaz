@@ -56,7 +56,12 @@ class MainActivity : ComponentActivity() {
                     val resourceId = intent.getStringExtra("RESOURCE_ID")
                     val prompt = intent.getStringExtra("PROMPT")
                     // NEW: Pass bounds rect for screenshot
-                    val bounds = intent.getParcelableExtra<Rect>("BOUNDS")
+                    val bounds = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableExtra("BOUNDS", Rect::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra("BOUNDS")
+                    }
                     if (resourceId != null && prompt != null && bounds != null) {
                         viewModel.onNodePromptSubmitted(resourceId, prompt, bounds)
                     }
