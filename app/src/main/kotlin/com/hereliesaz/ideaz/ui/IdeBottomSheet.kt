@@ -37,7 +37,7 @@ fun IdeBottomSheet(
 ) {
     val isChatVisible = sheetState.currentDetent == peekDetent || sheetState.currentDetent == halfwayDetent
     val isHalfwayExpanded = sheetState.currentDetent == halfwayDetent
-    val logMessages by viewModel.combinedLog.collectAsState(initial = "")
+    val logMessages by viewModel.filteredLog.collectAsState(initial = "")
     val clipboardManager = LocalClipboardManager.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -47,7 +47,7 @@ fun IdeBottomSheet(
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             LiveOutputBottomCard(
-                logStream = viewModel.combinedLog,
+                logStream = viewModel.filteredLog,
                 modifier = Modifier.fillMaxSize(),
                 bottomPadding = if (isChatVisible) chatHeight else 0.dp
             )
