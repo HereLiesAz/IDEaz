@@ -160,6 +160,11 @@ class MainViewModel : ViewModel() {
         appContext = null // Clear context
     }
 
+    fun clearLog() {
+        _buildLog.value = ""
+        _aiLog.value = ""
+    }
+
     // --- Inspection Logic ---
 
     /**
@@ -551,6 +556,8 @@ class MainViewModel : ViewModel() {
             } catch (e: Exception) {
                 logTo(logTarget, "Error polling for patch: ${e.message}")
                 if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
+
+                    if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
             }
         }
     }

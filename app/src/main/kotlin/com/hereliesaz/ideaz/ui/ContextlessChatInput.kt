@@ -3,7 +3,7 @@ package com.hereliesaz.ideaz.ui
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -26,7 +26,7 @@ fun ContextlessChatInput(
             }
         },
         submitButtonContent = {
-            Icon(Icons.Filled.Send, contentDescription = "Send")
+            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
         }
     )
 }

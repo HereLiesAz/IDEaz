@@ -35,7 +35,6 @@ class ScreenshotService : Service() {
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
     private var windowManager: WindowManager? = null
-    private var displayMetrics: DisplayMetrics? = null
 
     private val highlightPaint = Paint().apply {
         color = android.graphics.Color.argb(100, 255, 0, 0) // Semi-transparent red
@@ -48,8 +47,6 @@ class ScreenshotService : Service() {
         super.onCreate()
         mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        displayMetrics = DisplayMetrics()
-        windowManager?.defaultDisplay?.getMetrics(displayMetrics)
 
         createNotificationChannel()
     }
@@ -78,8 +75,19 @@ class ScreenshotService : Service() {
         }
 
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
-        val data = intent?.getParcelableExtra<Intent>(EXTRA_DATA)
-        val rect = intent?.getParcelableExtra<Rect>(EXTRA_RECT)
+
+        val data: Intent? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent?.getParcelableExtra(EXTRA_DATA, Intent::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent?.getParcelableExtra(EXTRA_DATA)
+        }
+        val rect: Rect? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent?.getParcelableExtra(EXTRA_RECT, Rect::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent?.getParcelableExtra(EXTRA_RECT)
+        }
 
         if (resultCode == Activity.RESULT_OK && data != null && rect != null) {
             startCapture(resultCode, data, rect)
@@ -93,14 +101,34 @@ class ScreenshotService : Service() {
     private fun startCapture(resultCode: Int, data: Intent, rect: Rect) {
         mediaProjection = mediaProjectionManager?.getMediaProjection(resultCode, data)
 
-        val width = displayMetrics!!.widthPixels
-        val height = displayMetrics!!.heightPixels
+        val width: Int
+        val height: Int
+        val densityDpi: Int
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val metrics = windowManager?.currentWindowMetrics
+            width = metrics?.bounds?.width() ?: 0
+            height = metrics?.bounds?.height() ?: 0
+            densityDpi = resources.configuration.densityDpi
+        } else {
+            val metrics = DisplayMetrics()
+            @Suppress("DEPRECATION")
+            windowManager?.defaultDisplay?.getMetrics(metrics)
+            width = metrics.widthPixels
+            height = metrics.heightPixels
+            densityDpi = metrics.densityDpi
+        }
+
+        if (width == 0 || height == 0) {
+            stopSelf()
+            return
+        }
 
         imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
 
         virtualDisplay = mediaProjection?.createVirtualDisplay(
             "Screenshot",
-            width, height, displayMetrics!!.densityDpi,
+            width, height, densityDpi,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
             imageReader?.surface, null, null
         )
