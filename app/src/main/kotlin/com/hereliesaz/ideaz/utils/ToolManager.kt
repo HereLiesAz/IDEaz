@@ -1,6 +1,7 @@
 package com.hereliesaz.ideaz.utils
 
 import android.content.Context
+import android.os.Build
 import java.io.File
 import java.io.FileOutputStream
 
@@ -42,12 +43,37 @@ object ToolManager {
         NATIVE_BINARIES.forEach { (toolName, libName) ->
             val destFile = File(nativeToolDir, toolName)
             // Always overwrite to ensure the latest version is used
-            val sourceFile = File(context.applicationInfo.nativeLibraryDir, libName)
+
+            // The native library isn't always at the root of nativeLibraryDir.
+            // It's often in a subdirectory named after the ABI.
+            // We'll construct the path using the primary ABI.
+            val primaryAbi = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                Build.SUPPORTED_ABIS[0]
+            } else {
+                @Suppress("DEPRECATION")
+                Build.CPU_ABI
+            }
+
+            val nativeLibDir = File(context.applicationInfo.nativeLibraryDir)
+            var sourceFile = File(nativeLibDir, libName) // Check original path first
+
+            if (!sourceFile.exists()) {
+                // If not found, try constructing path with primary ABI from the parent directory.
+                // This handles cases where nativeLibraryDir points to `/lib/arm64` but we need `/lib/arm64-v8a`
+                val parentDir = nativeLibDir.parentFile
+                if (parentDir != null) {
+                    val abiSpecificFile = File(parentDir, "$primaryAbi/$libName")
+                    if (abiSpecificFile.exists()) {
+                        sourceFile = abiSpecificFile
+                    }
+                }
+            }
+
             if (sourceFile.exists()) {
                 sourceFile.copyTo(destFile, overwrite = true)
                 destFile.setExecutable(true, true)
             } else {
-                android.util.Log.e("ToolManager", "Native library not found: ${sourceFile.absolutePath}")
+                 android.util.Log.e("ToolManager", "Native library not found: $libName in ${nativeLibDir.absolutePath} or for ABI $primaryAbi")
             }
         }
         android.util.Log.d("ToolManager", "Tool extraction complete.")
