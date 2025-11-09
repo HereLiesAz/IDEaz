@@ -127,7 +127,6 @@ class MainActivity : ComponentActivity() {
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
         AuthInterceptor.apiKey = sharedPreferences.getString("api_key", null)
 
-        viewModel.bindBuildService(this)
         viewModel.listSessions()
 
         // Register the inspection receiver
