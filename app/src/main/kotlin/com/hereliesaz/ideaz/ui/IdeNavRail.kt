@@ -39,7 +39,7 @@ fun IdeNavRail(
             isChecked = isIdeVisible, // isIdeVisible is true when sheet is up (Selection Mode)
             toggleOnText = "Interact", // Button text for Selection Mode
             toggleOffText = "Select",   // Button text for Interaction Mode
-            shape = AzButtonShape.NONE, // Explicitly adding null for the optional shape parameter
+            shape = AzButtonShape.RECTANGLE,
             onClick = {
                 handleActionClick {
                     onModeToggleClick() // Call the lambda from MainScreen
