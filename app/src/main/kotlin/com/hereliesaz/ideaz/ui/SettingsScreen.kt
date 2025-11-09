@@ -170,6 +170,14 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                Text("Log Verbosity", color = MaterialTheme.colorScheme.onBackground)
+                LogVerbosityDropdown(
+                    settingsViewModel = settingsViewModel
+                )
+
+
+                Spacer(modifier = Modifier.height(24.dp))
+
                 // Display the list of sessions
                 Text("Active Sessions", color = MaterialTheme.colorScheme.onBackground)
                 if (sessions.isEmpty()) {
@@ -218,6 +226,55 @@ fun AiAssignmentDropdown(
                     text = { Text(model.displayName) },
                     onClick = {
                         onModelSelected(model)
+                        isExpanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LogVerbosityDropdown(
+    settingsViewModel: SettingsViewModel
+) {
+    val context = LocalContext.current
+    var isExpanded by remember { mutableStateOf(false) }
+    var selectedVerbosity by remember { mutableStateOf(settingsViewModel.getLogVerbosity(context)) }
+
+    val verbosityOptions = mapOf(
+        SettingsViewModel.LOG_VERBOSITY_BUILD to "Build Log",
+        SettingsViewModel.LOG_VERBOSITY_AI to "AI Log",
+        SettingsViewModel.LOG_VERBOSITY_COMBINED to "Combined"
+    )
+
+    ExposedDropdownMenuBox(
+        expanded = isExpanded,
+        onExpandedChange = { isExpanded = it }
+    ) {
+        TextField(
+            value = verbosityOptions[selectedVerbosity] ?: "Combined",
+            onValueChange = { },
+            readOnly = true,
+            label = { Text("Log Output") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) },
+            colors = ExposedDropdownMenuDefaults.textFieldColors(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor()
+        )
+
+        ExposedDropdownMenu(
+            expanded = isExpanded,
+            onDismissRequest = { isExpanded = false }
+        ) {
+            verbosityOptions.forEach { (key, value) ->
+                DropdownMenuItem(
+                    text = { Text(value) },
+                    onClick = {
+                        selectedVerbosity = key
+                        settingsViewModel.setLogVerbosity(context, key)
                         isExpanded = false
                     }
                 )
