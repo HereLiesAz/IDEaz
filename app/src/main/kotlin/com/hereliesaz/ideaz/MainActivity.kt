@@ -122,6 +122,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate: Start")
         Log.d(TAG, "onCreate: MainViewModel hash: ${viewModel.hashCode()}")
+
+        // Bind the BuildService now that the ViewModel is initialized
+        viewModel.bindBuildService(this)
+
         mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
 
         enableEdgeToEdge()

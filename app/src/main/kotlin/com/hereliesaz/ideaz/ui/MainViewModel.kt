@@ -85,6 +85,16 @@ class MainViewModel(
     private var pendingRect: Rect? = null // Holds the rect to re-draw the log box
     // --- END ---
 
+    init {
+        // Service is now bound explicitly from MainActivity
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        unbindBuildService(getApplication())
+    }
+
+
     // --- Build Service Connection ---
     private val buildServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
@@ -140,15 +150,6 @@ class MainViewModel(
                 debugBuild() // Global debug
             }
         }
-    }
-
-    init {
-        bindBuildService(application)
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        unbindBuildService(getApplication())
     }
 
     // --- Service Binding ---
