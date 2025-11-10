@@ -25,7 +25,6 @@ import java.io.File
 import com.hereliesaz.ideaz.models.SourceMapEntry
 import com.hereliesaz.ideaz.utils.SourceMapParser
 import com.hereliesaz.ideaz.api.Activity as ApiActivity // <-- FIX
-import com.hereliesaz.ideaz.api.CreateSessionRequest
 import com.hereliesaz.ideaz.api.Source
 import com.hereliesaz.ideaz.services.ScreenshotService
 import kotlinx.coroutines.delay
@@ -397,7 +396,7 @@ class MainViewModel(
                         Log.d(TAG, "Jules session created: ${response.name}")
                         _buildLog.value += "[DEBUG] Jules session created: ${response.name}\n"
                         _buildLog.value += "[INFO] AI Status: Session created. Waiting for patch...\n"
-                        pollForPatch(response.name, _buildLog)
+                        response.name?.let { pollForPatch(it, _buildLog) }
 
                     } catch (e: Exception) {
                         Log.e(TAG, "Error creating Jules session", e)
@@ -458,7 +457,7 @@ class MainViewModel(
                         val response = ApiClient.julesApiService.createSession(sessionRequest)
                         Log.d(TAG, "Jules session created for overlay task: ${response.name}")
                         logToOverlay("Session created. Waiting for patch...")
-                        pollForPatch(response.name, "OVERLAY") // Use a string to signify overlay
+                        response.name?.let { pollForPatch(it, "OVERLAY") }
 
                     } catch (e: Exception) {
                         Log.e(TAG, "Error creating Jules session for overlay task", e)
@@ -608,7 +607,7 @@ class MainViewModel(
         return model
     }
 
-    private fun createSessionRequest(prompt: String?): CreateSessionRequest? {
+    private fun createSessionRequest(prompt: String?): Session? {
         Log.d(TAG, "createSessionRequest called")
         val appName = settingsViewModel.getAppName()
         val githubUser = settingsViewModel.getGithubUser()
@@ -627,7 +626,7 @@ class MainViewModel(
             githubRepoContext = GitHubRepoContext(branchName)
         )
 
-        val request = CreateSessionRequest(
+        val request = Session(
             prompt = prompt,
             sourceContext = sourceContext,
             title = "$appName IDEaz Session"
@@ -723,11 +722,13 @@ class MainViewModel(
                         session.value?.let { // Uses the global session
                             Log.d(TAG, "Sending debug message to session: ${it.name}")
                             val message = UserMessaged(buildLog.value)
-                            val updatedSession = ApiClient.julesApiService.sendMessage(it.name, message)
-                            _session.value = updatedSession
-                            Log.d(TAG, "Debug message sent, polling for new patch")
-                            _buildLog.value += "AI Status: Debug info sent. Waiting for new patch...\n"
-                            pollForPatch(it.name, _buildLog)
+                            it.name?.let { name ->
+                                val updatedSession = ApiClient.julesApiService.sendMessage(name, message)
+                                _session.value = updatedSession
+                                Log.d(TAG, "Debug message sent, polling for new patch")
+                                _buildLog.value += "AI Status: Debug info sent. Waiting for new patch...\n"
+                                pollForPatch(name, _buildLog)
+                            }
                         } ?: run {
                             Log.w(TAG, "Cannot debug with Jules, no active session")
                         }
@@ -821,8 +822,10 @@ class MainViewModel(
             try {
                 session.value?.let {
                     Log.d(TAG, "Listing activities for session: ${it.name}")
-                    _activities.value = ApiClient.julesApiService.listActivities(it.name)
-                    Log.d(TAG, "Successfully listed ${_activities.value.size} activities")
+                    it.name?.let { name ->
+                        _activities.value = ApiClient.julesApiService.listActivities(name)
+                        Log.d(TAG, "Successfully listed ${_activities.value.size} activities")
+                    }
                 } ?: run {
                     Log.w(TAG, "Cannot list activities, no active session")
                 }
