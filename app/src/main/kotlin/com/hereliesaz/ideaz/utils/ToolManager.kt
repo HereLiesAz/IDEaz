@@ -88,22 +88,15 @@ object ToolManager {
                 // This allows us to execute the tool from its original, guaranteed-executable location
                 // while providing it at a consistent, expected path.
                 try {
-                    // Files.createSymbolicLink requires API 26, which matches our minSdk.
-                    // This check is for robustness and clarity.
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        // Delete any old file/link at the destination
-                        if (destFile.exists()) {
-                            destFile.delete()
-                        }
-                        java.nio.file.Files.createSymbolicLink(
-                            java.nio.file.Paths.get(destFile.absolutePath),
-                            java.nio.file.Paths.get(sourceFile.absolutePath)
-                        )
-                        android.util.Log.d("ToolManager", "Created symlink for $toolName at ${destFile.absolutePath} -> ${sourceFile.absolutePath}")
-                    } else {
-                        // This should not happen given minSdk 26, but guards against configuration changes.
-                        throw java.io.IOException("Cannot create symbolic links on API level < 26.")
+                    // Delete any old file/link at the destination
+                    if (destFile.exists()) {
+                        destFile.delete()
                     }
+                    java.nio.file.Files.createSymbolicLink(
+                        java.nio.file.Paths.get(destFile.absolutePath),
+                        java.nio.file.Paths.get(sourceFile.absolutePath)
+                    )
+                    android.util.Log.d("ToolManager", "Created symlink for $toolName at ${destFile.absolutePath} -> ${sourceFile.absolutePath}")
                 } catch (e: Exception) {
                     android.util.Log.e("ToolManager", "Failed to create symlink for $toolName", e)
                     throw java.io.IOException("Failed to create symbolic link for tool '$toolName': ${e.message}", e)
@@ -147,22 +140,22 @@ object ToolManager {
 
     private fun getAssetDir(context: Context): File {
         val assetDir = File(context.filesDir, ASSET_DIR)
-        if (!assetDir.exists()) {
-            if (!assetDir.mkdirs()) {
-                throw java.io.IOException("Failed to create asset directory: ${assetDir.absolutePath}")
-            }
-        }
+        createDirectoryIfNotExists(assetDir, "asset")
         return assetDir
     }
 
     private fun getNativeToolDir(context: Context): File {
         // Use filesDir as it's the last standard, reliable location to try for executable files.
         val toolDir = File(context.filesDir, NATIVE_TOOL_DIR)
-        if (!toolDir.exists()) {
-            if (!toolDir.mkdirs()) {
-                throw java.io.IOException("Failed to create native tool directory: ${toolDir.absolutePath}")
+        createDirectoryIfNotExists(toolDir, "native tool")
+        return toolDir
+    }
+
+    private fun createDirectoryIfNotExists(directory: File, type: String) {
+        if (!directory.exists()) {
+            if (!directory.mkdirs()) {
+                throw java.io.IOException("Failed to create $type directory: ${directory.absolutePath}")
             }
         }
-        return toolDir
     }
 }

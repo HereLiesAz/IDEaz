@@ -92,14 +92,14 @@ class MainViewModel(
             Log.d(TAG, "onServiceConnected: Service connected")
             buildService = IBuildService.Stub.asInterface(service)
             isBuildServiceBound = true
-            _buildLog.value += "Status: Build Service Connected\n"
+            _buildLog.value += "[INFO] Status: Build Service Connected\n"
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
             Log.d(TAG, "onServiceDisconnected: Service disconnected")
             buildService = null
             isBuildServiceBound = false
-            _buildLog.value += "Status: Build Service Disconnected\n"
+            _buildLog.value += "[INFO] Status: Build Service Disconnected\n"
         }
     }
 
@@ -108,15 +108,15 @@ class MainViewModel(
         override fun onLog(message: String) {
             Log.d(TAG, "onLog: $message")
             viewModelScope.launch {
-                _buildLog.value += "$message\n" // Build logs go to global log
+                _buildLog.value += "[VERBOSE] $message\n" // Build logs go to global log
                 buildService?.updateNotification(message)
             }
         }
         override fun onSuccess(apkPath: String) {
             Log.d(TAG, "onSuccess: Build successful, APK at $apkPath")
             viewModelScope.launch {
-                _buildLog.value += "\nBuild successful: $apkPath\n"
-                _buildLog.value += "Status: Build Successful\n"
+                _buildLog.value += "\n[INFO] Build successful: $apkPath\n"
+                _buildLog.value += "[INFO] Status: Build Successful\n"
                 contextualTaskJob = null // Task is finished
                 logToOverlay("Build successful. Task finished.")
                 sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
@@ -125,7 +125,7 @@ class MainViewModel(
                 if (buildDir != null) {
                     val parser = SourceMapParser(buildDir)
                     sourceMap = parser.parse()
-                    _buildLog.value += "Source map loaded. Found ${sourceMap.size} entries.\n"
+                    _buildLog.value += "[DEBUG] Source map loaded. Found ${sourceMap.size} entries.\n"
                 }
             }
         }
@@ -133,11 +133,11 @@ class MainViewModel(
         override fun onFailure(log: String) {
             Log.e(TAG, "onFailure: Build failed with log:\n$log")
             viewModelScope.launch {
-                _buildLog.value += "\nBuild failed:\n$log\n"
-                _buildLog.value += "Status: Build Failed\n"
+                _buildLog.value += "\n[INFO] Build failed:\n$log\n"
+                _buildLog.value += "[INFO] Status: Build Failed\n"
                 contextualTaskJob = null // Task is finished
                 logToOverlay("Build failed. See global log to debug.")
-                _buildLog.value += "AI Status: Build failed, asking AI to debug...\n"
+                _buildLog.value += "[INFO] AI Status: Build failed, asking AI to debug...\n"
                 debugBuild() // Global debug
             }
         }
@@ -150,13 +150,26 @@ class MainViewModel(
         filteredLog = combine(
             buildLog,
             aiLog,
-            settingsViewModel.logVerbosity
-        ) { build, ai, verbosity ->
-            when (verbosity) {
-                SettingsViewModel.LOG_VERBOSITY_BUILD -> build
-                SettingsViewModel.LOG_VERBOSITY_AI -> ai
-                else -> "$build\n$ai"
+            settingsViewModel.logLevel
+        ) { build, ai, level ->
+            val combinedLogs = "$build\n$ai"
+            if (combinedLogs.isBlank()) return@combine ""
+
+            val lines = combinedLogs.lines()
+
+            val filteredLines = lines.filter { line ->
+                when (level) {
+                    SettingsViewModel.LOG_LEVEL_INFO ->
+                        line.startsWith("[INFO]") || !line.trim().startsWith("[") // Show INFO and untagged lines
+                    SettingsViewModel.LOG_LEVEL_DEBUG ->
+                        line.startsWith("[INFO]") || line.startsWith("[DEBUG]") || !line.trim().startsWith("[") // Show INFO, DEBUG, and untagged
+                    SettingsViewModel.LOG_LEVEL_VERBOSE ->
+                        true // Show all
+                    else ->
+                        true // Default to showing all
+                }
             }
+            filteredLines.joinToString("\n")
         }.stateIn(viewModelScope, SharingStarted.Lazily, "")
 
         // Bind Build Service
@@ -262,14 +275,14 @@ class MainViewModel(
         Log.d(TAG, "startBuild called")
         if (isBuildServiceBound) {
             viewModelScope.launch {
-                _buildLog.value = "Status: Building...\n" // Clear log and set status
+                _buildLog.value = "[INFO] Status: Building...\n" // Clear log and set status
                 val projectDir = File(extractProject(context))
                 Log.d(TAG, "Project extracted to: ${projectDir.absolutePath}")
                 buildService?.startBuild(projectDir.absolutePath, buildCallback)
             }
         } else {
             Log.w(TAG, "startBuild: Build service not bound")
-            _buildLog.value += "Status: Service not bound\n"
+            _buildLog.value += "[INFO] Status: Service not bound\n"
         }
     }
 
@@ -338,24 +351,24 @@ class MainViewModel(
         }
         Log.d(TAG, "Task key determined as: $taskKey")
 
-        _buildLog.value += "\nSending prompt for $taskKey: $prompt\n"
+        _buildLog.value += "\n[INFO] Sending prompt for $taskKey: $prompt\n"
 
         val model = getAssignedModelForTask(taskKey)
         if (model == null) {
             Log.w(TAG, "No AI model assigned for task: $taskKey")
-            _buildLog.value += "Error: No AI model assigned for this task. Go to Settings.\n"
+            _buildLog.value += "[INFO] Error: No AI model assigned for this task. Go to Settings.\n"
             return
         }
         Log.d(TAG, "Assigned model: ${model.displayName}")
 
         if (settingsViewModel.getApiKey(model.requiredKey).isNullOrBlank()) {
             Log.w(TAG, "API key for ${model.displayName} is missing")
-            _buildLog.value += "Error: API Key for ${model.displayName} is missing. Go to Settings.\n"
+            _buildLog.value += "[INFO] Error: API Key for ${model.displayName} is missing. Go to Settings.\n"
             return
         }
 
         viewModelScope.launch {
-            _buildLog.value += "AI Status: Sending...\n"
+            _buildLog.value += "[INFO] AI Status: Sending...\n"
             _aiLog.value = "" // Clear previous AI log
 
             when (model.id) {
@@ -365,26 +378,27 @@ class MainViewModel(
                         val sessionRequest = createSessionRequest(prompt)
                         if (sessionRequest == null) {
                             Log.w(TAG, "Failed to create session request, project settings incomplete")
-                            _buildLog.value += "AI Status: Error: Project settings incomplete.\n"
-                            _buildLog.value += "Please go to Project settings and set App Name and GitHub User.\n"
+                            _buildLog.value += "[INFO] AI Status: Error: Project settings incomplete.\n"
+                            _buildLog.value += "[INFO] Please go to Project settings and set App Name and GitHub User.\n"
                             return@launch
                         }
                         Log.d(TAG, "Creating Jules session")
                         val response = ApiClient.julesApiService.createSession(sessionRequest)
                         _session.value = response
                         Log.d(TAG, "Jules session created: ${response.name}")
-                        _buildLog.value += "AI Status: Session created. Waiting for patch...\n"
+                        _buildLog.value += "[DEBUG] Jules session created: ${response.name}\n"
+                        _buildLog.value += "[INFO] AI Status: Session created. Waiting for patch...\n"
                         pollForPatch(response.name, _buildLog)
 
                     } catch (e: Exception) {
                         Log.e(TAG, "Error creating Jules session", e)
-                        _buildLog.value += "AI Status: Error: ${e.message}\n"
+                        _buildLog.value += "[INFO] AI Status: Error: ${e.message}\n"
                     }
                 }
                 AiModels.GEMINI_FLASH -> {
                     Log.d(TAG, "Using Gemini Flash for contextless prompt (not implemented)")
-                    _buildLog.value += "AI Status: Idle\n"
-                    _buildLog.value += "Gemini Flash client not yet implemented.\n"
+                    _buildLog.value += "[INFO] AI Status: Idle\n"
+                    _buildLog.value += "[INFO] Gemini Flash client not yet implemented.\n"
                 }
             }
         }
@@ -407,14 +421,14 @@ class MainViewModel(
         val model = getAssignedModelForTask(SettingsViewModel.KEY_AI_ASSIGNMENT_OVERLAY)
         if (model == null) {
             Log.w(TAG, "No AI model assigned for overlay task")
-            logToOverlay("Error: No AI model assigned for this task. Go to Settings.")
+            logToOverlay("[INFO] Error: No AI model assigned for this task. Go to Settings.")
             return
         }
         Log.d(TAG, "Assigned model for overlay task: ${model.displayName}")
 
         if (settingsViewModel.getApiKey(model.requiredKey).isNullOrBlank()) {
             Log.w(TAG, "API key for ${model.displayName} is missing for overlay task")
-            logToOverlay("Error: API Key for ${model.displayName} is missing. Go to Settings.")
+            logToOverlay("[INFO] Error: API Key for ${model.displayName} is missing. Go to Settings.")
             return
         }
 
@@ -618,20 +632,20 @@ class MainViewModel(
         viewModelScope.launch {
             if (attempts > 20) { // 100s timeout
                 Log.w(TAG, "Timed out waiting for AI patch for session: $sessionName")
-                logTo(logTarget, "Error: Timed out waiting for AI patch.")
+                logTo(logTarget, "[INFO] Error: Timed out waiting for AI patch.")
                 if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
                 return@launch
             }
 
             try {
-                logTo(logTarget, "Polling for patch... (Attempt ${attempts + 1})")
+                logTo(logTarget, "[DEBUG] Polling for patch... (Attempt ${attempts + 1})")
                 val activities = ApiClient.julesApiService.listActivities(sessionName)
                 updateAiLog(activities)
                 val lastPatch = activities.lastOrNull()?.artifacts?.firstOrNull()?.changeSet?.gitPatch // <-- FIX
 
                 if (lastPatch != null) {
                     Log.d(TAG, "Patch found for session: $sessionName")
-                    logTo(logTarget, "Patch found! Applying...")
+                    logTo(logTarget, "[INFO] Patch found! Applying...")
                     _activities.value = activities // Store patch globally for apply
                     applyPatch(getApplication(), logTarget)
                 } else {
@@ -642,7 +656,7 @@ class MainViewModel(
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error polling for patch for session: $sessionName", e)
-                logTo(logTarget, "Error polling for patch: ${e.message}")
+                logTo(logTarget, "[INFO] Error polling for patch: ${e.message}")
                 if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
             }
         }

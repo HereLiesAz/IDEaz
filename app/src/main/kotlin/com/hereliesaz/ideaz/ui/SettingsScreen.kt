@@ -190,8 +190,8 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                Text("Log Verbosity", color = MaterialTheme.colorScheme.onBackground)
-                LogVerbosityDropdown(
+                Text("Log Level", color = MaterialTheme.colorScheme.onBackground)
+                LogLevelDropdown(
                     settingsViewModel = settingsViewModel
                 )
 
@@ -256,16 +256,16 @@ fun AiAssignmentDropdown(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LogVerbosityDropdown(
+fun LogLevelDropdown(
     settingsViewModel: SettingsViewModel
 ) {
     var isExpanded by remember { mutableStateOf(false) }
-    var selectedVerbosity by remember { mutableStateOf(settingsViewModel.getLogVerbosity()) }
+    var selectedLevel by remember { mutableStateOf(settingsViewModel.getLogLevel()) }
 
-    val verbosityOptions = mapOf(
-        SettingsViewModel.LOG_VERBOSITY_BUILD to "Build Log",
-        SettingsViewModel.LOG_VERBOSITY_AI to "AI Log",
-        SettingsViewModel.LOG_VERBOSITY_COMBINED to "Combined"
+    val levelOptions = mapOf(
+        SettingsViewModel.LOG_LEVEL_INFO to "Info",
+        SettingsViewModel.LOG_LEVEL_DEBUG to "Debug",
+        SettingsViewModel.LOG_LEVEL_VERBOSE to "Verbose"
     )
 
     ExposedDropdownMenuBox(
@@ -273,10 +273,10 @@ fun LogVerbosityDropdown(
         onExpandedChange = { isExpanded = it }
     ) {
         TextField(
-            value = verbosityOptions[selectedVerbosity] ?: "Combined",
+            value = levelOptions[selectedLevel] ?: "Info",
             onValueChange = { },
             readOnly = true,
-            label = { Text("Log Output") },
+            label = { Text("Log Level") },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) },
             colors = ExposedDropdownMenuDefaults.textFieldColors(),
             modifier = Modifier
@@ -288,12 +288,12 @@ fun LogVerbosityDropdown(
             expanded = isExpanded,
             onDismissRequest = { isExpanded = false }
         ) {
-            verbosityOptions.forEach { (key, value) ->
+            levelOptions.forEach { (key, value) ->
                 DropdownMenuItem(
                     text = { Text(value) },
                     onClick = {
-                        selectedVerbosity = key
-                        settingsViewModel.setLogVerbosity(key)
+                        selectedLevel = key
+                        settingsViewModel.setLogLevel(key)
                         isExpanded = false
                     }
                 )
