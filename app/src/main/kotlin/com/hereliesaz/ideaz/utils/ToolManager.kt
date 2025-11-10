@@ -21,11 +21,10 @@ object ToolManager {
     private val ASSET_FILES = listOf("kotlinc", "debug.keystore", "android.jar")
 
     fun extractTools(context: Context) {
+        // Get (and create if necessary) the directories for our tools.
+        // The creation logic is handled within the getter functions.
         val assetDir = getAssetDir(context)
-        if (!assetDir.exists()) assetDir.mkdirs()
-
         val nativeToolDir = getNativeToolDir(context)
-        if (!nativeToolDir.exists()) nativeToolDir.mkdirs()
 
         // Extract non-binary assets
         ASSET_FILES.forEach { fileName ->
@@ -89,27 +88,36 @@ object ToolManager {
                 // This allows us to execute the tool from its original, guaranteed-executable location
                 // while providing it at a consistent, expected path.
                 try {
-                    // Delete any old file/link at the destination
-                    if (destFile.exists()) {
-                        destFile.delete()
+                    // Files.createSymbolicLink requires API 26, which matches our minSdk.
+                    // This check is for robustness and clarity.
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        // Delete any old file/link at the destination
+                        if (destFile.exists()) {
+                            destFile.delete()
+                        }
+                        java.nio.file.Files.createSymbolicLink(
+                            java.nio.file.Paths.get(destFile.absolutePath),
+                            java.nio.file.Paths.get(sourceFile.absolutePath)
+                        )
+                        android.util.Log.d("ToolManager", "Created symlink for $toolName at ${destFile.absolutePath} -> ${sourceFile.absolutePath}")
+                    } else {
+                        // This should not happen given minSdk 26, but guards against configuration changes.
+                        throw java.io.IOException("Cannot create symbolic links on API level < 26.")
                     }
-                    java.nio.file.Files.createSymbolicLink(
-                        java.nio.file.Paths.get(destFile.absolutePath),
-                        java.nio.file.Paths.get(sourceFile.absolutePath)
-                    )
-                    android.util.Log.d("ToolManager", "Created symlink for $toolName at ${destFile.absolutePath} -> ${sourceFile.absolutePath}")
                 } catch (e: Exception) {
                     android.util.Log.e("ToolManager", "Failed to create symlink for $toolName", e)
-                    throw RuntimeException("Failed to create symbolic link for tool $toolName: ${e.message}", e)
+                    throw java.io.IOException("Failed to create symbolic link for tool '$toolName': ${e.message}", e)
                 }
             } else {
                 val primaryAbi = Build.SUPPORTED_ABIS.getOrNull(0) ?: "unknown"
+                val supportedAbis = Build.SUPPORTED_ABIS.joinToString(", ")
                 val pathsChecked = checkedPaths.joinToString("\n - ")
-                val errorMessage = "FATAL: Native library $libName not found for current device architecture ($primaryAbi). " +
-                        "The APK only contains binaries for arm64-v8a. Please ensure you are running on a compatible device. " +
+                val errorMessage = "FATAL: Native library '$libName' not found for current device architecture ($primaryAbi). " +
+                        "The device supports the following ABIs: [$supportedAbis]. " +
+                        "Please ensure the APK includes a native library for one of these architectures. " +
                         "Checked paths:\n - $pathsChecked"
                 android.util.Log.e("ToolManager", errorMessage)
-                throw RuntimeException(errorMessage)
+                throw java.io.FileNotFoundException(errorMessage)
             }
         }
         android.util.Log.d("ToolManager", "Tool extraction complete.")
@@ -138,14 +146,22 @@ object ToolManager {
     }
 
     private fun getAssetDir(context: Context): File {
-        return File(context.filesDir, ASSET_DIR)
+        val assetDir = File(context.filesDir, ASSET_DIR)
+        if (!assetDir.exists()) {
+            if (!assetDir.mkdirs()) {
+                throw java.io.IOException("Failed to create asset directory: ${assetDir.absolutePath}")
+            }
+        }
+        return assetDir
     }
 
     private fun getNativeToolDir(context: Context): File {
         // Use filesDir as it's the last standard, reliable location to try for executable files.
         val toolDir = File(context.filesDir, NATIVE_TOOL_DIR)
         if (!toolDir.exists()) {
-            toolDir.mkdirs()
+            if (!toolDir.mkdirs()) {
+                throw java.io.IOException("Failed to create native tool directory: ${toolDir.absolutePath}")
+            }
         }
         return toolDir
     }
