@@ -29,6 +29,7 @@ import androidx.compose.material3.Button
 import androidx.compose.ui.Alignment
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.hereliesaz.aznavrail.AzForm
+import com.hereliesaz.aznavrail.AzTextBox
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.ideaz.utils.mapSaver
 
@@ -138,12 +139,13 @@ fun ProjectSettingsScreen(
                         1 -> Column(modifier = Modifier.padding(top = 16.dp)) {
                             Text("Fork External Repo (Not Supported)", color = MaterialTheme.colorScheme.onBackground)
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                TextField(
+                                AzTextBox(
                                     value = cloneUrl,
                                     onValueChange = { cloneUrl = it },
-                                    label = { Text("Other User's Repo URL") },
-                                    placeholder = { Text("https://github.com/user/repo") },
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier.weight(1f),
+                                    submitButtonContent = { Text("Clone") },
+                                    hint = "https://github.com/user/repo",
+                                    onSubmit = {}
                                 )
                                 AzButton(onClick = {
                                     val currentUser = settingsViewModel.getGithubUser()
