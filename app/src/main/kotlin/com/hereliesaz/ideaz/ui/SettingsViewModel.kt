@@ -58,12 +58,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_DARK_MODE = "dark_mode"
 
         // New key for log verbosity
-        const val KEY_LOG_VERBOSITY = "log_verbosity"
+        const val KEY_LOG_LEVEL = "log_level"
 
         // Log verbosity levels
-        const val LOG_VERBOSITY_BUILD = "build"
-        const val LOG_VERBOSITY_AI = "ai"
-        const val LOG_VERBOSITY_COMBINED = "combined"
+        const val LOG_LEVEL_INFO = "info"
+        const val LOG_LEVEL_DEBUG = "debug"
+        const val LOG_LEVEL_VERBOSE = "verbose"
 
 
         val aiTasks = mapOf(
@@ -87,8 +87,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         Log.d(TAG, "init: Creating SettingsViewModel (hash: ${this.hashCode()})")
     }
 
-    private val _logVerbosity = MutableStateFlow(LOG_VERBOSITY_COMBINED)
-    val logVerbosity = _logVerbosity.asStateFlow()
+    private val _logLevel = MutableStateFlow(LOG_LEVEL_INFO)
+    val logLevel = _logLevel.asStateFlow()
 
     // --- Cancel Warning ---
 
@@ -111,13 +111,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     // --- Log Verbosity ---
 
-    fun getLogVerbosity(): String {
-        return sharedPreferences.getString(KEY_LOG_VERBOSITY, LOG_VERBOSITY_COMBINED) ?: LOG_VERBOSITY_COMBINED
+    fun getLogLevel(): String {
+        return sharedPreferences.getString(KEY_LOG_LEVEL, LOG_LEVEL_INFO) ?: LOG_LEVEL_INFO
     }
 
-    fun setLogVerbosity(verbosity: String) {
-        sharedPreferences.edit().putString(KEY_LOG_VERBOSITY, verbosity).apply()
-        _logVerbosity.value = verbosity
+    fun setLogLevel(level: String) {
+        sharedPreferences.edit().putString(KEY_LOG_LEVEL, level).apply()
+        _logLevel.value = level
     }
 
 
