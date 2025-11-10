@@ -45,9 +45,13 @@ android {
     sourceSets {
         getByName("main") {
             aidl.srcDirs("src/main/aidl")
+            jniLibs.srcDirs("src/main/jniLibs")
         }
     }
     packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
         resources {
             excludes.add("META-INF/DEPENDENCIES")
             excludes.add("META-INF/LICENSE")
