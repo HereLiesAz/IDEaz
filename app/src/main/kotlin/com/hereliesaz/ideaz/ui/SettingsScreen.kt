@@ -204,7 +204,7 @@ fun SettingsScreen(
                     Text("No active sessions found.", color = MaterialTheme.colorScheme.onBackground)
                 } else {
                     sessions.forEach {
-                        Text(it.name, color = MaterialTheme.colorScheme.onBackground)
+                        Text(it.name ?: "Unnamed Session", color = MaterialTheme.colorScheme.onBackground)
                     }
                 }
             }
