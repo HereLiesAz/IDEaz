@@ -45,6 +45,7 @@ android {
     sourceSets {
         getByName("main") {
             aidl.srcDirs("src/main/aidl")
+            jniLibs.srcDirs("src/main/jniLibs")
         }
     }
     packaging {
