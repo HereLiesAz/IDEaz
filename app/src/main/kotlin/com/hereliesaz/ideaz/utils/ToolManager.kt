@@ -88,12 +88,26 @@ object ToolManager {
                 // This allows us to execute the tool from its original, guaranteed-executable location
                 // while providing it at a consistent, expected path.
                 try {
-                    // Delete any old file/link at the destination
-                    if (destFile.exists()) {
+                    val destPath = java.nio.file.Paths.get(destFile.absolutePath)
+                    // Check if a symlink already exists and points to the correct target.
+                    if (java.nio.file.Files.isSymbolicLink(destPath)) {
+                        val existingTarget = java.nio.file.Files.readSymbolicLink(destPath)
+                        if (existingTarget == java.nio.file.Paths.get(sourceFile.absolutePath)) {
+                            android.util.Log.d("ToolManager", "Symlink for $toolName already exists and is correct.")
+                            return@forEach // Skip to the next tool
+                        } else {
+                            // If the link is incorrect, delete it before creating a new one.
+                            android.util.Log.d("ToolManager", "Incorrect symlink for $toolName found. Deleting.")
+                            destFile.delete()
+                        }
+                    } else if (destFile.exists()) {
+                        // If a regular file exists at the destination, delete it.
+                        android.util.Log.d("ToolManager", "File exists at symlink destination for $toolName. Deleting.")
                         destFile.delete()
                     }
+
                     java.nio.file.Files.createSymbolicLink(
-                        java.nio.file.Paths.get(destFile.absolutePath),
+                        destPath,
                         java.nio.file.Paths.get(sourceFile.absolutePath)
                     )
                     android.util.Log.d("ToolManager", "Created symlink for $toolName at ${destFile.absolutePath} -> ${sourceFile.absolutePath}")

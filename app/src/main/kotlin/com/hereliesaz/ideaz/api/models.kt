@@ -13,29 +13,18 @@ data class ListSessionsResponse(
 )
 
 @Serializable
-data class CreateSessionRequest(
+data class Session(
+    val name: String? = null,
+    val id: String? = null,
     val prompt: String?,
     val sourceContext: SourceContext,
     val title: String,
-    val requirePlanApproval: Boolean? = null
-)
-
-@Serializable
-data class Session(
-    val name: String,
-    val id: String,
-
-    val prompt: String,
-    val sourceContext: SourceContext,
-    val title: String,
-    // Made nullable
     val requirePlanApproval: Boolean? = null,
     val automationMode: String? = null,
-    val createTime: String,
-    val updateTime: String,
-    val state: String,
-    val url: String,
-    // Made nullable
+    val createTime: String? = null,
+    val updateTime: String? = null,
+    val state: String? = null,
+    val url: String? = null,
     val outputs: List<SessionOutput>? = null
 )
 
