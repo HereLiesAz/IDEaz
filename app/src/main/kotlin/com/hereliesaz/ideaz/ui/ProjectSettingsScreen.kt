@@ -15,17 +15,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hereliesaz.ideaz.api.Source
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import java.net.URL
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.Alignment
-import com.hereliesaz.aznavrail.AzForm
-import com.hereliesaz.aznavrail.model.AzButtonShape
 
 private const val TAG = "ProjectSettingsScreen"
 
@@ -44,15 +48,16 @@ fun ProjectSettingsScreen(
     val tabs = listOf("Create", "Clone", "Load")
 
     // Central state for project config
-    var appName by remember { mutableStateOf(settingsViewModel.getAppName() ?: "IDEazProject") }
-    var githubUser by remember { mutableStateOf(settingsViewModel.getGithubUser() ?: "") }
-    var branchName by remember { mutableStateOf(settingsViewModel.getBranchName()) }
-    var packageName by remember {
-        mutableStateOf(settingsViewModel.getTargetPackageName() ?: "com.example.helloworld")
+    val projectConfig = rememberSaveable(saver = SettingsViewModel.SnapshotStateMapSaver) {
+        mutableStateMapOf(
+            "appName" to (settingsViewModel.getAppName() ?: "IDEazProject"),
+            "githubUser" to (settingsViewModel.getGithubUser() ?: ""),
+            "branchName" to settingsViewModel.getBranchName(),
+            "packageName" to (settingsViewModel.getTargetPackageName() ?: "com.example.helloworld"),
+            "initialPrompt" to "",
+            "cloneUrl" to ""
+        )
     }
-
-    // State for "Clone" tab
-    var cloneUrl by remember { mutableStateOf("") }
     val projectList = settingsViewModel.getProjectList()
     val ownedSources = sources.filter {
         val repo = it.githubRepo
@@ -88,37 +93,53 @@ fun ProjectSettingsScreen(
                         0 -> Column(modifier = Modifier.padding(top = 16.dp)) {
                             Text("Create or Update Project", color = MaterialTheme.colorScheme.onBackground)
                             Spacer(modifier = Modifier.height(16.dp))
-                            AzForm(
-                                modifier = Modifier.fillMaxWidth(),
-                                formName = "Project Configuration",
-                                submitButtonContent = { Text("Save & Build Project") },
-                                onSubmit = { formData ->
-                                    // If user leaves a field blank, use the existing value from state
-                                    val finalAppName = formData["appName"]?.takeIf { it.isNotBlank() } ?: appName
-                                    val finalGithubUser = formData["githubUser"]?.takeIf { it.isNotBlank() } ?: githubUser
-                                    val finalBranchName = formData["branchName"]?.takeIf { it.isNotBlank() } ?: branchName
-                                    val finalPackageName = formData["packageName"]?.takeIf { it.isNotBlank() } ?: packageName
-                                    val initialPromptValue = formData["initialPrompt"] ?: ""
 
-                                    // Update state with the new values so hints are correct on recomposition
-                                    appName = finalAppName
-                                    githubUser = finalGithubUser
-                                    branchName = finalBranchName
-                                    packageName = finalPackageName
+                            TextField(
+                                value = projectConfig.getValue("appName"),
+                                onValueChange = { projectConfig["appName"] = it },
+                                label = { Text("App Name (Repo Name)") }
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
 
-                                    settingsViewModel.saveProjectConfig(finalAppName, finalGithubUser, finalBranchName)
-                                    settingsViewModel.saveTargetPackageName(finalPackageName)
-                                    Toast.makeText(context, "Project saved. Starting build...", Toast.LENGTH_SHORT).show()
-                                    viewModel.sendPrompt(initialPromptValue, isInitialization = true)
-                                }
-                            ){
-                                entry(entryName = "appName", hint = "App Name (Current: $appName)", multiline = false, secret = false)
-                                entry(entryName = "githubUser", hint = "Github User (Current: $githubUser)", multiline = false, secret = false)
-                                entry(entryName = "branchName", hint = "Branch (Current: $branchName)", multiline = false, secret = false)
-                                entry(entryName = "packageName", hint = "Package (Current: $packageName)", multiline = false, secret = false)
-                                entry(entryName = "initialPrompt", hint = "Describe your app.", multiline = true, secret = false)
-                            }
+                            TextField(
+                                value = projectConfig.getValue("githubUser"),
+                                onValueChange = { projectConfig["githubUser"] = it },
+                                label = { Text("GitHub User or Org") }
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
 
+                            TextField(
+                                value = projectConfig.getValue("branchName"),
+                                onValueChange = { projectConfig["branchName"] = it },
+                                label = { Text("Branch Name") }
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            TextField(
+                                value = projectConfig.getValue("packageName"),
+                                onValueChange = { projectConfig["packageName"] = it },
+                                label = { Text("Package Name") }
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            AzButton(onClick = {
+                                settingsViewModel.saveProjectConfig(
+                                    projectConfig.getValue("appName"),
+                                    projectConfig.getValue("githubUser"),
+                                    projectConfig.getValue("branchName")
+                                )
+                                settingsViewModel.saveTargetPackageName(projectConfig.getValue("packageName"))
+                                Toast.makeText(context, "Project Config Saved", Toast.LENGTH_SHORT).show()
+                            }, text = "Save Config")
+
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Text("Initial Prompt", color = MaterialTheme.colorScheme.onBackground)
+                            TextField(
+                                value = projectConfig.getValue("initialPrompt"),
+                                onValueChange = { projectConfig["initialPrompt"] = it },
+                                label = { Text("Describe your app...") },
+                                modifier = Modifier.height(150.dp)
+                            )
                             Spacer(modifier = Modifier.height(16.dp))
 
                             AzButton(onClick = {
@@ -126,7 +147,20 @@ fun ProjectSettingsScreen(
                                 // It's the "first APK"
                                 viewModel.startBuild(context)
                                 Toast.makeText(context, "Building template...", Toast.LENGTH_SHORT).show()
-                            }, text = "Install/Build Template", shape = AzButtonShape.NONE)
+                            }, text = "Install/Build Template")
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            AzButton(onClick = {
+                                // Save config just in case, then send prompt
+                                settingsViewModel.saveProjectConfig(
+                                    projectConfig.getValue("appName"),
+                                    projectConfig.getValue("githubUser"),
+                                    projectConfig.getValue("branchName")
+                                )
+                                settingsViewModel.saveTargetPackageName(projectConfig.getValue("packageName"))
+                                // This is a "Project Initialization" prompt (the "second APK")
+                                viewModel.sendPrompt(projectConfig.getValue("initialPrompt"), isInitialization = true)
+                            }, text = "Create Project & Build")
                         }
 
                         // --- CLONE TAB ---
@@ -134,8 +168,8 @@ fun ProjectSettingsScreen(
                             Text("Fork External Repo (Not Supported)", color = MaterialTheme.colorScheme.onBackground)
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 TextField(
-                                    value = cloneUrl,
-                                    onValueChange = { cloneUrl = it },
+                                    value = projectConfig.getValue("cloneUrl"),
+                                    onValueChange = { projectConfig["cloneUrl"] = it },
                                     label = { Text("Other User's Repo URL") },
                                     placeholder = { Text("https://github.com/user/repo") },
                                     modifier = Modifier.weight(1f)
@@ -144,7 +178,7 @@ fun ProjectSettingsScreen(
                                     val currentUser = settingsViewModel.getGithubUser()
                                     var owner: String? = null
                                     try {
-                                        val path = URL(cloneUrl).path.removePrefix("/").removeSuffix(".git")
+                                        val path = URL(projectConfig.getValue("cloneUrl")).path.removePrefix("/").removeSuffix(".git")
                                         owner = path.split("/").getOrNull(0)
                                     } catch (e: Exception) { /* Malformed URL */ }
 
@@ -165,9 +199,9 @@ fun ProjectSettingsScreen(
                                     val repo = source.githubRepo!!
                                     AzButton(
                                         onClick = {
-                                            appName = repo.repo
-                                            githubUser = repo.owner
-                                            branchName = repo.defaultBranch.displayName
+                                            projectConfig["appName"] = repo.repo
+                                            projectConfig["githubUser"] = repo.owner
+                                            projectConfig["branchName"] = repo.defaultBranch.displayName
                                             Toast.makeText(context, "Config loaded. Go to 'Create' tab to save.", Toast.LENGTH_LONG).show()
                                             tabIndex = 0 // Switch to Create tab
                                         },
@@ -191,9 +225,9 @@ fun ProjectSettingsScreen(
                                         onClick = {
                                             val parts = projectString.split("/")
                                             if (parts.size == 2) {
-                                                githubUser = parts[0]
-                                                appName = parts[1]
-                                                 branchName = settingsViewModel.getBranchName() // Load saved branch
+                                                projectConfig["githubUser"] = parts[0]
+                                                projectConfig["appName"] = parts[1]
+                                                projectConfig["branchName"] = settingsViewModel.getBranchName() // Load saved branch
                                                 Toast.makeText(context, "Config loaded. Go to 'Create' tab to save or build.", Toast.LENGTH_LONG).show()
                                                 tabIndex = 0 // Switch to Create tab
                                             }
