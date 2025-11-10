@@ -151,8 +151,6 @@ class MainActivity : ComponentActivity() {
         AuthInterceptor.apiKey = sharedPreferences.getString("api_key", null)
         Log.d(TAG, "onStart: API key loaded")
 
-        viewModel.bindBuildService(this)
-        Log.d(TAG, "onStart: bindBuildService() called")
         viewModel.listSessions()
         Log.d(TAG, "onStart: listSessions() called")
 
@@ -175,7 +173,6 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         Log.d(TAG, "onStop: Start")
-        viewModel.unbindBuildService(this)
         unregisterReceiver(inspectionReceiver) // Unregister
         Log.d(TAG, "onStop: End")
     }

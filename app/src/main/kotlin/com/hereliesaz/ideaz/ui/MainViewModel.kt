@@ -85,6 +85,15 @@ class MainViewModel(
     private var pendingRect: Rect? = null // Holds the rect to re-draw the log box
     // --- END ---
 
+    init {
+        bindBuildService(application)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        unbindBuildService(getApplication())
+    }
+
 
     // --- Build Service Connection ---
     private val buildServiceConnection = object : ServiceConnection {
@@ -607,8 +616,8 @@ class MainViewModel(
         Log.d(TAG, "Project settings: appName=$appName, githubUser=$githubUser, branchName=$branchName")
 
 
-        if (appName == null || githubUser == null) {
-            Log.w(TAG, "Cannot create session request, appName or githubUser is null")
+        if (appName.isNullOrBlank() || githubUser.isNullOrBlank()) {
+            Log.w(TAG, "Cannot create session request, appName or githubUser is null or blank")
             return null
         }
 
