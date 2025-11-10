@@ -85,14 +85,31 @@ object ToolManager {
 
 
             if (sourceFile != null && sourceFile.exists()) {
-                android.util.Log.d("ToolManager", "Copying $libName from ${sourceFile.absolutePath} to ${destFile.absolutePath}")
-                sourceFile.copyTo(destFile, overwrite = true)
-                android.util.Log.d("ToolManager", "Setting ${destFile.absolutePath} as executable.")
-                val isExecutable = destFile.setExecutable(true, true)
-                android.util.Log.d("ToolManager", "${destFile.absolutePath} is executable: $isExecutable, can execute: ${destFile.canExecute()}")
+                // Instead of copying the file, create a symbolic link to it in our tool directory.
+                // This allows us to execute the tool from its original, guaranteed-executable location
+                // while providing it at a consistent, expected path.
+                try {
+                    // Delete any old file/link at the destination
+                    if (destFile.exists()) {
+                        destFile.delete()
+                    }
+                    java.nio.file.Files.createSymbolicLink(
+                        java.nio.file.Paths.get(destFile.absolutePath),
+                        java.nio.file.Paths.get(sourceFile.absolutePath)
+                    )
+                    android.util.Log.d("ToolManager", "Created symlink for $toolName at ${destFile.absolutePath} -> ${sourceFile.absolutePath}")
+                } catch (e: Exception) {
+                    android.util.Log.e("ToolManager", "Failed to create symlink for $toolName", e)
+                    throw RuntimeException("Failed to create symbolic link for tool $toolName: ${e.message}", e)
+                }
             } else {
+                val primaryAbi = Build.SUPPORTED_ABIS.getOrNull(0) ?: "unknown"
                 val pathsChecked = checkedPaths.joinToString("\n - ")
-                android.util.Log.e("ToolManager", "FATAL: Native library not found: $libName. Checked paths:\n - $pathsChecked")
+                val errorMessage = "FATAL: Native library $libName not found for current device architecture ($primaryAbi). " +
+                        "The APK only contains binaries for arm64-v8a. Please ensure you are running on a compatible device. " +
+                        "Checked paths:\n - $pathsChecked"
+                android.util.Log.e("ToolManager", errorMessage)
+                throw RuntimeException(errorMessage)
             }
         }
         android.util.Log.d("ToolManager", "Tool extraction complete.")
@@ -125,8 +142,11 @@ object ToolManager {
     }
 
     private fun getNativeToolDir(context: Context): File {
-        // Use context.getDir() to create a private directory that should have executable permissions,
-        // which is a more reliable approach than using cacheDir.
-        return context.getDir(NATIVE_TOOL_DIR, Context.MODE_PRIVATE)
+        // Use filesDir as it's the last standard, reliable location to try for executable files.
+        val toolDir = File(context.filesDir, NATIVE_TOOL_DIR)
+        if (!toolDir.exists()) {
+            toolDir.mkdirs()
+        }
+        return toolDir
     }
 }
