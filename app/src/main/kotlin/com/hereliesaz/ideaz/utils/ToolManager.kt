@@ -98,12 +98,16 @@ object ToolManager {
                         } else {
                             // If the link is incorrect, delete it before creating a new one.
                             android.util.Log.d("ToolManager", "Incorrect symlink for $toolName found. Deleting.")
-                            destFile.delete()
+                            if (!destFile.deleteRecursively()) {
+                                throw java.io.IOException("Failed to delete incorrect symlink at ${destFile.absolutePath}")
+                            }
                         }
                     } else if (destFile.exists()) {
                         // If a regular file exists at the destination, delete it.
                         android.util.Log.d("ToolManager", "File exists at symlink destination for $toolName. Deleting.")
-                        destFile.delete()
+                        if (!destFile.deleteRecursively()) {
+                            throw java.io.IOException("Failed to delete existing file at ${destFile.absolutePath}")
+                        }
                     }
 
                     java.nio.file.Files.createSymbolicLink(
