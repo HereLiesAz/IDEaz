@@ -23,12 +23,18 @@ import com.hereliesaz.ideaz.api.AuthInterceptor
 import com.hereliesaz.ideaz.ui.MainScreen
 import com.hereliesaz.ideaz.ui.MainViewModel
 import com.hereliesaz.ideaz.ui.MainViewModelFactory
+import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.ui.theme.IDEazTheme
 import androidx.preference.PreferenceManager
 
 class MainActivity : ComponentActivity() {
 
-    private val viewModel: MainViewModel by viewModels { MainViewModelFactory(application) }
+    private val viewModel: MainViewModel by viewModels {
+        MainViewModelFactory(
+            application,
+            SettingsViewModel(application)
+        )
+    }
     private var mediaProjectionManager: MediaProjectionManager? = null
 
     companion object {

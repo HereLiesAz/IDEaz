@@ -5,6 +5,8 @@ import android.content.Intent
 import android.util.Log
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.saveable.Saver
 import androidx.preference.PreferenceManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -69,6 +71,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             KEY_AI_ASSIGNMENT_INIT to "Project Initialization",
             KEY_AI_ASSIGNMENT_CONTEXTLESS to "Contextless Chat",
             KEY_AI_ASSIGNMENT_OVERLAY to "Overlay Chat"
+        )
+
+        // Custom Saver for the SnapshotStateMap
+        val SnapshotStateMapSaver = Saver<
+                androidx.compose.runtime.snapshots.SnapshotStateMap<String, String>,
+                Map<String, String>
+                >(
+            save = { it.toMap() },
+            restore = { mutableStateMapOf<String, String>().apply { putAll(it) } }
         )
     }
 
