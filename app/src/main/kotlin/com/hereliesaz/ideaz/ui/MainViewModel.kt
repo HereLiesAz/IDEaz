@@ -38,7 +38,10 @@ import java.io.FileOutputStream
 import java.io.IOException
 import kotlinx.coroutines.Job
 
-class MainViewModel(application: Application) : AndroidViewModel(application) {
+class MainViewModel(
+    application: Application,
+    val settingsViewModel: SettingsViewModel
+) : AndroidViewModel(application) {
 
     private val TAG = "MainViewModel"
 
@@ -83,11 +86,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var pendingRect: Rect? = null // Holds the rect to re-draw the log box
     // --- END ---
 
-    val settingsViewModel: SettingsViewModel
-
-    init {
-        settingsViewModel = SettingsViewModel(application)
-    }
 
     // --- Build Service Connection ---
     private val buildServiceConnection = object : ServiceConnection {
