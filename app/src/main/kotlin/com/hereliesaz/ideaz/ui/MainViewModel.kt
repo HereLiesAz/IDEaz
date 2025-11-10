@@ -25,7 +25,6 @@ import java.io.File
 import com.hereliesaz.ideaz.models.SourceMapEntry
 import com.hereliesaz.ideaz.utils.SourceMapParser
 import com.hereliesaz.ideaz.api.Activity as ApiActivity // <-- FIX
-import com.hereliesaz.ideaz.api.CreateSessionRequest
 import com.hereliesaz.ideaz.api.Source
 import com.hereliesaz.ideaz.services.ScreenshotService
 import kotlinx.coroutines.delay
@@ -608,7 +607,7 @@ class MainViewModel(
         return model
     }
 
-    private fun createSessionRequest(prompt: String?): CreateSessionRequest? {
+    private fun createSessionRequest(prompt: String?): Session? {
         Log.d(TAG, "createSessionRequest called")
         val appName = settingsViewModel.getAppName()
         val githubUser = settingsViewModel.getGithubUser()
@@ -627,7 +626,7 @@ class MainViewModel(
             githubRepoContext = GitHubRepoContext(branchName)
         )
 
-        val request = CreateSessionRequest(
+        val request = Session(
             prompt = prompt,
             sourceContext = sourceContext,
             title = "$appName IDEaz Session"
