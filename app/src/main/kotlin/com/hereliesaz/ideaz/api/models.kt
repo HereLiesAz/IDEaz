@@ -17,8 +17,7 @@ data class CreateSessionRequest(
     val prompt: String?,
     val sourceContext: SourceContext,
     val title: String,
-    val requirePlanApproval: Boolean? = null,
-    val automationMode: String? = null
+    val requirePlanApproval: Boolean? = null
 )
 
 @Serializable
