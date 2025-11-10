@@ -2,12 +2,14 @@ package com.hereliesaz.ideaz.ui
 
 import android.util.Log
 import android.widget.Toast
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.hereliesaz.aznavrail.AzButton
@@ -26,6 +28,7 @@ import java.net.URL
 import androidx.compose.material3.Button
 import androidx.compose.ui.Alignment
 import androidx.compose.runtime.saveable.rememberSaveable
+import com.hereliesaz.aznavrail.AzForm
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.ideaz.utils.mapSaver
 
@@ -88,61 +91,21 @@ fun ProjectSettingsScreen(
                     when (tabIndex) {
                         // --- CREATE TAB ---
                         0 -> Column(modifier = Modifier.padding(top = 16.dp)) {
-                            val formData = rememberSaveable(saver = mapSaver()) {
-                                mutableStateMapOf(
-                                    "appName" to "",
-                                    "githubUser" to "",
-                                    "branchName" to "",
-                                    "packageName" to "",
-                                    "initialPrompt" to ""
-                                )
-                            }
                             Text("Create or Update Project", color = MaterialTheme.colorScheme.onBackground)
                             Spacer(modifier = Modifier.height(16.dp))
-                            TextField(
-                                value = formData["appName"] ?: "",
-                                onValueChange = { formData["appName"] = it },
-                                label = { Text("App Name (Current: $appName)") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            TextField(
-                                value = formData["githubUser"] ?: "",
-                                onValueChange = { formData["githubUser"] = it },
-                                label = { Text("Github User (Current: $githubUser)") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            TextField(
-                                value = formData["branchName"] ?: "",
-                                onValueChange = { formData["branchName"] = it },
-                                label = { Text("Branch (Current: $branchName)") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            TextField(
-                                value = formData["packageName"] ?: "",
-                                onValueChange = { formData["packageName"] = it },
-                                label = { Text("Package (Current: $packageName)") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            TextField(
-                                value = formData["initialPrompt"] ?: "",
-                                onValueChange = { formData["initialPrompt"] = it },
-                                label = { Text("Describe your app") },
+                            AzForm(
                                 modifier = Modifier.fillMaxWidth(),
-                                minLines = 3
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(
-                                onClick = {
+                                formName = "Project Configuration",
+                                submitButtonContent = { Text("Save & Build Project") },
+                                onSubmit = { formData ->
+                                    // If user leaves a field blank, use the existing value from state
                                     val finalAppName = formData["appName"]?.takeIf { it.isNotBlank() } ?: appName
                                     val finalGithubUser = formData["githubUser"]?.takeIf { it.isNotBlank() } ?: githubUser
                                     val finalBranchName = formData["branchName"]?.takeIf { it.isNotBlank() } ?: branchName
                                     val finalPackageName = formData["packageName"]?.takeIf { it.isNotBlank() } ?: packageName
                                     val initialPromptValue = formData["initialPrompt"] ?: ""
 
+                                    // Update state with the new values so hints are correct on recomposition
                                     appName = finalAppName
                                     githubUser = finalGithubUser
                                     branchName = finalBranchName
@@ -153,8 +116,12 @@ fun ProjectSettingsScreen(
                                     Toast.makeText(context, "Project saved. Starting build...", Toast.LENGTH_SHORT).show()
                                     viewModel.sendPrompt(initialPromptValue, isInitialization = true)
                                 }
-                            ) {
-                                Text("Save & Build Project")
+                            ){
+                                entry(entryName = "appName", hint = "App Name (Current: $appName)", multiline = false, secret = false)
+                                entry(entryName = "githubUser", hint = "Github User (Current: $githubUser)", multiline = false, secret = false)
+                                entry(entryName = "branchName", hint = "Branch (Current: $branchName)", multiline = false, secret = false)
+                                entry(entryName = "packageName", hint = "Package (Current: $packageName)", multiline = false, secret = false)
+                                entry(entryName = "initialPrompt", hint = "Describe your app.", multiline = true, secret = false)
                             }
 
                             Spacer(modifier = Modifier.height(16.dp))
@@ -164,7 +131,7 @@ fun ProjectSettingsScreen(
                                 // It's the "first APK"
                                 viewModel.startBuild(context)
                                 Toast.makeText(context, "Building template...", Toast.LENGTH_SHORT).show()
-                            }, text = "Install/Build Template", shape = AzButtonShape.NONE)
+                            }, text = "Templation", shape = AzButtonShape.NONE)
                         }
 
                         // --- CLONE TAB ---
@@ -217,7 +184,7 @@ fun ProjectSettingsScreen(
                         }
 
                         // --- LOAD TAB ---
-                        2 -> Column(modifier = Modifier.padding(top = 16.dp)) {
+                        1 -> Column(modifier = Modifier.padding(top = 16.dp)) {
                             Text("Load Saved Project", color = MaterialTheme.colorScheme.onBackground)
                             Spacer(modifier = Modifier.height(16.dp))
 
