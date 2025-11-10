@@ -23,9 +23,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import java.net.URL
+import androidx.compose.material3.Button
 import androidx.compose.ui.Alignment
-import com.hereliesaz.aznavrail.AzForm
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.hereliesaz.aznavrail.model.AzButtonShape
+import com.hereliesaz.ideaz.utils.mapSaver
 
 private const val TAG = "ProjectSettingsScreen"
 
@@ -86,21 +88,61 @@ fun ProjectSettingsScreen(
                     when (tabIndex) {
                         // --- CREATE TAB ---
                         0 -> Column(modifier = Modifier.padding(top = 16.dp)) {
+                            val formData = rememberSaveable(saver = mapSaver()) {
+                                mutableStateMapOf(
+                                    "appName" to "",
+                                    "githubUser" to "",
+                                    "branchName" to "",
+                                    "packageName" to "",
+                                    "initialPrompt" to ""
+                                )
+                            }
                             Text("Create or Update Project", color = MaterialTheme.colorScheme.onBackground)
                             Spacer(modifier = Modifier.height(16.dp))
-                            AzForm(
+                            TextField(
+                                value = formData["appName"] ?: "",
+                                onValueChange = { formData["appName"] = it },
+                                label = { Text("App Name (Current: $appName)") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            TextField(
+                                value = formData["githubUser"] ?: "",
+                                onValueChange = { formData["githubUser"] = it },
+                                label = { Text("Github User (Current: $githubUser)") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            TextField(
+                                value = formData["branchName"] ?: "",
+                                onValueChange = { formData["branchName"] = it },
+                                label = { Text("Branch (Current: $branchName)") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            TextField(
+                                value = formData["packageName"] ?: "",
+                                onValueChange = { formData["packageName"] = it },
+                                label = { Text("Package (Current: $packageName)") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            TextField(
+                                value = formData["initialPrompt"] ?: "",
+                                onValueChange = { formData["initialPrompt"] = it },
+                                label = { Text("Describe your app") },
                                 modifier = Modifier.fillMaxWidth(),
-                                formName = "Project Configuration",
-                                submitButtonContent = { Text("Save & Build Project") },
-                                onSubmit = { formData ->
-                                    // If user leaves a field blank, use the existing value from state
+                                minLines = 3
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(
+                                onClick = {
                                     val finalAppName = formData["appName"]?.takeIf { it.isNotBlank() } ?: appName
                                     val finalGithubUser = formData["githubUser"]?.takeIf { it.isNotBlank() } ?: githubUser
                                     val finalBranchName = formData["branchName"]?.takeIf { it.isNotBlank() } ?: branchName
                                     val finalPackageName = formData["packageName"]?.takeIf { it.isNotBlank() } ?: packageName
                                     val initialPromptValue = formData["initialPrompt"] ?: ""
 
-                                    // Update state with the new values so hints are correct on recomposition
                                     appName = finalAppName
                                     githubUser = finalGithubUser
                                     branchName = finalBranchName
@@ -111,12 +153,8 @@ fun ProjectSettingsScreen(
                                     Toast.makeText(context, "Project saved. Starting build...", Toast.LENGTH_SHORT).show()
                                     viewModel.sendPrompt(initialPromptValue, isInitialization = true)
                                 }
-                            ){
-                                entry(entryName = "appName", hint = "App Name (Current: $appName)", multiline = false, secret = false)
-                                entry(entryName = "githubUser", hint = "Github User (Current: $githubUser)", multiline = false, secret = false)
-                                entry(entryName = "branchName", hint = "Branch (Current: $branchName)", multiline = false, secret = false)
-                                entry(entryName = "packageName", hint = "Package (Current: $packageName)", multiline = false, secret = false)
-                                entry(entryName = "initialPrompt", hint = "Describe your app.", multiline = true, secret = false)
+                            ) {
+                                Text("Save & Build Project")
                             }
 
                             Spacer(modifier = Modifier.height(16.dp))
