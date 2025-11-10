@@ -44,36 +44,48 @@ object ToolManager {
             val destFile = File(nativeToolDir, toolName)
             // Always overwrite to ensure the latest version is used
 
-            // The native library isn't always at the root of nativeLibraryDir.
-            // It's often in a subdirectory named after the ABI.
-            // We'll construct the path using the primary ABI.
-            val primaryAbi = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                Build.SUPPORTED_ABIS[0]
-            } else {
-                @Suppress("DEPRECATION")
-                Build.CPU_ABI
+            val nativeLibDir = File(context.applicationInfo.nativeLibraryDir)
+            var sourceFile: File? = null
+            val checkedPaths = mutableListOf<String>()
+
+            // 1. Check the root nativeLibraryDir first
+            val rootFile = File(nativeLibDir, libName)
+            checkedPaths.add(rootFile.absolutePath)
+            if (rootFile.exists()) {
+                sourceFile = rootFile
             }
 
-            val nativeLibDir = File(context.applicationInfo.nativeLibraryDir)
-            var sourceFile = File(nativeLibDir, libName) // Check original path first
+            // 2. If not found, check ABI-specific subdirectories
+            if (sourceFile == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                for (abi in Build.SUPPORTED_ABIS) {
+                    val abiSpecificFile = File(nativeLibDir, "$abi/$libName")
+                    checkedPaths.add(abiSpecificFile.absolutePath)
+                    if (abiSpecificFile.exists()) {
+                        sourceFile = abiSpecificFile
+                        break // Found it
+                    }
+                }
+            }
 
-            if (!sourceFile.exists()) {
-                // If not found, try constructing path with primary ABI from the parent directory.
-                // This handles cases where nativeLibraryDir points to `/lib/arm64` but we need `/lib/arm64-v8a`
-                val parentDir = nativeLibDir.parentFile
-                if (parentDir != null) {
-                    val abiSpecificFile = File(parentDir, "$primaryAbi/$libName")
+            // 3. Fallback for older Android versions or unusual structures
+            if (sourceFile == null) {
+                @Suppress("DEPRECATION")
+                val cpuAbi = Build.CPU_ABI
+                val abiSpecificFile = File(nativeLibDir, "$cpuAbi/$libName")
+                if (!checkedPaths.contains(abiSpecificFile.absolutePath)) {
+                    checkedPaths.add(abiSpecificFile.absolutePath)
                     if (abiSpecificFile.exists()) {
                         sourceFile = abiSpecificFile
                     }
                 }
             }
 
-            if (sourceFile.exists()) {
+            if (sourceFile != null && sourceFile.exists()) {
                 sourceFile.copyTo(destFile, overwrite = true)
                 destFile.setExecutable(true, true)
             } else {
-                 android.util.Log.e("ToolManager", "Native library not found: $libName in ${nativeLibDir.absolutePath} or for ABI $primaryAbi")
+                val pathsChecked = checkedPaths.joinToString("\n - ")
+                android.util.Log.e("ToolManager", "Native library not found: $libName. Checked paths:\n - $pathsChecked")
             }
         }
         android.util.Log.d("ToolManager", "Tool extraction complete.")
