@@ -94,7 +94,7 @@ object ToolManager {
                         val existingTarget = java.nio.file.Files.readSymbolicLink(destPath)
                         if (existingTarget == java.nio.file.Paths.get(sourceFile.absolutePath)) {
                             android.util.Log.d("ToolManager", "Symlink for $toolName already exists and is correct.")
-                            continue // Skip to the next tool
+                            return@forEach // Skip to the next tool
                         } else {
                             // If the link is incorrect, delete it before creating a new one.
                             android.util.Log.d("ToolManager", "Incorrect symlink for $toolName found. Deleting.")
