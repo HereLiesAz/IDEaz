@@ -8,7 +8,7 @@ import retrofit2.http.Query
 
 interface JulesApiService {
     // Sessions
-    @POST("v1alpha/sessions")
+    @POST("v1alpha1/sessions")
     suspend fun createSession(@Body session: Session): Session
 
     @GET("v1alpha/sessions/{name}")
