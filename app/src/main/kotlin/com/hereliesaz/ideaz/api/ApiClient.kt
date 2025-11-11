@@ -8,10 +8,6 @@ import retrofit2.Retrofit
 
 object ApiClient {
 
-    // Reverted to the correct Base URL as per your documentation link.
-    // The 404 is an auth or project configuration issue, not a host issue.
-    private const val BASE_URL = "https://jules.googleapis.com/"
-
     private val json = Json {
         ignoreUnknownKeys = true
     }
@@ -20,12 +16,17 @@ object ApiClient {
         .addInterceptor(AuthInterceptor) // Add the Auth Interceptor
         .build()
 
-    private val retrofit = Retrofit.Builder()
+    private fun <T> create(baseUrl: String, service: Class<T>): T {
+        val retrofit = Retrofit.Builder()
+            .baseUrl(baseUrl)
+            .client(okHttpClient)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+        return retrofit.create(service)
+    }
 
-        .baseUrl(BASE_URL)
-        .client(okHttpClient)
-        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
-        .build()
-
-    val julesApiService: JulesApiService = retrofit.create(JulesApiService::class.java)
+    val julesApiService: JulesApiService = create(
+        "https://jules.googleapis.com/",
+        JulesApiService::class.java
+    )
 }
