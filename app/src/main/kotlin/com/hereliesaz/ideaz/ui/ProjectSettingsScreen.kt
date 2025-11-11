@@ -97,7 +97,7 @@ fun ProjectSettingsScreen(
                             AzForm(
                                 modifier = Modifier.fillMaxWidth(),
                                 formName = "Project Configuration",
-                                submitButtonContent = { Text("Save & Build Project") },
+                                submitButtonContent = { Text("Build") },
                                 onSubmit = { formData ->
                                     // If user leaves a field blank, use the existing value from state
                                     val finalAppName = formData["appName"]?.takeIf { it.isNotBlank() } ?: appName
