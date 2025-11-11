@@ -18,7 +18,7 @@ object ToolManager {
     )
 
     // Non-binary assets to be extracted
-    private val ASSET_FILES = listOf("kotlinc", "debug.keystore", "android.jar")
+    private val ASSET_FILES = listOf("kotlinc", "debug.keystore", "android.jar", "java")
 
     fun extractTools(context: Context) {
         // Get (and create if necessary) the directories for our tools.
