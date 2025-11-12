@@ -14,7 +14,8 @@ object ToolManager {
     private val NATIVE_BINARIES = mapOf(
         "aapt2" to "libaapt2.so",
         "d8" to "libd8.so",
-        "apksigner" to "libapksigner.so"
+        "apksigner" to "libapksigner.so",
+        "java" to "libjava.so"
     )
 
     // Non-binary assets to be extracted
@@ -98,12 +99,12 @@ object ToolManager {
                         } else {
                             // If the link is incorrect, delete it before creating a new one.
                             android.util.Log.d("ToolManager", "Incorrect symlink for $toolName found. Deleting.")
-                            destFile.delete()
+                            java.nio.file.Files.deleteIfExists(destPath)
                         }
                     } else if (destFile.exists()) {
                         // If a regular file exists at the destination, delete it.
                         android.util.Log.d("ToolManager", "File exists at symlink destination for $toolName. Deleting.")
-                        destFile.delete()
+                        java.nio.file.Files.deleteIfExists(destPath)
                     }
 
                     java.nio.file.Files.createSymbolicLink(
