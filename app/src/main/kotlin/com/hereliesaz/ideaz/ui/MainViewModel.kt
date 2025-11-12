@@ -615,8 +615,8 @@ class MainViewModel(
         Log.d(TAG, "Project settings: appName=$appName, githubUser=$githubUser, branchName=$branchName")
 
 
-        if (appName.isNullOrBlank() || githubUser.isNullOrBlank() || prompt.isNullOrBlank()) {
-            Log.w(TAG, "Cannot create session request, appName, githubUser, or prompt is null or blank")
+        if (appName.isNullOrBlank() || githubUser.isNullOrBlank()) {
+            Log.w(TAG, "Cannot create session request, appName or githubUser is null or blank")
             return null
         }
 
