@@ -109,6 +109,7 @@ class BuildService : Service() {
         val keystorePass = "android"
         val keyAlias = "androiddebugkey"
         val androidJarPath = ToolManager.getToolPath(this, "android.jar")
+        val javaPath = ToolManager.getToolPath(this, "java")
 
         // Build Directories
         val compiledResDir = File(buildDir, "compiled_res").absolutePath
