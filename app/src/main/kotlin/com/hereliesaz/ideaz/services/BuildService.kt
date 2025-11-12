@@ -109,7 +109,6 @@ class BuildService : Service() {
         val keystorePass = "android"
         val keyAlias = "androiddebugkey"
         val androidJarPath = ToolManager.getToolPath(this, "android.jar")
-        val javaPath = ToolManager.getToolPath(this, "java")
 
         // Build Directories
         val compiledResDir = File(buildDir, "compiled_res").absolutePath
@@ -126,7 +125,7 @@ class BuildService : Service() {
                 GenerateSourceMap(File(resDir), buildDir, cacheDir),
                 Aapt2Compile(aapt2Path, resDir, compiledResDir),
                 Aapt2Link(aapt2Path, compiledResDir, androidJarPath, manifestPath, outputApkPath, outputJavaPath),
-                KotlincCompile(kotlincPath, androidJarPath, javaDir, File(classesDir), classpath, javaPath),
+                KotlincCompile(kotlincPath, androidJarPath, javaDir, File(classesDir), classpath),
                 D8Compile(d8Path, androidJarPath, classesDir, classesDir, classpath),
                 ApkBuild(finalApkPath, outputApkPath, classesDir),
                 ApkSign(apkSignerPath, keystorePath, keystorePass, keyAlias, finalApkPath)
