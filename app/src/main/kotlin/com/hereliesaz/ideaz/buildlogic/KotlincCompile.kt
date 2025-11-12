@@ -12,8 +12,7 @@ class KotlincCompile(
     private val androidJarPath: String,
     private val javaDir: String,
     private val classesDir: File,
-    private val classpath: String,
-    private val javaPath: String
+    private val classpath: String
 ) : BuildStep {
 
     private val cacheFile: File by lazy {
@@ -39,7 +38,7 @@ class KotlincCompile(
         }
 
         val command = listOf(
-            javaPath,
+            "java",
             "-jar",
             kotlincPath,
             "-classpath",
