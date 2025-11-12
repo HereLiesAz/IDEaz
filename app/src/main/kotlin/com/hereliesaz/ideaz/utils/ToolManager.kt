@@ -14,11 +14,12 @@ object ToolManager {
     private val NATIVE_BINARIES = mapOf(
         "aapt2" to "libaapt2.so",
         "d8" to "libd8.so",
-        "apksigner" to "libapksigner.so"
+        "apksigner" to "libapksigner.so",
+        "java" to "libjava.so"
     )
 
     // Non-binary assets to be extracted
-    private val ASSET_FILES = listOf("kotlinc", "debug.keystore", "android.jar", "java")
+    private val ASSET_FILES = listOf("kotlinc", "debug.keystore", "android.jar")
 
     fun extractTools(context: Context) {
         // Get (and create if necessary) the directories for our tools.
