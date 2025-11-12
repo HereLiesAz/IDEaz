@@ -16,7 +16,7 @@ data class ListSessionsResponse(
 data class Session(
     val name: String? = null,
     val id: String? = null,
-    val prompt: String,
+    val prompt: String?,
     val sourceContext: SourceContext,
     val title: String,
     val requirePlanApproval: Boolean? = null,
