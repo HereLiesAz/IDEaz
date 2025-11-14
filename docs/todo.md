@@ -83,3 +83,14 @@ This phase will broaden the IDE's appeal and capabilities by supporting a wider 
     - Provide a default template that combines a Kotlin Multiplatform (KMP) backend for shared business logic with a React Native frontend for a native UI experience.
 - [ ] **7.3: Explore Additional Framework Support**
     - Investigate and potentially implement templates for other popular frameworks, such as Flutter or XML-based approaches similar to Sketchware Pro.
+
+---
+
+### **Phase 8: Build System Overhaul Investigation**
+This phase will explore the feasibility of replacing the current, custom-built build orchestration and dependency resolution system with a more powerful, all-in-one tool.
+
+- [ ] **8.1: Investigate `labt` as a Build System Replacement**
+    - **Goal:** Evaluate the "Lightweight Android Build Tool" (`labt`) as a potential replacement for the existing `BuildOrchestrator` and `DependencyResolver`.
+    - **Potential Benefits:** `labt` is a Rust-based, all-in-one tool that handles dependency management, SDKs, and compilation. It's designed to be fast, lightweight, and offline-first, which aligns with the project's goals.
+    - **Risks & Challenges:** The tool is currently marked as unstable (pre-v1). It is built with Rust and primarily targets Linux, so cross-compiling for Android and integrating it as a native binary will be a significant technical hurdle.
+    - **Action:** Conduct a proof-of-concept to determine the viability of integrating `labt` into the IDEaz build process.
