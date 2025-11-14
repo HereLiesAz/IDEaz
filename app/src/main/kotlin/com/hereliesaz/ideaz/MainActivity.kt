@@ -155,9 +155,6 @@ class MainActivity : ComponentActivity() {
         AuthInterceptor.apiKey = sharedPreferences.getString("api_key", null)
         Log.d(TAG, "onStart: API key loaded")
 
-        viewModel.listSessions()
-        Log.d(TAG, "onStart: listSessions() called")
-
         // Register the inspection receiver
         val filter = IntentFilter().apply {
             addAction("com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE")

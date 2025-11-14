@@ -47,10 +47,6 @@ fun MainScreen(
     onRequestScreenCapture: () -> Unit, // NEW: Lambda to trigger permission
     onThemeToggle: (Boolean) -> Unit
 ) {
-    val session by viewModel.session.collectAsState()
-    val sessions by viewModel.sessions.collectAsState()
-    val activities by viewModel.activities.collectAsState()
-    val sources by viewModel.sources.collectAsState()
     val context = LocalContext.current
     var showPromptPopup by remember{ mutableStateOf(false) } // This is for the OLD popup
     val navController = rememberNavController()
@@ -190,10 +186,6 @@ fun MainScreen(
                         navController = navController,
                         viewModel = viewModel,
                         settingsViewModel = viewModel.settingsViewModel,
-                        session = session,
-                        sessions = sessions,
-                        activities = activities,
-                        sources = sources,
                         onThemeToggle = onThemeToggle
                     )
                 }
