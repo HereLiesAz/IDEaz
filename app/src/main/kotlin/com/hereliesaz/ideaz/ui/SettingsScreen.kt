@@ -40,7 +40,6 @@ private const val TAG = "SettingsScreen"
 @Composable
 fun SettingsScreen(
     settingsViewModel: SettingsViewModel,
-    sessions: List<Session>, // Accept the sessions list
     onThemeToggle: (Boolean) -> Unit
 ) {
     Log.d(TAG, "SettingsScreen: Composing")
@@ -194,19 +193,6 @@ fun SettingsScreen(
                 LogLevelDropdown(
                     settingsViewModel = settingsViewModel
                 )
-
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Display the list of sessions
-                Text("Active Sessions", color = MaterialTheme.colorScheme.onBackground)
-                if (sessions.isEmpty()) {
-                    Text("No active sessions found.", color = MaterialTheme.colorScheme.onBackground)
-                } else {
-                    sessions.forEach {
-                        Text(it.name ?: "Unnamed Session", color = MaterialTheme.colorScheme.onBackground)
-                    }
-                }
             }
     }
 }
