@@ -25,10 +25,6 @@ fun IdeNavHost(
     navController: NavHostController,
     viewModel: MainViewModel,
     settingsViewModel: SettingsViewModel, // Add this
-    session: Session?,
-    sessions: List<Session>,
-    activities: List<Activity>,
-    sources: List<Source>,
     onThemeToggle: (Boolean) -> Unit
 ) {
     Log.d(TAG, "IdeNavHost: Composing")
@@ -46,7 +42,6 @@ fun IdeNavHost(
         composable("settings") {
             // Pass the settingsViewModel down
             SettingsScreen(
-                sessions = sessions,
                 onThemeToggle = onThemeToggle,
                 settingsViewModel = settingsViewModel
             )
@@ -55,7 +50,6 @@ fun IdeNavHost(
             // Pass the settingsViewModel down
             ProjectSettingsScreen(
                 viewModel = viewModel,
-                sources = sources,
                 settingsViewModel = settingsViewModel
             )
         }
