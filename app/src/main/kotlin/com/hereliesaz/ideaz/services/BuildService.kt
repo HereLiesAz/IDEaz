@@ -38,7 +38,6 @@ class BuildService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        ToolManager.extractTools(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -111,6 +110,25 @@ class BuildService : Service() {
         val androidJarPath = ToolManager.getToolPath(this, "android.jar")
         val javaPath = ToolManager.getToolPath(this, "java")
 
+        // --- NEW: Null check for tool paths ---
+        val requiredTools = mapOf(
+            "aapt2" to aapt2Path,
+            "kotlinc" to kotlincPath,
+            "d8" to d8Path,
+            "apksigner" to apkSignerPath,
+            "debug.keystore" to keystorePath,
+            "android.jar" to androidJarPath,
+            "java" to javaPath
+        )
+
+        for ((toolName, toolPath) in requiredTools) {
+            if (toolPath == null) {
+                callback.onFailure("Build failed: Required tool '$toolName' not found.")
+                return
+            }
+        }
+        // All paths are guaranteed to be non-null after this point.
+
         // Build Directories
         val compiledResDir = File(buildDir, "compiled_res").absolutePath
         val outputApkPath = File(buildDir, "app.apk").absolutePath
@@ -124,12 +142,12 @@ class BuildService : Service() {
         val buildOrchestrator = BuildOrchestrator(
             listOf(
                 GenerateSourceMap(File(resDir), buildDir, cacheDir),
-                Aapt2Compile(aapt2Path, resDir, compiledResDir),
-                Aapt2Link(aapt2Path, compiledResDir, androidJarPath, manifestPath, outputApkPath, outputJavaPath),
-                KotlincCompile(kotlincPath, androidJarPath, javaDir, File(classesDir), classpath, javaPath),
-                D8Compile(d8Path, androidJarPath, classesDir, classesDir, classpath),
+                Aapt2Compile(aapt2Path!!, resDir, compiledResDir),
+                Aapt2Link(aapt2Path!!, compiledResDir, androidJarPath!!, manifestPath, outputApkPath, outputJavaPath),
+                KotlincCompile(kotlincPath!!, androidJarPath!!, javaDir, File(classesDir), classpath, javaPath!!),
+                D8Compile(d8Path!!, androidJarPath!!, classesDir, classesDir, classpath),
                 ApkBuild(finalApkPath, outputApkPath, classesDir),
-                ApkSign(apkSignerPath, keystorePath, keystorePass, keyAlias, finalApkPath)
+                ApkSign(apkSignerPath!!, keystorePath!!, keystorePass, keyAlias, finalApkPath)
             )
         )
 

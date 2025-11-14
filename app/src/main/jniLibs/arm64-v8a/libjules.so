@@ -1,0 +1,79 @@
+#!/bin/sh
+
+# Mock Jules CLI
+# This script simulates the behavior of the jules CLI for testing purposes.
+# It uses a state file to simulate the asynchronous nature of session activities.
+
+STATE_FILE="/tmp/jules_mock_state"
+
+# Main command dispatcher
+COMMAND="$1"
+SUBCOMMAND="$2"
+
+case "$COMMAND" in
+  "session")
+    case "$SUBCOMMAND" in
+      "create")
+        # Simulate session creation
+        # Initialize state to indicate polling should start
+        echo "POLLING_START" > $STATE_FILE
+        echo "{\"name\": \"sessions/mock-session-12345\", \"title\": \"Mock Session\"}"
+        ;;
+      *)
+        echo "{\"error\": \"Unknown session subcommand: $SUBCOMMAND\"}"
+        exit 1
+        ;;
+    esac
+    ;;
+  "activity")
+    case "$SUBCOMMAND" in
+      "list")
+        # Simulate polling for activity status
+        CURRENT_STATE=$(cat $STATE_FILE)
+        if [ "$CURRENT_STATE" = "POLLING_START" ]; then
+          # First poll: return empty list, update state
+          echo "POLLING_READY" > $STATE_FILE
+          echo "{\"activities\": []}"
+        elif [ "$CURRENT_STATE" = "POLLING_READY" ]; then
+          # Second poll: return READY activity
+          echo "{\"activities\": [{\"name\": \"activities/mock-activity-67890\", \"state\": \"READY\"}]}"
+        else
+          # Default: return empty list
+          echo "{\"activities\": []}"
+        fi
+        ;;
+      *)
+        echo "{\"error\": \"Unknown activity subcommand: $SUBCOMMAND\"}"
+        exit 1
+        ;;
+    esac
+    ;;
+  "patch")
+    case "$SUBCOMMAND" in
+      "pull")
+        # Simulate pulling a patch
+        echo "--- a/app/src/main/res/layout/activity_main.xml
++++ b/app/src/main/res/layout/activity_main.xml
+@@ -1,6 +1,6 @@
+ <TextView xmlns:android=\"http://schemas.android.com/apk/res/android\"
+     android:id=\"@+id/hello_textview\"
+-    android:layout_width=\"wrap_content\"
++    android:layout_width=\"match_parent\"
+     android:layout_height=\"wrap_content\"
+-    android:text=\"Hello, World!\" />
++    android:text=\"Hello from Mock Jules!\" />"
+        ;;
+      *)
+        echo "{\"error\": \"Unknown patch subcommand: $SUBCOMMAND\"}"
+        exit 1
+        ;;
+    esac
+    ;;
+  *)
+    # Capture --format=json and ignore it, otherwise return error
+    if [ "$COMMAND" != "--format=json" ]; then
+        echo "{\"error\": \"Unknown command: $COMMAND\"}"
+        exit 1
+    fi
+    ;;
+esac
