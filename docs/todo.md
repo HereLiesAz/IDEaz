@@ -71,3 +71,15 @@ This phase focuses on improving the user experience during long-running backgrou
 - [x] **6.3: Implement Persistent Status Notification**
     - Enhance background services to manage a persistent notification.
     - The notification content should be updated to always show the most recent line of the **global build log** from the bottom card.
+
+---
+
+### **Phase 7: Project Templates and Alternative Frameworks**
+This phase will broaden the IDE's appeal and capabilities by supporting a wider range of project types and development frameworks beyond the initial all-Kotlin focus.
+
+- [ ] **7.1: Implement React Native Project Template**
+    - Offer a template for building lightweight, cross-platform applications using React Native.
+- [ ] **7.2: Implement KMP Backend / React Native Frontend Template**
+    - Provide a default template that combines a Kotlin Multiplatform (KMP) backend for shared business logic with a React Native frontend for a native UI experience.
+- [ ] **7.3: Explore Additional Framework Support**
+    - Investigate and potentially implement templates for other popular frameworks, such as Flutter or XML-based approaches similar to Sketchware Pro.
