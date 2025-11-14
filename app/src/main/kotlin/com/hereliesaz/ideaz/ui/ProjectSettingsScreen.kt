@@ -38,7 +38,6 @@ private const val TAG = "ProjectSettingsScreen"
 @Composable
 fun ProjectSettingsScreen(
     viewModel: MainViewModel,
-    sources: List<Source>,
     settingsViewModel: SettingsViewModel
 ) {
     Log.d(TAG, "ProjectSettingsScreen: Composing")
@@ -60,12 +59,7 @@ fun ProjectSettingsScreen(
     // State for "Clone" tab
     var cloneUrl by remember { mutableStateOf("") }
     val projectList = settingsViewModel.getProjectList()
-    val ownedSources = sources.filter {
-        val repo = it.githubRepo
-        repo != null &&
-                repo.owner == settingsViewModel.getGithubUser() &&
-                !projectList.contains("${repo.owner}/${repo.repo}")
-    }
+    val ownedSources = emptyList<Source>()
 
     // State for "Load" tab
     val loadableProjects = projectList.toList()

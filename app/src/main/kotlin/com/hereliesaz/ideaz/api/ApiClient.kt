@@ -27,5 +27,4 @@ object ApiClient {
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .build()
 
-    val julesApiService: JulesApiService = retrofit.create(JulesApiService::class.java)
 }
