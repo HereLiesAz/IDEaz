@@ -14,7 +14,9 @@ import android.content.IntentFilter
 import android.view.accessibility.AccessibilityNodeInfo
 import android.graphics.Rect
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -29,6 +31,8 @@ import android.widget.TextView
 import com.hereliesaz.ideaz.R
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.PorterDuff
+import androidx.core.os.postDelayed
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import kotlin.math.abs
 import kotlin.math.min
@@ -43,6 +47,16 @@ class UIInspectionService : AccessibilityService() {
     private var promptContainer: View? = null
 
     private var windowManager: WindowManager? = null
+
+    // --- NEW: Debug Text View ---
+    private var debugTextView: TextView? = null
+    private var mainHandler: Handler? = null
+    private val removeDebugTextRunnable = Runnable {
+        debugTextView?.animate()?.alpha(0f)?.setDuration(1000)?.withEndAction {
+            removeDebugText()
+        }
+    }
+    // --- END NEW ---
 
     private val selectionPaint = Paint().apply {
         color = Color.argb(100, 255, 0, 0) // Semi-transparent red
@@ -92,13 +106,7 @@ class UIInspectionService : AccessibilityService() {
                     // Re-evaluate overlay visibility based on new package name
                     val currentPackage = rootInActiveWindow?.packageName?.toString()
                     Log.d("UIInspectionService", "Target package changed to: $targetPackageName. Current app: $currentPackage")
-                    touchInterceptor?.post {
-                        if (currentPackage == targetPackageName) {
-                            if (touchInterceptor == null) showTouchInterceptor()
-                        } else {
-                            if (touchInterceptor != null) hideTouchInterceptor()
-                        }
-                    }
+                    // --- REMOVED BROKEN LOGIC ---
                 }
             }
         }
@@ -107,36 +115,45 @@ class UIInspectionService : AccessibilityService() {
 
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            val currentPackage = event.packageName?.toString()
-            Log.d("UIInspectionService", "Window changed. App: $currentPackage, Target: $targetPackageName")
-            if (currentPackage == targetPackageName) {
-                // Use post to ensure this runs on the main thread
-                // and to avoid issues with window state transitions
-                touchInterceptor?.post {
-                    if (touchInterceptor == null) {
-                        Log.d("UIInspectionService", "Target app ($targetPackageName) is in foreground. Showing overlay.")
-                        showTouchInterceptor()
-                    }
-                }
-            } else {
-                touchInterceptor?.post {
-                    if (touchInterceptor != null) {
-                        Log.d("UIInspectionService", "Target app ($targetPackageName) is not in foreground. Hiding overlay.")
-                        hideTouchInterceptor()
-                    }
-                }
-            }
-        }
+        // --- REMOVED ALL LOGIC ---
+        // The interceptor's lifecycle is now manually managed by
+        // onStartCommand and onDestroy, triggered by the ViewModel.
+        // The service's rootInActiveWindow is updated by the system automatically.
     }
 
     override fun onInterrupt() {
     }
 
+    // --- NEW: Handle service start command ---
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d("UIInspectionService", "onStartCommand: Showing touch interceptor.")
+        // Use post to ensure this runs on the main thread
+        mainHandler?.post {
+            if (touchInterceptor == null) {
+                showTouchInterceptor()
+            }
+        }
+        return START_NOT_STICKY
+    }
+    // --- END NEW ---
+
+    // --- NEW: Handle service destruction ---
+    override fun onDestroy() {
+        Log.d("UIInspectionService", "onDestroy: Hiding touch interceptor.")
+        // --- FIX: Remove posted runnable, call synchronously ---
+        // Posting this can cause a race condition where the service
+        // is destroyed before the runnable executes, leaking the view.
+        hideTouchInterceptor()
+        // --- END FIX ---
+        super.onDestroy()
+    }
+    // --- END NEW ---
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+        mainHandler = Handler(Looper.getMainLooper()) // NEW: Init handler
 
         // Get the target package name on connect
         settingsViewModel = SettingsViewModel(application)
@@ -158,9 +175,13 @@ class UIInspectionService : AccessibilityService() {
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
-        hideTouchInterceptor()
+        hideTouchInterceptor() // Ensure cleanup on unbind as well
         hideOverlayUI()
         unregisterReceiver(commandReceiver) // Unregister
+        // NEW: Clean up debug text
+        mainHandler?.removeCallbacksAndMessages(null)
+        removeDebugText()
+        // END NEW
         return super.onUnbind(intent)
     }
 
@@ -177,6 +198,12 @@ class UIInspectionService : AccessibilityService() {
 
             override fun onDraw(canvas: Canvas) {
                 super.onDraw(canvas)
+
+                // --- FIX: Explicitly clear the canvas ---
+                // On a translucent window, the canvas is not cleared automatically.
+                // We must clear it to remove the previous frame's rectangle.
+                canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+
                 if (isDragging) {
                     currentSelectionRect.set(
                         min(startX, endX).toInt(),
@@ -201,7 +228,7 @@ class UIInspectionService : AccessibilityService() {
                         endX = startX
                         endY = startY
                         isDragging = false // Assume it's a tap until proven otherwise
-                        invalidate()
+                        // Do not invalidate here, wait for move
                         return true
                     }
                     MotionEvent.ACTION_MOVE -> {
@@ -217,9 +244,11 @@ class UIInspectionService : AccessibilityService() {
                         return true
                     }
                     MotionEvent.ACTION_UP -> {
+                        val wasDragging = isDragging
+                        isDragging = false
                         invalidate() // Clear the rect
 
-                        if (isDragging) {
+                        if (wasDragging) {
                             // --- This was a DRAG ---
                             val rect = Rect(
                                 min(startX, endX).toInt(),
@@ -228,22 +257,45 @@ class UIInspectionService : AccessibilityService() {
                                 max(startY, endY).toInt()
                             )
 
+                            // --- NEW: Show Debug Text ---
+                            val debugMsg = "Drag: (${rect.left}, ${rect.top}) to (${rect.right}, ${rect.bottom})"
+                            showDebugText(debugMsg)
+                            // --- END NEW ---
+
                             // Don't trigger if it's too small
                             if (rect.width() > 10 && rect.height() > 10) {
                                 showPromptUI(rect, null) // Pass null for resourceId
                             }
                         } else {
                             // --- This was a TAP ---
-                            val node = findNodeAt(rootInActiveWindow, startX.toInt(), startY.toInt())
-                            if (node != null) {
-                                val resourceId = node.viewIdResourceName
-                                val bounds = Rect()
-                                node.getBoundsInScreen(bounds)
+                            // --- FIX: Use the service's rootInActiveWindow ---
+                            val rootNode = rootInActiveWindow
+                            if (rootNode == null) {
+                                Log.e("UIInspectionService", "rootInActiveWindow is null. Cannot find node.")
+                                showDebugText("Tap: FAILED (rootInActiveWindow is null)")
+                                return true
+                            }
+                            // --- END FIX ---
 
+                            val node = findNodeAt(rootNode, startX.toInt(), startY.toInt())
+                            var resourceId: String? = null
+                            val bounds = Rect()
+
+                            if (node != null) {
+                                resourceId = node.viewIdResourceName
+                                node.getBoundsInScreen(bounds)
+                            }
+
+                            // --- NEW: Show Debug Text ---
+                            val idText = resourceId ?: "null"
+                            val debugMsg = "Tap: $idText"
+                            showDebugText(debugMsg)
+                            // --- END NEW ---
+
+                            if(node != null) {
                                 showPromptUI(bounds, resourceId) // Pass the resourceId (can be null)
                             }
                         }
-                        isDragging = false
                         return true
                     }
                 }
@@ -253,8 +305,13 @@ class UIInspectionService : AccessibilityService() {
         val lp = WindowManager.LayoutParams().apply {
             type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
             format = PixelFormat.TRANSLUCENT
-            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            // --- FIX: This is the correct flag set ---
+            // It receives touches, but allows touches *outside* its bounds
+            // (which is irrelevant for MATCH_PARENT) to pass through.
+            // It does NOT take focus from the app below.
+            flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+            // --- END FIX ---
             width = WindowManager.LayoutParams.MATCH_PARENT
             height = WindowManager.LayoutParams.MATCH_PARENT
         }
@@ -268,7 +325,11 @@ class UIInspectionService : AccessibilityService() {
             return
         }
         touchInterceptor?.let {
-            windowManager?.removeView(it)
+            try {
+                windowManager?.removeView(it)
+            } catch (e: Exception) {
+                Log.w("UIInspectionService", "Error removing interceptor view, already gone.", e)
+            }
         }
         touchInterceptor = null
     }
@@ -461,4 +522,53 @@ class UIInspectionService : AccessibilityService() {
         // If no child matches, this node (the parent) is the match
         return root
     }
+
+    // --- NEW: Debug Text Functions ---
+    private fun showDebugText(message: String) {
+        // Stop any pending animations or removals
+        mainHandler?.removeCallbacksAndMessages(null)
+        // Remove any existing debug text view *immediately*
+        removeDebugText()
+
+        val context = this
+        debugTextView = TextView(context).apply {
+            text = message
+            setBackgroundColor(Color.BLACK)
+            setTextColor(Color.WHITE)
+            setPadding(16, 8, 16, 8)
+            alpha = 1.0f
+        }
+
+        val lp = WindowManager.LayoutParams().apply {
+            type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+            format = PixelFormat.TRANSLUCENT
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            width = WindowManager.LayoutParams.WRAP_CONTENT
+            height = WindowManager.LayoutParams.WRAP_CONTENT
+            y = 50 // Offset from top
+        }
+
+        try {
+            windowManager?.addView(debugTextView, lp)
+            // Schedule the fade-out
+            mainHandler?.postDelayed(removeDebugTextRunnable, 2000)
+        } catch (e: Exception) {
+            Log.e("UIInspectionService", "Error adding debug text view", e)
+        }
+    }
+
+    private fun removeDebugText() {
+        debugTextView?.let {
+            it.animate().cancel() // Stop any running animations
+            try {
+                windowManager?.removeView(it)
+            } catch (e: Exception) {
+                Log.w("UIInspectionService", "Error removing debug text view", e)
+            }
+        }
+        debugTextView = null
+    }
+    // --- END NEW ---
 }

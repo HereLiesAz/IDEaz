@@ -26,12 +26,15 @@ import com.hereliesaz.ideaz.services.ScreenshotService
 import androidx.preference.PreferenceManager
 import com.hereliesaz.ideaz.api.GeminiApiClient
 import com.hereliesaz.ideaz.api.GitHubRepoContext
+import com.hereliesaz.ideaz.api.ListSourcesResponse
+import com.hereliesaz.ideaz.api.Source
 import com.hereliesaz.ideaz.api.SourceContext
 import java.io.FileOutputStream
 import java.io.IOException
 import com.hereliesaz.ideaz.utils.ToolManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.serialization.json.Json
 import org.json.JSONObject
 
 class MainViewModel(
@@ -58,6 +61,11 @@ class MainViewModel(
     // --- Code/Source Map State ---
     private var sourceMap: Map<String, SourceMapEntry> = emptyMap()
 
+    // --- NEW: State for Owned Sources (GitHub Repos) ---
+    private val _ownedSources = MutableStateFlow<List<Source>>(emptyList())
+    val ownedSources = _ownedSources.asStateFlow()
+    // --- END NEW ---
+
     // --- Cancel Dialog State ---
     private val _showCancelDialog = MutableStateFlow(false)
     val showCancelDialog = _showCancelDialog.asStateFlow()
@@ -71,6 +79,12 @@ class MainViewModel(
     private var pendingRichPrompt: String? = null // Holds the prompt while screenshot is taken
     private var pendingRect: Rect? = null // Holds the rect to re-draw the log box
     // --- END ---
+
+    // --- NEW: JSON Parser ---
+    private val json = Json {
+        ignoreUnknownKeys = true
+    }
+    // --- END NEW ---
 
     init {
         // Service is now bound explicitly from MainActivity
@@ -579,6 +593,27 @@ class MainViewModel(
         return model
     }
 
+    // --- NEW: Function to fetch GitHub repos ---
+    fun fetchOwnedSources() {
+        viewModelScope.launch {
+            Log.d(TAG, "fetchOwnedSources: Fetching sources...")
+            val sourcesJson = JulesCliClient.listSources(getApplication())
+            if (sourcesJson != null) {
+                try {
+                    val response = json.decodeFromString<ListSourcesResponse>(sourcesJson)
+                    _ownedSources.value = response.sources
+                    Log.d(TAG, "fetchOwnedSources: Success. Found ${response.sources.size} sources.")
+                } catch (e: Exception) {
+                    Log.e(TAG, "fetchOwnedSources: Failed to parse JSON", e)
+                    _ownedSources.value = emptyList()
+                }
+            } else {
+                Log.e(TAG, "fetchOwnedSources: CLI command failed or returned null")
+                _ownedSources.value = emptyList()
+            }
+        }
+    }
+    // --- END NEW ---
 
 
     fun debugBuild() {

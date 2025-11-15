@@ -69,7 +69,10 @@ fun MainScreen(
     val isOnSettings = currentRoute == "settings"
     val isOnProjectSettings = currentRoute == "project_settings"
 
+    // --- FIX: Also track rail state for docking ---
     val isIdeVisible = sheetState.currentDetent != AlmostHidden || isOnSettings || isOnProjectSettings
+    // --- END FIX ---
+
     // --- End Visibility Logic ---
 
     // --- Tie Inspection State to Sheet State ---
@@ -79,11 +82,12 @@ fun MainScreen(
             viewModel.stopInspection(context)
         } else {
             // "Selection Mode"
-            // NEW: Only start inspection if we have permission.
-            // If not, permission will be requested by the button.
-            if (viewModel.hasScreenCapturePermission()) {
-                viewModel.startInspection(context)
-            }
+            // --- FIX: REMOVED PERMISSION CHECK ---
+            // The inspection service does not need screenshot permission
+            // to start. That permission is checked by the ViewModel
+            // *when a prompt is submitted*.
+            viewModel.startInspection(context)
+            // --- END FIX ---
         }
     }
 
@@ -98,6 +102,8 @@ fun MainScreen(
     val containerColor = Color.Transparent
 
     val handleActionClick = { action: () -> Unit ->
+        // --- FIX: Dock rail when switching to settings ---
+        // This was already correct, but the service bug made it seem broken.
         if (isOnSettings || isOnProjectSettings) {
             navController.navigate("main")
         }

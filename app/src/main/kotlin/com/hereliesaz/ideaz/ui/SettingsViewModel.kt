@@ -55,7 +55,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
         // New key for cancel warning
         const val KEY_SHOW_CANCEL_WARNING = "show_cancel_warning"
-        const val KEY_DARK_MODE = "dark_mode"
+
+        // --- NEW: Theme Keys ---
+        const val KEY_THEME_MODE = "theme_mode"
+        const val THEME_AUTO = "auto"
+        const val THEME_DARK = "dark"
+        const val THEME_LIGHT = "light"
+        const val THEME_SYSTEM = "system"
+        // --- END NEW ---
 
         // New key for log verbosity
         const val KEY_LOG_LEVEL = "log_level"
@@ -101,13 +108,27 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     // --- Theme ---
+
+    // This function is now deprecated, use getThemeMode()
     fun isDarkMode(): Boolean {
-        return sharedPreferences.getBoolean(KEY_DARK_MODE, true) // Default to true
+        return getThemeMode() == THEME_DARK
     }
 
+    // This function is now deprecated, use setThemeMode()
     fun setDarkMode(isDark: Boolean) {
-        sharedPreferences.edit().putBoolean(KEY_DARK_MODE, isDark).apply()
+        setThemeMode(if (isDark) THEME_DARK else THEME_LIGHT)
     }
+
+    // --- NEW: Theme Get/Set ---
+    fun getThemeMode(): String {
+        return sharedPreferences.getString(KEY_THEME_MODE, THEME_AUTO) ?: THEME_AUTO
+    }
+
+    fun setThemeMode(mode: String) {
+        sharedPreferences.edit().putString(KEY_THEME_MODE, mode).apply()
+    }
+    // --- END NEW ---
+
 
     // --- Log Verbosity ---
 

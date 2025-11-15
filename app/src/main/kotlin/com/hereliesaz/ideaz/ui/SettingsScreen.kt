@@ -49,7 +49,9 @@ fun SettingsScreen(
     val context = LocalContext.current
     var apiKey by remember { mutableStateOf(settingsViewModel.getApiKey() ?: "") }
     var googleApiKey by remember { mutableStateOf(settingsViewModel.getGoogleApiKey() ?: "") }
-    var isDarkMode by remember { mutableStateOf(settingsViewModel.isDarkMode()) }
+
+    // --- FIX: This is now controlled by the new ThemeDropdown ---
+    // var isDarkMode by remember { mutableStateOf(settingsViewModel.isDarkMode()) }
 
 
     // --- NEW: State for Cancel Warning ---
@@ -67,33 +69,33 @@ fun SettingsScreen(
                 .padding(all = 8.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-                Text("API Keys", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
-                Spacer(modifier = Modifier.height(16.dp))
+            Text("API Keys", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+            Spacer(modifier = Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
 
                 Text("Jules API Key", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
             }
-                // Jules API Key
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    AzTextBox(
-                        modifier = Modifier.fillMaxWidth(),
-                        value = apiKey,
-                        onValueChange = { apiKey = it },
-                        hint = "Jules API Key",
-                        secret = true,
-                        onSubmit = {
-                            settingsViewModel.saveApiKey(apiKey)
-                            Toast.makeText(context, "Jules Key Saved", Toast.LENGTH_SHORT).show()
-                        },
-                        submitButtonContent = { Text("Save") }
-                    )
-                }
-                Row(Modifier.width(60.dp) , verticalAlignment = Alignment.CenterVertically) {
-                    AzButton(onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://jules.google.com/settings"))
-                        context.startActivity(intent)
-                    }, text = "Get Key", shape = AzButtonShape.NONE)
-                }
+            // Jules API Key
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                AzTextBox(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = apiKey,
+                    onValueChange = { apiKey = it },
+                    hint = "Jules API Key",
+                    secret = true,
+                    onSubmit = {
+                        settingsViewModel.saveApiKey(apiKey)
+                        Toast.makeText(context, "Jules Key Saved", Toast.LENGTH_SHORT).show()
+                    },
+                    submitButtonContent = { Text("Save") }
+                )
+            }
+            Row(Modifier.width(60.dp) , verticalAlignment = Alignment.CenterVertically) {
+                AzButton(onClick = {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://jules.google.com/settings"))
+                    context.startActivity(intent)
+                }, text = "Get Key", shape = AzButtonShape.NONE)
+            }
 
             Row(Modifier.fillMaxWidth() , verticalAlignment = Alignment.CenterVertically) {
                 Spacer(modifier = Modifier.height(24.dp))
@@ -103,97 +105,87 @@ fun SettingsScreen(
 
                 Text("AI Studio API Key", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
             }
-                // Google AI Studio API Key
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    AzTextBox(
-                        modifier = Modifier.fillMaxWidth(),
-                        value = googleApiKey,
-                        onValueChange = { googleApiKey = it },
-                        hint = "AI Studio API Key",
-                        secret = true,
-                        onSubmit = {
-                            settingsViewModel.saveGoogleApiKey(googleApiKey)
-                            Toast.makeText(context, "AI Studio Key Saved", Toast.LENGTH_SHORT).show()
-                        },
-                        submitButtonContent = { Text("Save") }
-                    )}
-                    Row(Modifier.width(60.dp) , verticalAlignment = Alignment.CenterVertically) {
-                    AzButton(onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/api-keys"))
-                        context.startActivity(intent)
-                    }, text = "Get Key", shape = AzButtonShape.NONE)
-                }
+            // Google AI Studio API Key
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                AzTextBox(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = googleApiKey,
+                    onValueChange = { googleApiKey = it },
+                    hint = "AI Studio API Key",
+                    secret = true,
+                    onSubmit = {
+                        settingsViewModel.saveGoogleApiKey(googleApiKey)
+                        Toast.makeText(context, "AI Studio Key Saved", Toast.LENGTH_SHORT).show()
+                    },
+                    submitButtonContent = { Text("Save") }
+                )}
+            Row(Modifier.width(60.dp) , verticalAlignment = Alignment.CenterVertically) {
+                AzButton(onClick = {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/api-keys"))
+                    context.startActivity(intent)
+                }, text = "Get Key", shape = AzButtonShape.NONE)
+            }
 
             Row(Modifier.fillMaxWidth() , verticalAlignment = Alignment.CenterVertically) {
                 Spacer(modifier = Modifier.height(24.dp))
 
             }
-                Spacer(modifier = Modifier.height(24.dp))
-                Text("AI Assignments", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+            Spacer(modifier = Modifier.height(24.dp))
+            Text("AI Assignments", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
 
-                // Render dropdowns for each task
-                SettingsViewModel.aiTasks.forEach { (taskKey, taskName) ->
-                    var currentModelId by remember(taskKey) {
-                        mutableStateOf(settingsViewModel.getAiAssignment(taskKey) ?: AiModels.JULES_DEFAULT)
+            // Render dropdowns for each task
+            SettingsViewModel.aiTasks.forEach { (taskKey, taskName) ->
+                var currentModelId by remember(taskKey) {
+                    mutableStateOf(settingsViewModel.getAiAssignment(taskKey) ?: AiModels.JULES_DEFAULT)
+                }
+
+                AiAssignmentDropdown(
+                    label = taskName,
+                    selectedModelId = currentModelId,
+                    onModelSelected = { model ->
+                        currentModelId = model.id
+                        settingsViewModel.saveAiAssignment(taskKey, model.id)
                     }
-
-                    AiAssignmentDropdown(
-                        label = taskName,
-                        selectedModelId = currentModelId,
-                        onModelSelected = { model ->
-                            currentModelId = model.id
-                            settingsViewModel.saveAiAssignment(taskKey, model.id)
-                        }
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // --- NEW: Cancel Warning Checkbox ---
-                Text("Preferences", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(
-                        checked = showCancelWarning,
-                        onCheckedChange = {
-                            showCancelWarning = it
-                            settingsViewModel.setShowCancelWarning(it)
-                        }
-                    )
-                    Text("Show warning when cancelling AI task", color = MaterialTheme.colorScheme.onBackground)
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Dark Mode", color = MaterialTheme.colorScheme.onBackground)
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Switch(
-                        checked = isDarkMode,
-                        onCheckedChange = {
-                            isDarkMode = it
-                            settingsViewModel.setDarkMode(it)
-                            onThemeToggle(it)
-                        }
-                    )
-                }
-                // --- END NEW ---
-
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Text("Log Level", color = MaterialTheme.colorScheme.onBackground)
-                LogLevelDropdown(
-                    settingsViewModel = settingsViewModel
                 )
+                Spacer(modifier = Modifier.height(8.dp))
             }
+
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // --- NEW: Cancel Warning Checkbox ---
+            Text("Preferences", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = showCancelWarning,
+                    onCheckedChange = {
+                        showCancelWarning = it
+                        settingsViewModel.setShowCancelWarning(it)
+                    }
+                )
+                Text("Show warning when cancelling AI task", color = MaterialTheme.colorScheme.onBackground)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // --- FIX: Replaced Switch with ThemeDropdown ---
+            ThemeDropdown(
+                settingsViewModel = settingsViewModel,
+                onThemeToggle = onThemeToggle
+            )
+            // --- END FIX ---
+
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text("Log Level", color = MaterialTheme.colorScheme.onBackground)
+            LogLevelDropdown(
+                settingsViewModel = settingsViewModel
+            )
+        }
     }
 }
 
@@ -287,3 +279,59 @@ fun LogLevelDropdown(
         }
     }
 }
+
+// --- NEW: Theme Dropdown Composable ---
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ThemeDropdown(
+    settingsViewModel: SettingsViewModel,
+    onThemeToggle: (Boolean) -> Unit
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    var selectedMode by remember { mutableStateOf(settingsViewModel.getThemeMode()) }
+
+    val themeOptions = mapOf(
+        SettingsViewModel.THEME_AUTO to "Automatic",
+        SettingsViewModel.THEME_DARK to "Dark Mode",
+        SettingsViewModel.THEME_LIGHT to "Light Mode",
+        SettingsViewModel.THEME_SYSTEM to "Match System"
+    )
+
+    ExposedDropdownMenuBox(
+        expanded = isExpanded,
+        onExpandedChange = { isExpanded = it }
+    ) {
+        TextField(
+            value = themeOptions[selectedMode] ?: "Automatic",
+            onValueChange = { },
+            readOnly = true,
+            label = { Text("Theme") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) },
+            colors = ExposedDropdownMenuDefaults.textFieldColors(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor()
+        )
+
+        ExposedDropdownMenu(
+            expanded = isExpanded,
+            onDismissRequest = { isExpanded = false }
+        ) {
+            themeOptions.forEach { (key, value) ->
+                DropdownMenuItem(
+                    text = { Text(value) },
+                    onClick = {
+                        selectedMode = key
+                        settingsViewModel.setThemeMode(key)
+                        // Trigger a theme refresh in MainActivity, letting it handle the logic
+                        // We just pass 'true' to trigger a recomposition, MainActivity will
+                        // read the new setting and apply it.
+                        onThemeToggle(true)
+                        isExpanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+// --- END NEW ---

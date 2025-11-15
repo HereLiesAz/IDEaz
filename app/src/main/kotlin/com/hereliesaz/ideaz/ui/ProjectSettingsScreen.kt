@@ -59,7 +59,13 @@ fun ProjectSettingsScreen(
     // State for "Clone" tab
     var cloneUrl by remember { mutableStateOf("") }
     val projectList = settingsViewModel.getProjectList()
-    val ownedSources = emptyList<Source>()
+
+    // --- FIX: Observe sources from ViewModel ---
+    val ownedSources by viewModel.ownedSources.collectAsState()
+    LaunchedEffect(Unit) {
+        viewModel.fetchOwnedSources()
+    }
+    // --- END FIX ---
 
     // State for "Load" tab
     val loadableProjects = projectList.toList()
@@ -73,140 +79,140 @@ fun ProjectSettingsScreen(
                 .padding(all = 8.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-                TabRow(selectedTabIndex = tabIndex) {
-                    tabs.forEachIndexed { index, title ->
-                        Tab(text = { Text(title, color = MaterialTheme.colorScheme.onBackground) },
-                            selected = tabIndex == index,
-                            onClick = { tabIndex = index }
-                        )
-                    }
+            TabRow(selectedTabIndex = tabIndex) {
+                tabs.forEachIndexed { index, title ->
+                    Tab(text = { Text(title, color = MaterialTheme.colorScheme.onBackground) },
+                        selected = tabIndex == index,
+                        onClick = { tabIndex = index }
+                    )
                 }
+            }
 
-                Column {
-                    when (tabIndex) {
-                        // --- CREATE TAB ---
-                        0 -> Column(modifier = Modifier.padding(top = 16.dp)) {
-                            Text("Create or Update Project", color = MaterialTheme.colorScheme.onBackground)
-                            Spacer(modifier = Modifier.height(16.dp))
-                            AzForm(
-                                modifier = Modifier.fillMaxWidth(),
-                                formName = "Project Configuration",
-                                submitButtonContent = { Text("Build") },
-                                onSubmit = { formData ->
-                                    // If user leaves a field blank, use the existing value from state
-                                    val finalAppName = formData["appName"]?.takeIf { it.isNotBlank() } ?: appName
-                                    val finalGithubUser = formData["githubUser"]?.takeIf { it.isNotBlank() } ?: githubUser
-                                    val finalBranchName = formData["branchName"]?.takeIf { it.isNotBlank() } ?: branchName
-                                    val finalPackageName = formData["packageName"]?.takeIf { it.isNotBlank() } ?: packageName
-                                    val initialPromptValue = formData["initialPrompt"] ?: ""
+            Column {
+                when (tabIndex) {
+                    // --- CREATE TAB ---
+                    0 -> Column(modifier = Modifier.padding(top = 16.dp)) {
+                        Text("Create or Update Project", color = MaterialTheme.colorScheme.onBackground)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        AzForm(
+                            modifier = Modifier.fillMaxWidth(),
+                            formName = "Project Configuration",
+                            submitButtonContent = { Text("Build") },
+                            onSubmit = { formData ->
+                                // If user leaves a field blank, use the existing value from state
+                                val finalAppName = formData["appName"]?.takeIf { it.isNotBlank() } ?: appName
+                                val finalGithubUser = formData["githubUser"]?.takeIf { it.isNotBlank() } ?: githubUser
+                                val finalBranchName = formData["branchName"]?.takeIf { it.isNotBlank() } ?: branchName
+                                val finalPackageName = formData["packageName"]?.takeIf { it.isNotBlank() } ?: packageName
+                                val initialPromptValue = formData["initialPrompt"] ?: ""
 
-                                    // Update state with the new values so hints are correct on recomposition
-                                    appName = finalAppName
-                                    githubUser = finalGithubUser
-                                    branchName = finalBranchName
-                                    packageName = finalPackageName
+                                // Update state with the new values so hints are correct on recomposition
+                                appName = finalAppName
+                                githubUser = finalGithubUser
+                                branchName = finalBranchName
+                                packageName = finalPackageName
 
-                                    settingsViewModel.saveProjectConfig(finalAppName, finalGithubUser, finalBranchName)
-                                    settingsViewModel.saveTargetPackageName(finalPackageName)
-                                    Toast.makeText(context, "Project saved. Starting build...", Toast.LENGTH_SHORT).show()
-                                    viewModel.sendPrompt(initialPromptValue, isInitialization = true)
-                                }
-                            ){
-                                entry(entryName = "appName", hint = "App Name (Current: $appName)", multiline = false, secret = false)
-                                entry(entryName = "githubUser", hint = "Github User (Current: $githubUser)", multiline = false, secret = false)
-                                entry(entryName = "branchName", hint = "Branch (Current: $branchName)", multiline = false, secret = false)
-                                entry(entryName = "packageName", hint = "Package (Current: $packageName)", multiline = false, secret = false)
-                                entry(entryName = "initialPrompt", hint = "Describe your app.", multiline = true, secret = false)
+                                settingsViewModel.saveProjectConfig(finalAppName, finalGithubUser, finalBranchName)
+                                settingsViewModel.saveTargetPackageName(finalPackageName)
+                                Toast.makeText(context, "Project saved. Starting build...", Toast.LENGTH_SHORT).show()
+                                viewModel.sendPrompt(initialPromptValue, isInitialization = true)
                             }
+                        ){
+                            entry(entryName = "appName", hint = "App Name (Current: $appName)", multiline = false, secret = false)
+                            entry(entryName = "githubUser", hint = "Github User (Current: $githubUser)", multiline = false, secret = false)
+                            entry(entryName = "branchName", hint = "Branch (Current: $branchName)", multiline = false, secret = false)
+                            entry(entryName = "packageName", hint = "Package (Current: $packageName)", multiline = false, secret = false)
+                            entry(entryName = "initialPrompt", hint = "Describe your app.", multiline = true, secret = false)
+                        }
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
+                        AzButton(onClick = {
+                            // This just builds and installs the current template project
+                            // It's the "first APK"
+                            viewModel.startBuild(context)
+                            Toast.makeText(context, "Building template...", Toast.LENGTH_SHORT).show()
+                        }, text = "Templation", shape = AzButtonShape.NONE)
+                    }
+
+                    // --- CLONE TAB ---
+                    1 -> Column(modifier = Modifier.padding(top = 16.dp)) {
+                        Text("Fork External Repo (Not Supported)", color = MaterialTheme.colorScheme.onBackground)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            AzTextBox(
+                                value = cloneUrl,
+                                onValueChange = { cloneUrl = it },
+                                modifier = Modifier.weight(1f),
+                                submitButtonContent = { Text("Clone") },
+                                hint = "https://github.com/user/repo",
+                                onSubmit = {}
+                            )
                             AzButton(onClick = {
-                                // This just builds and installs the current template project
-                                // It's the "first APK"
-                                viewModel.startBuild(context)
-                                Toast.makeText(context, "Building template...", Toast.LENGTH_SHORT).show()
-                            }, text = "Templation", shape = AzButtonShape.NONE)
+                                val currentUser = settingsViewModel.getGithubUser()
+                                var owner: String? = null
+                                try {
+                                    val path = URL(cloneUrl).path.removePrefix("/").removeSuffix(".git")
+                                    owner = path.split("/").getOrNull(0)
+                                } catch (e: Exception) { /* Malformed URL */ }
+
+                                if (owner != null && owner == currentUser) {
+                                    Toast.makeText(context, "This is your repo. Select it from the list below or the 'Load' tab.", Toast.LENGTH_LONG).show()
+                                } else {
+                                    Toast.makeText(context, "Forking is not supported. Please fork on GitHub and register the forked repo with Jules first.", Toast.LENGTH_LONG).show()
+                                }
+                            }, text = "Fork")
                         }
 
-                        // --- CLONE TAB ---
-                        1 -> Column(modifier = Modifier.padding(top = 16.dp)) {
-                            Text("Fork External Repo (Not Supported)", color = MaterialTheme.colorScheme.onBackground)
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                AzTextBox(
-                                    value = cloneUrl,
-                                    onValueChange = { cloneUrl = it },
-                                    modifier = Modifier.weight(1f),
-                                    submitButtonContent = { Text("Clone") },
-                                    hint = "https://github.com/user/repo",
-                                    onSubmit = {}
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text("Your Available Repositories", color = MaterialTheme.colorScheme.onBackground)
+                        if (ownedSources.isEmpty()) {
+                            Text("No other repositories found on your Jules account.", color = MaterialTheme.colorScheme.onBackground)
+                        } else {
+                            ownedSources.forEach { source ->
+                                val repo = source.githubRepo!!
+                                AzButton(
+                                    onClick = {
+                                        appName = repo.repo
+                                        githubUser = repo.owner
+                                        branchName = repo.defaultBranch.displayName
+                                        Toast.makeText(context, "Config loaded. Go to 'Create' tab to save.", Toast.LENGTH_LONG).show()
+                                        tabIndex = 0 // Switch to Create tab
+                                    },
+                                    text = "${repo.owner}/${repo.repo} (Branch: ${repo.defaultBranch.displayName})",
+                                    modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth()
                                 )
-                                AzButton(onClick = {
-                                    val currentUser = settingsViewModel.getGithubUser()
-                                    var owner: String? = null
-                                    try {
-                                        val path = URL(cloneUrl).path.removePrefix("/").removeSuffix(".git")
-                                        owner = path.split("/").getOrNull(0)
-                                    } catch (e: Exception) { /* Malformed URL */ }
-
-                                    if (owner != null && owner == currentUser) {
-                                        Toast.makeText(context, "This is your repo. Select it from the list below or the 'Load' tab.", Toast.LENGTH_LONG).show()
-                                    } else {
-                                        Toast.makeText(context, "Forking is not supported. Please fork on GitHub and register the forked repo with Jules first.", Toast.LENGTH_LONG).show()
-                                    }
-                                }, text = "Fork")
-                            }
-
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Text("Your Available Repositories", color = MaterialTheme.colorScheme.onBackground)
-                            if (ownedSources.isEmpty()) {
-                                Text("No other repositories found on your Jules account.", color = MaterialTheme.colorScheme.onBackground)
-                            } else {
-                                ownedSources.forEach { source ->
-                                    val repo = source.githubRepo!!
-                                    AzButton(
-                                        onClick = {
-                                            appName = repo.repo
-                                            githubUser = repo.owner
-                                            branchName = repo.defaultBranch.displayName
-                                            Toast.makeText(context, "Config loaded. Go to 'Create' tab to save.", Toast.LENGTH_LONG).show()
-                                            tabIndex = 0 // Switch to Create tab
-                                        },
-                                        text = "${repo.owner}/${repo.repo} (Branch: ${repo.defaultBranch.displayName})",
-                                        modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth()
-                                    )
-                                }
                             }
                         }
+                    }
 
-                        // --- LOAD TAB ---
-                        1 -> Column(modifier = Modifier.padding(top = 16.dp)) {
-                            Text("Load Saved Project", color = MaterialTheme.colorScheme.onBackground)
-                            Spacer(modifier = Modifier.height(16.dp))
+                    // --- LOAD TAB ---
+                    2 -> Column(modifier = Modifier.padding(top = 16.dp)) { // --- FIX: This was incorrectly index 1 ---
+                        Text("Load Saved Project", color = MaterialTheme.colorScheme.onBackground)
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                            if (loadableProjects.isEmpty()) {
-                                Text("No saved projects found.", color = MaterialTheme.colorScheme.onBackground)
-                            } else {
-                                loadableProjects.forEach { projectString ->
-                                    AzButton(
-                                        onClick = {
-                                            val parts = projectString.split("/")
-                                            if (parts.size == 2) {
-                                                githubUser = parts[0]
-                                                appName = parts[1]
-                                                 branchName = settingsViewModel.getBranchName() // Load saved branch
-                                                Toast.makeText(context, "Config loaded. Go to 'Create' tab to save or build.", Toast.LENGTH_LONG).show()
-                                                tabIndex = 0 // Switch to Create tab
-                                            }
-                                        },
-                                        text = projectString,
-                                        modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth()
-                                    )
-                                }
+                        if (loadableProjects.isEmpty()) {
+                            Text("No saved projects found.", color = MaterialTheme.colorScheme.onBackground)
+                        } else {
+                            loadableProjects.forEach { projectString ->
+                                AzButton(
+                                    onClick = {
+                                        val parts = projectString.split("/")
+                                        if (parts.size == 2) {
+                                            githubUser = parts[0]
+                                            appName = parts[1]
+                                            branchName = settingsViewModel.getBranchName() // Load saved branch
+                                            Toast.makeText(context, "Config loaded. Go to 'Create' tab to save or build.", Toast.LENGTH_LONG).show()
+                                            tabIndex = 0 // Switch to Create tab
+                                        }
+                                    },
+                                    text = projectString,
+                                    modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth()
+                                )
                             }
                         }
                     }
                 }
             }
+        }
     }
 }

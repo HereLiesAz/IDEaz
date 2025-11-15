@@ -15,6 +15,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -130,8 +131,18 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
-            var isDarkMode by remember { mutableStateOf(viewModel.settingsViewModel.isDarkMode()) }
-            IDEazTheme(darkTheme = isDarkMode) {
+            // --- FIX: Theme resolution logic ---
+            var trigger by remember { mutableStateOf(true) } // Used to force recomposition
+
+            val useDarkTheme = when (viewModel.settingsViewModel.getThemeMode()) {
+                SettingsViewModel.THEME_LIGHT -> false
+                SettingsViewModel.THEME_DARK -> true
+                SettingsViewModel.THEME_SYSTEM -> isSystemInDarkTheme()
+                SettingsViewModel.THEME_AUTO -> isSystemInDarkTheme() // Fallback for now
+                else -> isSystemInDarkTheme()
+            }
+
+            IDEazTheme(darkTheme = useDarkTheme) {
                 MainScreen(
                     viewModel = viewModel,
                     onRequestScreenCapture = {
@@ -139,9 +150,10 @@ class MainActivity : ComponentActivity() {
                         mediaProjectionManager?.createScreenCaptureIntent()
                             ?.let { screenCaptureLauncher.launch(it) }
                     },
-                    onThemeToggle = { isDarkMode = it }
+                    onThemeToggle = { trigger = !trigger } // Just flip the trigger
                 )
             }
+            // --- END FIX ---
         }
         Log.d(TAG, "onCreate: End")
     }

@@ -1,98 +1,81 @@
 package com.hereliesaz.ideaz.utils
 
 import android.content.Context
-import android.os.Build
 import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 
 enum class ToolType {
-    NATIVE_BINARY, // For .so files in jniLibs, which are executable by the OS
-    ASSET_FILE     // For regular files in assets (e.g., jars, keystores) that need to be extracted
+    NATIVE, // Executable binary in jniLibs
+    ASSET   // File in assets (like .jar or .keystore)
 }
 
-data class Tool(
-    val name: String,
-    val type: ToolType,
-    val assetPath: String // Path within assets, or just the name for native binaries
-)
+data class ToolInfo(val path: String, val type: ToolType)
 
 object ToolManager {
 
     private const val TAG = "ToolManager"
 
-    // Central registry for all required tools.
-    // All executables are now NATIVE_BINARY and will be loaded from jniLibs.
-    // Non-executable files remain as ASSET_FILEs.
-    private val tools = mapOf(
-        "jules" to Tool("jules", ToolType.NATIVE_BINARY, "libjules.so"),
-        "aapt2" to Tool("aapt2", ToolType.NATIVE_BINARY, "libaapt2.so"),
-        "kotlinc" to Tool("kotlinc", ToolType.NATIVE_BINARY, "libkotlinc.so"),
-        "d8" to Tool("d8", ToolType.NATIVE_BINARY, "libd8.so"),
-        "apksigner" to Tool("apksigner", ToolType.NATIVE_BINARY, "libapksigner.so"),
-        "java" to Tool("java", ToolType.NATIVE_BINARY, "libjava.so"),
-        "debug.keystore" to Tool("debug.keystore", ToolType.ASSET_FILE, "debug.keystore"),
-        "android.jar" to Tool("android.jar", ToolType.ASSET_FILE, "android.jar")
+    private val toolNameMap = mapOf(
+        // NATIVE BINARIES (must be in jniLibs/arm64-v8a and renamed to lib<name>.so)
+        "aapt2" to ToolInfo("aapt2", ToolType.NATIVE),
+        "java" to ToolInfo("java", ToolType.NATIVE),
+        "jules" to ToolInfo("jules", ToolType.NATIVE),
+
+        // ASSET FILES (will be copied from assets/ into filesDir)
+        "d8" to ToolInfo("tools/d8.jar", ToolType.ASSET),
+        "apksigner" to ToolInfo("tools/apksigner.jar", ToolType.ASSET),
+        "kotlinc" to ToolInfo("tools/kotlin-compiler.jar", ToolType.ASSET),
+        "android.jar" to ToolInfo("android.jar", ToolType.ASSET),
+        "debug.keystore" to ToolInfo("debug.keystore", ToolType.ASSET)
     )
 
     fun getToolPath(context: Context, toolName: String): String? {
-        val tool = tools[toolName]
-        if (tool == null) {
-            Log.e(TAG, "Tool '$toolName' is not defined in the ToolManager registry.")
+        val toolInfo = toolNameMap[toolName] ?: run {
+            Log.e(TAG, "Tool not found in map: $toolName")
             return null
         }
 
-        return when (tool.type) {
-            ToolType.NATIVE_BINARY -> findNativeBinary(context, tool)
-            ToolType.ASSET_FILE -> extractAndGetAssetPath(context, tool)
+        return when (toolInfo.type) {
+            ToolType.NATIVE -> getNativeToolPath(context, toolInfo.path)
+            ToolType.ASSET -> getAssetToolPath(context, toolInfo.path)
         }
     }
 
-    private fun findNativeBinary(context: Context, tool: Tool): String? {
+    private fun getNativeToolPath(context: Context, toolName: String): String? {
         val nativeLibDir = context.applicationInfo.nativeLibraryDir
-        Log.d(TAG, "Searching for NATIVE tool '${tool.name}' in: $nativeLibDir")
+        val libName = "lib${toolName}.so"
+        val toolFile = File(nativeLibDir, libName)
 
-        val supportedAbis = Build.SUPPORTED_ABIS
-        for (abi in supportedAbis) {
-            val file = File(nativeLibDir, "$abi/lib${tool.name}.so")
-            if (file.exists() && file.canExecute()) {
-                Log.d(TAG, "Found NATIVE tool at: ${file.absolutePath}")
-                return file.absolutePath
-            }
+        // Try primary path
+        if (toolFile.exists()) {
+            if (!toolFile.canExecute()) toolFile.setExecutable(true)
+            return toolFile.absolutePath
         }
 
-        val fallbackFile = File(nativeLibDir, "lib${tool.name}.so")
-        if (fallbackFile.exists() && fallbackFile.canExecute()) {
-            Log.d(TAG, "Found NATIVE tool at fallback path: ${fallbackFile.absolutePath}")
-            return fallbackFile.absolutePath
-        }
-
-        Log.e(TAG, "NATIVE tool '${tool.name}' not found or not executable in $nativeLibDir.")
+        Log.e(TAG, "NATIVE tool '$toolName' (expected $libName) not found in $nativeLibDir.")
         return null
     }
 
-    private fun extractAndGetAssetPath(context: Context, tool: Tool): String? {
-        val toolFile = File(context.filesDir, tool.name)
-        Log.d(TAG, "Searching for ASSET tool '${tool.name}' at: ${toolFile.absolutePath}")
+    private fun getAssetToolPath(context: Context, assetPath: String): String? {
+        val destFile = File(context.filesDir, assetPath)
 
-        if (toolFile.exists()) {
-            Log.d(TAG, "ASSET tool '${tool.name}' already exists.")
-            return toolFile.absolutePath
-        }
-
-        Log.d(TAG, "ASSET tool '${tool.name}' not found, extracting from assets...")
+        // --- CHANGED: Always overwrite ASSET tools ---
+        // This ensures that if you update the file in assets, the app actually uses it
+        // instead of the stale version in internal storage.
         try {
-            context.assets.open(tool.assetPath).use { inputStream ->
-                FileOutputStream(toolFile).use { outputStream ->
+            destFile.parentFile?.mkdirs()
+            context.assets.open(assetPath).use { inputStream ->
+                FileOutputStream(destFile).use { outputStream ->
                     inputStream.copyTo(outputStream)
                 }
             }
-            // Note: We do not set executable flag here, as these are not meant to be executed.
-            Log.d(TAG, "ASSET tool '${tool.name}' extracted successfully to ${toolFile.absolutePath}")
-            return toolFile.absolutePath
+            // Set executable if it's a script (though we mostly use jars here)
+            destFile.setExecutable(true)
+            return destFile.absolutePath
         } catch (e: IOException) {
-            Log.e(TAG, "Failed to extract ASSET tool '${tool.name}' from assets.", e)
+            Log.e(TAG, "Failed to extract ASSET tool: $assetPath", e)
             return null
         }
     }
