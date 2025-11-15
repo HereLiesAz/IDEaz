@@ -145,7 +145,8 @@ class BuildService : Service() {
                 Aapt2Compile(aapt2Path!!, resDir, compiledResDir),
                 Aapt2Link(aapt2Path!!, compiledResDir, androidJarPath!!, manifestPath, outputApkPath, outputJavaPath),
                 KotlincCompile(kotlincPath!!, androidJarPath!!, javaDir, File(classesDir), classpath, javaPath!!),
-                D8Compile(d8Path!!, androidJarPath!!, classesDir, classesDir, classpath),
+                // FIX: Pass javaPath to D8Compile
+                D8Compile(javaPath!!, d8Path!!, androidJarPath!!, classesDir, classesDir, classpath),
                 ApkBuild(finalApkPath, outputApkPath, classesDir),
                 ApkSign(apkSignerPath!!, keystorePath!!, keystorePass, keyAlias, finalApkPath)
             )

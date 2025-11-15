@@ -5,6 +5,7 @@ import com.hereliesaz.ideaz.utils.ProcessExecutor
 import java.io.File
 
 class D8Compile(
+    private val javaPath: String, // FIX: Add javaPath
     private val d8Path: String,
     private val androidJarPath: String,
     private val classesDir: String,
@@ -21,7 +22,7 @@ class D8Compile(
         val classFiles = File(classesDir).walk().filter { it.isFile && it.extension == "class" }.map { it.absolutePath }.toList()
 
         val command = mutableListOf(
-            "java",
+            javaPath, // FIX: Use javaPath instead of "java"
             "-jar",
             d8Path,
             "--output",

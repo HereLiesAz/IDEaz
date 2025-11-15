@@ -65,4 +65,11 @@ object JulesCliClient {
         val command = "patch pull $sessionId"
         return executeCommand(context, command)
     }
+
+    // --- NEW: Function to list available GitHub repos ---
+    fun listSources(context: Context): String? {
+        val command = "source list --format=json"
+        return executeCommand(context, command)
+    }
+    // --- END NEW ---
 }
