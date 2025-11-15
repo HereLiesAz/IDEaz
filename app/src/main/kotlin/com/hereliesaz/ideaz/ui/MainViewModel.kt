@@ -349,6 +349,28 @@ class MainViewModel(
         }
     }
 
+    // --- NEW: Clear Cache Function ---
+    fun clearBuildCaches(context: Context) {
+        viewModelScope.launch {
+            _buildLog.value += "[INFO] Clearing build caches...\n"
+            try {
+                val buildDir = File(context.filesDir, "build")
+                val cacheDir = File(context.filesDir, "cache")
+                val repoDir = File(context.filesDir, "local-repo")
+
+                if (buildDir.exists()) buildDir.deleteRecursively()
+                if (cacheDir.exists()) cacheDir.deleteRecursively()
+                if (repoDir.exists()) repoDir.deleteRecursively()
+
+                _buildLog.value += "[INFO] Build caches cleared successfully.\n"
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to clear caches", e)
+                _buildLog.value += "[INFO] Error clearing caches: ${e.message}\n"
+            }
+        }
+    }
+    // --- END NEW ---
+
     // --- CONTEXTLESS AI (Global Log) ---
     fun sendPrompt(prompt: String?, isInitialization: Boolean = false) {
         Log.d(TAG, "sendPrompt called with prompt: '$prompt', isInitialization: $isInitialization")

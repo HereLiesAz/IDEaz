@@ -81,11 +81,13 @@ class BuildService : Service() {
     private fun startBuild(projectPath: String, callback: IBuildCallback) {
         val projectDir = File(projectPath)
         val buildDir = File(filesDir, "build")
-        buildDir.deleteRecursively()
+        // --- FIX: Logic moved to MainViewModel ---
+        // buildDir.deleteRecursively()
         buildDir.mkdirs()
 
         val cacheDir = File(filesDir, "cache")
         cacheDir.mkdirs()
+        // --- END FIX ---
 
         // Dependency Resolution
         val localRepoDir = File(filesDir, "local-repo")
@@ -110,7 +112,7 @@ class BuildService : Service() {
         val androidJarPath = ToolManager.getToolPath(this, "android.jar")
         val javaPath = ToolManager.getToolPath(this, "java")
 
-        // --- NEW: Null check for tool paths ---
+
         val requiredTools = mapOf(
             "aapt2" to aapt2Path,
             "kotlinc" to kotlincPath,
@@ -127,7 +129,6 @@ class BuildService : Service() {
                 return
             }
         }
-        // All paths are guaranteed to be non-null after this point.
 
         // Build Directories
         val compiledResDir = File(buildDir, "compiled_res").absolutePath
@@ -143,12 +144,12 @@ class BuildService : Service() {
             listOf(
                 GenerateSourceMap(File(resDir), buildDir, cacheDir),
                 Aapt2Compile(aapt2Path!!, resDir, compiledResDir),
+                // --- FIX: Pass androidJarPath back to Aapt2Link ---
                 Aapt2Link(aapt2Path!!, compiledResDir, androidJarPath!!, manifestPath, outputApkPath, outputJavaPath),
                 KotlincCompile(kotlincPath!!, androidJarPath!!, javaDir, File(classesDir), classpath, javaPath!!),
-                // FIX: Pass javaPath to D8Compile
                 D8Compile(javaPath!!, d8Path!!, androidJarPath!!, classesDir, classesDir, classpath),
                 ApkBuild(finalApkPath, outputApkPath, classesDir),
-                ApkSign(apkSignerPath!!, keystorePath!!, keystorePass, keyAlias, finalApkPath)
+                ApkSign(javaPath!!, apkSignerPath!!, keystorePath!!, keystorePass, keyAlias, finalApkPath)
             )
         )
 

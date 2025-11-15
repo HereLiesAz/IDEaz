@@ -1,53 +1,41 @@
 package com.hereliesaz.ideaz.ui
 
-import android.util.Log
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.hereliesaz.ideaz.api.Activity
-import com.hereliesaz.ideaz.api.Session
-import com.hereliesaz.ideaz.api.Source
-
-private const val TAG = "IdeNavHost"
+import com.hereliesaz.ideaz.MainApplication
 
 @Composable
 fun IdeNavHost(
     modifier: Modifier = Modifier,
     navController: NavHostController,
     viewModel: MainViewModel,
-    settingsViewModel: SettingsViewModel, // Add this
+    settingsViewModel: SettingsViewModel,
     onThemeToggle: (Boolean) -> Unit
 ) {
-    Log.d(TAG, "IdeNavHost: Composing")
-    Log.d(TAG, "IdeNavHost: MainViewModel hash: ${viewModel.hashCode()}")
-    Log.d(TAG, "IdeNavHost: SettingsViewModel hash: ${settingsViewModel.hashCode()}")
-
     NavHost(
         navController = navController,
         startDestination = "main",
         modifier = modifier
     ) {
         composable("main") {
-            // Main content is now just the log view
+            // --- FIX: Update call to match LiveOutputBottomCard's new signature ---
+            LiveOutputBottomCard(
+                logStream = viewModel.filteredLog
+                // bottomPadding = 0.dp // This will use the default
+            )
+            // --- END FIX ---
         }
         composable("settings") {
-            // Pass the settingsViewModel down
             SettingsScreen(
-                onThemeToggle = onThemeToggle,
-                settingsViewModel = settingsViewModel
+                viewModel = viewModel,
+                settingsViewModel = settingsViewModel,
+                onThemeToggle = onThemeToggle
             )
         }
         composable("project_settings") {
-            // Pass the settingsViewModel down
             ProjectSettingsScreen(
                 viewModel = viewModel,
                 settingsViewModel = settingsViewModel

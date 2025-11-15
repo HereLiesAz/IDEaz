@@ -39,10 +39,10 @@ private const val TAG = "SettingsScreen"
 
 @Composable
 fun SettingsScreen(
+    viewModel: MainViewModel, // <-- MODIFIED: Added MainViewModel
     settingsViewModel: SettingsViewModel,
     onThemeToggle: (Boolean) -> Unit
 ) {
-    Log.d(TAG, "SettingsScreen: Composing")
     Log.d(TAG, "SettingsScreen: Composing")
     Log.d(TAG, "SettingsScreen: SettingsViewModel hash: ${settingsViewModel.hashCode()}")
 
@@ -185,6 +185,21 @@ fun SettingsScreen(
             LogLevelDropdown(
                 settingsViewModel = settingsViewModel
             )
+
+            // --- NEW: Clear Cache Button ---
+            Spacer(modifier = Modifier.height(24.dp))
+            Text("Debug", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+            Spacer(modifier = Modifier.height(16.dp))
+            AzButton(
+                onClick = {
+                    viewModel.clearBuildCaches(context)
+                    Toast.makeText(context, "Build caches cleared", Toast.LENGTH_SHORT).show()
+                },
+                text = "Clear Build Caches",
+                shape = AzButtonShape.RECTANGLE,
+                modifier = Modifier.fillMaxWidth()
+            )
+            // --- END NEW ---
         }
     }
 }

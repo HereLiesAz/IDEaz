@@ -73,7 +73,8 @@ object ToolManager {
         val destFile = File(context.filesDir, assetPath)
         Log.d(TAG, "Searching for ASSET tool '$assetPath' at: ${destFile.absolutePath}")
 
-        // Always overwrite assets to ensure the latest version is used
+        // --- FIX: Always overwrite assets ---
+        // This ensures your real android.jar (API 36) is used.
         try {
             destFile.parentFile?.mkdirs()
 
