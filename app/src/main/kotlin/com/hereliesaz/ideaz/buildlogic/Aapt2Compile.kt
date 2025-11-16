@@ -8,7 +8,7 @@ class Aapt2Compile(
     private val aapt2Path: String,
     private val resDir: String,
     private val compiledResDir: String,
-    // --- ADDED SDK versions ---
+    // --- We accept these from BuildService but WILL NOT use them ---
     private val minSdk: Int,
     private val targetSdk: Int
 ) : BuildStep {
@@ -19,15 +19,15 @@ class Aapt2Compile(
             compiledResDirFile.mkdirs()
         }
 
+        // --- FIX: Removed all flags not supported by the aapt2 compile help output ---
         val command = listOf(
             aapt2Path,
             "compile",
             "--dir", resDir,
-            "-o", compiledResDir,
-            // --- ADDED Flags ---
-            "--min-sdk-version", minSdk.toString(),
-            "--target-sdk-version", targetSdk.toString()
+            "-o", compiledResDir
         )
+        // --- END FIX ---
+
         val processResult = ProcessExecutor.execute(command)
         return BuildResult(processResult.exitCode == 0, processResult.output)
     }
