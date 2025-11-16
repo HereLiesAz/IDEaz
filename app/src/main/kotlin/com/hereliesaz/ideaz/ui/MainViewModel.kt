@@ -14,7 +14,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.IBuildService
-import com.hereliesaz.ideaz.api.JulesCliClient
+import com.hereliesaz.ideaz.jules.JulesApiClient
 import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.services.BuildService
 import kotlinx.coroutines.flow.*
@@ -35,7 +35,6 @@ import com.hereliesaz.ideaz.utils.ToolManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
-import org.json.JSONObject
 
 class MainViewModel(
     application: Application,
@@ -403,23 +402,24 @@ class MainViewModel(
 
             when (model.id) {
                 AiModels.JULES_DEFAULT -> {
-                    Log.d(TAG, "Using Jules CLI for contextless prompt")
+                    Log.d(TAG, "Using Jules API for contextless prompt")
                     try {
                         val appName = settingsViewModel.getAppName() ?: ""
                         val githubUser = settingsViewModel.getGithubUser() ?: ""
-                        val source = "github/$githubUser/$appName"
-                        val promptText = prompt ?: ""
-                        val sessionJson = JulesCliClient.createSession(getApplication(), promptText, source)
-
-                        if (sessionJson != null) {
-                            val jsonObject = JSONObject(sessionJson)
-                            val sessionId = jsonObject.getString("name") // e.g. "sessions/12345"
-                            _buildLog.value += "[DEBUG] Jules session created: $sessionId\n"
-                            _buildLog.value += "[INFO] AI Status: Session created. Waiting for patch...\n"
-                            pollForPatch(sessionId, _buildLog)
-                        } else {
-                            _buildLog.value += "[INFO] AI Status: Error: Could not create session.\n"
-                        }
+                        val source = "sources/github/${githubUser}/${appName}"
+                        val request = com.hereliesaz.ideaz.jules.CreateSessionRequest(
+                            prompt = prompt ?: "",
+                            sourceContext = com.hereliesaz.ideaz.jules.SourceContext(
+                                source = source,
+                                githubRepoContext = com.hereliesaz.ideaz.jules.GithubRepoContext(
+                                    startingBranch = "main"
+                                )
+                            )
+                        )
+                        val session = JulesApiClient.createSession(request)
+                        _buildLog.value += "[DEBUG] Jules session created: ${session.name}\n"
+                        _buildLog.value += "[INFO] AI Status: Session created. Waiting for patch...\n"
+                        pollForPatch(session.id, _buildLog)
                     } catch (e: Exception) {
                         Log.e(TAG, "Error creating Jules session", e)
                         _buildLog.value += "[INFO] AI Status: Error: ${e.message}\n"
@@ -477,22 +477,23 @@ class MainViewModel(
         contextualTaskJob = viewModelScope.launch {
             when (model.id) {
                 AiModels.JULES_DEFAULT -> {
-                    Log.d(TAG, "Using Jules CLI for overlay task")
+                    Log.d(TAG, "Using Jules API for overlay task")
                     try {
                         val appName = settingsViewModel.getAppName() ?: ""
                         val githubUser = settingsViewModel.getGithubUser() ?: ""
-                        val source = "github/$githubUser/$appName"
-                        val sessionJson = JulesCliClient.createSession(getApplication(), richPrompt, source)
-
-                        if (sessionJson != null) {
-                            val jsonObject = JSONObject(sessionJson)
-                            val sessionId = jsonObject.getString("name") // e.g. "sessions/12345"
-                            logToOverlay("Session created: $sessionId. Waiting for patch...")
-                            pollForPatch(sessionId, "OVERLAY")
-                        } else {
-                            logToOverlay("Error: Could not create session.")
-                            logToOverlay("Task Finished.") // Manually finish
-                        }
+                        val source = "sources/github/${githubUser}/${appName}"
+                        val request = com.hereliesaz.ideaz.jules.CreateSessionRequest(
+                            prompt = richPrompt,
+                            sourceContext = com.hereliesaz.ideaz.jules.SourceContext(
+                                source = source,
+                                githubRepoContext = com.hereliesaz.ideaz.jules.GithubRepoContext(
+                                    startingBranch = "main"
+                                )
+                            )
+                        )
+                        val session = JulesApiClient.createSession(request)
+                        logToOverlay("Session created: ${session.name}. Waiting for patch...")
+                        pollForPatch(session.id, "OVERLAY")
                     } catch (e: Exception) {
                         Log.e(TAG, "Error creating Jules session for overlay task", e)
                         logToOverlay("Error: ${e.message}")
@@ -638,29 +639,6 @@ class MainViewModel(
         return model
     }
 
-    // --- NEW: Function to fetch GitHub repos ---
-    fun fetchOwnedSources() {
-        viewModelScope.launch {
-            Log.d(TAG, "fetchOwnedSources: Fetching sources...")
-            val sourcesJson = JulesCliClient.listSources(getApplication())
-            if (sourcesJson != null) {
-                try {
-                    val response = json.decodeFromString<ListSourcesResponse>(sourcesJson)
-                    _ownedSources.value = response.sources
-                    Log.d(TAG, "fetchOwnedSources: Success. Found ${response.sources.size} sources.")
-                } catch (e: Exception) {
-                    Log.e(TAG, "fetchOwnedSources: Failed to parse JSON", e)
-                    _ownedSources.value = emptyList()
-                }
-            } else {
-                Log.e(TAG, "fetchOwnedSources: CLI command failed or returned null")
-                _ownedSources.value = emptyList()
-            }
-        }
-    }
-    // --- END NEW ---
-
-
     fun debugBuild() {
         Log.d(TAG, "debugBuild called")
         val model = getAssignedModelForTask(SettingsViewModel.KEY_AI_ASSIGNMENT_CONTEXTLESS) // Debug follows contextless for now
@@ -681,25 +659,8 @@ class MainViewModel(
 
             when (model.id) {
                 AiModels.JULES_DEFAULT -> {
-                    Log.d(TAG, "Debugging with Jules CLI")
-                    try {
-                        val appName = settingsViewModel.getAppName() ?: ""
-                        val githubUser = settingsViewModel.getGithubUser() ?: ""
-                        val source = "github/$githubUser/$appName"
-                        // Pass the entire build log as the prompt
-                        val sessionJson = JulesCliClient.createSession(getApplication(), buildLog.value, source)
-                        if (sessionJson != null) {
-                            val jsonObject = JSONObject(sessionJson)
-                            val sessionId = jsonObject.getString("name") // e.g. "sessions/12345"
-                            _buildLog.value += "AI Status: Debug info sent ($sessionId). Waiting for new patch...\n"
-                            pollForPatch(sessionId, _buildLog)
-                        } else {
-                            _buildLog.value += "AI Status: Error: Could not create debug session.\n"
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error during Jules debug", e)
-                        _buildLog.value += "AI Status: Error debugging: ${e.message}\n"
-                    }
+                    Log.d(TAG, "Debugging with Jules is not supported in API mode.")
+                    _buildLog.value += "AI Status: Error: Debugging with Jules is not supported in API mode.\n"
                 }
                 AiModels.GEMINI_FLASH -> {
                     Log.d(TAG, "Debugging with Gemini Flash")
@@ -764,24 +725,20 @@ class MainViewModel(
             }
 
             try {
-                val activitiesJson = JulesCliClient.listActivities(getApplication(), sessionId)
-                var patchReady = false
-                if (activitiesJson != null) {
-                    val activities = JSONObject(activitiesJson).getJSONArray("activities")
-                    for (i in 0 until activities.length()) {
-                        val activity = activities.getJSONObject(i)
-                        val state = activity.optString("state", "STATE_UNSPECIFIED")
-                        Log.d(TAG, "Found activity with state: $state for session $sessionId")
-                        if (state == "READY") {
-                            patchReady = true
-                            break
-                        }
-                    }
+                val response = JulesApiClient.listActivities(sessionId)
+                val patchActivity = response.activities?.find { activity ->
+                    activity.artifacts?.any { it.changeSet?.gitPatch != null } == true
                 }
 
-                if (patchReady) {
+                if (patchActivity != null) {
                     logTo(logTarget, "[INFO] AI Status: Patch is ready! Applying...")
-                    applyPatch(getApplication(), sessionId, logTarget)
+                    val patch = patchActivity.artifacts?.firstOrNull()?.changeSet?.gitPatch?.unidiffPatch
+                    if (patch != null) {
+                        applyPatch(getApplication(), patch, logTarget)
+                    } else {
+                        logTo(logTarget, "[INFO] AI Status: Error: Could not extract patch from activity.")
+                        if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
+                    }
                 } else {
                     // Not ready, poll again
                     delay(5000)
@@ -795,23 +752,16 @@ class MainViewModel(
         }
     }
 
-    private fun applyPatch(context: Context, sessionId: String, logTarget: Any) {
-        Log.d(TAG, "applyPatch called for session: $sessionId")
+    private fun applyPatch(context: Context, patch: String, logTarget: Any) {
+        Log.d(TAG, "applyPatch called")
         viewModelScope.launch {
             try {
-                // Use the new pullPatch method which just needs the session ID
-                val patch = JulesCliClient.pullPatch(context, sessionId)
-                if (!patch.isNullOrEmpty()) {
-                    logTo(logTarget, "[INFO] AI Status: Applying patch...")
-                    val projectDir = context.filesDir.resolve("project")
-                    val gitManager = GitManager(projectDir)
-                    gitManager.applyPatch(patch)
-                    logTo(logTarget, "[INFO] AI Status: Patch applied. Rebuilding...")
-                    startBuild(context) // This will handle success/failure logging
-                } else {
-                    logTo(logTarget, "[INFO] AI Status: Error: Could not retrieve patch.")
-                    if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
-                }
+                logTo(logTarget, "[INFO] AI Status: Applying patch...")
+                val projectDir = context.filesDir.resolve("project")
+                val gitManager = GitManager(projectDir)
+                gitManager.applyPatch(patch)
+                logTo(logTarget, "[INFO] AI Status: Patch applied. Rebuilding...")
+                startBuild(context) // This will handle success/failure logging
             } catch (e: Exception) {
                 Log.e(TAG, "Error applying patch", e)
                 logTo(logTarget, "[INFO] AI Status: Error applying patch: ${e.message}")
