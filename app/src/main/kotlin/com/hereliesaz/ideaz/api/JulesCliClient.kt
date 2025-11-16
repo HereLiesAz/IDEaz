@@ -9,21 +9,22 @@ import java.io.InputStreamReader
 object JulesCliClient {
 
     private const val TAG = "JulesCliClient"
-    // The actual executable will be libjules.so, ToolManager handles the prefix/suffix.
     private const val JULES_TOOL_NAME = "jules"
 
-    private fun executeCommand(context: Context, command: String): String? {
+    // --- FIX: Reworked to use String[] for safe argument passing ---
+    private fun executeCommand(context: Context, commandArgs: List<String>): String? {
         val julesPath = ToolManager.getToolPath(context, JULES_TOOL_NAME)
         if (julesPath == null) {
-            Log.e(TAG, "Jules CLI tool not found. Please install it first.")
+            Log.e(TAG, "NATIVE tool 'jules' not found. Check jniLibs and build.gradle.kts.")
             return null
         }
 
-        val fullCommand = "$julesPath $command"
-        Log.d(TAG, "Executing command: $fullCommand")
+        val fullCommand = listOf(julesPath) + commandArgs
+        Log.d(TAG, "Executing command: ${fullCommand.joinToString(" ")}")
 
         try {
-            val process = Runtime.getRuntime().exec(fullCommand)
+            // Use ProcessBuilder or exec(String[]) to handle arguments correctly
+            val process = ProcessBuilder(fullCommand).start()
             val reader = BufferedReader(InputStreamReader(process.inputStream))
             val output = StringBuilder()
             var line: String?
@@ -32,8 +33,9 @@ object JulesCliClient {
             }
             process.waitFor()
             val exitCode = process.exitValue()
+
             if (exitCode == 0) {
-                Log.d(TAG, "Command executed successfully. Output: $output")
+                Log.d(TAG, "Command succeeded. Output: $output")
                 return output.toString()
             } else {
                 val errorReader = BufferedReader(InputStreamReader(process.errorStream))
@@ -51,32 +53,38 @@ object JulesCliClient {
     }
 
     fun createSession(context: Context, prompt: String, source: String): String? {
-        // --- FIX: Align with reference document ---
-        val command = "remote new --repo \"$source\" --session \"$prompt\""
-        // --- END FIX ---
-        return executeCommand(context, command)
+        // --- FIX: Align with reference doc AND pass as List<String> ---
+        val commandArgs = listOf(
+            "remote", "new",
+            "--repo", source,
+            "--session", prompt
+        )
+        return executeCommand(context, commandArgs)
     }
 
     fun listActivities(context: Context, sessionId: String): String? {
-        // --- FIX: Align with reference document ---
-        val command = "remote list --session \"$sessionId\" --format=json"
-        // --- END FIX ---
-        return executeCommand(context, command)
+        val commandArgs = listOf(
+            "remote", "list",
+            "--session", sessionId,
+            "--format=json"
+        )
+        return executeCommand(context, commandArgs)
     }
 
     fun pullPatch(context: Context, sessionId: String): String? {
-        // --- FIX: Align with reference document ---
-        val command = "remote pull --session $sessionId"
-        // --- END FIX ---
-        return executeCommand(context, command)
+        val commandArgs = listOf(
+            "remote", "pull",
+            "--session", sessionId
+        )
+        return executeCommand(context, commandArgs)
     }
 
-    // --- NEW: Function to list available GitHub repos ---
     fun listSources(context: Context): String? {
-        // --- FIX: Align with reference document ---
-        val command = "remote list --repo --format=json"
-        // --- END FIX ---
-        return executeCommand(context, command)
+        val commandArgs = listOf(
+            "remote", "list",
+            "--repo",
+            "--format=json"
+        )
+        return executeCommand(context, commandArgs)
     }
-    // --- END NEW ---
 }
