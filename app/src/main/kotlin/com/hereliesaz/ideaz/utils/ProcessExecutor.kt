@@ -12,7 +12,7 @@ object ProcessExecutor {
 
             // If the command is not a java -jar command, it's a native binary.
             // We must execute it via the shell (sh -c) to bypass noexec flags.
-            if (command.firstOrNull() != "java") {
+            if (command.none { it.contains("java") }) {
                 // Wrap the command: sh -c "/path/to/aapt2 compile --dir /res -o /out"
                 finalCommand = listOf("/system/bin/sh", "-c", command.joinToString(" "))
             } else {

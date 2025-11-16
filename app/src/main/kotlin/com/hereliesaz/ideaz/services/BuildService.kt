@@ -103,26 +103,26 @@ class BuildService : Service() {
         val classpath = resolverResult.output
 
         // Tool Paths (All are NATIVE tools now)
-        val aapt2Path = ToolManager.getToolPath(this, "aapt2")
-        val kotlincPath = ToolManager.getToolPath(this, "kotlinc")
-        val d8Path = ToolManager.getToolPath(this, "d8")
-        val apkSignerPath = ToolManager.getToolPath(this, "apksigner")
-        val keystorePath = ToolManager.getToolPath(this, "debug.keystore")
+        val aapt2Info = ToolManager.getToolInfo(this, "aapt2")
+        val kotlincInfo = ToolManager.getToolInfo(this, "kotlinc")
+        val d8Info = ToolManager.getToolInfo(this, "d8")
+        val apkSignerInfo = ToolManager.getToolInfo(this, "apksigner")
+        val keystoreInfo = ToolManager.getToolInfo(this, "debug.keystore")
         val keystorePass = "android"
         val keyAlias = "androiddebugkey"
-        val androidJarPath = ToolManager.getToolPath(this, "android.jar")
+        val androidJarInfo = ToolManager.getToolInfo(this, "android.jar")
 
         val requiredTools = mapOf(
-            "aapt2" to aapt2Path,
-            "kotlinc" to kotlincPath,
-            "d8" to d8Path,
-            "apksigner" to apkSignerPath,
-            "debug.keystore" to keystorePath,
-            "android.jar" to androidJarPath
+            "aapt2" to aapt2Info,
+            "kotlinc" to kotlincInfo,
+            "d8" to d8Info,
+            "apksigner" to apkSignerInfo,
+            "debug.keystore" to keystoreInfo,
+            "android.jar" to androidJarInfo
         )
 
-        for ((toolName, toolPath) in requiredTools) {
-            if (toolPath == null) {
+        for ((toolName, toolInfo) in requiredTools) {
+            if (toolInfo == null) {
                 callback.onFailure("Build failed: Required tool '$toolName' not found.")
                 return
             }
@@ -142,12 +142,12 @@ class BuildService : Service() {
             listOf(
                 GenerateSourceMap(File(resDir), buildDir, cacheDir),
                 // --- FIX: All constructors now match their definitions ---
-                Aapt2Compile(aapt2Path!!, resDir, compiledResDir, MIN_SDK, TARGET_SDK),
-                Aapt2Link(aapt2Path!!, compiledResDir, androidJarPath!!, manifestPath, outputApkPath, outputJavaPath, MIN_SDK, TARGET_SDK),
-                KotlincCompile(kotlincPath!!, androidJarPath!!, javaDir, File(classesDir), classpath),
-                D8Compile(d8Path!!, androidJarPath!!, classesDir, classesDir, classpath),
+                Aapt2Compile(aapt2Info!!.path, resDir, compiledResDir, MIN_SDK, TARGET_SDK),
+                Aapt2Link(aapt2Info!!.path, compiledResDir, androidJarInfo!!.path, manifestPath, outputApkPath, outputJavaPath, MIN_SDK, TARGET_SDK),
+                KotlincCompile(kotlincInfo!!, androidJarInfo!!.path, javaDir, File(classesDir), classpath),
+                D8Compile(d8Info!!.path, androidJarInfo!!.path, classesDir, classesDir, classpath),
                 ApkBuild(finalApkPath, outputApkPath, classesDir),
-                ApkSign(apkSignerPath!!, keystorePath!!, keystorePass, keyAlias, finalApkPath)
+                ApkSign(apkSignerInfo!!.path, keystoreInfo!!.path, keystorePass, keyAlias, finalApkPath)
                 // --- END FIX ---
             )
         )
