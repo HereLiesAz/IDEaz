@@ -426,9 +426,21 @@ class MainViewModel(
                     }
                 }
                 AiModels.GEMINI_FLASH -> {
-                    Log.d(TAG, "Using Gemini Flash for contextless prompt (not implemented)")
+                    Log.d(TAG, "Using Gemini Flash for contextless prompt")
+                    val apiKey = settingsViewModel.getGoogleApiKey()
+                    if (apiKey.isNullOrBlank()) {
+                        _buildLog.value += "[INFO] AI Status: Error: Gemini API Key is missing.\n"
+                        return@launch
+                    }
+                    val responseText = GeminiApiClient.generateContent(prompt ?: "", apiKey)
+                    _buildLog.value += "[INFO] AI Response: $responseText\n"
                     _buildLog.value += "[INFO] AI Status: Idle\n"
-                    _buildLog.value += "[INFO] Gemini Flash client not yet implemented.\n"
+                }
+                AiModels.GEMINI_CLI -> {
+                    Log.d(TAG, "Using Gemini CLI for contextless prompt")
+                    val responseText = com.hereliesaz.ideaz.api.GeminiCliClient.generateContent(getApplication(), prompt ?: "")
+                    _buildLog.value += "[INFO] AI Response: $responseText\n"
+                    _buildLog.value += "[INFO] AI Status: Idle\n"
                 }
             }
         }
@@ -505,6 +517,17 @@ class MainViewModel(
                         _buildLog.value += "AI Status: Response received.\n"
                         _buildLog.value += "Gemini Response: $responseText\n"
                     }
+                }
+                AiModels.GEMINI_CLI -> {
+                    Log.d(TAG, "Using Gemini CLI for overlay task")
+                    val responseText = com.hereliesaz.ideaz.api.GeminiCliClient.generateContent(getApplication(), richPrompt)
+                    if (responseText.startsWith("Error:")) {
+                        logToOverlay("Error from CLI: $responseText")
+                    } else {
+                        logToOverlay("CLI Response: $responseText")
+                    }
+                    logToOverlay("Task Finished.")
+                    sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
                 }
             }
         }
