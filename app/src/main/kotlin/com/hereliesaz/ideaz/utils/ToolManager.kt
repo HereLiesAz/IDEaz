@@ -22,7 +22,7 @@ object ToolManager {
         // NATIVE BINARIES (in jniLibs/arm64-v8a/lib<name>.so)
         "aapt2" to ToolInfo("aapt2", ToolType.NATIVE),
         "java" to ToolInfo("java", ToolType.NATIVE),
-        "jules" to ToolInfo("jules", ToolType.NATIVE),
+        "gemini" to ToolInfo("gemini", ToolType.NATIVE),
 
         // ASSET JARS (in assets/tools/ or assets/)
         "d8" to ToolInfo("tools/d8.jar", ToolType.ASSET),
