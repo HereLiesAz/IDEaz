@@ -9,22 +9,21 @@ import java.io.InputStreamReader
 object JulesCliClient {
 
     private const val TAG = "JulesCliClient"
+    // The actual executable will be libjules.so, ToolManager handles the prefix/suffix.
     private const val JULES_TOOL_NAME = "jules"
 
-    // --- FIX: Reworked to use String[] for safe argument passing ---
-    private fun executeCommand(context: Context, commandArgs: List<String>): String? {
+    private fun executeCommand(context: Context, command: String): String? {
         val julesPath = ToolManager.getToolPath(context, JULES_TOOL_NAME)
         if (julesPath == null) {
-            Log.e(TAG, "NATIVE tool 'jules' not found. Check jniLibs and build.gradle.kts.")
+            Log.e(TAG, "Jules CLI tool not found. Please install it first.")
             return null
         }
 
-        val fullCommand = listOf(julesPath) + commandArgs
-        Log.d(TAG, "Executing command: ${fullCommand.joinToString(" ")}")
+        val fullCommand = "$julesPath $command"
+        Log.d(TAG, "Executing command: $fullCommand")
 
         try {
-            // Use ProcessBuilder or exec(String[]) to handle arguments correctly
-            val process = ProcessBuilder(fullCommand).start()
+            val process = Runtime.getRuntime().exec(fullCommand)
             val reader = BufferedReader(InputStreamReader(process.inputStream))
             val output = StringBuilder()
             var line: String?
@@ -33,9 +32,8 @@ object JulesCliClient {
             }
             process.waitFor()
             val exitCode = process.exitValue()
-
             if (exitCode == 0) {
-                Log.d(TAG, "Command succeeded. Output: $output")
+                Log.d(TAG, "Command executed successfully. Output: $output")
                 return output.toString()
             } else {
                 val errorReader = BufferedReader(InputStreamReader(process.errorStream))
@@ -53,38 +51,39 @@ object JulesCliClient {
     }
 
     fun createSession(context: Context, prompt: String, source: String): String? {
-        // --- FIX: Align with reference doc AND pass as List<String> ---
-        val commandArgs = listOf(
-            "remote", "new",
-            "--repo", source,
-            "--session", prompt
-        )
-        return executeCommand(context, commandArgs)
+        // --- FIX: Align with reference document ---
+        val command = "remote new --repo \"$source\" --session \"$prompt\""
+        // --- END FIX ---
+        return executeCommand(context, command)
     }
 
     fun listActivities(context: Context, sessionId: String): String? {
-        val commandArgs = listOf(
-            "remote", "list",
-            "--session", sessionId,
-            "--format=json"
-        )
-        return executeCommand(context, commandArgs)
+        // --- FIX: Align with reference document ---
+        val command = "remote list --session \"$sessionId\" --format=json"
+        // --- END FIX ---
+        return executeCommand(context, command)
     }
 
     fun pullPatch(context: Context, sessionId: String): String? {
-        val commandArgs = listOf(
-            "remote", "pull",
-            "--session", sessionId
-        )
-        return executeCommand(context, commandArgs)
+        // --- FIX: Align with reference document ---
+        val command = "remote pull --session $sessionId"
+        // --- END FIX ---
+        return executeCommand(context, command)
     }
 
+    // --- NEW: Function to list available GitHub repos ---
     fun listSources(context: Context): String? {
-        val commandArgs = listOf(
-            "remote", "list",
-            "--repo",
-            "--format=json"
-        )
-        return executeCommand(context, commandArgs)
+        // --- FIX: Align with reference document ---
+        val command = "remote list --repo --format=json"
+        // --- END FIX ---
+        return executeCommand(context, command)
     }
+    // --- END NEW ---
+
+    // --- NEW: Function to list available sessions ---
+    fun listSessions(context: Context): String? {
+        val command = "remote list --session --format=json"
+        return executeCommand(context, command)
+    }
+    // --- END NEW ---
 }
