@@ -1,60 +1,69 @@
 package com.hereliesaz.ideaz.ui
 
-import android.util.Log
-import android.widget.Toast
-
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import com.hereliesaz.aznavrail.AzButton
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+// --- FIX: Use AutoMirrored version ---
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+// --- END FIX ---
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+// --- FIX: Use HorizontalDivider ---
+import androidx.compose.material3.HorizontalDivider
+// --- END FIX ---
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.unit.dp
-import com.hereliesaz.ideaz.api.Source
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import java.net.URL
-import androidx.compose.material3.Button
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.runtime.saveable.rememberSaveable
-import com.hereliesaz.aznavrail.AzForm
-import com.hereliesaz.aznavrail.AzTextBox
-import com.hereliesaz.aznavrail.model.AzButtonShape
-import com.hereliesaz.ideaz.utils.mapSaver
-
-private const val TAG = "ProjectSettingsScreen"
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
+import com.hereliesaz.ideaz.api.Source
+import com.hereliesaz.ideaz.ui.SettingsViewModel
 
 @Composable
 fun ProjectSettingsScreen(
+    navController: NavController,
     viewModel: MainViewModel,
     settingsViewModel: SettingsViewModel
 ) {
-    Log.d(TAG, "ProjectSettingsScreen: Composing")
-    Log.d(TAG, "ProjectSettingsScreen: MainViewModel hash: ${viewModel.hashCode()}")
-    Log.d(TAG, "ProjectSettingsScreen: SettingsViewModel hash: ${settingsViewModel.hashCode()}")
+    val appName by settingsViewModel.appName.collectAsState()
+    val githubUser by settingsViewModel.githubUser.collectAsState()
+    val githubToken by settingsViewModel.githubToken.collectAsState()
+    val geminiApiKey by settingsViewModel.geminiApiKey.collectAsState()
 
-    val context = LocalContext.current
-    var tabIndex by remember { mutableStateOf(0) }
-    val tabs = listOf("Create", "Clone", "Load")
+    var appNameState by remember { mutableStateOf(appName) }
+    var githubUserState by remember { mutableStateOf(githubUser) }
+    var githubTokenState by remember { mutableStateOf(githubToken) }
+    var geminiApiKeyState by remember { mutableStateOf(geminiApiKey) }
 
-    // Central state for project config
-    var appName by remember { mutableStateOf(settingsViewModel.getAppName() ?: "IDEazProject") }
-    var githubUser by remember { mutableStateOf(settingsViewModel.getGithubUser() ?: "") }
-    var branchName by remember { mutableStateOf(settingsViewModel.getBranchName()) }
-    var packageName by remember {
-        mutableStateOf(settingsViewModel.getTargetPackageName() ?: "com.example.helloworld")
-    }
+    var sourcesLoading by remember { mutableStateOf(false) }
+    val sources by viewModel.ownedSources.collectAsState()
 
     // State for "Clone" tab
     var cloneUrl by remember { mutableStateOf("") }
@@ -63,153 +72,199 @@ fun ProjectSettingsScreen(
     // --- FIX: Observe sources from ViewModel ---
     val ownedSources by viewModel.ownedSources.collectAsState()
     // --- END FIX ---
+    LaunchedEffect(Unit) {
+        sourcesLoading = true
+        viewModel.fetchOwnedSources()
+        sourcesLoading = false
+    }
 
-    // State for "Load" tab
-    val loadableProjects = projectList.toList()
-    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+    LaunchedEffect(appName, githubUser, githubToken, geminiApiKey) {
+        appNameState = appName
+        githubUserState = githubUser
+        githubTokenState = githubToken
+        geminiApiKeyState = geminiApiKey
+    }
 
-    Column {
-        Spacer(modifier = Modifier.height(screenHeight * 0.1f))
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(all = 8.dp)
-                .verticalScroll(rememberScrollState())
+    val onSave = {
+        val currentBranch = settingsViewModel.getBranchName()
+        settingsViewModel.saveProjectConfig(appNameState, githubUserState, currentBranch)
+        settingsViewModel.saveApiKey(githubTokenState)
+        settingsViewModel.saveGoogleApiKey(geminiApiKeyState)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // Header
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { navController.popBackStack() }) {
+                // --- FIX: Use AutoMirrored Icon ---
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                // --- END FIX ---
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Project Settings", style = MaterialTheme.typography.headlineSmall)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        // --- FIX: Use HorizontalDivider ---
+        HorizontalDivider()
+        // --- END FIX ---
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Settings Fields
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            TabRow(selectedTabIndex = tabIndex) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(text = { Text(title, color = MaterialTheme.colorScheme.onBackground) },
-                        selected = tabIndex == index,
-                        onClick = { tabIndex = index }
+            item {
+                Text("Project Configuration", style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.height(8.dp))
+                TextField(
+                    value = appNameState,
+                    onValueChange = { appNameState = it },
+                    label = { Text("App Name") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                TextField(
+                    value = githubUserState,
+                    onValueChange = { githubUserState = it },
+                    label = { Text("GitHub User") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            item {
+                Text("API Keys", style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.height(8.dp))
+                TextField(
+                    value = githubTokenState,
+                    onValueChange = { githubTokenState = it },
+                    label = { Text("GitHub Token (Jules)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("ghp_...") }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                TextField(
+                    value = geminiApiKeyState,
+                    onValueChange = { geminiApiKeyState = it },
+                    label = { Text("Gemini API Key") },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("AIza...") }
+                )
+            }
+
+            item {
+                Text("Active Jules Sessions", style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (sourcesLoading) {
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                } else if (sources.isEmpty()) {
+                    Text("No active sessions found or failed to load.")
+                } else {
+                    Column {
+                        sources.forEach { source ->
+                            SessionItem(source = source)
+                        }
+                    }
+                }
+            }
+
+            item {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "Warning",
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.error
                     )
-                }
-            }
-
-            Column {
-                when (tabIndex) {
-                    // --- CREATE TAB ---
-                    0 -> Column(modifier = Modifier.padding(top = 16.dp)) {
-                        Text("Create or Update Project", color = MaterialTheme.colorScheme.onBackground)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        AzForm(
-                            modifier = Modifier.fillMaxWidth(),
-                            formName = "Project Configuration",
-                            submitButtonContent = { Text("Build") },
-                            onSubmit = { formData ->
-                                // If user leaves a field blank, use the existing value from state
-                                val finalAppName = formData["appName"]?.takeIf { it.isNotBlank() } ?: appName
-                                val finalGithubUser = formData["githubUser"]?.takeIf { it.isNotBlank() } ?: githubUser
-                                val finalBranchName = formData["branchName"]?.takeIf { it.isNotBlank() } ?: branchName
-                                val finalPackageName = formData["packageName"]?.takeIf { it.isNotBlank() } ?: packageName
-                                val initialPromptValue = formData["initialPrompt"] ?: ""
-
-                                // Update state with the new values so hints are correct on recomposition
-                                appName = finalAppName
-                                githubUser = finalGithubUser
-                                branchName = finalBranchName
-                                packageName = finalPackageName
-
-                                settingsViewModel.saveProjectConfig(finalAppName, finalGithubUser, finalBranchName)
-                                settingsViewModel.saveTargetPackageName(finalPackageName)
-                                Toast.makeText(context, "Project saved. Starting build...", Toast.LENGTH_SHORT).show()
-                                viewModel.sendPrompt(initialPromptValue, isInitialization = true)
-                            }
-                        ){
-                            entry(entryName = "appName", hint = "App Name (Current: $appName)", multiline = false, secret = false)
-                            entry(entryName = "githubUser", hint = "Github User (Current: $githubUser)", multiline = false, secret = false)
-                            entry(entryName = "branchName", hint = "Branch (Current: $branchName)", multiline = false, secret = false)
-                            entry(entryName = "packageName", hint = "Package (Current: $packageName)", multiline = false, secret = false)
-                            entry(entryName = "initialPrompt", hint = "Describe your app.", multiline = true, secret = false)
+                    Text(
+                        "Clear Build Caches",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        "This will delete all local build artifacts, " +
+                                "dependency caches, and the local-repo. " +
+                                "This action is irreversible and can help resolve " +
+                                "persistent build issues.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Button(
+                        onClick = {
+                            viewModel.clearBuildCaches(navController.context)
                         }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        AzButton(onClick = {
-                            // This just builds and installs the current template project
-                            // It's the "first APK"
-                            viewModel.startBuild(context)
-                            Toast.makeText(context, "Building template...", Toast.LENGTH_SHORT).show()
-                        }, text = "Templation", shape = AzButtonShape.NONE)
-                    }
-
-                    // --- CLONE TAB ---
-                    1 -> Column(modifier = Modifier.padding(top = 16.dp)) {
-                        Text("Fork External Repo (Not Supported)", color = MaterialTheme.colorScheme.onBackground)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            AzTextBox(
-                                value = cloneUrl,
-                                onValueChange = { cloneUrl = it },
-                                modifier = Modifier.weight(1f),
-                                submitButtonContent = { Text("Clone") },
-                                hint = "https://github.com/user/repo",
-                                onSubmit = {}
-                            )
-                            AzButton(onClick = {
-                                val currentUser = settingsViewModel.getGithubUser()
-                                var owner: String? = null
-                                try {
-                                    val path = URL(cloneUrl).path.removePrefix("/").removeSuffix(".git")
-                                    owner = path.split("/").getOrNull(0)
-                                } catch (e: Exception) { /* Malformed URL */ }
-
-                                if (owner != null && owner == currentUser) {
-                                    Toast.makeText(context, "This is your repo. Select it from the list below or the 'Load' tab.", Toast.LENGTH_LONG).show()
-                                } else {
-                                    Toast.makeText(context, "Forking is not supported. Please fork on GitHub and register the forked repo with Jules first.", Toast.LENGTH_LONG).show()
-                                }
-                            }, text = "Fork")
-                        }
-
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Text("Your Available Repositories", color = MaterialTheme.colorScheme.onBackground)
-                        if (ownedSources.isEmpty()) {
-                            Text("No other repositories found on your Jules account.", color = MaterialTheme.colorScheme.onBackground)
-                        } else {
-                            ownedSources.forEach { source ->
-                                val repo = source.githubRepo!!
-                                AzButton(
-                                    onClick = {
-                                        appName = repo.repo
-                                        githubUser = repo.owner
-                                        branchName = repo.defaultBranch.displayName
-                                        Toast.makeText(context, "Config loaded. Go to 'Create' tab to save.", Toast.LENGTH_LONG).show()
-                                        tabIndex = 0 // Switch to Create tab
-                                    },
-                                    text = "${repo.owner}/${repo.repo} (Branch: ${repo.defaultBranch.displayName})",
-                                    modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth()
-                                )
-                            }
-                        }
-                    }
-
-                    // --- LOAD TAB ---
-                    2 -> Column(modifier = Modifier.padding(top = 16.dp)) { // --- FIX: This was incorrectly index 1 ---
-                        Text("Load Saved Project", color = MaterialTheme.colorScheme.onBackground)
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        if (loadableProjects.isEmpty()) {
-                            Text("No saved projects found.", color = MaterialTheme.colorScheme.onBackground)
-                        } else {
-                            loadableProjects.forEach { projectString ->
-                                AzButton(
-                                    onClick = {
-                                        val parts = projectString.split("/")
-                                        if (parts.size == 2) {
-                                            githubUser = parts[0]
-                                            appName = parts[1]
-                                            branchName = settingsViewModel.getBranchName() // Load saved branch
-                                            Toast.makeText(context, "Config loaded. Go to 'Create' tab to save or build.", Toast.LENGTH_LONG).show()
-                                            tabIndex = 0 // Switch to Create tab
-                                        }
-                                    },
-                                    text = projectString,
-                                    modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth()
-                                )
-                            }
-                        }
+                    ) {
+                        Text("Clear Caches")
                     }
                 }
             }
+        }
+
+        // Save Button
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+            onClick = {
+                onSave()
+                navController.popBackStack()
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Save and Go Back")
+        }
+    }
+}
+
+@Composable
+fun SessionItem(source: Source) {
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Text(
+            text = source.name,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+fun SelectableSessionItem(
+    session: String,
+    selectedSession: String,
+    onSessionSelected: (String) -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onSessionSelected(session) }
+            .padding(vertical = 4.dp)
+    ) {
+        RadioButton(
+            selected = session == selectedSession,
+            onClick = { onSessionSelected(session) }
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Column {
+            Text(
+                text = "Session: $session",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = "ID: 12345-67890", // Example subtext
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

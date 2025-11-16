@@ -43,14 +43,23 @@ android {
 
         aidl = true
     }
-    // --- FIX: This block is required to package libjules.so ---
+
+    // --- FIX: This block is required ---
+    // It tells Gradle where to find your Kotlin code (fixing the "Default Activity" error)
+    // and also where to find your in-app tool assets and AIDL files.
     sourceSets {
         getByName("main") {
+            kotlin.srcDirs("src/main/kotlin")
+            java.srcDirs("src/main/java")
+            res.srcDirs("src/main/res")
             aidl.srcDirs("src/main/aidl")
+            assets.srcDirs("src/main/assets")
+            // We DO include jniLibs here for the NATIVE tools (java, aapt2, jules)
             jniLibs.srcDirs("src/main/jniLibs")
         }
     }
     // --- END FIX ---
+
     packaging {
         jniLibs {
             useLegacyPackaging = true
@@ -58,10 +67,8 @@ android {
         resources {
             excludes.add("META-INF/DEPENDENCIES")
             excludes.add("META-INF/LICENSE")
-
             excludes.add("META-INF/NOTICE")
             excludes.add("META-INF/INDEX.LIST")
-
             excludes.add("META-INF/sisu/javax.inject.Named")
             excludes.add("mime.types")
             excludes.add("META-INF/THIRD-PARTY.txt")
@@ -69,11 +76,6 @@ android {
             excludes.add("META-INF/ASL2.0")
         }
     }
-
-    // This block is deprecated and redundant, use the `kotlin { jvmToolchain(17) }` block above
-    // kotlinOptions {
-    //     jvmTarget = "17"
-    // }
 
     buildToolsVersion = "36.1.0"
     ndkVersion = "29.0.14206865"
@@ -93,41 +95,28 @@ configurations.all {
 
 dependencies {
     implementation(libs.jcabi.aether)
-
     implementation(libs.slf4j.simple)
-
     constraints {
         implementation("com.google.guava:guava:32.1.3-android") {
             because("Guava Android is smaller and avoids conflicts")
         }
     }
-
-    // JGit for Git operations
     implementation(libs.org.eclipse.jgit)
     implementation(libs.slf4j.api)
     implementation(libs.slf4j.android)
-
-    // Networking for Jules API
     implementation(libs.retrofit)
-
     implementation(libs.retrofit2.kotlinx.serialization.converter)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.generativeai)
     implementation(libs.google.genai)
-
-
     implementation(libs.androidx.localbroadcastmanager)
-
-    // Compose Unstyled Bottom Sheet
     implementation(libs.compose.unstyled.core)
-
     implementation(libs.aznavrail)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.compose.runtime.livedata)
     implementation(libs.androidx.preference.ktx)
-
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -137,10 +126,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.material.icons.extended)
-
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
-
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

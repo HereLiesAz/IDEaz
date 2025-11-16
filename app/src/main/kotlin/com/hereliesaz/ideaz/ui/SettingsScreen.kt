@@ -1,10 +1,15 @@
 package com.hereliesaz.ideaz.ui
 
+import android.Manifest
 import android.content.Intent
 import android.inputmethodservice.Keyboard
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -39,7 +44,7 @@ private const val TAG = "SettingsScreen"
 
 @Composable
 fun SettingsScreen(
-    viewModel: MainViewModel, // <-- MODIFIED: Added MainViewModel
+    viewModel: MainViewModel,
     settingsViewModel: SettingsViewModel,
     onThemeToggle: (Boolean) -> Unit
 ) {
@@ -60,6 +65,43 @@ fun SettingsScreen(
     }
     // --- END NEW ---
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+
+    // --- NEW: Permission Launchers ---
+    var refreshTrigger by remember { mutableStateOf(0) } // Force recomposition
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            Log.d(TAG, "Notification permission granted: $isGranted")
+            refreshTrigger++
+        }
+    )
+
+    val overlayPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+        onResult = {
+            Log.d(TAG, "Returned from overlay settings")
+            refreshTrigger++
+        }
+    )
+
+    val installPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+        onResult = {
+            Log.d(TAG, "Returned from install settings")
+            refreshTrigger++
+        }
+    )
+
+    // --- NEW: Accessibility Launcher ---
+    val accessibilitySettingsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+        onResult = {
+            Log.d(TAG, "Returned from accessibility settings")
+            refreshTrigger++
+        }
+    )
+    // --- END NEW ---
 
     Column {
         Spacer(modifier = Modifier.height(screenHeight * 0.1f))
@@ -153,6 +195,81 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // --- NEW: Permissions Section ---
+            Text("Permissions", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Re-check status when refreshTrigger changes
+            val hasOverlay by remember(refreshTrigger) { mutableStateOf(settingsViewModel.hasOverlayPermission(context)) }
+            val hasNotify by remember(refreshTrigger) { mutableStateOf(settingsViewModel.hasNotificationPermission(context)) }
+            val hasInstall by remember(refreshTrigger) { mutableStateOf(settingsViewModel.hasInstallPermission(context)) }
+            val hasScreenshot by remember(viewModel.hasScreenCapturePermission()) { mutableStateOf(viewModel.hasScreenCapturePermission()) }
+            // --- NEW: Add Accessibility Check ---
+            val hasAccessibility by remember(refreshTrigger) { mutableStateOf(settingsViewModel.hasAccessibilityPermission(context)) }
+
+            PermissionCheckRow(
+                name = "Draw Over Other Apps",
+                granted = hasOverlay,
+                onClick = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:${context.packageName}")
+                        )
+                        overlayPermissionLauncher.launch(intent)
+                    }
+                }
+            )
+
+            // --- NEW: Add Accessibility Row ---
+            PermissionCheckRow(
+                name = "Accessibility Service",
+                granted = hasAccessibility,
+                onClick = {
+                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                    accessibilitySettingsLauncher.launch(intent)
+                }
+            )
+
+            PermissionCheckRow(
+                name = "Post Notifications",
+                granted = hasNotify,
+                onClick = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
+            )
+
+            PermissionCheckRow(
+                name = "Install Unknown Apps",
+                granted = hasInstall,
+                onClick = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                            Uri.parse("package:${context.packageName}")
+                        )
+                        installPermissionLauncher.launch(intent)
+                    }
+                }
+            )
+
+            PermissionCheckRow(
+                name = "Screen Capture",
+                granted = hasScreenshot,
+                onClick = {
+                    if (!hasScreenshot) {
+                        viewModel.requestScreenCapturePermission()
+                    } else {
+                        Toast.makeText(context, "Permission already granted", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            )
+            // --- END NEW ---
+
+            Spacer(modifier = Modifier.height(24.dp))
+
             // --- NEW: Cancel Warning Checkbox ---
             Text("Preferences", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
             Row(
@@ -203,6 +320,33 @@ fun SettingsScreen(
         }
     }
 }
+
+// --- NEW: PermissionCheckRow Composable ---
+@Composable
+fun PermissionCheckRow(
+    name: String,
+    granted: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = name,
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Switch(
+            checked = granted,
+            onCheckedChange = { onClick() },
+            enabled = !granted // Disable the switch if permission is already granted
+        )
+    }
+}
+// --- END NEW ---
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
