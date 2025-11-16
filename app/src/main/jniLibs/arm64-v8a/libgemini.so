@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "Gemini CLI executable not installed." >&2
+exit 1
