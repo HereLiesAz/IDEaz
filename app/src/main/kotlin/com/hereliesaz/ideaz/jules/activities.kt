@@ -1,0 +1,110 @@
+package com.hereliesaz.ideaz.jules
+
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class BashOutput(
+    val command: String? = null,
+    val output: String? = null,
+    val exitCode: Int? = null
+)
+
+@Serializable
+data class GitPatch(
+    val unidiffPatch: String? = null,
+    val baseCommitId: String? = null,
+    val suggestedCommitMessage: String? = null
+)
+
+@Serializable
+data class ChangeSet(
+    val source: String? = null,
+    val gitPatch: GitPatch? = null
+)
+
+@Serializable
+data class Media(
+    val data: String? = null,
+    val mimeType: String? = null
+)
+
+@Serializable
+data class Artifact(
+    val changeSet: ChangeSet? = null,
+    val media: Media? = null,
+    val bashOutput: BashOutput? = null
+)
+
+@Serializable
+data class PlanStep(
+    val id: String,
+    val title: String,
+    val description: String,
+    val index: Int
+)
+
+@Serializable
+data class Plan(
+    val id: String,
+    val steps: List<PlanStep>? = null,
+    val createTime: String? = null
+)
+
+@Serializable
+data class AgentMessaged(
+    val agentMessage: String
+)
+
+@Serializable
+data class UserMessaged(
+    val userMessage: String
+)
+
+@Serializable
+data class PlanGenerated(
+    val plan: Plan
+)
+
+@Serializable
+data class PlanApproved(
+    val planId: String
+)
+
+@Serializable
+data class ProgressUpdated(
+    val title: String? = null,
+    val description: String? = null
+)
+
+@Serializable
+data class SessionCompleted(
+    val empty: String? = null // Placeholder for empty object
+)
+
+@Serializable
+data class SessionFailed(
+    val reason: String? = null
+)
+
+@Serializable
+data class Activity(
+    val name: String,
+    val id: String,
+    val description: String? = null,
+    val createTime: String,
+    val originator: String,
+    val artifacts: List<Artifact>? = null,
+    val agentMessaged: AgentMessaged? = null,
+    val userMessaged: UserMessaged? = null,
+    val planGenerated: PlanGenerated? = null,
+    val planApproved: PlanApproved? = null,
+    val progressUpdated: ProgressUpdated? = null,
+    val sessionCompleted: SessionCompleted? = null,
+    val sessionFailed: SessionFailed? = null
+)
+
+@Serializable
+data class ListActivitiesResponse(
+    val activities: List<Activity>? = null,
+    val nextPageToken: String? = null
+)

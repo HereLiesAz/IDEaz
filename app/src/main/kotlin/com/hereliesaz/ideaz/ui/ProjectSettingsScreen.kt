@@ -62,9 +62,6 @@ fun ProjectSettingsScreen(
 
     // --- FIX: Observe sources from ViewModel ---
     val ownedSources by viewModel.ownedSources.collectAsState()
-    LaunchedEffect(Unit) {
-        viewModel.fetchOwnedSources()
-    }
     // --- END FIX ---
 
     // State for "Load" tab

@@ -19,13 +19,13 @@ object AiModels {
     const val JULES_DEFAULT = "JULES_DEFAULT"
     const val GEMINI_FLASH = "GEMINI_FLASH"
     const val GEMINI_PRO = "GEMINI_PRO"
+    const val GEMINI_CLI = "GEMINI_CLI" // New model for the CLI
 
     val JULES = AiModel(JULES_DEFAULT, "Jules", SettingsViewModel.KEY_API_KEY)
     val GEMINI = AiModel(GEMINI_FLASH, "Gemini Flash", SettingsViewModel.KEY_GOOGLE_API_KEY)
-    // Add more models as needed
-    // val GEMINI_PRO_MODEL = AiModel(GEMINI_PRO, "Gemini Pro", SettingsViewModel.KEY_GOOGLE_API_KEY)
+    val CLI = AiModel(GEMINI_CLI, "Gemini CLI", "none") // CLI doesn't need a key in the same way
 
-    val availableModels = listOf(JULES, GEMINI) //, GEMINI_PRO_MODEL)
+    val availableModels = listOf(JULES, GEMINI, CLI)
 
     fun findById(id: String?): AiModel? = availableModels.find { it.id == id }
 }
