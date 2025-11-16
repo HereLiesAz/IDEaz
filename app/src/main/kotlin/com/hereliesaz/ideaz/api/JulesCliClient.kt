@@ -51,31 +51,24 @@ object JulesCliClient {
     }
 
     fun createSession(context: Context, prompt: String, source: String): String? {
-        // --- FIX: Align with reference document ---
-        val command = "remote new --repo \"$source\" --session \"$prompt\""
-        // --- END FIX ---
+        val command = "session create --prompt \"$prompt\" --source \"$source\" --format=json"
         return executeCommand(context, command)
     }
 
     fun listActivities(context: Context, sessionId: String): String? {
-        // --- FIX: Align with reference document ---
-        val command = "remote list --session \"$sessionId\" --format=json"
-        // --- END FIX ---
+        val command = "activity list --session \"$sessionId\" --format=json"
         return executeCommand(context, command)
     }
 
     fun pullPatch(context: Context, sessionId: String): String? {
-        // --- FIX: Align with reference document ---
-        val command = "remote pull --session $sessionId"
-        // --- END FIX ---
+        // The CLI command `patch pull` just needs the session ID, not the full name.
+        val command = "patch pull $sessionId"
         return executeCommand(context, command)
     }
 
     // --- NEW: Function to list available GitHub repos ---
     fun listSources(context: Context): String? {
-        // --- FIX: Align with reference document ---
-        val command = "remote list --repo --format=json"
-        // --- END FIX ---
+        val command = "source list --format=json"
         return executeCommand(context, command)
     }
     // --- END NEW ---
