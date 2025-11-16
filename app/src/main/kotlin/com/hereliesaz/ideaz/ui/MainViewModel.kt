@@ -32,7 +32,6 @@ import com.hereliesaz.ideaz.api.SourceContext
 import java.io.FileOutputStream
 import java.io.IOException
 import com.hereliesaz.ideaz.utils.ToolManager
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
@@ -65,11 +64,6 @@ class MainViewModel(
     // --- NEW: State for Owned Sources (GitHub Repos) ---
     private val _ownedSources = MutableStateFlow<List<Source>>(emptyList())
     val ownedSources = _ownedSources.asStateFlow()
-    // --- END NEW ---
-
-    // --- NEW: State for Owned Sessions ---
-    private val _ownedSessions = MutableStateFlow<List<com.hereliesaz.ideaz.api.Session>>(emptyList())
-    val ownedSessions = _ownedSessions.asStateFlow()
     // --- END NEW ---
 
     // --- Cancel Dialog State ---
@@ -377,17 +371,6 @@ class MainViewModel(
     }
     // --- END NEW ---
 
-    // --- NEW: Function to fetch sessions ---
-    fun fetchOwnedSessions() {
-        viewModelScope.fetchAndParse(
-            fetcher = JulesCliClient::listSessions,
-            stateFlow = _ownedSessions,
-            dataExtractor = { response: com.hereliesaz.ideaz.api.ListSessionsResponse -> response.sessions },
-            logTag = "fetchOwnedSessions"
-        )
-    }
-    // --- END NEW ---
-
     // --- CONTEXTLESS AI (Global Log) ---
     fun sendPrompt(prompt: String?, isInitialization: Boolean = false) {
         Log.d(TAG, "sendPrompt called with prompt: '$prompt', isInitialization: $isInitialization")
@@ -634,40 +617,26 @@ class MainViewModel(
 
     // --- NEW: Function to fetch GitHub repos ---
     fun fetchOwnedSources() {
-        viewModelScope.fetchAndParse(
-            fetcher = JulesCliClient::listSources,
-            stateFlow = _ownedSources,
-            dataExtractor = { response: ListSourcesResponse -> response.sources },
-            logTag = "fetchOwnedSources"
-        )
-    }
-    // --- END NEW ---
-
-    private inline fun <reified T, R> CoroutineScope.fetchAndParse(
-        crossinline fetcher: (Context) -> String?,
-        stateFlow: MutableStateFlow<List<R>>,
-        crossinline dataExtractor: (T) -> List<R>,
-        logTag: String
-    ): Job {
-        return launch {
-            Log.d(TAG, "$logTag: Fetching data...")
-            val jsonString = fetcher(getApplication())
-            if (jsonString != null) {
+        viewModelScope.launch {
+            Log.d(TAG, "fetchOwnedSources: Fetching sources...")
+            val sourcesJson = JulesCliClient.listSources(getApplication())
+            if (sourcesJson != null) {
                 try {
-                    val response = json.decodeFromString<T>(jsonString)
-                    val data = dataExtractor(response)
-                    stateFlow.value = data
-                    Log.d(TAG, "$logTag: Success. Found ${data.size} items.")
+                    val response = json.decodeFromString<ListSourcesResponse>(sourcesJson)
+                    _ownedSources.value = response.sources
+                    Log.d(TAG, "fetchOwnedSources: Success. Found ${response.sources.size} sources.")
                 } catch (e: Exception) {
-                    Log.e(TAG, "$logTag: Failed to parse JSON", e)
-                    stateFlow.value = emptyList()
+                    Log.e(TAG, "fetchOwnedSources: Failed to parse JSON", e)
+                    _ownedSources.value = emptyList()
                 }
             } else {
-                Log.e(TAG, "$logTag: CLI command failed or returned null")
-                stateFlow.value = emptyList()
+                Log.e(TAG, "fetchOwnedSources: CLI command failed or returned null")
+                _ownedSources.value = emptyList()
             }
         }
     }
+    // --- END NEW ---
+
 
     fun debugBuild() {
         Log.d(TAG, "debugBuild called")

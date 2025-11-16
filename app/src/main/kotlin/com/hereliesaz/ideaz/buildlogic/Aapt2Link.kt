@@ -36,8 +36,9 @@ class Aapt2Link(
             "--manifest", manifestPath,
             "--java", outputJavaPath,
             "--auto-add-overlay",
-            "--min-sdk-version", minSdk.toString(),
-            "--target-sdk-version", targetSdk.toString()
+            // --- FIX: Corrected flag names as you specified ---
+            "--minsdk", minSdk.toString(),
+            "--targetsdk", targetSdk.toString()
         )
         command.addAll(compiledFiles)
 

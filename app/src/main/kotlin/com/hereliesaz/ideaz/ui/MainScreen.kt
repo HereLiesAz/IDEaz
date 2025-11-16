@@ -169,7 +169,7 @@ fun MainScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .then(
-                        if (isIdeVisible) Modifier.background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
+                        if (isIdeVisible) Modifier.background(MaterialTheme.colorScheme.background)
                         else Modifier
                     )
             ) {

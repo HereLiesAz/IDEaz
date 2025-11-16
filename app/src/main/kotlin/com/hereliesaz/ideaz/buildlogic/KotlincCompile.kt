@@ -2,11 +2,10 @@ package com.hereliesaz.ideaz.buildlogic
 
 import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.utils.ProcessExecutor
-import com.hereliesaz.ideaz.utils.ToolInfo
 import java.io.File
 
 class KotlincCompile(
-    private val kotlincInfo: ToolInfo,
+    private val kotlincPath: String,
     private val androidJarPath: String,
     private val srcDir: String,
     private val outputDir: File,
@@ -23,18 +22,13 @@ class KotlincCompile(
 
         val fullClasspath = "$androidJarPath${File.pathSeparator}$classpath".trim(File.pathSeparatorChar)
 
-        val command = mutableListOf<String>()
-        if (kotlincInfo.type == com.hereliesaz.ideaz.utils.ToolType.ASSET) {
-            command.add("java")
-            command.add("-jar")
-        }
-        command.add(kotlincInfo.path)
-        command.addAll(listOf(
+        val command = mutableListOf(
+            kotlincPath, // --- Use native binary directly ---
             "-d", outputDir.absolutePath,
             "-no-reflect",
             "-no-stdlib",
             "-Xuse-old-backend"
-        ))
+        )
 
         if (fullClasspath.isNotEmpty()) {
             command.add("-cp")
