@@ -62,8 +62,10 @@ fun ProjectSettingsScreen(
 
     // --- FIX: Observe sources from ViewModel ---
     val ownedSources by viewModel.ownedSources.collectAsState()
+    val ownedSessions by viewModel.ownedSessions.collectAsState()
     LaunchedEffect(Unit) {
         viewModel.fetchOwnedSources()
+        viewModel.fetchOwnedSessions()
     }
     // --- END FIX ---
 
@@ -179,6 +181,23 @@ fun ProjectSettingsScreen(
                                         tabIndex = 0 // Switch to Create tab
                                     },
                                     text = "${repo.owner}/${repo.repo} (Branch: ${repo.defaultBranch.displayName})",
+                                    modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth()
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text("Your Available Sessions", color = MaterialTheme.colorScheme.onBackground)
+                        if (ownedSessions.isEmpty()) {
+                            Text("No other sessions found on your Jules account.", color = MaterialTheme.colorScheme.onBackground)
+                        } else {
+                            ownedSessions.forEach { session ->
+                                AzButton(
+                                    onClick = {
+                                        // TODO: Implement session loading
+                                        Toast.makeText(context, "Loading sessions is not yet implemented.", Toast.LENGTH_SHORT).show()
+                                    },
+                                    text = session.title ?: session.name ?: "Untitled Session",
                                     modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth()
                                 )
                             }
