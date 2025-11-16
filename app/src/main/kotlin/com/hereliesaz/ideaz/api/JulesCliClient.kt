@@ -79,4 +79,11 @@ object JulesCliClient {
         return executeCommand(context, command)
     }
     // --- END NEW ---
+
+    // --- NEW: Function to list available sessions ---
+    fun listSessions(context: Context): String? {
+        val command = "remote list --session --format=json"
+        return executeCommand(context, command)
+    }
+    // --- END NEW ---
 }
