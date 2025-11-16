@@ -5,7 +5,6 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.hereliesaz.ideaz.MainApplication
 
 @Composable
 fun IdeNavHost(
@@ -38,7 +37,8 @@ fun IdeNavHost(
         composable("project_settings") {
             ProjectSettingsScreen(
                 viewModel = viewModel,
-                settingsViewModel = settingsViewModel
+                settingsViewModel = settingsViewModel,
+                navController = TODO()
             )
         }
     }

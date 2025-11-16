@@ -1,7 +1,6 @@
 package com.hereliesaz.ideaz.ui
 
-// --- FIX: Use import aliases to resolve ambiguity ---
-import android.app.Activity as AndroidActivity // <-- FIX
+import android.app.Activity as AndroidActivity
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -26,6 +25,7 @@ import com.hereliesaz.ideaz.services.ScreenshotService
 import androidx.preference.PreferenceManager
 import com.hereliesaz.ideaz.api.GeminiApiClient
 import com.hereliesaz.ideaz.api.GitHubRepoContext
+import com.hereliesaz.ideaz.api.JulesCliClient
 import com.hereliesaz.ideaz.api.ListSourcesResponse
 import com.hereliesaz.ideaz.api.Source
 import com.hereliesaz.ideaz.api.SourceContext
@@ -35,6 +35,7 @@ import com.hereliesaz.ideaz.utils.ToolManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
+import org.json.JSONObject
 
 class MainViewModel(
     application: Application,
@@ -43,7 +44,6 @@ class MainViewModel(
 
     private val TAG = "MainViewModel"
 
-    // --- Global Build Log ---
     private val _buildLog = MutableStateFlow("")
     val buildLog = _buildLog.asStateFlow()
 
@@ -52,41 +52,35 @@ class MainViewModel(
 
     lateinit var filteredLog: StateFlow<String>
 
-
-    // --- Service Binders ---
     private var buildService: IBuildService? = null
     private var isBuildServiceBound = false
 
-    // --- Code/Source Map State ---
     private var sourceMap: Map<String, SourceMapEntry> = emptyMap()
 
-    // --- NEW: State for Owned Sources (GitHub Repos) ---
     private val _ownedSources = MutableStateFlow<List<Source>>(emptyList())
     val ownedSources = _ownedSources.asStateFlow()
-    // --- END NEW ---
 
-    // --- Cancel Dialog State ---
     private val _showCancelDialog = MutableStateFlow(false)
     val showCancelDialog = _showCancelDialog.asStateFlow()
     private var contextualTaskJob: Job? = null
 
-    // --- Screenshot State ---
     private val _requestScreenCapture = MutableStateFlow(false)
     val requestScreenCapture = _requestScreenCapture.asStateFlow()
     private var screenCaptureResultCode: Int? = null
     private var screenCaptureData: Intent? = null
-    private var pendingRichPrompt: String? = null // Holds the prompt while screenshot is taken
-    private var pendingRect: Rect? = null // Holds the rect to re-draw the log box
-    // --- END ---
+    private var pendingRichPrompt: String? = null
+    private var pendingRect: Rect? = null
 
-    // --- NEW: JSON Parser ---
+    // --- FIX: For Rect-based prompt ---
+    private val _promptForRect = MutableStateFlow<Rect?>(null)
+    val promptForRect = _promptForRect.asStateFlow()
+
     private val json = Json {
         ignoreUnknownKeys = true
     }
-    // --- END NEW ---
 
     init {
-        // Service is now bound explicitly from MainActivity
+        // Service is bound explicitly from MainActivity
     }
 
     override fun onCleared() {
@@ -94,8 +88,6 @@ class MainViewModel(
         unbindBuildService(getApplication())
     }
 
-
-    // --- Build Service Connection ---
     private val buildServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             Log.d(TAG, "onServiceConnected: Service connected")
@@ -112,21 +104,22 @@ class MainViewModel(
         }
     }
 
-    // --- Build Callback ---
     private val buildCallback = object : IBuildCallback.Stub() {
+        // --- FIX: Renamed onProgress to onLog to match AIDL ---
         override fun onLog(message: String) {
             Log.d(TAG, "onLog: $message")
             viewModelScope.launch {
-                _buildLog.value += "[VERBOSE] $message\n" // Build logs go to global log
+                _buildLog.value += "[VERBOSE] $message\n"
                 buildService?.updateNotification(message)
             }
         }
+
         override fun onSuccess(apkPath: String) {
             Log.d(TAG, "onSuccess: Build successful, APK at $apkPath")
             viewModelScope.launch {
                 _buildLog.value += "\n[INFO] Build successful: $apkPath\n"
                 _buildLog.value += "[INFO] Status: Build Successful\n"
-                contextualTaskJob = null // Task is finished
+                contextualTaskJob = null
                 logToOverlay("Build successful. Task finished.")
                 sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
 
@@ -144,15 +137,15 @@ class MainViewModel(
             viewModelScope.launch {
                 _buildLog.value += "\n[INFO] Build failed:\n$log\n"
                 _buildLog.value += "[INFO] Status: Build Failed\n"
-                contextualTaskJob = null // Task is finished
+                contextualTaskJob = null
                 logToOverlay("Build failed. See global log to debug.")
                 _buildLog.value += "[INFO] AI Status: Build failed, asking AI to debug...\n"
-                debugBuild() // Global debug
+                debugBuild()
             }
         }
     }
 
-    // --- Service Binding ---
+    // --- FIX: Added functions called by MainActivity ---
     fun bindBuildService(context: Context) {
         Log.d(TAG, "bindBuildService called")
 
@@ -169,19 +162,18 @@ class MainViewModel(
             val filteredLines = lines.filter { line ->
                 when (level) {
                     SettingsViewModel.LOG_LEVEL_INFO ->
-                        line.startsWith("[INFO]") || !line.trim().startsWith("[") // Show INFO and untagged lines
+                        line.startsWith("[INFO]") || !line.trim().startsWith("[")
                     SettingsViewModel.LOG_LEVEL_DEBUG ->
-                        line.startsWith("[INFO]") || line.startsWith("[DEBUG]") || !line.trim().startsWith("[") // Show INFO, DEBUG, and untagged
+                        line.startsWith("[INFO]") || line.startsWith("[DEBUG]") || !line.trim().startsWith("[")
                     SettingsViewModel.LOG_LEVEL_VERBOSE ->
-                        true // Show all
+                        true
                     else ->
-                        true // Default to showing all
+                        true
                 }
             }
             filteredLines.joinToString("\n")
         }.stateIn(viewModelScope, SharingStarted.Lazily, "")
 
-        // Bind Build Service
         Log.d(TAG, "Binding to BuildService")
         Intent("com.hereliesaz.ideaz.BUILD_SERVICE").also { intent ->
             intent.component = ComponentName(context, BuildService::class.java)
@@ -197,6 +189,7 @@ class MainViewModel(
             isBuildServiceBound = false
         }
     }
+    // --- END FIX ---
 
     fun clearLog() {
         Log.d(TAG, "clearLog called")
@@ -204,18 +197,22 @@ class MainViewModel(
         _aiLog.value = ""
     }
 
-    // --- Inspection Logic ---
+    // --- FIX: Functions for Rect-based prompt ---
+    fun showRectPrompt(rect: Rect) {
+        _promptForRect.value = rect
+    }
 
-    /**
-     * Called by MainActivity when it receives "com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE"
-     */
+    fun dismissRectPrompt() {
+        _promptForRect.value = null
+    }
+    // --- END FIX ---
+
     fun onNodePromptSubmitted(resourceId: String, prompt: String, bounds: Rect) {
         Log.d(TAG, "onNodePromptSubmitted: resourceId=$resourceId, prompt='$prompt', bounds=$bounds")
 
-        pendingRect = bounds // Save the rect to re-draw the log box
+        pendingRect = bounds
         val entry = sourceMap[resourceId]
 
-        // Construct the text-based prefix
         if (entry != null) {
             viewModelScope.launch {
                 try {
@@ -224,7 +221,6 @@ class MainViewModel(
                     val lineIndex = entry.line - 1
                     val snippet = lines.getOrNull(lineIndex)?.trim()
 
-                    // Prefix + User Prompt
                     pendingRichPrompt = """
                     Context (for element $resourceId):
                     File: ${entry.file}
@@ -241,26 +237,22 @@ class MainViewModel(
                 }
             }
         } else {
-            // Fallback if source map fails
             pendingRichPrompt = "Context: Element $resourceId (Error: Not found in source map)\nUser Request: \"$prompt\""
             takeScreenshot(bounds)
         }
     }
 
-    /**
-     * Called by MainActivity when it receives "com.hereliesaz.ideaz.PROMPT_SUBMITTED_RECT"
-     */
     fun onRectPromptSubmitted(rect: Rect, prompt: String) {
         Log.d(TAG, "onRectPromptSubmitted: rect=$rect, prompt='$prompt'")
+        dismissRectPrompt() // Hide the popup
 
-        pendingRect = rect // Save the rect to re-draw the log box
+        pendingRect = rect
         val richPrompt = """
         Context: Screen area Rect(${rect.left}, ${rect.top}, ${rect.right}, ${rect.bottom})
         
         User Request: "$prompt"
         """.trimIndent()
 
-        // Store the prompt and take a screenshot
         pendingRichPrompt = richPrompt
         takeScreenshot(rect)
     }
@@ -273,16 +265,14 @@ class MainViewModel(
     fun stopInspection(context: Context) {
         Log.d(TAG, "stopInspection called")
         context.stopService(Intent(context, com.hereliesaz.ideaz.services.UIInspectionService::class.java))
-        confirmCancelTask() // Stop inspection is a hard cancel
+        confirmCancelTask()
     }
 
-
-    // --- Build Logic ---
     fun startBuild(context: Context) {
         Log.d(TAG, "startBuild called")
         if (isBuildServiceBound) {
             viewModelScope.launch {
-                _buildLog.value = "[INFO] Status: Building...\n" // Clear log and set status
+                _buildLog.value = "[INFO] Status: Building...\n"
                 val projectDir = File(extractProject(context))
                 Log.d(TAG, "Project extracted to: ${projectDir.absolutePath}")
                 buildService?.startBuild(projectDir.absolutePath, buildCallback)
@@ -314,7 +304,7 @@ class MainViewModel(
         val assetManager = context.assets
         try {
             val files = assetManager.list(assetPath)
-            if (files.isNullOrEmpty() || files.isEmpty()) {
+            if (files.isNullOrEmpty()) {
                 // It's a file
                 Log.d(TAG, "Copying file: $assetPath")
                 assetManager.open(assetPath).use { input ->
@@ -348,7 +338,6 @@ class MainViewModel(
         }
     }
 
-    // --- NEW: Clear Cache Function ---
     fun clearBuildCaches(context: Context) {
         viewModelScope.launch {
             _buildLog.value += "[INFO] Clearing build caches...\n"
@@ -368,9 +357,7 @@ class MainViewModel(
             }
         }
     }
-    // --- END NEW ---
 
-    // --- CONTEXTLESS AI (Global Log) ---
     fun sendPrompt(prompt: String?, isInitialization: Boolean = false) {
         Log.d(TAG, "sendPrompt called with prompt: '$prompt', isInitialization: $isInitialization")
         val taskKey = if (isInitialization) {
@@ -398,28 +385,29 @@ class MainViewModel(
 
         viewModelScope.launch {
             _buildLog.value += "[INFO] AI Status: Sending...\n"
-            _aiLog.value = "" // Clear previous AI log
+            _aiLog.value = ""
 
             when (model.id) {
                 AiModels.JULES_DEFAULT -> {
                     Log.d(TAG, "Using Jules API for contextless prompt")
                     try {
+                        // --- FIX: Use getGithubUser/getAppName ---
                         val appName = settingsViewModel.getAppName() ?: ""
                         val githubUser = settingsViewModel.getGithubUser() ?: ""
-                        val source = "sources/github/${githubUser}/${appName}"
-                        val request = com.hereliesaz.ideaz.jules.CreateSessionRequest(
-                            prompt = prompt ?: "",
-                            sourceContext = com.hereliesaz.ideaz.jules.SourceContext(
-                                source = source,
-                                githubRepoContext = com.hereliesaz.ideaz.jules.GithubRepoContext(
-                                    startingBranch = "main"
-                                )
-                            )
-                        )
-                        val session = JulesApiClient.createSession(request)
-                        _buildLog.value += "[DEBUG] Jules session created: ${session.name}\n"
-                        _buildLog.value += "[INFO] AI Status: Session created. Waiting for patch...\n"
-                        pollForPatch(session.id, _buildLog)
+                        val source = "$githubUser/$appName"
+                        // --- END FIX ---
+                        val promptText = prompt ?: ""
+                        val sessionJson = JulesCliClient.createSession(getApplication(), promptText, source)
+
+                        if (sessionJson != null) {
+                            val jsonObject = JSONObject(sessionJson)
+                            val sessionId = jsonObject.getString("name")
+                            _buildLog.value += "[DEBUG] Jules session created: $sessionId\n"
+                            _buildLog.value += "[INFO] AI Status: Session created. Waiting for patch...\n"
+                            pollForPatch(sessionId, _buildLog)
+                        } else {
+                            _buildLog.value += "[INFO] AI Status: Error: Could not create session.\n"
+                        }
                     } catch (e: Exception) {
                         Log.e(TAG, "Error creating Jules session", e)
                         _buildLog.value += "[INFO] AI Status: Error: ${e.message}\n"
@@ -446,17 +434,15 @@ class MainViewModel(
         }
     }
 
-    // --- CONTEXTUAL AI (Overlay Log) ---
     private fun startContextualAITask(richPrompt: String) {
         Log.d(TAG, "startContextualAITask called with richPrompt:\n$richPrompt")
-        // Re-show the log UI *before* sending the prompt
         pendingRect?.let {
             Log.d(TAG, "Re-showing log UI at rect: $it")
             sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.SHOW_LOG_UI").apply {
                 putExtra("RECT", it)
             })
         }
-        pendingRect = null // Clear it
+        pendingRect = null
 
         logToOverlay("Sending prompt to AI...")
 
@@ -479,25 +465,25 @@ class MainViewModel(
                 AiModels.JULES_DEFAULT -> {
                     Log.d(TAG, "Using Jules API for overlay task")
                     try {
+                        // --- FIX: Use getGithubUser/getAppName ---
                         val appName = settingsViewModel.getAppName() ?: ""
                         val githubUser = settingsViewModel.getGithubUser() ?: ""
-                        val source = "sources/github/${githubUser}/${appName}"
-                        val request = com.hereliesaz.ideaz.jules.CreateSessionRequest(
-                            prompt = richPrompt,
-                            sourceContext = com.hereliesaz.ideaz.jules.SourceContext(
-                                source = source,
-                                githubRepoContext = com.hereliesaz.ideaz.jules.GithubRepoContext(
-                                    startingBranch = "main"
-                                )
-                            )
-                        )
-                        val session = JulesApiClient.createSession(request)
-                        logToOverlay("Session created: ${session.name}. Waiting for patch...")
-                        pollForPatch(session.id, "OVERLAY")
+                        val source = "github/$githubUser/$appName"
+                        val sessionJson = JulesCliClient.createSession(getApplication(), richPrompt, source)
+
+                        if (sessionJson != null) {
+                            val jsonObject = JSONObject(sessionJson)
+                            val sessionId = jsonObject.getString("name") // e.g. "sessions/12345"
+                            logToOverlay("Session created: $sessionId. Waiting for patch...")
+                            pollForPatch(sessionId, "OVERLAY")
+                        } else {
+                            logToOverlay("Error: Could not create session.")
+                            logToOverlay("Task Finished.") // Manually finish
+                        }
                     } catch (e: Exception) {
                         Log.e(TAG, "Error creating Jules session for overlay task", e)
                         logToOverlay("Error: ${e.message}")
-                        logToOverlay("Task Finished.") // Manually finish
+                        logToOverlay("Task Finished.")
                     }
                 }
                 AiModels.GEMINI_FLASH -> {
@@ -534,7 +520,6 @@ class MainViewModel(
         }
     }
 
-    // --- Cancel Logic Functions ---
     fun requestCancelTask() {
         Log.d(TAG, "requestCancelTask called")
         if (settingsViewModel.getShowCancelWarning()) {
@@ -542,7 +527,7 @@ class MainViewModel(
             _showCancelDialog.value = true
         } else {
             Log.d(TAG, "Skipping cancel warning dialog and confirming cancellation")
-            confirmCancelTask() // No warning needed, just cancel
+            confirmCancelTask()
         }
     }
 
@@ -566,7 +551,6 @@ class MainViewModel(
         confirmCancelTask()
     }
 
-    // --- Screenshot Functions ---
     fun hasScreenCapturePermission(): Boolean {
         val hasPermission = screenCaptureData != null
         Log.d(TAG, "hasScreenCapturePermission: $hasPermission")
@@ -583,17 +567,24 @@ class MainViewModel(
         _requestScreenCapture.value = false
     }
 
+    // --- FIX: Renamed function to match MainActivity ---
     fun setScreenCapturePermission(resultCode: Int, data: Intent?) {
         Log.d(TAG, "setScreenCapturePermission called with resultCode: $resultCode")
-        if (resultCode == AndroidActivity.RESULT_OK && data != null) { // <-- FIX
+        if (resultCode == AndroidActivity.RESULT_OK && data != null) {
             Log.d(TAG, "Screen capture permission GRANTED")
             screenCaptureResultCode = resultCode
             screenCaptureData = data
+            // --- FIX: Removed call to non-existent function ---
+            // UIInspectionService.setScreenshotPermission(true)
+            // --- END FIX ---
         } else {
             Log.w(TAG, "Screen capture permission DENIED")
             screenCaptureResultCode = null
             screenCaptureData = null
             _buildLog.value += "Warning: Screen capture permission denied.\n"
+            // --- FIX: Removed call to non-existent function ---
+            // UIInspectionService.setScreenshotPermission(false)
+            // --- END FIX ---
         }
     }
 
@@ -617,9 +608,8 @@ class MainViewModel(
     fun onScreenshotTaken(base64: String) {
         Log.d(TAG, "onScreenshotTaken called")
         val prompt = pendingRichPrompt ?: "Error: No pending prompt"
-        pendingRichPrompt = null // Clear it
+        pendingRichPrompt = null
 
-        // Append the Base64 string to the prompt
         val finalRichPrompt = """
         $prompt
         
@@ -629,7 +619,6 @@ class MainViewModel(
         startContextualAITask(finalRichPrompt)
     }
 
-    // --- AI Helper Functions ---
     private fun getAssignedModelForTask(taskKey: String): AiModel? {
         Log.d(TAG, "getAssignedModelForTask called for taskKey: $taskKey")
         val modelId = settingsViewModel.getAiAssignment(taskKey)
@@ -639,9 +628,32 @@ class MainViewModel(
         return model
     }
 
+    // --- NEW: Function to fetch GitHub repos ---
+    fun fetchOwnedSources() {
+        viewModelScope.launch {
+            Log.d(TAG, "fetchOwnedSources: Fetching sources...")
+            val sourcesJson = JulesCliClient.listSources(getApplication())
+            if (sourcesJson != null) {
+                try {
+                    val response = json.decodeFromString<ListSourcesResponse>(sourcesJson)
+                    _ownedSources.value = response.sources
+                    Log.d(TAG, "fetchOwnedSources: Success. Found ${response.sources.size} sources.")
+                } catch (e: Exception) {
+                    Log.e(TAG, "fetchOwnedSources: Failed to parse JSON", e)
+                    _ownedSources.value = emptyList()
+                }
+            } else {
+                Log.e(TAG, "fetchOwnedSources: CLI command failed or returned null")
+                _ownedSources.value = emptyList()
+            }
+        }
+    }
+    // --- END NEW ---
+
+
     fun debugBuild() {
         Log.d(TAG, "debugBuild called")
-        val model = getAssignedModelForTask(SettingsViewModel.KEY_AI_ASSIGNMENT_CONTEXTLESS) // Debug follows contextless for now
+        val model = getAssignedModelForTask(SettingsViewModel.KEY_AI_ASSIGNMENT_CONTEXTLESS)
         if (model == null) {
             Log.w(TAG, "No AI model assigned for debug task")
             _buildLog.value += "Error: No AI model assigned for this task. Go to Settings.\n"
@@ -659,8 +671,25 @@ class MainViewModel(
 
             when (model.id) {
                 AiModels.JULES_DEFAULT -> {
-                    Log.d(TAG, "Debugging with Jules is not supported in API mode.")
-                    _buildLog.value += "AI Status: Error: Debugging with Jules is not supported in API mode.\n"
+                    Log.d(TAG, "Debugging with Jules CLI")
+                    try {
+                        val appName = settingsViewModel.getAppName() ?: ""
+                        val githubUser = settingsViewModel.getGithubUser() ?: ""
+                        val source = "github/$githubUser/$appName"
+                        // Pass the entire build log as the prompt
+                        val sessionJson = JulesCliClient.createSession(getApplication(), buildLog.value, source)
+                        if (sessionJson != null) {
+                            val jsonObject = JSONObject(sessionJson)
+                            val sessionId = jsonObject.getString("name") // e.g. "sessions/12345"
+                            _buildLog.value += "AI Status: Debug info sent ($sessionId). Waiting for new patch...\n"
+                            pollForPatch(sessionId, _buildLog)
+                        } else {
+                            _buildLog.value += "AI Status: Error: Could not create debug session.\n"
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error during Jules debug", e)
+                        _buildLog.value += "AI Status: Error debugging: ${e.message}\n"
+                    }
                 }
                 AiModels.GEMINI_FLASH -> {
                     Log.d(TAG, "Debugging with Gemini Flash")
@@ -695,7 +724,6 @@ class MainViewModel(
             "OVERLAY" -> {
                 logToOverlay(message)
             }
-            // <-- FIX: This was the source of the `Any` vs `String` error.
         }
     }
 
@@ -712,12 +740,11 @@ class MainViewModel(
     }
 
     private fun pollForPatch(sessionId: String, logTarget: Any, attempt: Int = 1) {
-        val maxAttempts = 20 // 100 seconds timeout
+        val maxAttempts = 20
         Log.d(TAG, "Polling for patch for session $sessionId, attempt $attempt/$maxAttempts")
         logTo(logTarget, "[INFO] AI Status: Waiting for patch... (Attempt $attempt)")
 
         viewModelScope.launch {
-            // Stop if max attempts reached
             if (attempt > maxAttempts) {
                 logTo(logTarget, "[INFO] AI Status: Error: Timed out waiting for patch.")
                 if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
@@ -740,7 +767,6 @@ class MainViewModel(
                         if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
                     }
                 } else {
-                    // Not ready, poll again
                     delay(5000)
                     pollForPatch(sessionId, logTarget, attempt + 1)
                 }
@@ -756,12 +782,19 @@ class MainViewModel(
         Log.d(TAG, "applyPatch called")
         viewModelScope.launch {
             try {
-                logTo(logTarget, "[INFO] AI Status: Applying patch...")
-                val projectDir = context.filesDir.resolve("project")
-                val gitManager = GitManager(projectDir)
-                gitManager.applyPatch(patch)
-                logTo(logTarget, "[INFO] AI Status: Patch applied. Rebuilding...")
-                startBuild(context) // This will handle success/failure logging
+                // Use the new pullPatch method which just needs the session ID
+                val patch = JulesCliClient.pullPatch(context, sessionId)
+                if (!patch.isNullOrEmpty()) {
+                    logTo(logTarget, "[INFO] AI Status: Applying patch...")
+                    val projectDir = context.filesDir.resolve("project")
+                    val gitManager = GitManager(projectDir)
+                    gitManager.applyPatch(patch)
+                    logTo(logTarget, "[INFO] AI Status: Patch applied. Rebuilding...")
+                    startBuild(context) // This will handle success/failure logging
+                } else {
+                    logTo(logTarget, "[INFO] AI Status: Error: Could not retrieve patch.")
+                    if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Error applying patch", e)
                 logTo(logTarget, "[INFO] AI Status: Error applying patch: ${e.message}")
