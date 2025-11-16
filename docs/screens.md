@@ -34,7 +34,7 @@ This is a traditional Android screen within the IDEaz IDE app that serves as the
 A standard Android screen for configuring the IDEaz IDE.
 
 **Key Components:**
--   **API Key Inputs:** Secure text fields for the user to enter and save their **Jules API Key** and **Google AI Studio API Key**.
+-   **API Key Inputs:** Secure text fields for the user to enter and save their **Jules API Key** and **Google AI Studio API Key**. (Note: The Jules key is used by the `ApiClient`, but not by the primary `JulesCliClient`.)
 -   **Project Settings:** Inputs for GitHub repository details.
--   **AI Assignments:** Dropdowns to assign an AI model to each task.
+-   **AI Assignments:** Dropdowns to assign an AI model to each task (e.g., "Jules Tools CLI" or "Gemini").
 -   **Preferences:** A checkbox to **"Show warning when cancelling AI task"**.

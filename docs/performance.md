@@ -5,9 +5,10 @@ Performance for IDEaz is measured by the perceived speed and reliability of the 
 ## 1. On-Device "No-Gradle" Build Pipeline Performance
 This is the most critical performance area. The user experience is directly tied to the speed of the on-device build.
 
--   **Compilation Speed:** The "No-Gradle" approach, which directly invokes command-line tools like `aapt2` and `kotlinc`, is designed to be significantly faster and less resource-intensive than a full Gradle build. Performance will depend on the efficiency of this scripted pipeline.
+-   **Compilation Speed:** The "No-Gradle" approach, which directly invokes native command-line tools like `libaapt2.so` and `libkotlinc.so`, is designed to be significantly faster and less resource-intensive than a full Gradle build.
 -   **Incremental Builds:** The speed of iterative changes hinges entirely on the incremental build system. The file hash comparison must be rapid, and the logic for selectively skipping build steps must be robust to ensure near-instant rebuilds for minor code changes.
 -   **Dependency Resolution:** The on-device Maven resolver is a potential bottleneck. Performance will be managed by aggressive caching of downloaded artifacts to minimize network requests.
+-   **Toolchain Packaging:** By packaging all executable tools as native libraries in `jniLibs`, we avoid any file extraction or `setExecutable(true)` calls at runtime, improving startup performance and reliability.
 
 ## 2. UI Inspection Service Performance
 The visual overlay provided by the `AccessibilityService` must feel instant and responsive.

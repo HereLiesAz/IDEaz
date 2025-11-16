@@ -4,7 +4,7 @@
 
 IDEaz represents a fundamental leap forward in mobile application development, engineered to drastically compress the iteration cycle. The core thesis is the seamless integration of a visual, on-device UI inspection mechanism with the transformative power of generative artificial intelligence. This approach moves beyond the traditional, text-centric coding paradigm, introducing a more intuitive, interactive, and conversational model of software creation.
 
-The user does not write code; they visually select an element in their running application. This action presents a **contextual AI prompt and log overlay**. The user describes the desired change, and an AI agent, powered by a **user-selected API (e.g., Jules or Gemini)**, handles the entire development lifecycle—code generation, compilation, and debugging—directly on the device.
+The user does not write code; they visually select an element in their running application. This action presents a **contextual AI prompt and log overlay**. The user describes the desired change, and an AI agent, powered by a **user-selected API (e.g., Jules Tools CLI or Gemini)**, handles the entire development lifecycle—code generation, compilation, and debugging—directly on the device.
 
 ---
 
@@ -45,14 +45,6 @@ The cornerstone of the IDE is the ability to visually select a UI element and ha
 
 The **Android AccessibilityService** is the core technology that enables the IDE to inspect the UI of the target application securely and without requiring root access. An AccessibilityService runs with elevated privileges that allow it to traverse the "accessibility node tree" (a representation of the on-screen UI elements) of the currently active window. This is the only non-root method available for this purpose.
 
-#### **Table 2: UI Inspection Technology Comparison**
-
-| Technology | Feasibility for IDEaz | Pros | Cons |
-| :---- | :---- | :---- | :---- |
-| **AccessibilityService** | **High (Recommended)** | Sanctioned by Android OS; can inspect any app (with user permission); provides rich node information; can draw system overlays. | Requires one-time user setup in system settings; can be complex to manage node hierarchies. |
-| **Android Studio Layout Inspector Protocol** | **Low** | Extremely detailed, provides 3D view and full attribute list. | Protocol is proprietary, undocumented, and requires a debuggable app connected via ADB. Replicating this on-device is not feasible. |
-| **Custom Instrumentation Library** | **Medium** | Could provide very precise source mapping by injecting code. | Requires the target app to include a specific library; adds build complexity and potential performance overhead. |
-
 ### **4.2 Hybrid Selection: Tap vs. Drag**
 
 The `UIInspectionService`'s overlay supports two distinct selection methods:
@@ -85,13 +77,15 @@ The IDE is not tied to a single AI. The `SettingsViewModel` stores user preferen
 * Contextual (Overlay) Chat
 * Contextless (Global) Chat
 
-The `MainViewModel` reads these preferences and routes all AI requests to the appropriate client (e.g., `ApiClient` for Jules, or a future Gemini client). It also ensures the required API key for the selected service is present before sending a request.
+The `MainViewModel` reads these preferences and routes all AI requests to the appropriate client (e.g., `JulesCliClient` for Jules, or `GeminiApiClient` for Gemini).
 
 ### **5.2 The AI Workflow (Contextual)**
 
 1.  **Commit Current State:** The IDE automatically commits the current state of the project.
 2.  **Construct Rich Prompt:** The `MainViewModel` constructs the detailed, prefixed prompt as described in 4.4.
-3.  **Route and Call AI:** The `MainViewModel` checks the user's settings for the **"Overlay Chat"** task and selects the assigned AI. It makes the API call.
+3.  **Route and Call AI:** The `MainViewModel` checks the user's settings for the **"Overlay Chat"** task and selects the assigned AI.
+    * **If Jules:** It calls the `JulesCliClient`, which executes the `libjules.so` native binary with the prompt.
+    * **If Gemini:** It calls the `GeminiApiClient`, which makes an HTTP request.
 4.  **Stream Logs to Overlay:** As the AI works, all chat and activity logs are streamed *only* to the `UIInspectionService`'s floating log box. The log box contains a **Cancel (X) button** to terminate the task.
-5.  **Receive and Apply Patch:** The AI's final output (a `gitPatch`) is received by the Host App.
+5.  **Receive and Apply Patch:** The AI's final output (a `gitPatch`) is received.
 6.  **Trigger Rebuild:** The Host App sends an IPC message to the On-Device Build Service. All **build and compile logs** are streamed *only* to the Host App's main bottom sheet.

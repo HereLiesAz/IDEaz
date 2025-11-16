@@ -1,6 +1,6 @@
-# IDEaz IDE: Common Faux Pas & Best Practices (Screenshot-First Architecture)
+# IDEaz IDE: Common Faux Pas & Best Practices
 
-This document outlines common pitfalls ("faux pas") that developers might encounter while working on the "Screenshot-First" IDEaz IDE.
+This document outlines common pitfalls ("faux pas") that developers might encounter while working on the IDEaz IDE.
 
 ### 1. Blocking the Main Thread
 **The Faux Pas:** Performing any part of the `git pull -> compile -> relaunch` loop on Android's main thread.
@@ -22,12 +22,12 @@ This document outlines common pitfalls ("faux pas") that developers might encoun
     -   **Contextual (Overlay):** For element-specific AI tasks, the `UIInspectionService` must show a floating log box.
     -   **Global (Bottom Sheet):** For builds and contextless AI tasks, the main app's bottom sheet must show a live, consolidated log.
 
-### 4. Inaccurate AI Context from Poor Screenshots
-**The Faux Pas:** Sending low-resolution or poorly annotated screenshots to the Jules API. The AI's ability to map a visual element to code is entirely dependent on the quality of the image it receives. (Note: This is less relevant now as we are using source mapping, but the principle of good context remains).
+### 4. Inaccurate AI Context
+**The Faux Pas:** Sending a weak or incomplete prompt to the AI. The AI's ability to map a visual element to code is entirely dependent on the quality of the context it receives.
 
 **The Best Practice:**
 -   **Precise Source Mapping:** Ensure the `source_map.json` is generated correctly and that the `UIInspectionService` accurately identifies the `RESOURCE_ID`.
--   **Resilient Prompting:** Structure the prompt to the AI to be resilient to some ambiguity. For example: "The user selected the element with ID `login_button` in `activity_main.xml`. Please find the corresponding component and apply the user's requested change."
+-   **Resilient Prompting:** Structure the prompt to the AI to be resilient. For example: "The user selected the element with ID `login_button` in `activity_main.xml`. Please find the corresponding component and apply the user's requested change."
 
 ### 5. Mixing Log Streams
 **The Faux Pas:** Sending build/compile logs to the contextual (overlay) UI, or sending a contextual AI chat log to the global (bottom sheet) console.
@@ -39,7 +39,7 @@ This document outlines common pitfalls ("faux pas") that developers might encoun
 -   This separation prevents user confusion and keeps the UI clean.
 
 ### 6. Ignoring AI Abstraction
-**The Faux Pas:** Hard-coding a call to `ApiClient.julesApiService` for a new feature.
+**The Faux Pas:** Hard-coding a call to `JulesCliClient` for a new feature.
 
 **The Best Practice:**
 -   **Always Route:** All AI-driven tasks must be routed through the `MainViewModel`, which checks the `SettingsViewModel` for the user's preferred AI assignment (Jules, Gemini, etc.) for that specific task.

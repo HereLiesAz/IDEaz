@@ -7,7 +7,10 @@ import java.io.File
 class Aapt2Compile(
     private val aapt2Path: String,
     private val resDir: String,
-    private val compiledResDir: String
+    private val compiledResDir: String,
+    // --- ADDED SDK versions ---
+    private val minSdk: Int,
+    private val targetSdk: Int
 ) : BuildStep {
 
     override fun execute(callback: IBuildCallback?): BuildResult {
@@ -19,12 +22,12 @@ class Aapt2Compile(
         val command = listOf(
             aapt2Path,
             "compile",
-            "--dir",
-            resDir,
-            "-o",
-            compiledResDir
+            "--dir", resDir,
+            "-o", compiledResDir,
+            // --- ADDED Flags ---
+            "--min-sdk-version", minSdk.toString(),
+            "--target-sdk-version", targetSdk.toString()
         )
-
         val processResult = ProcessExecutor.execute(command)
         return BuildResult(processResult.exitCode == 0, processResult.output)
     }

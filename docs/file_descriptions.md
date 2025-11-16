@@ -4,11 +4,11 @@ This document provides a brief overview of the purpose of each documentation fil
 
 -   **`UI_UX.md`**: Describes the "post-code" user experience, focusing on the "Interact" vs. "Select" modes, the **hybrid tap-and-drag selection model**, the "Live App" view, and the "Select and Instruct" user journey.
 
--   **`auth.md`**: Outlines the dual-layer security model: standard social sign-on for user authentication to the IDEaz IDE app, and the "Bring Your Own Key" (BYOK) model for authenticating calls to **both Jules and Gemini APIs**.
+-   **`auth.md`**: Outlines the dual-layer security model: social sign-on for the app, and the "Bring Your Own Key" (BYOK) model for authenticating calls to the **Gemini API**. Notes that the **Jules Tools CLI** handles its own authentication.
 
--   **`blueprint.md`**: The **primary architectural document**. Details the 4 core components, the IPC strategy, the hybrid tap/drag selection model, and the AI abstraction layer.
+-   **`blueprint.md`**: The **primary architectural document**. Details the 4 core components, the IPC strategy, the hybrid tap/drag selection model, and the AI abstraction layer (which routes between `JulesCliClient` and `GeminiApiClient`).
 
--   **`build_pipeline.md`**: (New File) A detailed, step-by-step breakdown of the "No-Gradle" on-device build system, including the toolchain, build sequence, and dependency resolution.
+-   **`build_pipeline.md`**: A detailed, step-by-step breakdown of the "No-Gradle" on-device build system. **Crucially, this file explains the `jniLibs` bundling strategy for all native toolchain binaries.**
 
 -   **`conduct.md`**: Establishes the Code of Conduct for all contributors to the IDEaz IDE project.
 
@@ -32,7 +32,7 @@ This document provides a brief overview of the purpose of each documentation fil
 
 - **`app/src/main/kotlin/com/hereliesaz/ideaz/services/BuildService.kt`**: A background service that runs in a separate process to manage the on-device build toolchain. It receives build requests from the Host App and reports back the status and logs.
 
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/BuildStep.kt`**: An interface that defines a contract for all the build steps, with an `execute` method that returns a `BuildResult` object containing the success status and the process output.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/BuildStep.kt`**: An interface that defines a contract for all the build steps.
 
 - **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/Aapt2Compile.kt`**: A class that implements the `BuildStep` interface and is responsible for compiling the Android resources using `aapt2`.
 
@@ -50,7 +50,7 @@ This document provides a brief overview of the purpose of each documentation fil
 
 - **`app/src/main/kotlin/com/hereliesaz/ideaz/utils/ProcessExecutor.kt`**: A utility object that provides methods to execute command-line processes.
 
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/utils/ToolManager.kt`**: A utility object that manages the extraction of build tools from the app's assets.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/utils/ToolManager.kt`**: A utility object that manages **getting the executable paths for native binaries (from `jniLibs`) and data files (from `assets`)**.
 
 - **`app/src/main/kotlin/com/hereliesaz/ideaz/ui/MainViewModel.kt`**: The ViewModel for the `MainActivity`. It manages the UI state, handles the `BuildService` connection, and orchestrates the build process. **It also routes AI requests, handles tap/drag contexts, and manages the cancel-task logic.**
 
@@ -58,6 +58,6 @@ This document provides a brief overview of the purpose of each documentation fil
 
 - **`app/src/main/kotlin/com/hereliesaz/ideaz/utils/SourceMapParser.kt`**: A utility class that is responsible for parsing the `source_map.json` file.
 
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/api/JulesApiService.kt`**: A Retrofit interface that defines the methods for interacting with the Jules API.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/api/JulesCliClient.kt`**: A client for executing the **native `libjules.so` command-line tool**.
 
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/api/ApiClient.kt`**: A singleton object that provides a configured Retrofit instance for the `JulesApiService`.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/api/ApiClient.kt`**: A singleton object that provides a configured Retrofit instance for the `JulesApiService` (Web API).

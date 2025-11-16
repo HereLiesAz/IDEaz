@@ -1,11 +1,11 @@
-# IDEaz IDE: Testing Strategy (Screenshot-First Architecture)
+# IDEaz IDE: Testing Strategy
 
 This document outlines the testing strategy for the IDEaz IDE. Testing this unique architecture requires a focus on integration and end-to-end (E2E) tests that validate the core automated loop.
 
 ## Guiding Principles
 -   **Focus on Integration:** The most critical tests will be integration tests that ensure the components of the IDEaz Service work together.
 -   **E2E Validation:** The primary success metric is the successful completion of the end-to-end user journey.
--   **Mocking the AI:** The Jules and Gemini APIs will be mocked dependencies for all automated tests.
+-   **Mocking the AI:** The `JulesCliClient` and `GeminiApiClient` will be mocked for all automated tests to prevent live network calls.
 
 ---
 
@@ -23,11 +23,11 @@ This document outlines the testing strategy for the IDEaz IDE. Testing this uniq
 -   **Scope:** Test the interaction between the different components of the on-device IDEaz Service. These will run on the Android runtime.
 -   **Frameworks:** `AndroidX Test`.
 -   **Key Scenarios:**
-    -   **The Git-to-Compile Loop:** Can the IDEaz Service successfully `git pull` a change and compile it on the device?
-    -   **The Debugging Loop:** If a pulled commit is designed to fail compilation, does the IDEaz Service correctly capture the error and trigger a (mocked) call to the correct AI?
+    -   **The Build Pipeline:** Can the `BuildService` successfully execute the full build chain (Aapt2, Kotlinc, D8, etc.) using the packaged native tools?
+    -   **The Debugging Loop:** If a build fails, does the `MainViewModel` correctly capture the error and trigger a (mocked) call to the correct AI?
     -   **IPC Channel (Contextual):** Can the `MainViewModel` successfully receive both `PROMPT_SUBMITTED_NODE` and `PROMPT_SUBMITTED_RECT` broadcasts from the `UIInspectionService`?
     -   **Cancel IPC:** Can the `MainViewModel` receive the `CANCEL_TASK_REQUESTED` broadcast and show the `showCancelDialog` state?
-    -   **API Key Management:** Can the app securely save and retrieve API keys for *both* Jules and Gemini?
+    -   **ToolManager:** Does the `ToolManager` correctly find the paths for all native tools in `nativeLibraryDir` and all assets in `filesDir`?
 
 ## 3. UI / End-to-End (E2E) Tests
 -   **Scope:** Test the full, end-to-end user flow.

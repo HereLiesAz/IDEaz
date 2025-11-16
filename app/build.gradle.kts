@@ -20,6 +20,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -42,12 +43,14 @@ android {
 
         aidl = true
     }
+    // --- FIX: This block is required to package libjules.so ---
     sourceSets {
         getByName("main") {
             aidl.srcDirs("src/main/aidl")
             jniLibs.srcDirs("src/main/jniLibs")
         }
     }
+    // --- END FIX ---
     packaging {
         jniLibs {
             useLegacyPackaging = true
@@ -55,6 +58,7 @@ android {
         resources {
             excludes.add("META-INF/DEPENDENCIES")
             excludes.add("META-INF/LICENSE")
+
             excludes.add("META-INF/NOTICE")
             excludes.add("META-INF/INDEX.LIST")
 
@@ -65,9 +69,12 @@ android {
             excludes.add("META-INF/ASL2.0")
         }
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+
+    // This block is deprecated and redundant, use the `kotlin { jvmToolchain(17) }` block above
+    // kotlinOptions {
+    //     jvmTarget = "17"
+    // }
+
     buildToolsVersion = "36.1.0"
     ndkVersion = "29.0.14206865"
 }
@@ -79,6 +86,7 @@ configurations.all {
                 useTarget("org.slf4j:jcl-over-slf4j:1.7.30")
                 because("Avoids duplicate classes with jcl-over-slf4j")
             }
+
         }
     }
 }
@@ -101,6 +109,7 @@ dependencies {
 
     // Networking for Jules API
     implementation(libs.retrofit)
+
     implementation(libs.retrofit2.kotlinx.serialization.converter)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
@@ -131,6 +140,7 @@ dependencies {
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
+
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
