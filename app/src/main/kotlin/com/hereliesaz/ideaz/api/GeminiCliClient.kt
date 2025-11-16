@@ -62,8 +62,23 @@ object GeminiCliClient {
         return if (jsonResponse != null) {
             try {
                 val jsonObject = JSONObject(jsonResponse)
-                // The main AI-generated content is in the "response" field.
-                jsonObject.optString("response", "Error: Could not parse 'response' from JSON.")
+
+                // Check for a specific error object in the JSON response first.
+                if (jsonObject.has("error") && !jsonObject.isNull("error")) {
+                    val errorObject = jsonObject.getJSONObject("error")
+                    val errorType = errorObject.optString("type", "UnknownError")
+                    val errorMessage = errorObject.optString("message", "An unknown error occurred.")
+                    Log.e(TAG, "CLI returned an error: [$errorType] $errorMessage")
+                    return "Error: [$errorType] $errorMessage"
+                }
+
+                // If no error, get the successful response.
+                if (jsonObject.has("response")) {
+                    jsonObject.getString("response")
+                } else {
+                    Log.e(TAG, "JSON response is missing the 'response' field.")
+                    "Error: Could not parse 'response' from JSON."
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to parse JSON response: $jsonResponse", e)
                 "Error: Failed to parse CLI response."
