@@ -32,6 +32,7 @@ import com.hereliesaz.ideaz.api.SourceContext
 import java.io.FileOutputStream
 import java.io.IOException
 import com.hereliesaz.ideaz.utils.ToolManager
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
@@ -378,23 +379,12 @@ class MainViewModel(
 
     // --- NEW: Function to fetch sessions ---
     fun fetchOwnedSessions() {
-        viewModelScope.launch {
-            Log.d(TAG, "fetchOwnedSessions: Fetching sessions...")
-            val sessionsJson = JulesCliClient.listSessions(getApplication())
-            if (sessionsJson != null) {
-                try {
-                    val response = json.decodeFromString<com.hereliesaz.ideaz.api.ListSessionsResponse>(sessionsJson)
-                    _ownedSessions.value = response.sessions
-                    Log.d(TAG, "fetchOwnedSessions: Success. Found ${response.sessions.size} sessions.")
-                } catch (e: Exception) {
-                    Log.e(TAG, "fetchOwnedSessions: Failed to parse JSON", e)
-                    _ownedSessions.value = emptyList()
-                }
-            } else {
-                Log.e(TAG, "fetchOwnedSessions: CLI command failed or returned null")
-                _ownedSessions.value = emptyList()
-            }
-        }
+        viewModelScope.fetchAndParse(
+            fetcher = JulesCliClient::listSessions,
+            stateFlow = _ownedSessions,
+            dataExtractor = { response: com.hereliesaz.ideaz.api.ListSessionsResponse -> response.sessions },
+            logTag = "fetchOwnedSessions"
+        )
     }
     // --- END NEW ---
 
@@ -644,26 +634,40 @@ class MainViewModel(
 
     // --- NEW: Function to fetch GitHub repos ---
     fun fetchOwnedSources() {
-        viewModelScope.launch {
-            Log.d(TAG, "fetchOwnedSources: Fetching sources...")
-            val sourcesJson = JulesCliClient.listSources(getApplication())
-            if (sourcesJson != null) {
-                try {
-                    val response = json.decodeFromString<ListSourcesResponse>(sourcesJson)
-                    _ownedSources.value = response.sources
-                    Log.d(TAG, "fetchOwnedSources: Success. Found ${response.sources.size} sources.")
-                } catch (e: Exception) {
-                    Log.e(TAG, "fetchOwnedSources: Failed to parse JSON", e)
-                    _ownedSources.value = emptyList()
-                }
-            } else {
-                Log.e(TAG, "fetchOwnedSources: CLI command failed or returned null")
-                _ownedSources.value = emptyList()
-            }
-        }
+        viewModelScope.fetchAndParse(
+            fetcher = JulesCliClient::listSources,
+            stateFlow = _ownedSources,
+            dataExtractor = { response: ListSourcesResponse -> response.sources },
+            logTag = "fetchOwnedSources"
+        )
     }
     // --- END NEW ---
 
+    private inline fun <reified T, R> CoroutineScope.fetchAndParse(
+        crossinline fetcher: (Context) -> String?,
+        stateFlow: MutableStateFlow<List<R>>,
+        crossinline dataExtractor: (T) -> List<R>,
+        logTag: String
+    ): Job {
+        return launch {
+            Log.d(TAG, "$logTag: Fetching data...")
+            val jsonString = fetcher(getApplication())
+            if (jsonString != null) {
+                try {
+                    val response = json.decodeFromString<T>(jsonString)
+                    val data = dataExtractor(response)
+                    stateFlow.value = data
+                    Log.d(TAG, "$logTag: Success. Found ${data.size} items.")
+                } catch (e: Exception) {
+                    Log.e(TAG, "$logTag: Failed to parse JSON", e)
+                    stateFlow.value = emptyList()
+                }
+            } else {
+                Log.e(TAG, "$logTag: CLI command failed or returned null")
+                stateFlow.value = emptyList()
+            }
+        }
+    }
 
     fun debugBuild() {
         Log.d(TAG, "debugBuild called")

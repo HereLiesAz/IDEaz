@@ -32,6 +32,8 @@ import com.hereliesaz.aznavrail.AzForm
 import com.hereliesaz.aznavrail.AzTextBox
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.ideaz.utils.mapSaver
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.async
 
 private const val TAG = "ProjectSettingsScreen"
 
@@ -59,13 +61,27 @@ fun ProjectSettingsScreen(
     // State for "Clone" tab
     var cloneUrl by remember { mutableStateOf("") }
     val projectList = settingsViewModel.getProjectList()
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     // --- FIX: Observe sources from ViewModel ---
     val ownedSources by viewModel.ownedSources.collectAsState()
     val ownedSessions by viewModel.ownedSessions.collectAsState()
     LaunchedEffect(Unit) {
-        viewModel.fetchOwnedSources()
-        viewModel.fetchOwnedSessions()
+        isLoading = true
+        errorMessage = null
+        try {
+            coroutineScope {
+                val sourcesJob = async { viewModel.fetchOwnedSources() }
+                val sessionsJob = async { viewModel.fetchOwnedSessions() }
+                sourcesJob.await()
+                sessionsJob.await()
+            }
+        } catch (e: Exception) {
+            errorMessage = "Failed to load data: ${e.message}"
+        } finally {
+            isLoading = false
+        }
     }
     // --- END FIX ---
 
@@ -166,40 +182,50 @@ fun ProjectSettingsScreen(
                         }
 
                         Spacer(modifier = Modifier.height(24.dp))
-                        Text("Your Available Repositories", color = MaterialTheme.colorScheme.onBackground)
-                        if (ownedSources.isEmpty()) {
-                            Text("No other repositories found on your Jules account.", color = MaterialTheme.colorScheme.onBackground)
-                        } else {
-                            ownedSources.forEach { source ->
-                                val repo = source.githubRepo!!
-                                AzButton(
-                                    onClick = {
-                                        appName = repo.repo
-                                        githubUser = repo.owner
-                                        branchName = repo.defaultBranch.displayName
-                                        Toast.makeText(context, "Config loaded. Go to 'Create' tab to save.", Toast.LENGTH_LONG).show()
-                                        tabIndex = 0 // Switch to Create tab
-                                    },
-                                    text = "${repo.owner}/${repo.repo} (Branch: ${repo.defaultBranch.displayName})",
-                                    modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth()
-                                )
-                            }
-                        }
 
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Text("Your Available Sessions", color = MaterialTheme.colorScheme.onBackground)
-                        if (ownedSessions.isEmpty()) {
-                            Text("No other sessions found on your Jules account.", color = MaterialTheme.colorScheme.onBackground)
+                        if (isLoading) {
+                            Text("Loading...", color = MaterialTheme.colorScheme.onBackground)
+                        } else if (errorMessage != null) {
+                            Text("Error: $errorMessage", color = MaterialTheme.colorScheme.error)
                         } else {
-                            ownedSessions.forEach { session ->
-                                AzButton(
-                                    onClick = {
-                                        // TODO: Implement session loading
-                                        Toast.makeText(context, "Loading sessions is not yet implemented.", Toast.LENGTH_SHORT).show()
-                                    },
-                                    text = session.title ?: session.name ?: "Untitled Session",
-                                    modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth()
-                                )
+                            Text("Your Available Repositories", color = MaterialTheme.colorScheme.onBackground)
+                            if (ownedSources.isEmpty()) {
+                                Text("No other repositories found on your Jules account.", color = MaterialTheme.colorScheme.onBackground)
+                            } else {
+                                ownedSources.forEach { source ->
+                                    val repo = source.githubRepo!!
+                                    AzButton(
+                                        onClick = {
+                                            appName = repo.repo
+                                            githubUser = repo.owner
+                                            branchName = repo.defaultBranch.displayName
+                                            Toast.makeText(context, "Config loaded. Go to 'Create' tab to save.", Toast.LENGTH_LONG).show()
+                                            tabIndex = 0 // Switch to Create tab
+                                        },
+                                        text = "${repo.owner}/${repo.repo} (Branch: ${repo.defaultBranch.displayName})",
+                                        modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth()
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Text("Your Available Sessions", color = MaterialTheme.colorScheme.onBackground)
+                            if (ownedSessions.isEmpty()) {
+                                Text("No other sessions found on your Jules account.", color = MaterialTheme.colorScheme.onBackground)
+                            } else {
+                                ownedSessions.forEach { session ->
+                                    AzButton(
+                                        onClick = {
+                                            // TODO: Implement session loading
+                                            Toast.makeText(context, "Loading sessions is not yet implemented.", Toast.LENGTH_SHORT).show()
+                                        },
+                                    text = session.title
+                                        ?: session.name
+                                        ?: "Untitled Session" +
+                                            (session.id?.let { " (ID: $it)" } ?: ""),
+                                        modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth()
+                                    )
+                                }
                             }
                         }
                     }
