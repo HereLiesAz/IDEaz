@@ -66,6 +66,11 @@ class MainViewModel(
     val ownedSources = _ownedSources.asStateFlow()
     // --- END NEW ---
 
+    // --- NEW: State for Owned Sessions ---
+    private val _ownedSessions = MutableStateFlow<List<com.hereliesaz.ideaz.api.Session>>(emptyList())
+    val ownedSessions = _ownedSessions.asStateFlow()
+    // --- END NEW ---
+
     // --- Cancel Dialog State ---
     private val _showCancelDialog = MutableStateFlow(false)
     val showCancelDialog = _showCancelDialog.asStateFlow()
@@ -366,6 +371,28 @@ class MainViewModel(
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to clear caches", e)
                 _buildLog.value += "[INFO] Error clearing caches: ${e.message}\n"
+            }
+        }
+    }
+    // --- END NEW ---
+
+    // --- NEW: Function to fetch sessions ---
+    fun fetchOwnedSessions() {
+        viewModelScope.launch {
+            Log.d(TAG, "fetchOwnedSessions: Fetching sessions...")
+            val sessionsJson = JulesCliClient.listSessions(getApplication())
+            if (sessionsJson != null) {
+                try {
+                    val response = json.decodeFromString<com.hereliesaz.ideaz.api.ListSessionsResponse>(sessionsJson)
+                    _ownedSessions.value = response.sessions
+                    Log.d(TAG, "fetchOwnedSessions: Success. Found ${response.sessions.size} sessions.")
+                } catch (e: Exception) {
+                    Log.e(TAG, "fetchOwnedSessions: Failed to parse JSON", e)
+                    _ownedSessions.value = emptyList()
+                }
+            } else {
+                Log.e(TAG, "fetchOwnedSessions: CLI command failed or returned null")
+                _ownedSessions.value = emptyList()
             }
         }
     }
