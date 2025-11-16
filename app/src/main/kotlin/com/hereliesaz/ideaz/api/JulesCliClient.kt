@@ -13,13 +13,13 @@ object JulesCliClient {
     private const val JULES_TOOL_NAME = "jules"
 
     private fun executeCommand(context: Context, command: String): String? {
-        val julesPath = ToolManager.getToolPath(context, JULES_TOOL_NAME)
-        if (julesPath == null) {
+        val julesInfo = ToolManager.getToolInfo(context, JULES_TOOL_NAME)
+        if (julesInfo == null) {
             Log.e(TAG, "Jules CLI tool not found. Please install it first.")
             return null
         }
 
-        val fullCommand = "$julesPath $command"
+        val fullCommand = "${julesInfo.path} $command"
         Log.d(TAG, "Executing command: $fullCommand")
 
         try {
