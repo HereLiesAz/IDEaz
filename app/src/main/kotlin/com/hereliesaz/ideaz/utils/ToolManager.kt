@@ -33,21 +33,15 @@ object ToolManager {
     )
     // --- END ---
 
-    fun getToolInfo(context: Context, toolName: String): ToolInfo? {
+    fun getToolPath(context: Context, toolName: String): String? {
         val toolInfo = toolNameMap[toolName] ?: run {
             Log.e(TAG, "Tool not found in map: $toolName")
             return null
         }
 
-        val path = when (toolInfo.type) {
+        return when (toolInfo.type) {
             ToolType.NATIVE -> getNativeToolPath(context, toolInfo.path)
             ToolType.ASSET -> getAssetToolPath(context, toolInfo.path)
-        }
-
-        return if (path != null) {
-            ToolInfo(path, toolInfo.type)
-        } else {
-            null
         }
     }
 

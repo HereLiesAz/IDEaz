@@ -13,13 +13,13 @@ object JulesCliClient {
     private const val JULES_TOOL_NAME = "jules"
 
     private fun executeCommand(context: Context, command: String): String? {
-        val julesInfo = ToolManager.getToolInfo(context, JULES_TOOL_NAME)
-        if (julesInfo == null) {
+        val julesPath = ToolManager.getToolPath(context, JULES_TOOL_NAME)
+        if (julesPath == null) {
             Log.e(TAG, "Jules CLI tool not found. Please install it first.")
             return null
         }
 
-        val fullCommand = "${julesInfo.path} $command"
+        val fullCommand = "$julesPath $command"
         Log.d(TAG, "Executing command: $fullCommand")
 
         try {
@@ -76,13 +76,6 @@ object JulesCliClient {
         // --- FIX: Align with reference document ---
         val command = "remote list --repo --format=json"
         // --- END FIX ---
-        return executeCommand(context, command)
-    }
-    // --- END NEW ---
-
-    // --- NEW: Function to list available sessions ---
-    fun listSessions(context: Context): String? {
-        val command = "remote list --session --format=json"
         return executeCommand(context, command)
     }
     // --- END NEW ---
