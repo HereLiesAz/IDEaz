@@ -7,11 +7,12 @@ import java.io.File
 class Aapt2Link(
     private val aapt2Path: String,
     private val compiledResDir: String,
-    // --- FIX: PUT THIS BACK ---
     private val androidJarPath: String,
     private val manifestPath: String,
     private val outputApkPath: String,
-    private val outputJavaPath: String
+    private val outputJavaPath: String,
+    private val minSdk: Int,
+    private val targetSdk: Int
 ) : BuildStep {
 
     override fun execute(callback: IBuildCallback?): BuildResult {
@@ -31,11 +32,13 @@ class Aapt2Link(
             aapt2Path,
             "link",
             "-o", outputApkPath,
-            // --- FIX: PUT THIS FLAG BACK ---
             "-I", androidJarPath,
             "--manifest", manifestPath,
             "--java", outputJavaPath,
-            "--auto-add-overlay"
+            "--auto-add-overlay",
+            // --- FIX: Corrected flag names as you specified ---
+            "--minsdk", minSdk.toString(),
+            "--targetsdk", targetSdk.toString()
         )
         command.addAll(compiledFiles)
 

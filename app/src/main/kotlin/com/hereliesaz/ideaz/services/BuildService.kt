@@ -23,6 +23,10 @@ class BuildService : Service() {
     companion object {
         private const val NOTIFICATION_CHANNEL_ID = "IDEAZ_BUILD_CHANNEL_ID"
         private const val NOTIFICATION_ID = 1
+
+        // --- SDK versions from build.gradle.kts ---
+        private const val MIN_SDK = 26
+        private const val TARGET_SDK = 36
     }
 
     private val binder = object : IBuildService.Stub() {
@@ -81,13 +85,10 @@ class BuildService : Service() {
     private fun startBuild(projectPath: String, callback: IBuildCallback) {
         val projectDir = File(projectPath)
         val buildDir = File(filesDir, "build")
-        // --- FIX: Logic moved to MainViewModel ---
-        // buildDir.deleteRecursively()
         buildDir.mkdirs()
 
         val cacheDir = File(filesDir, "cache")
         cacheDir.mkdirs()
-        // --- END FIX ---
 
         // Dependency Resolution
         val localRepoDir = File(filesDir, "local-repo")
@@ -101,7 +102,7 @@ class BuildService : Service() {
         }
         val classpath = resolverResult.output
 
-        // Tool Paths
+        // Tool Paths (All are NATIVE tools now)
         val aapt2Path = ToolManager.getToolPath(this, "aapt2")
         val kotlincPath = ToolManager.getToolPath(this, "kotlinc")
         val d8Path = ToolManager.getToolPath(this, "d8")
@@ -110,8 +111,6 @@ class BuildService : Service() {
         val keystorePass = "android"
         val keyAlias = "androiddebugkey"
         val androidJarPath = ToolManager.getToolPath(this, "android.jar")
-        val javaPath = ToolManager.getToolPath(this, "java")
-
 
         val requiredTools = mapOf(
             "aapt2" to aapt2Path,
@@ -119,8 +118,7 @@ class BuildService : Service() {
             "d8" to d8Path,
             "apksigner" to apkSignerPath,
             "debug.keystore" to keystorePath,
-            "android.jar" to androidJarPath,
-            "java" to javaPath
+            "android.jar" to androidJarPath
         )
 
         for ((toolName, toolPath) in requiredTools) {
@@ -143,13 +141,14 @@ class BuildService : Service() {
         val buildOrchestrator = BuildOrchestrator(
             listOf(
                 GenerateSourceMap(File(resDir), buildDir, cacheDir),
-                Aapt2Compile(aapt2Path!!, resDir, compiledResDir),
-                // --- FIX: Pass androidJarPath back to Aapt2Link ---
-                Aapt2Link(aapt2Path!!, compiledResDir, androidJarPath!!, manifestPath, outputApkPath, outputJavaPath),
-                KotlincCompile(kotlincPath!!, androidJarPath!!, javaDir, File(classesDir), classpath, javaPath!!),
-                D8Compile(javaPath!!, d8Path!!, androidJarPath!!, classesDir, classesDir, classpath),
+                // --- FIX: All constructors now match their definitions ---
+                Aapt2Compile(aapt2Path!!, resDir, compiledResDir, MIN_SDK, TARGET_SDK),
+                Aapt2Link(aapt2Path!!, compiledResDir, androidJarPath!!, manifestPath, outputApkPath, outputJavaPath, MIN_SDK, TARGET_SDK),
+                KotlincCompile(kotlincPath!!, androidJarPath!!, javaDir, File(classesDir), classpath),
+                D8Compile(d8Path!!, androidJarPath!!, classesDir, classesDir, classpath),
                 ApkBuild(finalApkPath, outputApkPath, classesDir),
-                ApkSign(javaPath!!, apkSignerPath!!, keystorePath!!, keystorePass, keyAlias, finalApkPath)
+                ApkSign(apkSignerPath!!, keystorePath!!, keystorePass, keyAlias, finalApkPath)
+                // --- END FIX ---
             )
         )
 

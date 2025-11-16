@@ -17,7 +17,7 @@ This document describes the end-to-end user journey within the IDEaz IDE.
     a.  Receives the `resourceId` ("login_button") and the prompt.
     b.  Looks up the `resourceId` in the `source_map.json`.
     c.  Constructs a rich prompt: `Context (for element login_button): File: ... User Request: "Make this button red."`
-    d.  Sends the prompt to the user's chosen AI.
+    d.  Routes to the user's chosen AI (e.g., `JulesCliClient`).
     e.  Streams AI status back to the floating log.
     f.  Receives a patch and applies it.
     g.  Triggers the `BuildService`.
@@ -37,7 +37,7 @@ This document describes the end-to-end user journey within the IDEaz IDE.
     The `MainViewModel`:
     a.  Receives the `Rect` coordinates and the prompt.
     b.  Constructs a coordinate-based prompt: `Context: Screen area Rect(100, 500, 400, 550)... User Request: "Add a 'Sign Up' link here."`
-    c.  Sends the prompt to the user's chosen AI (which must be able to interpret coordinates).
+    c.  Sends the prompt to the user's chosen AI.
     d.  ... (steps e-g from Scenario 1) ...
 4.  **Build & Relaunch:** The app restarts with the new "Sign Up" link visible in the area the user defined.
 

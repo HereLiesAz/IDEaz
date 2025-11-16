@@ -5,7 +5,7 @@ import com.hereliesaz.ideaz.utils.ProcessExecutor
 import java.io.File
 
 class D8Compile(
-    private val javaPath: String, // FIX: Add javaPath
+    // --- REMOVED javaPath ---
     private val d8Path: String,
     private val androidJarPath: String,
     private val classesDir: String,
@@ -19,17 +19,12 @@ class D8Compile(
             outputDirFile.mkdirs()
         }
 
-        val classFiles = File(classesDir).walk().filter { it.isFile && it.extension == "class" }.map { it.absolutePath }.toList()
-
         val command = mutableListOf(
-            javaPath, // FIX: Use javaPath instead of "java"
-            "-jar",
-            d8Path,
+            d8Path, // --- Use native binary directly ---
             "--output",
             outputDir
         )
 
-        // Add android.jar and all resolved dependencies to the classpath
         command.add("--lib")
         command.add(androidJarPath)
         if (classpath.isNotEmpty()) {
@@ -39,7 +34,7 @@ class D8Compile(
             }
         }
 
-        command.addAll(classFiles)
+        command.add(classesDir)
 
         val processResult = ProcessExecutor.execute(command)
         return BuildResult(processResult.exitCode == 0, processResult.output)

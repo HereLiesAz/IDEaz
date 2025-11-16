@@ -23,19 +23,19 @@ This code, including database schemas, migrations, and API logic, is committed t
 The IDE needs to store settings and sensitive information to function correctly. This data is stored locally on the user's Android device.
 
 -   **Primary Use Cases:**
-    -   Storing the user's personal Jules API key.
+    -   Storing the user's personal API keys for **Jules** and **Gemini**.
     -   Saving user preferences and app settings.
     -   Caching metadata about the user's project.
 
 -   **Technologies:**
-    -   **`EncryptedSharedPreferences`:** This is the **mandatory** technology for storing the user's Jules API key. It encrypts the key at rest, providing a critical layer of security.
+    -   **`EncryptedSharedPreferences`:** This is the **mandatory** technology for storing the user's API keys. It encrypts the keys at rest, providing a critical layer of security.
     -   **Room Persistence Library:** For other structured data like user preferences and project metadata, the standard Room library (an abstraction over SQLite) will be used.
 
 ---
 
 ## 3. On-Device Git Repository
 
-To facilitate the "post-code" workflow and the interaction with the Jules API, the IDEaz IDE app manages a local Git repository for the user's project directly on the device. This is handled by the `GitManager` class, which uses the JGit library to perform Git operations.
+To facilitate the "post-code" workflow, the IDEaz IDE app manages a local Git repository for the user's project directly on the device. This is handled by the `GitManager` class, which uses the JGit library to perform Git operations.
 
 -   **`GitManager.kt`**: This class encapsulates all the JGit operations, starting with initializing a new repository in the project's directory.
 

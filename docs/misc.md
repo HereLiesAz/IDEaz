@@ -10,5 +10,6 @@ This document is a collection of miscellaneous notes, ideas, and information rel
 ## Open Questions
 -   How accurate will the AI be at mapping screenshots to code? What happens if it edits the wrong component? (Mitigated by source-map)
 -   What is the user experience if the AI gets stuck in a debugging loop (e.g., repeatedly failing to fix a compile error)? When should we surface a "failed" state to the user?
--   How do we handle a user wanting to "undo" a change that has already been compiled and launched? Is a `git revert` fast enough for a good user experience? (Addressed by two-phase undo strategy in `UI_UX.md`)
--   How do we handle non-patch responses from Gemini? The system is currently built for the Jules "gitPatch" output. Gemini responses will need to be parsed and translated into a patch format.
+-   How do we handle a user wanting to "undo" a change that has already been compiled and launched? Is a `git revert` fast enough for a good user experience?
+-   **[RESOLVED]** How do we handle non-patch responses from Gemini? The system is currently built for the Jules "gitPatch" output.
+    -   *Resolution:* The Gemini client is responsible for parsing a natural language response and attempting to translate it into a patch format before returning it to the `MainViewModel`. If it cannot, it will return an error.
