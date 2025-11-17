@@ -1,7 +1,11 @@
 package com.hereliesaz.ideaz.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -16,7 +20,7 @@ fun IdeNavHost(
 ) {
     NavHost(
         navController = navController,
-        startDestination = "main",
+        startDestination = "project_settings",
         modifier = modifier
     ) {
         composable("main") {
@@ -40,6 +44,9 @@ fun IdeNavHost(
                 settingsViewModel = settingsViewModel,
                 navController = navController
             )
+        }
+        composable("build") {
+            Box(modifier = Modifier.fillMaxSize().background(Color.Transparent))
         }
     }
 }
