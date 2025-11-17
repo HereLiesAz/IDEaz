@@ -10,13 +10,9 @@ object ProcessExecutor {
         try {
             val finalCommand: List<String>
 
-            // If the command is not a java -jar command, it's a native binary.
-            // We must execute it via the shell (sh -c) to bypass noexec flags.
             if (command.firstOrNull() != "java") {
-                // Wrap the command: sh -c "/path/to/aapt2 compile --dir /res -o /out"
                 finalCommand = listOf("/system/bin/sh", "-c", command.joinToString(" "))
             } else {
-                // This is a java -jar command, execute it directly
                 finalCommand = command
             }
 
@@ -28,7 +24,7 @@ object ProcessExecutor {
             val output = StringBuilder()
             var line: String?
             while (reader.readLine().also { line = it } != null) {
-                output.append(line).append("\n")
+                output.append(line).append(System.lineSeparator())
             }
 
             val exitCode = process.waitFor()
@@ -37,6 +33,40 @@ object ProcessExecutor {
         } catch (e: Exception) {
             e.printStackTrace()
             return ProcessResult(-1, e.message ?: "Unknown error")
+        }
+    }
+
+    fun executeAndStream(
+        command: List<String>,
+        onOutputLine: (String) -> Unit,
+        onCompletion: (Int) -> Unit
+    ) {
+        try {
+            val finalCommand: List<String>
+            if (command.firstOrNull() != "java") {
+                finalCommand = listOf("/system/bin/sh", "-c", command.joinToString(" "))
+            } else {
+                finalCommand = command
+            }
+
+            val process = ProcessBuilder(finalCommand)
+                .redirectErrorStream(true)
+                .start()
+
+            val reader = BufferedReader(InputStreamReader(process.inputStream))
+
+            var line: String?
+            while (reader.readLine().also { line = it } != null) {
+                line?.let { onOutputLine(it) }
+            }
+
+            val exitCode = process.waitFor()
+            onCompletion(exitCode)
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+            onOutputLine("Error: ${e.message ?: "Unknown error"}")
+            onCompletion(-1)
         }
     }
 }

@@ -38,6 +38,32 @@ object GeminiCliClient {
     }
 
     /**
+     * Generates content using the Gemini CLI and streams the output.
+     *
+     * @param context The application context.
+     * @param prompt The prompt to send to the Gemini CLI.
+     * @param onOutputLine A callback that will be invoked for each line of output.
+     * @param onCompletion A callback that will be invoked when the process completes.
+     */
+    fun generateContentStream(
+        context: Context,
+        prompt: String,
+        onOutputLine: (String) -> Unit,
+        onCompletion: (Int) -> Unit
+    ) {
+        val geminiCliPath = ToolManager.getToolPath(context, "gemini")
+        if (geminiCliPath == null) {
+            onOutputLine("Error: Gemini CLI tool not found.")
+            onCompletion(-1)
+            return
+        }
+
+        val command = listOf(geminiCliPath, "generate", "content", "--prompt", prompt, "--stream")
+
+        ProcessExecutor.executeAndStream(command, onOutputLine, onCompletion)
+    }
+
+    /**
      * Parses a structured error message from the Gemini CLI's JSON output.
      * If parsing fails, it returns the raw error string.
      *
