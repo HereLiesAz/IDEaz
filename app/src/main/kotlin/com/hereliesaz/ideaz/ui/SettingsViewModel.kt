@@ -1,23 +1,16 @@
 package com.hereliesaz.ideaz.ui
 
-import android.Manifest
-import android.app.Application
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
-import android.content.pm.PackageManager
-import android.os.Build
-import android.provider.Settings
 import android.util.Log
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.saveable.Saver
-import androidx.lifecycle.AndroidViewModel
 import androidx.preference.PreferenceManager
-import com.hereliesaz.ideaz.api.AuthInterceptor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import android.text.TextUtils
-import com.hereliesaz.ideaz.services.IdeazAccessibilityService
+import com.hereliesaz.ideaz.api.AuthInterceptor
 
 // Define AI models and their requirements
 data class AiModel(val id: String, val displayName: String, val requiredKey: String)
@@ -101,21 +94,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         Log.d(TAG, "init: Creating SettingsViewModel (hash: ${this.hashCode()})")
     }
 
-    // --- FIX: Expose flows for ProjectSettingsScreen ---
-    private val _appName = MutableStateFlow(sharedPreferences.getString(KEY_APP_NAME, "IDEazProject") ?: "IDEazProject")
-    val appName = _appName.asStateFlow()
-
-    private val _githubUser = MutableStateFlow(sharedPreferences.getString(KEY_GITHUB_USER, "") ?: "")
-    val githubUser = _githubUser.asStateFlow()
-
-    private val _githubToken = MutableStateFlow(sharedPreferences.getString(KEY_API_KEY, "") ?: "")
-    val githubToken = _githubToken.asStateFlow()
-
-    private val _geminiApiKey = MutableStateFlow(sharedPreferences.getString(KEY_GOOGLE_API_KEY, "") ?: "")
-    val geminiApiKey = _geminiApiKey.asStateFlow()
-    // --- END FIX ---
-
-    private val _logLevel = MutableStateFlow(getLogLevel())
+    private val _logLevel = MutableStateFlow(LOG_LEVEL_INFO)
     val logLevel = _logLevel.asStateFlow()
 
     // --- Cancel Warning ---
@@ -167,7 +146,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun saveGoogleApiKey(apiKey: String) {
         sharedPreferences.edit().putString(KEY_GOOGLE_API_KEY, apiKey).apply()
-        _geminiApiKey.value = apiKey // --- FIX ---
     }
 
     fun getGoogleApiKey(): String? {
@@ -176,7 +154,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun saveApiKey(apiKey: String) {
         sharedPreferences.edit().putString(KEY_API_KEY, apiKey).apply()
-        _githubToken.value = apiKey // --- FIX ---
 
         // Also update the interceptor immediately
         AuthInterceptor.apiKey = apiKey
@@ -240,9 +217,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             .putString(KEY_BRANCH_NAME, branchName)
             .apply()
 
-        _appName.value = appName // --- FIX ---
-        _githubUser.value = githubUser // --- FIX ---
-
         // Also add this project to the list
         addProjectToList(appName, githubUser)
     }
@@ -271,54 +245,4 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         // Default to "main" if nothing is saved
         return sharedPreferences.getString(KEY_BRANCH_NAME, "main")!!
     }
-
-    // --- NEW: Permission Checkers ---
-
-    fun hasOverlayPermission(context: Context): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Settings.canDrawOverlays(context)
-        } else {
-            true // Granted by default before M
-        }
-    }
-
-    fun hasNotificationPermission(context: Context): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        } else {
-            true // Not a runtime permission before Tiramisu
-        }
-    }
-
-    fun hasInstallPermission(context: Context): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.packageManager.canRequestPackageInstalls()
-        } else {
-            true // Not a runtime permission before Oreo
-        }
-    }
-
-    // --- NEW: Accessibility Permission Check ---
-    fun hasAccessibilityPermission(context: Context): Boolean {
-        val enabledServices = Settings.Secure.getString(
-            context.contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        )
-        if (enabledServices.isNullOrEmpty()) {
-            return false
-        }
-
-        val serviceId = "${context.packageName}/${IdeazAccessibilityService::class.java.name}"
-        val colonSplitter = TextUtils.SimpleStringSplitter(':')
-
-        colonSplitter.setString(enabledServices)
-        while (colonSplitter.hasNext()) {
-            val componentName = colonSplitter.next()
-            if (componentName.equals(serviceId, ignoreCase = true)) {
-                return true
-            }
-        }
-        return false
-    }
-    // --- END NEW ---
 }

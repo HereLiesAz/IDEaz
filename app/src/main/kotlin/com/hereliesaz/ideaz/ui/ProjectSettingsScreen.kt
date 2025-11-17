@@ -15,15 +15,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-// --- FIX: Use AutoMirrored version ---
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-// --- END FIX ---
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-// --- FIX: Use HorizontalDivider ---
 import androidx.compose.material3.HorizontalDivider
-// --- END FIX ---
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -41,10 +37,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.hereliesaz.ideaz.api.Source
-import com.hereliesaz.ideaz.ui.SettingsViewModel
 
 @Composable
 fun ProjectSettingsScreen(
@@ -52,15 +46,10 @@ fun ProjectSettingsScreen(
     viewModel: MainViewModel,
     settingsViewModel: SettingsViewModel
 ) {
-    val appName by settingsViewModel.appName.collectAsState()
-    val githubUser by settingsViewModel.githubUser.collectAsState()
-    val githubToken by settingsViewModel.githubToken.collectAsState()
-    val geminiApiKey by settingsViewModel.geminiApiKey.collectAsState()
-
-    var appNameState by remember { mutableStateOf(appName) }
-    var githubUserState by remember { mutableStateOf(githubUser) }
-    var githubTokenState by remember { mutableStateOf(githubToken) }
-    var geminiApiKeyState by remember { mutableStateOf(geminiApiKey) }
+    var appNameState by remember { mutableStateOf(settingsViewModel.getAppName() ?: "") }
+    var githubUserState by remember { mutableStateOf(settingsViewModel.getGithubUser() ?: "") }
+    var githubTokenState by remember { mutableStateOf(settingsViewModel.getApiKey() ?: "") }
+    var geminiApiKeyState by remember { mutableStateOf(settingsViewModel.getGoogleApiKey() ?: "") }
 
     var sourcesLoading by remember { mutableStateOf(false) }
     val sources by viewModel.ownedSources.collectAsState()
@@ -69,20 +58,10 @@ fun ProjectSettingsScreen(
     var cloneUrl by remember { mutableStateOf("") }
     val projectList = settingsViewModel.getProjectList()
 
-    // --- FIX: Observe sources from ViewModel ---
-    val ownedSources by viewModel.ownedSources.collectAsState()
-    // --- END FIX ---
     LaunchedEffect(Unit) {
         sourcesLoading = true
         viewModel.fetchOwnedSources()
         sourcesLoading = false
-    }
-
-    LaunchedEffect(appName, githubUser, githubToken, geminiApiKey) {
-        appNameState = appName
-        githubUserState = githubUser
-        githubTokenState = githubToken
-        geminiApiKeyState = geminiApiKey
     }
 
     val onSave = {
@@ -100,18 +79,14 @@ fun ProjectSettingsScreen(
         // Header
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { navController.popBackStack() }) {
-                // --- FIX: Use AutoMirrored Icon ---
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                // --- END FIX ---
             }
             Spacer(modifier = Modifier.width(8.dp))
             Text("Project Settings", style = MaterialTheme.typography.headlineSmall)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-        // --- FIX: Use HorizontalDivider ---
         HorizontalDivider()
-        // --- END FIX ---
         Spacer(modifier = Modifier.height(16.dp))
 
         // Settings Fields

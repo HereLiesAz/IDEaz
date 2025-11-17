@@ -1,11 +1,14 @@
 package com.hereliesaz.ideaz.ui
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.inputmethodservice.Keyboard
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.text.TextUtils
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -17,28 +20,31 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import com.hereliesaz.aznavrail.AzButton
-import com.hereliesaz.aznavrail.model.AzButtonShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
-import com.hereliesaz.aznavrail.AzTextBox
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.hereliesaz.ideaz.api.Session
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Checkbox
-import androidx.compose.ui.Alignment
-import androidx.compose.material3.Switch
+import androidx.core.content.ContextCompat
+import com.hereliesaz.aznavrail.AzButton
+import com.hereliesaz.aznavrail.AzTextBox
+import com.hereliesaz.aznavrail.model.AzButtonShape
 
 private const val TAG = "SettingsScreen"
 
@@ -55,18 +61,11 @@ fun SettingsScreen(
     var apiKey by remember { mutableStateOf(settingsViewModel.getApiKey() ?: "") }
     var googleApiKey by remember { mutableStateOf(settingsViewModel.getGoogleApiKey() ?: "") }
 
-    // --- FIX: This is now controlled by the new ThemeDropdown ---
-    // var isDarkMode by remember { mutableStateOf(settingsViewModel.isDarkMode()) }
-
-
-    // --- NEW: State for Cancel Warning ---
     var showCancelWarning by remember {
         mutableStateOf(settingsViewModel.getShowCancelWarning())
     }
-    // --- END NEW ---
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
 
-    // --- NEW: Permission Launchers ---
     var refreshTrigger by remember { mutableStateOf(0) } // Force recomposition
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -93,7 +92,6 @@ fun SettingsScreen(
         }
     )
 
-    // --- NEW: Accessibility Launcher ---
     val accessibilitySettingsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
         onResult = {
@@ -101,7 +99,6 @@ fun SettingsScreen(
             refreshTrigger++
         }
     )
-    // --- END NEW ---
 
     Column {
         Spacer(modifier = Modifier.height(screenHeight * 0.1f))
@@ -117,7 +114,6 @@ fun SettingsScreen(
 
                 Text("Jules API Key", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
             }
-            // Jules API Key
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 AzTextBox(
                     modifier = Modifier.fillMaxWidth(),
@@ -147,7 +143,6 @@ fun SettingsScreen(
 
                 Text("AI Studio API Key", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
             }
-            // Google AI Studio API Key
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 AzTextBox(
                     modifier = Modifier.fillMaxWidth(),
@@ -175,7 +170,6 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(24.dp))
             Text("AI Assignments", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
 
-            // Render dropdowns for each task
             SettingsViewModel.aiTasks.forEach { (taskKey, taskName) ->
                 var currentModelId by remember(taskKey) {
                     mutableStateOf(settingsViewModel.getAiAssignment(taskKey) ?: AiModels.JULES_DEFAULT)
@@ -195,17 +189,14 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- NEW: Permissions Section ---
             Text("Permissions", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Re-check status when refreshTrigger changes
-            val hasOverlay by remember(refreshTrigger) { mutableStateOf(settingsViewModel.hasOverlayPermission(context)) }
-            val hasNotify by remember(refreshTrigger) { mutableStateOf(settingsViewModel.hasNotificationPermission(context)) }
-            val hasInstall by remember(refreshTrigger) { mutableStateOf(settingsViewModel.hasInstallPermission(context)) }
+            val hasOverlay by remember(refreshTrigger) { mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context) else true) }
+            val hasNotify by remember(refreshTrigger) { mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED else true) }
+            val hasInstall by remember(refreshTrigger) { mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.packageManager.canRequestPackageInstalls() else true) }
             val hasScreenshot by remember(viewModel.hasScreenCapturePermission()) { mutableStateOf(viewModel.hasScreenCapturePermission()) }
-            // --- NEW: Add Accessibility Check ---
-            val hasAccessibility by remember(refreshTrigger) { mutableStateOf(settingsViewModel.hasAccessibilityPermission(context)) }
+            val hasAccessibility by remember(refreshTrigger) { mutableStateOf(isAccessibilityServiceEnabled(context, ".services.ScreenshotService")) }
 
             PermissionCheckRow(
                 name = "Draw Over Other Apps",
@@ -221,7 +212,6 @@ fun SettingsScreen(
                 }
             )
 
-            // --- NEW: Add Accessibility Row ---
             PermissionCheckRow(
                 name = "Accessibility Service",
                 granted = hasAccessibility,
@@ -266,11 +256,9 @@ fun SettingsScreen(
                     }
                 }
             )
-            // --- END NEW ---
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- NEW: Cancel Warning Checkbox ---
             Text("Preferences", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -288,12 +276,10 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // --- FIX: Replaced Switch with ThemeDropdown ---
             ThemeDropdown(
                 settingsViewModel = settingsViewModel,
                 onThemeToggle = onThemeToggle
             )
-            // --- END FIX ---
 
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -303,7 +289,6 @@ fun SettingsScreen(
                 settingsViewModel = settingsViewModel
             )
 
-            // --- NEW: Clear Cache Button ---
             Spacer(modifier = Modifier.height(24.dp))
             Text("Debug", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
             Spacer(modifier = Modifier.height(16.dp))
@@ -316,12 +301,15 @@ fun SettingsScreen(
                 shape = AzButtonShape.RECTANGLE,
                 modifier = Modifier.fillMaxWidth()
             )
-            // --- END NEW ---
         }
     }
 }
 
-// --- NEW: PermissionCheckRow Composable ---
+fun isAccessibilityServiceEnabled(context: Context, serviceName: String): Boolean {
+    val prefString = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+    return prefString?.contains(context.packageName + serviceName) ?: false
+}
+
 @Composable
 fun PermissionCheckRow(
     name: String,
@@ -342,11 +330,10 @@ fun PermissionCheckRow(
         Switch(
             checked = granted,
             onCheckedChange = { onClick() },
-            enabled = !granted // Disable the switch if permission is already granted
+            enabled = !granted
         )
     }
 }
-// --- END NEW ---
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -439,7 +426,6 @@ fun LogLevelDropdown(
     }
 }
 
-// --- NEW: Theme Dropdown Composable ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ThemeDropdown(
@@ -482,9 +468,6 @@ fun ThemeDropdown(
                     onClick = {
                         selectedMode = key
                         settingsViewModel.setThemeMode(key)
-                        // Trigger a theme refresh in MainActivity, letting it handle the logic
-                        // We just pass 'true' to trigger a recomposition, MainActivity will
-                        // read the new setting and apply it.
                         onThemeToggle(true)
                         isExpanded = false
                     }
@@ -493,4 +476,3 @@ fun ThemeDropdown(
         }
     }
 }
-// --- END NEW ---

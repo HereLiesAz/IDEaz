@@ -38,7 +38,7 @@ fun IdeNavHost(
             ProjectSettingsScreen(
                 viewModel = viewModel,
                 settingsViewModel = settingsViewModel,
-                navController = TODO()
+                navController = navController
             )
         }
     }

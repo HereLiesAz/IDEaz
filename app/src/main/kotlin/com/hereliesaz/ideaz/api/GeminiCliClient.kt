@@ -20,20 +20,17 @@ object GeminiCliClient {
      */
     fun generateContent(context: Context, prompt: String): String {
         val geminiCliPath = ToolManager.getToolPath(context, "gemini")
+            ?: return "Error: Gemini CLI tool not found."
 
-        if (geminiCliPath == null) {
-            val errorMessage = "Gemini CLI tool not found."
-            Log.e(TAG, errorMessage)
-            return errorMessage
-        }
-
-        val command: List<String> = listOf(geminiCliPath, "generate", "content", "--prompt", prompt)
+        // It's important to pass the prompt as a single argument
+        val command = listOf(geminiCliPath, "generate", "content", "--prompt", prompt)
 
         val result = ProcessExecutor.execute(command)
 
         return if (result.exitCode == 0) {
             result.output
         } else {
+            // Attempt to parse a structured error from the JSON output
             val errorMessage = parseError(result.output)
             Log.e(TAG, "Gemini CLI execution failed: $errorMessage")
             "Error: $errorMessage"
@@ -49,9 +46,12 @@ object GeminiCliClient {
      */
     private fun parseError(errorOutput: String): String {
         return try {
+            // The CLI often outputs a JSON object with an error message
             val jsonObject = JSONObject(errorOutput)
             jsonObject.getString("message")
         } catch (e: JSONException) {
+            // If it's not a JSON object, or doesn't have the "message" key,
+            // return the raw output as the best available error info.
             Log.w(TAG, "Failed to parse structured error, returning raw output: $errorOutput")
             errorOutput
         }
