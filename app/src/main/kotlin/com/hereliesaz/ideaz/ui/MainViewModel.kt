@@ -759,13 +759,7 @@ class MainViewModel(
 
                 if (patchActivity != null) {
                     logTo(logTarget, "[INFO] AI Status: Patch is ready! Applying...")
-                    val patch = patchActivity.artifacts?.firstOrNull()?.changeSet?.gitPatch?.unidiffPatch
-                    if (patch != null) {
-                        applyPatch(getApplication(), patch, logTarget)
-                    } else {
-                        logTo(logTarget, "[INFO] AI Status: Error: Could not extract patch from activity.")
-                        if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
-                    }
+                    applyPatch(getApplication(), sessionId, logTarget)
                 } else {
                     delay(5000)
                     pollForPatch(sessionId, logTarget, attempt + 1)
@@ -778,7 +772,7 @@ class MainViewModel(
         }
     }
 
-    private fun applyPatch(context: Context, patch: String, logTarget: Any) {
+    private fun applyPatch(context: Context, sessionId: String, logTarget: Any) {
         Log.d(TAG, "applyPatch called")
         viewModelScope.launch {
             try {
