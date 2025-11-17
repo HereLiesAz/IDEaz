@@ -24,10 +24,7 @@ class Aapt2Compile(
             aapt2Path,
             "compile",
             "--dir", resDir,
-            "-o", compiledResDir,
-            // --- ADDED Flags ---
-            "--min-sdk-version", minSdk.toString(),
-            "--target-sdk-version", targetSdk.toString()
+            "-o", compiledResDir
         )
         // --- END FIX ---
 
