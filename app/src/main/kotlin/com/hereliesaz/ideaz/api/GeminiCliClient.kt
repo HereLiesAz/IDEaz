@@ -2,74 +2,58 @@ package com.hereliesaz.ideaz.api
 
 import android.content.Context
 import android.util.Log
+import com.hereliesaz.ideaz.utils.ProcessExecutor
 import com.hereliesaz.ideaz.utils.ToolManager
+import org.json.JSONException
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
 
 object GeminiCliClient {
 
     private const val TAG = "GeminiCliClient"
-    private const val GEMINI_TOOL_NAME = "gemini"
 
-    private fun executeCommand(context: Context, command: String): String? {
-        val geminiPath = ToolManager.getToolPath(context, GEMINI_TOOL_NAME)
-        if (geminiPath == null) {
-            Log.e(TAG, "Gemini CLI tool not found. Please install it first.")
-            return null
+    /**
+     * Generates content using the Gemini CLI.
+     *
+     * @param context The application context.
+     * @param prompt The prompt to send to the Gemini CLI.
+     * @return The generated content, or an error message if something went wrong.
+     */
+    fun generateContent(context: Context, prompt: String): String {
+        val geminiCliPath = ToolManager.getToolPath(context, "gemini")
+
+        if (geminiCliPath == null) {
+            val errorMessage = "Gemini CLI tool not found."
+            Log.e(TAG, errorMessage)
+            return errorMessage
         }
 
-        val fullCommand = "$geminiPath $command"
-        Log.d(TAG, "Executing command: $fullCommand")
+        val command: List<String> = listOf(geminiCliPath, "generate", "content", "--prompt", prompt)
 
-        try {
-            val process = Runtime.getRuntime().exec(fullCommand)
-            val reader = BufferedReader(InputStreamReader(process.inputStream))
-            val output = StringBuilder()
-            var line: String?
-            while (reader.readLine().also { line = it } != null) {
-                output.append(line).append("\n")
-            }
-            process.waitFor()
-            val exitCode = process.exitValue()
-            if (exitCode == 0) {
-                Log.d(TAG, "Command executed successfully.")
-                return output.toString()
-            } else {
-                val errorReader = BufferedReader(InputStreamReader(process.errorStream))
-                val errorOutput = StringBuilder()
-                while (errorReader.readLine().also { line = it } != null) {
-                    errorOutput.append(line).append("\n")
-                }
-                Log.e(TAG, "Command failed with exit code $exitCode. Error: $errorOutput")
-                return "Error: $errorOutput"
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Exception while executing command", e)
-            return "Error: ${e.message}"
+        val result = ProcessExecutor.execute(command)
+
+        return if (result.exitCode == 0) {
+            result.output
+        } else {
+            val errorMessage = parseError(result.output)
+            Log.e(TAG, "Gemini CLI execution failed: $errorMessage")
+            "Error: $errorMessage"
         }
     }
 
     /**
-     * Calls the Gemini CLI with the given prompt on an IO thread.
-     * Returns the response text, including a formatted error message if one occurs.
+     * Parses a structured error message from the Gemini CLI's JSON output.
+     * If parsing fails, it returns the raw error string.
+     *
+     * @param errorOutput The raw error output from the CLI process.
+     * @return A parsed error message or the original raw output.
      */
-    fun generateContent(context: Context, prompt: String): String {
-        // Using --yolo to auto-approve actions, as there's no interactive user session.
-        val command = "--prompt \"$prompt\" --output-format json --yolo"
-        val jsonResponse = executeCommand(context, command)
-
-        return if (jsonResponse != null) {
-            try {
-                val jsonObject = JSONObject(jsonResponse)
-                // The main AI-generated content is in the "response" field.
-                jsonObject.optString("response", "Error: Could not parse 'response' from JSON.")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to parse JSON response: $jsonResponse", e)
-                "Error: Failed to parse CLI response."
-            }
-        } else {
-            "Error: Received null response from Gemini CLI."
+    private fun parseError(errorOutput: String): String {
+        return try {
+            val jsonObject = JSONObject(errorOutput)
+            jsonObject.getString("message")
+        } catch (e: JSONException) {
+            Log.w(TAG, "Failed to parse structured error, returning raw output: $errorOutput")
+            errorOutput
         }
     }
 }
