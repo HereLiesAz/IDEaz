@@ -7,6 +7,10 @@ import com.hereliesaz.aznavrail.AzNavRail
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.ideaz.api.Activity
 
+import com.composables.core.BottomSheetState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+
 @Composable
 fun IdeNavRail(
     navController: NavHostController,
@@ -16,7 +20,9 @@ fun IdeNavRail(
     onShowPromptPopup: () -> Unit,
     handleActionClick: (() -> Unit) -> Unit,
     isIdeVisible: Boolean,
-    onModeToggleClick: () -> Unit // New click handler for the toggle
+    onModeToggleClick: () -> Unit, // New click handler for the toggle
+    sheetState: BottomSheetState,
+    scope: CoroutineScope
 ) {
     AzNavRail(navController = navController) {
         azSettings(
@@ -30,7 +36,14 @@ fun IdeNavRail(
         // MODIFIED: Renamed "Status" to "IDE"
         azRailHostItem(id = "main", text = "IDE", onClick = { handleActionClick { navController.navigate("main") } })
         azRailSubItem(id = "prompt", hostId = "main", text = "Prompt", onClick = { handleActionClick {onShowPromptPopup()} })
-        azRailSubItem(id = "build", hostId = "main", text = "Build", onClick = { handleActionClick { viewModel.startBuild(context) } })
+        azRailSubItem(id = "build", hostId = "main", text = "Build", onClick = {
+            handleActionClick {
+                navController.navigate("build")
+                scope.launch {
+                    sheetState.animateTo(Halfway)
+                }
+            }
+        })
 
         // MODIFIED: Changed from azMenuToggle to azRailSubToggle and nested it under "main"
         azRailSubToggle(
