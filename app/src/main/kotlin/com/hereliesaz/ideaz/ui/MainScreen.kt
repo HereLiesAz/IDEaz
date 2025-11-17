@@ -34,10 +34,6 @@ import com.composables.core.SheetDetent
 import com.composables.core.rememberBottomSheetState
 import kotlinx.coroutines.launch
 
-// 1. Define custom detents
-private val AlmostHidden by lazy { SheetDetent("almost_hidden") { _, _ -> 6.dp } }
-private val Peek = SheetDetent("peek") { containerHeight, _ -> containerHeight * 0.2f }
-private val Halfway = SheetDetent("halfway") { containerHeight, _ -> containerHeight * 0.5f }
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -69,9 +65,9 @@ fun MainScreen(
     val isOnSettings = currentRoute == "settings"
     val isOnProjectSettings = currentRoute == "project_settings"
 
-    // --- FIX: Also track rail state for docking ---
     val isIdeVisible = sheetState.currentDetent != AlmostHidden || isOnSettings || isOnProjectSettings
-    // --- END FIX ---
+    val isBottomSheetVisible = currentRoute == "main" || currentRoute == "build"
+
 
     // --- End Visibility Logic ---
 
@@ -168,10 +164,6 @@ fun MainScreen(
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .then(
-                        if (isIdeVisible) Modifier.background(MaterialTheme.colorScheme.background)
-                        else Modifier
-                    )
             ) {
                 // Call the extracted NavRail
                 IdeNavRail(
@@ -181,7 +173,9 @@ fun MainScreen(
                     onShowPromptPopup = { showPromptPopup = true },
                     handleActionClick = handleActionClick,
                     isIdeVisible = isIdeVisible,
-                    onModeToggleClick = onModeToggleClick // Pass the click handler
+                    onModeToggleClick = onModeToggleClick, // Pass the click handler
+                    sheetState = sheetState,
+                    scope = scope
                 )
 
                 // This is the main screen content, which we make visible/invisible
@@ -200,18 +194,20 @@ fun MainScreen(
             val chatHeight = screenHeight * 0.05f
             val isChatVisible = sheetState.currentDetent == Peek || sheetState.currentDetent == Halfway
 
-            // Call the extracted BottomSheet
-            IdeBottomSheet(
-                sheetState = sheetState,
-                viewModel = viewModel,
-                peekDetent = Peek,
-                halfwayDetent = Halfway,
-                chatHeight = chatHeight,
-                buildStatus = "", // Not needed
-                aiStatus = "", // Not needed
-                sessions = emptyList(), // Not needed
-                activities = emptyList() // Not needed
-            )
+            if (isBottomSheetVisible) {
+                // Call the extracted BottomSheet
+                IdeBottomSheet(
+                    sheetState = sheetState,
+                    viewModel = viewModel,
+                    peekDetent = Peek,
+                    halfwayDetent = Halfway,
+                    chatHeight = chatHeight,
+                    buildStatus = "", // Not needed
+                    aiStatus = "", // Not needed
+                    sessions = emptyList(), // Not needed
+                    activities = emptyList() // Not needed
+                )
+            }
 
             // --- External Chat Input ---
             // This floats ON TOP of the BottomSheet, but is aligned to the screen bottom.
