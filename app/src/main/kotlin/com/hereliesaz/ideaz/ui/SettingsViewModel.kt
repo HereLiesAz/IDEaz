@@ -208,7 +208,26 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
 
-    // --- Project Config (Unchanged) ---
+    // --- Project Config ---
+
+    private val _localProjects = MutableStateFlow<List<String>>(emptyList())
+    val localProjects = _localProjects.asStateFlow()
+
+    init {
+        loadLocalProjects()
+    }
+
+    private fun loadLocalProjects() {
+        _localProjects.value = getProjectList().toList()
+    }
+
+    fun addProject(projectName: String) {
+        if (projectName.isBlank()) return
+        val projects = getProjectList().toMutableSet()
+        projects.add(projectName)
+        sharedPreferences.edit().putStringSet(KEY_PROJECT_LIST, projects).apply()
+        loadLocalProjects() // Refresh the flow
+    }
 
     fun saveProjectConfig(appName: String, githubUser: String, branchName: String) {
         sharedPreferences.edit()
@@ -218,15 +237,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             .apply()
 
         // Also add this project to the list
-        addProjectToList(appName, githubUser)
-    }
-
-    private fun addProjectToList(appName: String, githubUser: String) {
-        if (appName.isBlank() || githubUser.isBlank()) return
-
-        val projects = getProjectList().toMutableSet()
-        projects.add("$githubUser/$appName")
-        sharedPreferences.edit().putStringSet(KEY_PROJECT_LIST, projects).apply()
+        if (appName.isNotBlank()) {
+            addProject(appName)
+        }
     }
 
     fun getProjectList(): Set<String> {
@@ -236,9 +249,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun getAppName(): String? {
         return sharedPreferences.getString(KEY_APP_NAME, null)
     }
+    fun setAppName(appName: String) {
+        sharedPreferences.edit().putString(KEY_APP_NAME, appName).apply()
+    }
 
     fun getGithubUser(): String? {
         return sharedPreferences.getString(KEY_GITHUB_USER, null)
+    }
+    fun setGithubUser(githubUser: String) {
+        sharedPreferences.edit().putString(KEY_GITHUB_USER, githubUser).apply()
     }
 
     fun getBranchName(): String {
