@@ -6,6 +6,14 @@ import java.io.ByteArrayInputStream
 
 class GitManager(private val projectDir: File) {
 
+    fun clone(owner: String, repo: String) {
+        val url = "https://github.com/$owner/$repo.git"
+        Git.cloneRepository()
+            .setURI(url)
+            .setDirectory(projectDir)
+            .call()
+    }
+
     fun init() {
         if (!projectDir.exists()) {
             projectDir.mkdirs()

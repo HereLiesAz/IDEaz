@@ -26,6 +26,7 @@ slf4jApi = "2.0.17"
 slf4jSimple = "2.0.17"
 composeUnstyledCore = "1.47.2"
 generativeai = "0.9.0"
+haze = "1.7.0"
 
 [libraries]
 androidx-compose-runtime-livedata = { module = "androidx.compose.runtime:runtime-livedata", version.ref = "runtimeLivedata" }
@@ -61,6 +62,7 @@ slf4j-android = { module = "uk.uuid.slf4j:slf4j-android", version.ref = "slf4jAn
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4jApi" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4jSimple" }
 generativeai = { module = "com.google.ai.client.generativeai:generativeai", version.ref = "generativeai" }
+haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
