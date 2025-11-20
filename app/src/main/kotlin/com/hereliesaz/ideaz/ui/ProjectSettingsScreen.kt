@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -24,6 +23,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -35,10 +36,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.hereliesaz.ideaz.api.Source
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 
 @Composable
 fun ProjectSettingsScreen(
@@ -48,154 +57,200 @@ fun ProjectSettingsScreen(
 ) {
     var appNameState by remember { mutableStateOf(settingsViewModel.getAppName() ?: "") }
     var githubUserState by remember { mutableStateOf(settingsViewModel.getGithubUser() ?: "") }
-    var githubTokenState by remember { mutableStateOf(settingsViewModel.getApiKey() ?: "") }
-    var geminiApiKeyState by remember { mutableStateOf(settingsViewModel.getGoogleApiKey() ?: "") }
-
     var sourcesLoading by remember { mutableStateOf(false) }
     val sources by viewModel.ownedSources.collectAsState()
+    val localProjects by settingsViewModel.localProjects.collectAsState(initial = emptyList())
+    var selectedTabIndex by remember { mutableStateOf(0) }
+    val tabs = listOf("Setup", "Clone", "Load")
 
-    // State for "Clone" tab
-    var cloneUrl by remember { mutableStateOf("") }
-    val projectList = settingsViewModel.getProjectList()
-
-    LaunchedEffect(Unit) {
-        sourcesLoading = true
-        viewModel.fetchOwnedSources()
-        sourcesLoading = false
+    LaunchedEffect(selectedTabIndex) {
+        if (selectedTabIndex == 1 && sources.isEmpty()) {
+            sourcesLoading = true
+            viewModel.fetchOwnedSources()
+            sourcesLoading = false
+        }
     }
 
-    val onSave = {
+    val onSave: () -> Unit = {
         val currentBranch = settingsViewModel.getBranchName()
         settingsViewModel.saveProjectConfig(appNameState, githubUserState, currentBranch)
-        settingsViewModel.saveApiKey(githubTokenState)
-        settingsViewModel.saveGoogleApiKey(geminiApiKeyState)
+        navController.popBackStack()
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        // Header
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { navController.popBackStack() }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Project Settings", style = MaterialTheme.typography.headlineSmall)
-        }
+    val hazeState = rememberHazeState()
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
 
-        Spacer(modifier = Modifier.height(16.dp))
-        HorizontalDivider()
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Settings Fields
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .hazeSource(state = hazeState)
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    top = screenHeight * 0.1f,
+                    bottom = screenHeight * 0.1f
+                )
         ) {
-            item {
-                Text("Project Configuration", style = MaterialTheme.typography.titleMedium)
-                Spacer(modifier = Modifier.height(8.dp))
-                TextField(
-                    value = appNameState,
-                    onValueChange = { appNameState = it },
-                    label = { Text("App Name") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                TextField(
-                    value = githubUserState,
-                    onValueChange = { githubUserState = it },
-                    label = { Text("GitHub User") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            item {
-                Text("API Keys", style = MaterialTheme.typography.titleMedium)
-                Spacer(modifier = Modifier.height(8.dp))
-                TextField(
-                    value = githubTokenState,
-                    onValueChange = { githubTokenState = it },
-                    label = { Text("GitHub Token (Jules)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("ghp_...") }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                TextField(
-                    value = geminiApiKeyState,
-                    onValueChange = { geminiApiKeyState = it },
-                    label = { Text("Gemini API Key") },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("AIza...") }
-                )
-            }
-
-            item {
-                Text("Active Jules Sessions", style = MaterialTheme.typography.titleMedium)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (sourcesLoading) {
-                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+                    .hazeEffect(
+                        state = hazeState,
+                        style = HazeStyle(
+                            backgroundColor = MaterialTheme.colorScheme.background.copy(alpha = 0.5f),
+                            tints = listOf(HazeTint(Color.Black.copy(alpha = 0.2f)))
+                        )
+                    )
+            ) {
+                // Header
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                } else if (sources.isEmpty()) {
-                    Text("No active sessions found or failed to load.")
-                } else {
-                    Column {
-                        sources.forEach { source ->
-                            SessionItem(source = source)
-                        }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Project Settings", style = MaterialTheme.typography.headlineSmall)
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
+
+                TabRow(selectedTabIndex = selectedTabIndex) {
+                    tabs.forEachIndexed { index, title ->
+                        Tab(
+                            selected = selectedTabIndex == index,
+                            onClick = { selectedTabIndex = index },
+                            text = { Text(title) }
+                        )
                     }
                 }
-            }
 
-            item {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                when (selectedTabIndex) {
+                    0 -> SetupTab(
+                        appName = appNameState,
+                        githubUser = githubUserState,
+                        onAppNameChange = { appNameState = it },
+                        onGithubUserChange = { githubUserState = it }
+                    )
+                    1 -> CloneTab(
+                        sources = sources,
+                        loading = sourcesLoading,
+                        onClone = { source ->
+                            val url = source.githubRepo?.let { "https://github.com/${it.owner}/${it.repo}" } ?: ""
+                            viewModel.cloneProject(url, source.name)
+                            navController.popBackStack()
+                        }
+                    )
+                    2 -> LoadTab(
+                        projects = localProjects,
+                        onLoad = { projectName ->
+                            viewModel.loadProject(projectName)
+                            navController.popBackStack()
+                        }
+                    )
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+                Button(
+                    onClick = onSave,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Warning,
-                        contentDescription = "Warning",
-                        modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                    Text(
-                        "Clear Build Caches",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    Text(
-                        "This will delete all local build artifacts, " +
-                                "dependency caches, and the local-repo. " +
-                                "This action is irreversible and can help resolve " +
-                                "persistent build issues.",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Button(
-                        onClick = {
-                            viewModel.clearBuildCaches(navController.context)
-                        }
-                    ) {
-                        Text("Clear Caches")
-                    }
+                    Text("Save and Go Back")
                 }
             }
         }
+    }
+}
 
-        // Save Button
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(
-            onClick = {
-                onSave()
-                navController.popBackStack()
-            },
+@Composable
+fun SetupTab(
+    appName: String,
+    githubUser: String,
+    onAppNameChange: (String) -> Unit,
+    onGithubUserChange: (String) -> Unit
+) {
+    Column {
+        Text("Project Configuration", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
+        TextField(
+            value = appName,
+            onValueChange = onAppNameChange,
+            label = { Text("App Name") },
             modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Save and Go Back")
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        TextField(
+            value = githubUser,
+            onValueChange = onGithubUserChange,
+            label = { Text("GitHub User") },
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+fun CloneTab(
+    sources: List<Source>,
+    loading: Boolean,
+    onClone: (Source) -> Unit
+) {
+    if (loading) {
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    } else if (sources.isEmpty()) {
+        Text("No active sessions found or failed to load.")
+    } else {
+        LazyColumn {
+            items(sources) { source ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onClone(source) }
+                        .padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = source.name,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LoadTab(
+    projects: List<String>,
+    onLoad: (String) -> Unit
+) {
+    if (projects.isEmpty()) {
+        Text("No local projects found.")
+    } else {
+        LazyColumn {
+            items(projects) { project ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onLoad(project) }
+                        .padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = project,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
         }
     }
 }
