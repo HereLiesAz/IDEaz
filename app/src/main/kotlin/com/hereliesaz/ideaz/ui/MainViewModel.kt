@@ -466,7 +466,6 @@ class MainViewModel(
                         _buildLog.value += "[INFO] Jules session created. ID: $sessionId\n"
                         _activeSessionId.value = sessionId
                         _buildLog.value += "[INFO] AI Status: Session created. Waiting for patch...\n"
-                        pollForPatch(sessionName, _buildLog)
 
                     } catch (e: Exception) {
                         Log.e(TAG, "Error creating Jules session", e)
@@ -825,7 +824,6 @@ class MainViewModel(
                         val sessionId = session.name.substringAfterLast("/")
 
                         _buildLog.value += "AI Status: Debug info sent. Waiting for new patch...\n"
-                        pollForPatch(sessionName, _buildLog)
 
                     } catch (e: Exception) {
                         Log.e(TAG, "Error during Jules debug", e)
