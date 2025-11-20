@@ -14,6 +14,7 @@ import androidx.lifecycle.viewModelScope
 import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.IBuildService
 import com.hereliesaz.ideaz.jules.JulesApiClient
+import com.hereliesaz.ideaz.api.JulesCliClient
 import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.services.BuildService
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +32,7 @@ import com.hereliesaz.ideaz.api.SourceContext
 import com.hereliesaz.ideaz.api.GitHubRepoContext
 import com.hereliesaz.ideaz.api.ListSourcesResponse
 import com.hereliesaz.ideaz.api.Source
+import com.hereliesaz.ideaz.api.ListActivitiesResponse
 import java.io.FileOutputStream
 import java.io.IOException
 import com.hereliesaz.ideaz.utils.ToolManager
@@ -464,33 +466,20 @@ class MainViewModel(
                         _buildLog.value += "[INFO] Jules session created. ID: $sessionId\n"
                         _activeSessionId.value = sessionId
                         _buildLog.value += "[INFO] AI Status: Session created. Waiting for patch...\n"
-                        pollForPatch(sessionId, _buildLog)
+                        pollForPatch(sessionName, _buildLog)
 
                     } catch (e: Exception) {
                         Log.e(TAG, "Error creating Jules session", e)
-                        val errorMessage = if (e is retrofit2.HttpException) {
-                            try {
-                                val errorBody = e.response()?.errorBody()?.string()
-                                "HTTP ${e.code()} - $errorBody"
-                            } catch (ioe: Exception) {
-                                "HTTP ${e.code()} ${e.message()}"
-                            }
-                        } else {
-                            e.message
-                        }
-                        _buildLog.value += "[INFO] AI Status: Error: $errorMessage\n"
+                        _buildLog.value += "[INFO] AI Status: Error: ${e.message}\n"
                     }
                 }
                 AiModels.GEMINI_FLASH -> {
                     Log.d(TAG, "Using Gemini Flash for contextless prompt")
                     val apiKey = settingsViewModel.getGoogleApiKey()
-                    if (apiKey.isNullOrBlank()) {
-                        _buildLog.value += "[INFO] AI Status: Error: Gemini API Key is missing.\n"
-                        return@launch
+                    if (apiKey != null) {
+                        val responseText = GeminiApiClient.generateContent(prompt ?: "", apiKey)
+                        _buildLog.value += "[INFO] AI Response: $responseText\n"
                     }
-                    val responseText = GeminiApiClient.generateContent(prompt ?: "", apiKey)
-                    _buildLog.value += "[INFO] AI Response: $responseText\n"
-                    _buildLog.value += "[INFO] AI Status: Idle\n"
                 }
                 AiModels.GEMINI_CLI -> {
                     Log.d(TAG, "Using Gemini CLI for contextless prompt")
@@ -503,12 +492,9 @@ class MainViewModel(
     }
 
     private fun startContextualAITask(richPrompt: String) {
-        Log.d(TAG, "startContextualAITask called with richPrompt:\n$richPrompt")
+        Log.d(TAG, "startContextualAITask")
         pendingRect?.let {
-            Log.d(TAG, "Re-showing log UI at rect: $it")
-            sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.SHOW_LOG_UI").apply {
-                putExtra("RECT", it)
-            })
+            sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.SHOW_LOG_UI").apply { putExtra("RECT", it) })
         }
         pendingRect = null
 
@@ -516,15 +502,13 @@ class MainViewModel(
 
         val model = getAssignedModelForTask(SettingsViewModel.KEY_AI_ASSIGNMENT_OVERLAY)
         if (model == null) {
-            Log.w(TAG, "No AI model assigned for overlay task")
-            logToOverlay("[INFO] Error: No AI model assigned for this task. Go to Settings.")
+            logToOverlay("Error: No AI model assigned.")
             return
         }
         Log.d(TAG, "Assigned model for overlay task: ${model.displayName}")
 
         if (settingsViewModel.getApiKey(model.requiredKey).isNullOrBlank()) {
-            Log.w(TAG, "API key for ${model.displayName} is missing for overlay task")
-            logToOverlay("[INFO] Error: API Key for ${model.displayName} is missing. Go to Settings.")
+            logToOverlay("Error: API Key missing.")
             return
         }
 
@@ -553,10 +537,10 @@ class MainViewModel(
                         )
 
                         val session = JulesApiClient.createSession(request)
-                        val sessionId = session.name.substringAfterLast("/")
+                        val sessionName = session.name
 
-                        logToOverlay("Session created. ID: $sessionId. Waiting for patch...")
-                        pollForPatch(sessionId, "OVERLAY")
+                        logToOverlay("Session created. Waiting for patch...")
+                        pollForPatch(sessionName, "OVERLAY")
 
                     } catch (e: Exception) {
                         Log.e(TAG, "Error creating Jules session for overlay task", e)
@@ -567,32 +551,14 @@ class MainViewModel(
                 AiModels.GEMINI_FLASH -> {
                     Log.d(TAG, "Using Gemini Flash for overlay task")
                     val apiKey = settingsViewModel.getApiKey(model.requiredKey)
-                    if (apiKey.isNullOrBlank()) {
-                        Log.w(TAG, "Gemini API key is missing for overlay task")
-                        _buildLog.value += "AI Status: Error: Gemini API Key is missing.\n"
-                        return@launch
-                    }
-                    Log.d(TAG, "Generating content with Gemini Flash")
-                    val responseText = GeminiApiClient.generateContent(richPrompt, apiKey)
-                    if (responseText.startsWith("Error:")) {
-                        Log.e(TAG, "Gemini API error: $responseText")
-                        _buildLog.value += "AI Status: Error: $responseText\n"
-                    } else {
-                        Log.d(TAG, "Gemini response received")
-                        _buildLog.value += "AI Status: Response received.\n"
-                        _buildLog.value += "Gemini Response: $responseText\n"
+                    if (apiKey != null) {
+                        val response = GeminiApiClient.generateContent(richPrompt, apiKey)
+                        logToOverlay(response)
                     }
                 }
                 AiModels.GEMINI_CLI -> {
-                    Log.d(TAG, "Using Gemini CLI for overlay task")
-                    val responseText = com.hereliesaz.ideaz.api.GeminiCliClient.generateContent(getApplication(), richPrompt)
-                    if (responseText.startsWith("Error:")) {
-                        logToOverlay("Error from CLI: $responseText")
-                    } else {
-                        logToOverlay("CLI Response: $responseText")
-                    }
-                    logToOverlay("Task Finished.")
-                    sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
+                    val response = com.hereliesaz.ideaz.api.GeminiCliClient.generateContent(getApplication(), richPrompt)
+                    logToOverlay(response)
                 }
             }
         }
@@ -858,8 +824,8 @@ class MainViewModel(
                         val session = JulesApiClient.createSession(request)
                         val sessionId = session.name.substringAfterLast("/")
 
-                        _buildLog.value += "AI Status: Debug info sent ($sessionId). Waiting for new patch...\n"
-                        pollForPatch(sessionId, _buildLog)
+                        _buildLog.value += "AI Status: Debug info sent. Waiting for new patch...\n"
+                        pollForPatch(sessionName, _buildLog)
 
                     } catch (e: Exception) {
                         Log.e(TAG, "Error during Jules debug", e)
@@ -869,16 +835,9 @@ class MainViewModel(
                 AiModels.GEMINI_FLASH -> {
                     Log.d(TAG, "Debugging with Gemini Flash")
                     val apiKey = settingsViewModel.getApiKey(model.requiredKey)
-                    if (apiKey.isNullOrBlank()) {
-                        logToOverlay("Error: Gemini API Key is missing.")
-                    } else {
-                        val responseText = GeminiApiClient.generateContent(buildLog.value, apiKey)
-                        if (responseText.startsWith("Error:")) {
-                            logToOverlay(responseText)
-                        } else {
-                            logToOverlay("Response received.")
-                            logToOverlay("Gemini Response: $responseText")
-                        }
+                    if (apiKey != null) {
+                        val response = GeminiApiClient.generateContent(buildLog.value, apiKey)
+                        logToOverlay(response)
                     }
                 }
             }
@@ -916,7 +875,7 @@ class MainViewModel(
 
     private fun pollForPatch(sessionId: String, logTarget: Any, attempt: Int = 1) {
         val maxAttempts = 20
-        Log.d(TAG, "Polling for patch for session $sessionId, attempt $attempt/$maxAttempts")
+        Log.d(TAG, "Polling for patch for session $sessionId, attempt $attempt")
         logTo(logTarget, "[INFO] AI Status: Waiting for patch... (Attempt $attempt)")
 
         viewModelScope.launch {
@@ -927,10 +886,25 @@ class MainViewModel(
             }
 
             try {
-                val response = JulesApiClient.listActivities(sessionId)
+                // FALLBACK LOGIC for 404 issue
+                var response: ListActivitiesResponse? = null
+                try {
+                    response = JulesApiClient.listActivities(sessionId)
+                } catch (e: Exception) {
+                    if (e.message?.contains("404") == true) {
+                        Log.w(TAG, "API listActivities 404. Attempting CLI fallback.")
+                        // Try to strip prefix for CLI if needed, or use full name. CLI usually takes ID or Name.
+                        // Assuming CLI handles the lookup.
+                        val cliOutput = JulesCliClient.listActivities(getApplication(), sessionId)
+                        if (cliOutput != null) {
+                            response = json.decodeFromString<ListActivitiesResponse>(cliOutput)
+                        }
+                    } else {
+                        throw e
+                    }
+                }
 
-                // Find activity with a patch
-                val patchActivity = response.activities?.find { activity ->
+                val patchActivity = response?.activities?.find { activity ->
                     activity.artifacts?.any { it.changeSet?.gitPatch?.unidiffPatch != null } == true
                 }
 
@@ -943,12 +917,11 @@ class MainViewModel(
                         logTo(logTarget, "[INFO] AI Status: Patch is ready! Applying...")
                         applyPatch(getApplication(), patchContent, logTarget)
                     } else {
-                        // Should not happen due to filter
-                        delay(5000)
+                        delay(15000) // Tripled wait period
                         pollForPatch(sessionId, logTarget, attempt + 1)
                     }
                 } else {
-                    delay(5000)
+                    delay(15000) // Tripled wait period
                     pollForPatch(sessionId, logTarget, attempt + 1)
                 }
             } catch (e: Exception) {
@@ -971,7 +944,7 @@ class MainViewModel(
                 val gitManager = GitManager(projectDir)
                 gitManager.applyPatch(patchContent)
                 logTo(logTarget, "[INFO] AI Status: Patch applied. Rebuilding...")
-                startBuild(context, projectDir) // This will handle success/failure logging
+                startBuild(context, projectDir)
 
             } catch (e: Exception) {
                 Log.e(TAG, "Error applying patch", e)

@@ -10,33 +10,22 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.IBuildService
-import com.hereliesaz.ideaz.MainActivity
 import com.hereliesaz.ideaz.buildlogic.*
 import com.hereliesaz.ideaz.utils.ApkInstaller
 import com.hereliesaz.ideaz.utils.ToolManager
 import java.io.File
-import android.content.pm.PackageInstaller
-import android.app.PendingIntent
 
 class BuildService : Service() {
-
     companion object {
         private const val NOTIFICATION_CHANNEL_ID = "IDEAZ_BUILD_CHANNEL_ID"
         private const val NOTIFICATION_ID = 1
-
-        // --- SDK versions from build.gradle.kts ---
         private const val MIN_SDK = 26
         private const val TARGET_SDK = 36
     }
 
     private val binder = object : IBuildService.Stub() {
-        override fun startBuild(projectPath: String, callback: IBuildCallback) {
-            this@BuildService.startBuild(projectPath, callback)
-        }
-
-        override fun updateNotification(message: String) {
-            this@BuildService.updateNotification(message)
-        }
+        override fun startBuild(projectPath: String, callback: IBuildCallback) = this@BuildService.startBuild(projectPath, callback)
+        override fun updateNotification(message: String) = this@BuildService.updateNotification(message)
     }
 
     override fun onCreate() {
@@ -50,25 +39,16 @@ class BuildService : Service() {
             .setContentText("Build Service is running.")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .build()
-
         startForeground(NOTIFICATION_ID, notification)
-
         return START_STICKY
     }
 
-    override fun onBind(intent: Intent?): IBinder {
-        return binder
-    }
+    override fun onBind(intent: Intent?): IBinder = binder
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                NOTIFICATION_CHANNEL_ID,
-                "IDEaz Build Service",
-                NotificationManager.IMPORTANCE_DEFAULT
-            )
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(channel)
+            val channel = NotificationChannel(NOTIFICATION_CHANNEL_ID, "IDEaz Build Service", NotificationManager.IMPORTANCE_DEFAULT)
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }
 
@@ -78,87 +58,51 @@ class BuildService : Service() {
             .setContentText(message)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .build()
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(NOTIFICATION_ID, notification)
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification)
     }
 
     private fun startBuild(projectPath: String, callback: IBuildCallback) {
         val projectDir = File(projectPath)
-        val buildDir = File(filesDir, "build")
-        buildDir.mkdirs()
+        val buildDir = File(filesDir, "build").apply { mkdirs() }
+        val cacheDir = File(filesDir, "cache").apply { mkdirs() }
+        val localRepoDir = File(filesDir, "local-repo").apply { mkdirs() }
 
-        val cacheDir = File(filesDir, "cache")
-        cacheDir.mkdirs()
-
-        // Dependency Resolution
-        val localRepoDir = File(filesDir, "local-repo")
-        localRepoDir.mkdirs()
-        val dependenciesFile = File(projectDir, "dependencies.txt")
-        val resolver = DependencyResolver(projectDir, dependenciesFile, localRepoDir)
+        val resolver = DependencyResolver(projectDir, File(projectDir, "dependencies.toml"), localRepoDir)
         val resolverResult = resolver.execute()
         if (!resolverResult.success) {
             callback.onFailure("Dependency resolution failed: ${resolverResult.output}")
             return
         }
-        val classpath = resolverResult.output
 
-        // Tool Paths (All are NATIVE tools now)
         val aapt2Path = ToolManager.getToolPath(this, "aapt2")
-        // MODIFIED: Request the path to the compiler JAR, not a native binary
         val kotlincJarPath = ToolManager.getToolPath(this, "kotlin-compiler.jar")
         val d8Path = ToolManager.getToolPath(this, "d8")
         val apkSignerPath = ToolManager.getToolPath(this, "apksigner")
         val keystorePath = ToolManager.getToolPath(this, "debug.keystore")
-        val keystorePass = "android"
-        val keyAlias = "androiddebugkey"
         val androidJarPath = ToolManager.getToolPath(this, "android.jar")
+        val javaBinaryPath = ToolManager.getToolPath(this, "java")
 
-        val requiredTools = mapOf(
-            "aapt2" to aapt2Path,
-            // MODIFIED: Use the correct JAR file name for the check
-            "kotlin-compiler.jar" to kotlincJarPath,
-            "d8" to d8Path,
-            "apksigner" to apkSignerPath,
-            "debug.keystore" to keystorePath,
-            "android.jar" to androidJarPath
-        )
-
-        for ((toolName, toolPath) in requiredTools) {
-            if (toolPath == null) {
-                callback.onFailure("Build failed: Required tool '$toolName' not found.")
-                return
-            }
+        if (javaBinaryPath == null) {
+            callback.onFailure("Build failed: java tool not found")
+            return
         }
-
-        // Build Directories
-        val compiledResDir = File(buildDir, "compiled_res").absolutePath
-        val outputApkPath = File(buildDir, "app.apk").absolutePath
-        val outputJavaPath = File(buildDir, "gen").absolutePath
-        val classesDir = File(buildDir, "classes").absolutePath
-        val finalApkPath = File(buildDir, "app-signed.apk").absolutePath
-        val resDir = File(projectDir, "app/src/main/res").absolutePath
-        val manifestPath = File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath
-        val javaDir = File(projectDir, "app/src/main/java").absolutePath
 
         val buildOrchestrator = BuildOrchestrator(
             listOf(
-                GenerateSourceMap(File(resDir), buildDir, cacheDir),
-                // --- FIX: All constructors now match their definitions ---
-                Aapt2Compile(aapt2Path!!, resDir, compiledResDir, MIN_SDK, TARGET_SDK),
-                Aapt2Link(aapt2Path!!, compiledResDir, androidJarPath!!, manifestPath, outputApkPath, outputJavaPath, MIN_SDK, TARGET_SDK),
-                // MODIFIED: Pass the JAR path
-                KotlincCompile(kotlincJarPath!!, androidJarPath!!, javaDir, File(classesDir), classpath),
-                D8Compile(d8Path!!, androidJarPath!!, classesDir, classesDir, classpath),
-                ApkBuild(finalApkPath, outputApkPath, classesDir),
-                ApkSign(apkSignerPath!!, keystorePath!!, keystorePass, keyAlias, finalApkPath)
-                // --- END FIX ---
+                GenerateSourceMap(File(projectDir, "app/src/main/res"), buildDir, cacheDir),
+                Aapt2Compile(aapt2Path!!, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK),
+                Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK),
+                KotlincCompile(kotlincJarPath!!, androidJarPath, File(projectDir, "app/src/main/java").absolutePath, File(buildDir, "classes"), resolverResult.output, javaBinaryPath),
+                D8Compile(d8Path!!, androidJarPath, File(buildDir, "classes").absolutePath, File(buildDir, "classes").absolutePath, resolverResult.output),
+                ApkBuild(File(buildDir, "app-signed.apk").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "classes").absolutePath),
+                ApkSign(apkSignerPath!!, keystorePath!!, "android", "androiddebugkey", File(buildDir, "app-signed.apk").absolutePath)
             )
         )
 
         val result = buildOrchestrator.execute(callback)
         if (result.success) {
-            callback.onSuccess(finalApkPath)
-            ApkInstaller.installApk(this, finalApkPath)
+            callback.onSuccess(File(buildDir, "app-signed.apk").absolutePath)
+            ApkInstaller.installApk(this, File(buildDir, "app-signed.apk").absolutePath)
         } else {
             callback.onFailure(result.output)
         }

@@ -11,13 +11,11 @@ object ToolManager {
     private const val TAG = "ToolManager"
     private const val TOOLS_DIR = "tools"
 
-    // Mapping from the command-line tool name to its corresponding .so file name
-    // These are now expected to be in the jniLibs folder, not assets.
+    // MODIFIED: All native tools rely solely on the JNI path and system linker.
     private val NATIVE_TOOLS = mapOf(
         "jules" to "libjules.so",
         "java" to "libjava.so",
         "aapt2" to "libaapt2.so",
-        "kotlinc" to "libkotlinc.so",
         "d8" to "libd8.so",
         "apksigner" to "libapksigner.so",
         "gemini" to "libgemini.so"
@@ -26,12 +24,13 @@ object ToolManager {
     // These are non-executable files that are still needed. We'll copy them from assets.
     private val ASSET_FILES = listOf(
         "android.jar",
-        "debug.keystore"
+        "debug.keystore",
+        "kotlin-compiler.jar" // Required for the Kotlin compilation fix.
     )
 
     /**
      * Copies non-native asset files from assets to the internal filesDir.
-     * Native tools are expected to be installed by the system from jniLibs.
+     * All complex copy logic for JNI binaries is removed.
      */
     fun installTools(context: Context) {
         Log.d(TAG, "Checking and installing asset files...")
@@ -69,24 +68,25 @@ object ToolManager {
 
     /**
      * Gets the path to an installed tool.
-     * For native tools, it looks in the native library directory.
-     * For other assets, it looks in our custom tools directory.
+     * For native tools (including jules), it returns the JNI library path and trusts its existence.
      */
     fun getToolPath(context: Context, toolName: String): String? {
-        // 1. Check if it's a native tool from jniLibs
+        // 1. Check if it's a native tool from jniLibs (jules, aapt2, etc.)
         if (NATIVE_TOOLS.containsKey(toolName)) {
             val libName = NATIVE_TOOLS[toolName]!!
             val nativeLibDir = context.applicationInfo.nativeLibraryDir
             val toolFile = File(nativeLibDir, libName)
-            return if (toolFile.exists() && toolFile.canExecute()) {
+
+            // Reverted to simple existence check, trusting the OS or shell wrapper to handle execution.
+            return if (toolFile.exists()) {
                 toolFile.absolutePath
             } else {
-                Log.e(TAG, "Native tool '${toolFile.absolutePath}' not found or not executable.")
+                Log.e(TAG, "Native tool '$toolName' not found. Path: ${toolFile.absolutePath}")
                 null
             }
         }
 
-        // 2. Check if it's a non-native asset file we copied
+        // 2. Check if it's an asset file we copied (kotlin-compiler.jar, android.jar, etc.)
         if (ASSET_FILES.contains(toolName)) {
             val toolFile = File(context.filesDir, "$TOOLS_DIR/$toolName")
             return if (toolFile.exists()) {
