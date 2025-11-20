@@ -67,6 +67,11 @@ fun ProjectScreen(
     val allSources by viewModel.ownedSources.collectAsState()
     val isLoadingSources by viewModel.isLoadingSources.collectAsState()
 
+    // Auto-refresh sources when entering the screen
+    LaunchedEffect(Unit) {
+        viewModel.fetchOwnedSources()
+    }
+
     // State for "Clone" tab
     var cloneUrl by remember { mutableStateOf("") }
     val projectList = settingsViewModel.getProjectList()
@@ -243,38 +248,40 @@ fun ProjectScreen(
                         }
                     } else {
                         items(ownedSources) { source ->
-                            val repo = source.githubRepo!!
-                            Card(
-                                modifier = Modifier
-                                    .padding(bottom = 8.dp)
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        appName = repo.repo
-                                        githubUser = repo.owner
-                                        branchName = repo.defaultBranch?.displayName ?: "main"
-                                        Toast.makeText(
-                                            context,
-                                            "Config loaded. Go to 'Setup' tab to save.",
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                        tabIndex = 0 // Switch to Setup tab
-                                    },
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surface,
-                                    contentColor = MaterialTheme.colorScheme.onSurface
-                                ),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Text(
-                                        text = "${repo.owner}/${repo.repo}",
-                                        style = MaterialTheme.typography.titleMedium
-                                    )
-                                    Text(
-                                        text = "Branch: ${repo.defaultBranch?.displayName ?: "main"}",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                    )
+                            val repo = source.githubRepo
+                            if (repo != null) {
+                                Card(
+                                    modifier = Modifier
+                                        .padding(bottom = 8.dp)
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            appName = repo.repo
+                                            githubUser = repo.owner
+                                            branchName = repo.defaultBranch?.displayName ?: "main"
+                                            Toast.makeText(
+                                                context,
+                                                "Config loaded. Go to 'Setup' tab to save.",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                            tabIndex = 0 // Switch to Setup tab
+                                        },
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surface,
+                                        contentColor = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Text(
+                                            text = "${repo.owner}/${repo.repo}",
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        Text(
+                                            text = "Branch: ${repo.defaultBranch?.displayName ?: "main"}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                        )
+                                    }
                                 }
                             }
                         }
