@@ -305,12 +305,12 @@ fun ProjectScreen(
                                             appName = repo.repo
                                             githubUser = repo.owner
                                             branchName = repo.defaultBranch?.displayName ?: "main"
+                                            viewModel.cloneOrPullProject(repo.owner, repo.repo, branchName ?: "main")
                                             Toast.makeText(
                                                 context,
-                                                "Config loaded. Go to 'Setup' tab to save.",
-                                                Toast.LENGTH_LONG
+                                                "Repository selected. Syncing...",
+                                                Toast.LENGTH_SHORT
                                             ).show()
-                                            tabIndex = 0 // Switch to Setup tab
                                         },
                                     colors = CardDefaults.cardColors(
                                         containerColor = MaterialTheme.colorScheme.surface,
