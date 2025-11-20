@@ -66,6 +66,7 @@ fun ProjectScreen(
     // NEW: Collect sources from ViewModel and use local githubUser state for filtering
     val allSources by viewModel.ownedSources.collectAsState()
     val isLoadingSources by viewModel.isLoadingSources.collectAsState()
+    val availableSessions by viewModel.availableSessions.collectAsState()
 
     // Auto-refresh sources when entering the screen
     LaunchedEffect(Unit) {
@@ -182,6 +183,52 @@ fun ProjectScreen(
                         viewModel.startBuild(context)
                         Toast.makeText(context, "Building template...", Toast.LENGTH_SHORT).show()
                     }, text = "Save Template", shape = AzButtonShape.NONE)
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    if (availableSessions.isNotEmpty()) {
+                        Text(
+                            "Active Sessions",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        availableSessions.forEach { session ->
+                            val sessionId = session.name.substringAfterLast("/")
+                            Card(
+                                modifier = Modifier
+                                    .padding(bottom = 8.dp)
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        viewModel.setActiveSession(sessionId)
+                                        Toast.makeText(context, "Resumed session: $sessionId", Toast.LENGTH_SHORT).show()
+                                    },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                    contentColor = MaterialTheme.colorScheme.onSurface
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        text = session.title ?: "Untitled Session",
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                    Text(
+                                        text = "ID: $sessionId",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                    if (session.updateTime != null) {
+                                        Text(
+                                            text = "Last Updated: ${session.updateTime}",
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // --- CLONE TAB ---

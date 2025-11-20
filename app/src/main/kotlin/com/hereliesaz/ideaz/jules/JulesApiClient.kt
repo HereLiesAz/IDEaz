@@ -54,6 +54,10 @@ object JulesApiClient {
     }
 
     // Used by MainViewModel
+    suspend fun listSessions(): ListSessionsResponse {
+        return getClient().listSessions()
+    }
+
     suspend fun listSources(): ListSourcesResponse {
         return getClient().listSources()
     }
