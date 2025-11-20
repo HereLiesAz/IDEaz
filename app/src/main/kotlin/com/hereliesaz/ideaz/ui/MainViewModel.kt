@@ -16,19 +16,21 @@ import com.hereliesaz.ideaz.IBuildService
 import com.hereliesaz.ideaz.jules.JulesApiClient
 import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.services.BuildService
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import com.hereliesaz.ideaz.models.SourceMapEntry
 import com.hereliesaz.ideaz.utils.SourceMapParser
 import com.hereliesaz.ideaz.services.ScreenshotService
 import androidx.preference.PreferenceManager
 import com.hereliesaz.ideaz.api.GeminiApiClient
+import com.hereliesaz.ideaz.api.CreateSessionRequest
+import com.hereliesaz.ideaz.api.SourceContext
 import com.hereliesaz.ideaz.api.GitHubRepoContext
-import com.hereliesaz.ideaz.api.JulesCliClient
 import com.hereliesaz.ideaz.api.ListSourcesResponse
 import com.hereliesaz.ideaz.api.Source
-import com.hereliesaz.ideaz.api.SourceContext
 import java.io.FileOutputStream
 import java.io.IOException
 import com.hereliesaz.ideaz.utils.ToolManager
@@ -60,6 +62,9 @@ class MainViewModel(
     private val _ownedSources = MutableStateFlow<List<Source>>(emptyList())
     val ownedSources = _ownedSources.asStateFlow()
 
+    private val _isLoadingSources = MutableStateFlow(false)
+    val isLoadingSources = _isLoadingSources.asStateFlow()
+
     private val _showCancelDialog = MutableStateFlow(false)
     val showCancelDialog = _showCancelDialog.asStateFlow()
     private var contextualTaskJob: Job? = null
@@ -71,7 +76,6 @@ class MainViewModel(
     private var pendingRichPrompt: String? = null
     private var pendingRect: Rect? = null
 
-    // --- FIX: For Rect-based prompt ---
     private val _promptForRect = MutableStateFlow<Rect?>(null)
     val promptForRect = _promptForRect.asStateFlow()
 
@@ -105,7 +109,6 @@ class MainViewModel(
     }
 
     private val buildCallback = object : IBuildCallback.Stub() {
-        // --- FIX: Renamed onProgress to onLog to match AIDL ---
         override fun onLog(message: String) {
             Log.d(TAG, "onLog: $message")
             viewModelScope.launch {
@@ -145,7 +148,6 @@ class MainViewModel(
         }
     }
 
-    // --- FIX: Added functions called by MainActivity ---
     fun bindBuildService(context: Context) {
         Log.d(TAG, "bindBuildService called")
 
@@ -189,7 +191,6 @@ class MainViewModel(
             isBuildServiceBound = false
         }
     }
-    // --- END FIX ---
 
     fun clearLog() {
         Log.d(TAG, "clearLog called")
@@ -197,7 +198,6 @@ class MainViewModel(
         _aiLog.value = ""
     }
 
-    // --- FIX: Functions for Rect-based prompt ---
     fun showRectPrompt(rect: Rect) {
         _promptForRect.value = rect
     }
@@ -205,7 +205,6 @@ class MainViewModel(
     fun dismissRectPrompt() {
         _promptForRect.value = null
     }
-    // --- END FIX ---
 
     fun onNodePromptSubmitted(resourceId: String, prompt: String, bounds: Rect) {
         Log.d(TAG, "onNodePromptSubmitted: resourceId=$resourceId, prompt='$prompt', bounds=$bounds")
@@ -358,6 +357,33 @@ class MainViewModel(
         }
     }
 
+    fun initializeProject(prompt: String?) {
+        viewModelScope.launch {
+            _buildLog.value += "[INFO] Checking for updates...\n"
+            try {
+                val appName = settingsViewModel.getAppName()
+                if (!appName.isNullOrBlank()) {
+                    val projectDir = getApplication<Application>().filesDir.resolve(appName)
+                    if (projectDir.exists()) {
+                        withContext(Dispatchers.IO) {
+                            GitManager(projectDir).pull()
+                        }
+                        _buildLog.value += "[INFO] Project updated.\n"
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to pull", e)
+                _buildLog.value += "[INFO] Warning: Failed to update project: ${e.message}\n"
+            }
+
+            if (!prompt.isNullOrBlank()) {
+                sendPrompt(prompt, isInitialization = true)
+            } else {
+                _buildLog.value += "[INFO] No initial prompt provided. Skipping AI initialization.\n"
+            }
+        }
+    }
+
     fun sendPrompt(prompt: String?, isInitialization: Boolean = false) {
         Log.d(TAG, "sendPrompt called with prompt: '$prompt', isInitialization: $isInitialization")
         val taskKey = if (isInitialization) {
@@ -391,26 +417,51 @@ class MainViewModel(
                 AiModels.JULES_DEFAULT -> {
                     Log.d(TAG, "Using Jules API for contextless prompt")
                     try {
-                        // --- FIX: Use getGithubUser/getAppName ---
-                        val appName = settingsViewModel.getAppName() ?: ""
-                        val githubUser = settingsViewModel.getGithubUser() ?: ""
-                        val source = "$githubUser/$appName"
-                        // --- END FIX ---
-                        val promptText = prompt ?: ""
-                        val sessionJson = JulesCliClient.createSession(getApplication(), promptText, source)
+                        val appName = settingsViewModel.getAppName()
+                        val githubUser = settingsViewModel.getGithubUser()
 
-                        if (sessionJson != null) {
-                            val jsonObject = JSONObject(sessionJson)
-                            val sessionId = jsonObject.getString("name")
-                            _buildLog.value += "[DEBUG] Jules session created: $sessionId\n"
-                            _buildLog.value += "[INFO] AI Status: Session created. Waiting for patch...\n"
-                            pollForPatch(sessionId, _buildLog)
-                        } else {
-                            _buildLog.value += "[INFO] AI Status: Error: Could not create session.\n"
+                        if (appName.isNullOrBlank() || githubUser.isNullOrBlank()) {
+                            _buildLog.value += "[INFO] AI Status: Error: Project not configured (App Name or GitHub User missing). Please go to Setup tab.\n"
+                            return@launch
                         }
+
+                        val branchName = settingsViewModel.getBranchName()
+                        val sourceString = "sources/github/$githubUser/$appName"
+
+                        val promptText = prompt ?: ""
+                        if (promptText.isBlank()) {
+                            _buildLog.value += "[INFO] AI Status: Error: Prompt cannot be empty.\n"
+                            return@launch
+                        }
+
+                        val request = CreateSessionRequest(
+                            prompt = promptText,
+                            sourceContext = SourceContext(
+                                source = sourceString,
+                                githubRepoContext = GitHubRepoContext(startingBranch = branchName)
+                            )
+                        )
+
+                        val session = JulesApiClient.createSession(request)
+                        val sessionId = session.name.substringAfterLast("/")
+
+                        _buildLog.value += "[INFO] Jules session created. ID: $sessionId\n"
+                        _buildLog.value += "[INFO] AI Status: Session created. Waiting for patch...\n"
+                        pollForPatch(sessionId, _buildLog)
+
                     } catch (e: Exception) {
                         Log.e(TAG, "Error creating Jules session", e)
-                        _buildLog.value += "[INFO] AI Status: Error: ${e.message}\n"
+                        val errorMessage = if (e is retrofit2.HttpException) {
+                            try {
+                                val errorBody = e.response()?.errorBody()?.string()
+                                "HTTP ${e.code()} - $errorBody"
+                            } catch (ioe: Exception) {
+                                "HTTP ${e.code()} ${e.message()}"
+                            }
+                        } else {
+                            e.message
+                        }
+                        _buildLog.value += "[INFO] AI Status: Error: $errorMessage\n"
                     }
                 }
                 AiModels.GEMINI_FLASH -> {
@@ -465,21 +516,31 @@ class MainViewModel(
                 AiModels.JULES_DEFAULT -> {
                     Log.d(TAG, "Using Jules API for overlay task")
                     try {
-                        // --- FIX: Use getGithubUser/getAppName ---
-                        val appName = settingsViewModel.getAppName() ?: ""
-                        val githubUser = settingsViewModel.getGithubUser() ?: ""
-                        val source = "github/$githubUser/$appName"
-                        val sessionJson = JulesCliClient.createSession(getApplication(), richPrompt, source)
+                        val appName = settingsViewModel.getAppName()
+                        val githubUser = settingsViewModel.getGithubUser()
 
-                        if (sessionJson != null) {
-                            val jsonObject = JSONObject(sessionJson)
-                            val sessionId = jsonObject.getString("name") // e.g. "sessions/12345"
-                            logToOverlay("Session created: $sessionId. Waiting for patch...")
-                            pollForPatch(sessionId, "OVERLAY")
-                        } else {
-                            logToOverlay("Error: Could not create session.")
-                            logToOverlay("Task Finished.") // Manually finish
+                        if (appName.isNullOrBlank() || githubUser.isNullOrBlank()) {
+                            logToOverlay("Error: Project not configured (App Name or GitHub User missing). Please go to Setup tab.")
+                            return@launch
                         }
+
+                        val branchName = settingsViewModel.getBranchName()
+                        val sourceString = "sources/github/$githubUser/$appName"
+
+                        val request = CreateSessionRequest(
+                            prompt = richPrompt,
+                            sourceContext = SourceContext(
+                                source = sourceString,
+                                githubRepoContext = GitHubRepoContext(startingBranch = branchName)
+                            )
+                        )
+
+                        val session = JulesApiClient.createSession(request)
+                        val sessionId = session.name.substringAfterLast("/")
+
+                        logToOverlay("Session created. ID: $sessionId. Waiting for patch...")
+                        pollForPatch(sessionId, "OVERLAY")
+
                     } catch (e: Exception) {
                         Log.e(TAG, "Error creating Jules session for overlay task", e)
                         logToOverlay("Error: ${e.message}")
@@ -567,24 +628,17 @@ class MainViewModel(
         _requestScreenCapture.value = false
     }
 
-    // --- FIX: Renamed function to match MainActivity ---
     fun setScreenCapturePermission(resultCode: Int, data: Intent?) {
         Log.d(TAG, "setScreenCapturePermission called with resultCode: $resultCode")
         if (resultCode == AndroidActivity.RESULT_OK && data != null) {
             Log.d(TAG, "Screen capture permission GRANTED")
             screenCaptureResultCode = resultCode
             screenCaptureData = data
-            // --- FIX: Removed call to non-existent function ---
-            // UIInspectionService.setScreenshotPermission(true)
-            // --- END FIX ---
         } else {
             Log.w(TAG, "Screen capture permission DENIED")
             screenCaptureResultCode = null
             screenCaptureData = null
             _buildLog.value += "Warning: Screen capture permission denied.\n"
-            // --- FIX: Removed call to non-existent function ---
-            // UIInspectionService.setScreenshotPermission(false)
-            // --- END FIX ---
         }
     }
 
@@ -628,40 +682,41 @@ class MainViewModel(
         return model
     }
 
-    // --- NEW: Function to fetch GitHub repos ---
     fun fetchOwnedSources() {
         viewModelScope.launch {
+            _isLoadingSources.value = true
             Log.d(TAG, "fetchOwnedSources: Fetching sources...")
-            val sourcesJson = JulesCliClient.listSources(getApplication())
-            if (sourcesJson != null) {
-                try {
-                    val response = json.decodeFromString<ListSourcesResponse>(sourcesJson)
-                    _ownedSources.value = response.sources
-                    Log.d(TAG, "fetchOwnedSources: Success. Found ${response.sources.size} sources.")
-                } catch (e: Exception) {
-                    Log.e(TAG, "fetchOwnedSources: Failed to parse JSON", e)
-                    _ownedSources.value = emptyList()
-                }
-            } else {
-                Log.e(TAG, "fetchOwnedSources: CLI command failed or returned null")
+            try {
+                val response = JulesApiClient.listSources()
+                _ownedSources.value = response.sources ?: emptyList()
+                Log.d(TAG, "fetchOwnedSources: Success. Found ${response.sources?.size ?: 0} sources.")
+            } catch (e: Exception) {
+                Log.e(TAG, "fetchOwnedSources: Failed to fetch sources", e)
                 _ownedSources.value = emptyList()
+            } finally {
+                _isLoadingSources.value = false
             }
         }
     }
-    // --- END NEW ---
+
+    fun loadLastProject(context: Context) {
+        val lastApp = settingsViewModel.getAppName()
+        if (!lastApp.isNullOrBlank()) {
+            Log.d(TAG, "Auto-loading last project: $lastApp")
+            loadProject(lastApp)
+        }
+    }
 
     fun cloneProject(url: String, name: String) {
         viewModelScope.launch {
             _buildLog.value += "[INFO] Cloning project from $url...\n"
             try {
-                // Use the project name for the directory to support multiple projects
                 val projectDir = getApplication<Application>().filesDir.resolve(name)
                 if (projectDir.exists()) {
                     projectDir.deleteRecursively()
                 }
                 projectDir.mkdirs()
 
-                // Extract owner and repo from URL to pass to GitManager
                 val urlParts = url.split("/")
                 val owner = urlParts[urlParts.size - 2]
                 val repo = urlParts.last().removeSuffix(".git")
@@ -686,11 +741,8 @@ class MainViewModel(
                     _buildLog.value += "[INFO] Error: Project '$projectName' not found.\n"
                     return@launch
                 }
-                // Here, you might set the "active" project directory,
-                // rather than copying it, for efficiency.
-                // For now, we'll just log that it's "loaded".
                 settingsViewModel.setAppName(projectName)
-                settingsViewModel.setGithubUser("") // Or load from project config
+                settingsViewModel.setGithubUser("")
                 _buildLog.value += "[INFO] Project '$projectName' loaded successfully.\n"
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load project", e)
@@ -709,7 +761,7 @@ class MainViewModel(
                     return@launch
                 }
                 settingsViewModel.setAppName(projectName)
-                settingsViewModel.setGithubUser("") // Or load from project config
+                settingsViewModel.setGithubUser("")
                 _buildLog.value += "[INFO] Project '$projectName' loaded successfully.\n"
 
                 startBuild(context, projectDir)
@@ -741,21 +793,33 @@ class MainViewModel(
 
             when (model.id) {
                 AiModels.JULES_DEFAULT -> {
-                    Log.d(TAG, "Debugging with Jules CLI")
+                    Log.d(TAG, "Debugging with Jules API")
                     try {
-                        val appName = settingsViewModel.getAppName() ?: ""
-                        val githubUser = settingsViewModel.getGithubUser() ?: ""
-                        val source = "github/$githubUser/$appName"
-                        // Pass the entire build log as the prompt
-                        val sessionJson = JulesCliClient.createSession(getApplication(), buildLog.value, source)
-                        if (sessionJson != null) {
-                            val jsonObject = JSONObject(sessionJson)
-                            val sessionId = jsonObject.getString("name") // e.g. "sessions/12345"
-                            _buildLog.value += "AI Status: Debug info sent ($sessionId). Waiting for new patch...\n"
-                            pollForPatch(sessionId, _buildLog)
-                        } else {
-                            _buildLog.value += "AI Status: Error: Could not create debug session.\n"
+                        val appName = settingsViewModel.getAppName()
+                        val githubUser = settingsViewModel.getGithubUser()
+
+                        if (appName.isNullOrBlank() || githubUser.isNullOrBlank()) {
+                            _buildLog.value += "AI Status: Error: Project not configured (App Name or GitHub User missing). Please go to Setup tab.\n"
+                            return@launch
                         }
+
+                        val branchName = settingsViewModel.getBranchName()
+                        val sourceString = "sources/github/$githubUser/$appName"
+
+                        val request = CreateSessionRequest(
+                            prompt = buildLog.value,
+                            sourceContext = SourceContext(
+                                source = sourceString,
+                                githubRepoContext = GitHubRepoContext(startingBranch = branchName)
+                            )
+                        )
+
+                        val session = JulesApiClient.createSession(request)
+                        val sessionId = session.name.substringAfterLast("/")
+
+                        _buildLog.value += "AI Status: Debug info sent ($sessionId). Waiting for new patch...\n"
+                        pollForPatch(sessionId, _buildLog)
+
                     } catch (e: Exception) {
                         Log.e(TAG, "Error during Jules debug", e)
                         _buildLog.value += "AI Status: Error debugging: ${e.message}\n"
@@ -823,42 +887,51 @@ class MainViewModel(
 
             try {
                 val response = JulesApiClient.listActivities(sessionId)
+
+                // Find activity with a patch
                 val patchActivity = response.activities?.find { activity ->
-                    activity.artifacts?.any { it.changeSet?.gitPatch != null } == true
+                    activity.artifacts?.any { it.changeSet?.gitPatch?.unidiffPatch != null } == true
                 }
 
                 if (patchActivity != null) {
-                    logTo(logTarget, "[INFO] AI Status: Patch is ready! Applying...")
-                    applyPatch(getApplication(), sessionId, logTarget)
+                    val patchContent = patchActivity.artifacts
+                        ?.firstOrNull { it.changeSet?.gitPatch?.unidiffPatch != null }
+                        ?.changeSet?.gitPatch?.unidiffPatch
+
+                    if (patchContent != null) {
+                        logTo(logTarget, "[INFO] AI Status: Patch is ready! Applying...")
+                        applyPatch(getApplication(), patchContent, logTarget)
+                    } else {
+                        // Should not happen due to filter
+                        delay(5000)
+                        pollForPatch(sessionId, logTarget, attempt + 1)
+                    }
                 } else {
                     delay(5000)
                     pollForPatch(sessionId, logTarget, attempt + 1)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error polling for patch", e)
-                logTo(logTarget, "[INFO] AI Status: Error polling for patch: ${e.message}")
+                val urlInfo = if (e is retrofit2.HttpException) {
+                    "URL: ${e.response()?.raw()?.request?.url} - "
+                } else ""
+                logTo(logTarget, "[INFO] AI Status: Error polling for patch: $urlInfo${e.message}")
                 if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
             }
         }
     }
 
-    private fun applyPatch(context: Context, sessionId: String, logTarget: Any) {
+    private fun applyPatch(context: Context, patchContent: String, logTarget: Any) {
         Log.d(TAG, "applyPatch called")
         viewModelScope.launch {
             try {
-                // Use the new pullPatch method which just needs the session ID
-                val patch = JulesCliClient.pullPatch(context, sessionId)
-                if (!patch.isNullOrEmpty()) {
-                    logTo(logTarget, "[INFO] AI Status: Applying patch...")
-                    val projectDir = context.filesDir.resolve("project")
-                    val gitManager = GitManager(projectDir)
-                    gitManager.applyPatch(patch)
-                    logTo(logTarget, "[INFO] AI Status: Patch applied. Rebuilding...")
-                    startBuild(context, projectDir) // This will handle success/failure logging
-                } else {
-                    logTo(logTarget, "[INFO] AI Status: Error: Could not retrieve patch.")
-                    if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
-                }
+                logTo(logTarget, "[INFO] AI Status: Applying patch...")
+                val projectDir = context.filesDir.resolve("project")
+                val gitManager = GitManager(projectDir)
+                gitManager.applyPatch(patchContent)
+                logTo(logTarget, "[INFO] AI Status: Patch applied. Rebuilding...")
+                startBuild(context, projectDir) // This will handle success/failure logging
+
             } catch (e: Exception) {
                 Log.e(TAG, "Error applying patch", e)
                 logTo(logTarget, "[INFO] AI Status: Error applying patch: ${e.message}")

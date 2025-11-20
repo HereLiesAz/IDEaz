@@ -28,8 +28,11 @@ The IDE needs to store settings and sensitive information to function correctly.
     -   Caching metadata about the user's project.
 
 -   **Technologies:**
-    -   **`EncryptedSharedPreferences`:** This is the **mandatory** technology for storing the user's API keys. It encrypts the keys at rest, providing a critical layer of security.
-    -   **Room Persistence Library:** For other structured data like user preferences and project metadata, the standard Room library (an abstraction over SQLite) will be used.
+    -   **`SharedPreferences`:** Currently used for storing user settings and API keys. (Note: `EncryptedSharedPreferences` is planned for future security hardening).
+    -   **Room Persistence Library:** (Planned) Currently, structured data is managed in `SettingsViewModel` and `MainViewModel` state flows, backed by SharedPreferences or transient state.
+
+### API Data Models
+The IDE defines Kotlin data classes in `api/models.kt` to mirror the Jules API schema. These models (`Source`, `Session`, `Activity`) are used for communication with the Jules AI agent and are handled by `JulesApiClient`.
 
 ---
 
