@@ -15,11 +15,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.hereliesaz.aznavrail.AzButton
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import com.hereliesaz.ideaz.api.Source
@@ -61,6 +65,7 @@ fun ProjectScreen(
 
     // NEW: Collect sources from ViewModel and use local githubUser state for filtering
     val allSources by viewModel.ownedSources.collectAsState()
+    val isLoadingSources by viewModel.isLoadingSources.collectAsState()
 
     // State for "Clone" tab
     var cloneUrl by remember { mutableStateOf("") }
@@ -85,6 +90,36 @@ fun ProjectScreen(
                 .padding(all = 8.dp)
                 .weight(1f)
         ) {
+            // Display currently selected repository
+            if (appName.isNotBlank()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "Current Repository",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = if (githubUser.isNotBlank()) "$githubUser/$appName" else appName,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Branch: $branchName",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
             PrimaryTabRow(selectedTabIndex = tabIndex) {
                 tabs.forEachIndexed { index, title ->
                     Tab(text = { Text(title, color = MaterialTheme.colorScheme.onBackground) },
@@ -145,58 +180,86 @@ fun ProjectScreen(
                 }
 
                 // --- CLONE TAB ---
-                1 -> Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
+                1 -> LazyColumn(
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        AzTextBox(
-                            value = cloneUrl,
-                            onValueChange = { cloneUrl = it },
-                            hint = "https://github.com/user/repo",
-                            modifier = Modifier.weight(1f),
-                            onSubmit = {
-                                if (cloneUrl.isNotBlank() && cloneUrl.startsWith("https://github.com/")) {
-                                    val forkedUrl = cloneUrl.removeSuffix("/") + "/fork"
-                                    Toast.makeText(context, "Forking at: $forkedUrl", Toast.LENGTH_LONG).show()
-                                } else {
-                                    Toast.makeText(context, "Please enter a valid GitHub URL.", Toast.LENGTH_LONG).show()
-                                }},
-                            submitButtonContent = {Text("Fork")}
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "Repositories",
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        Spacer(modifier = Modifier.weight(1f))
-                        IconButton(onClick = { viewModel.fetchOwnedSources() }) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Reload Repositories"
+                    item {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            AzTextBox(
+                                value = cloneUrl,
+                                onValueChange = { cloneUrl = it },
+                                hint = "https://github.com/user/repo",
+                                modifier = Modifier.weight(1f),
+                                onSubmit = {
+                                    if (cloneUrl.isNotBlank() && cloneUrl.startsWith("https://github.com/")) {
+                                        val forkedUrl = cloneUrl.removeSuffix("/") + "/fork"
+                                        Toast.makeText(context, "Forking at: $forkedUrl", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            "Please enter a valid GitHub URL.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                },
+                                submitButtonContent = { Text("Fork") }
                             )
                         }
                     }
-                    if (ownedSources.isEmpty()) {
-                        Text("No other repositories found on your Jules account.", color = MaterialTheme.colorScheme.onBackground)
+
+                    item {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "Repositories",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            IconButton(onClick = { viewModel.fetchOwnedSources() }) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Reload Repositories"
+                                )
+                            }
+                        }
+                    }
+
+                    if (isLoadingSources) {
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                        }
+                    } else if (ownedSources.isEmpty()) {
+                        item {
+                            Text(
+                                "No other repositories found on your Jules account.",
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
                     } else {
-                        ownedSources.forEach { source ->
+                        items(ownedSources) { source ->
                             val repo = source.githubRepo!!
                             AzButton(
                                 onClick = {
                                     appName = repo.repo
                                     githubUser = repo.owner
                                     branchName = repo.defaultBranch?.displayName ?: "main"
-                                    Toast.makeText(context, "Config loaded. Go to 'Setup' tab to save.", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(
+                                        context,
+                                        "Config loaded. Go to 'Setup' tab to save.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
                                     tabIndex = 0 // Switch to Setup tab
                                 },
                                 text = "${repo.owner}/${repo.repo} (Branch: ${repo.defaultBranch?.displayName ?: "main"})",
-                                modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth()
+                                modifier = Modifier
+                                    .padding(bottom = 8.dp)
+                                    .fillMaxWidth()
                             )
                         }
                     }
