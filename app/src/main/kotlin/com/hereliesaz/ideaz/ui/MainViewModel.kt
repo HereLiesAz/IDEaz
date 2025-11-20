@@ -388,9 +388,15 @@ class MainViewModel(
                 AiModels.JULES_DEFAULT -> {
                     Log.d(TAG, "Using Jules API for contextless prompt")
                     try {
-                        val appName = settingsViewModel.getAppName() ?: "IDEazProject"
-                        val githubUser = settingsViewModel.getGithubUser() ?: "unknown"
-                        val branchName = settingsViewModel.getBranchName() ?: "main"
+                        val appName = settingsViewModel.getAppName()
+                        val githubUser = settingsViewModel.getGithubUser()
+
+                        if (appName.isNullOrBlank() || githubUser.isNullOrBlank()) {
+                            _buildLog.value += "[INFO] AI Status: Error: Project not configured (App Name or GitHub User missing). Please go to Setup tab.\n"
+                            return@launch
+                        }
+
+                        val branchName = settingsViewModel.getBranchName()
                         val sourceString = "sources/github/$githubUser/$appName"
 
                         val request = CreateSessionRequest(
@@ -465,9 +471,15 @@ class MainViewModel(
                 AiModels.JULES_DEFAULT -> {
                     Log.d(TAG, "Using Jules API for overlay task")
                     try {
-                        val appName = settingsViewModel.getAppName() ?: "IDEazProject"
-                        val githubUser = settingsViewModel.getGithubUser() ?: "unknown"
-                        val branchName = settingsViewModel.getBranchName() ?: "main"
+                        val appName = settingsViewModel.getAppName()
+                        val githubUser = settingsViewModel.getGithubUser()
+
+                        if (appName.isNullOrBlank() || githubUser.isNullOrBlank()) {
+                            logToOverlay("Error: Project not configured (App Name or GitHub User missing). Please go to Setup tab.")
+                            return@launch
+                        }
+
+                        val branchName = settingsViewModel.getBranchName()
                         val sourceString = "sources/github/$githubUser/$appName"
 
                         val request = CreateSessionRequest(
@@ -738,9 +750,15 @@ class MainViewModel(
                 AiModels.JULES_DEFAULT -> {
                     Log.d(TAG, "Debugging with Jules API")
                     try {
-                        val appName = settingsViewModel.getAppName() ?: "IDEazProject"
-                        val githubUser = settingsViewModel.getGithubUser() ?: "unknown"
-                        val branchName = settingsViewModel.getBranchName() ?: "main"
+                        val appName = settingsViewModel.getAppName()
+                        val githubUser = settingsViewModel.getGithubUser()
+
+                        if (appName.isNullOrBlank() || githubUser.isNullOrBlank()) {
+                            _buildLog.value += "AI Status: Error: Project not configured (App Name or GitHub User missing). Please go to Setup tab.\n"
+                            return@launch
+                        }
+
+                        val branchName = settingsViewModel.getBranchName()
                         val sourceString = "sources/github/$githubUser/$appName"
 
                         val request = CreateSessionRequest(
