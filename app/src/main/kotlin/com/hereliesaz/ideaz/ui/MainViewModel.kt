@@ -80,7 +80,7 @@ class MainViewModel(
     }
 
     init {
-        // Service is bound explicitly from MainActivity
+        fetchOwnedSources()
     }
 
     override fun onCleared() {
@@ -268,14 +268,14 @@ class MainViewModel(
         confirmCancelTask()
     }
 
-    fun startBuild(context: Context) {
+    fun startBuild(context: Context, projectDir: File? = null) {
         Log.d(TAG, "startBuild called")
         if (isBuildServiceBound) {
             viewModelScope.launch {
                 _buildLog.value = "[INFO] Status: Building...\n"
-                val projectDir = File(extractProject(context))
-                Log.d(TAG, "Project extracted to: ${projectDir.absolutePath}")
-                buildService?.startBuild(projectDir.absolutePath, buildCallback)
+                val targetDir = projectDir ?: File(extractProject(context))
+                Log.d(TAG, "Project extracted to: ${targetDir.absolutePath}")
+                buildService?.startBuild(targetDir.absolutePath, buildCallback)
             }
         } else {
             Log.w(TAG, "startBuild: Build service not bound")
@@ -699,6 +699,28 @@ class MainViewModel(
         }
     }
 
+    fun loadProjectAndBuild(context: Context, projectName: String) {
+        viewModelScope.launch {
+            _buildLog.value += "[INFO] Loading project '$projectName'...\n"
+            try {
+                val projectDir = getApplication<Application>().filesDir.resolve(projectName)
+                if (!projectDir.exists()) {
+                    _buildLog.value += "[INFO] Error: Project '$projectName' not found.\n"
+                    return@launch
+                }
+                settingsViewModel.setAppName(projectName)
+                settingsViewModel.setGithubUser("") // Or load from project config
+                _buildLog.value += "[INFO] Project '$projectName' loaded successfully.\n"
+
+                startBuild(context, projectDir)
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load project", e)
+                _buildLog.value += "[INFO] Error loading project: ${e.message}\n"
+            }
+        }
+    }
+
     fun debugBuild() {
         Log.d(TAG, "debugBuild called")
         val model = getAssignedModelForTask(SettingsViewModel.KEY_AI_ASSIGNMENT_CONTEXTLESS)
@@ -832,7 +854,7 @@ class MainViewModel(
                     val gitManager = GitManager(projectDir)
                     gitManager.applyPatch(patch)
                     logTo(logTarget, "[INFO] AI Status: Patch applied. Rebuilding...")
-                    startBuild(context) // This will handle success/failure logging
+                    startBuild(context, projectDir) // This will handle success/failure logging
                 } else {
                     logTo(logTarget, "[INFO] AI Status: Error: Could not retrieve patch.")
                     if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))

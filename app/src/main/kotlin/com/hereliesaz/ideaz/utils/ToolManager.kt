@@ -1,7 +1,6 @@
 package com.hereliesaz.ideaz.utils
 
 import android.content.Context
-import android.os.Build
 import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
@@ -12,9 +11,9 @@ object ToolManager {
     private const val TAG = "ToolManager"
     private const val TOOLS_DIR = "tools"
 
-    // --- FIX: All tools are native binaries ---
+    // Mapping from the command-line tool name to its corresponding .so file name
+    // These are now expected to be in the jniLibs folder, not assets.
     private val NATIVE_TOOLS = mapOf(
-        // Tool Name -> Asset File Name
         "jules" to "libjules.so",
         "java" to "libjava.so",
         "aapt2" to "libaapt2.so",
@@ -23,58 +22,38 @@ object ToolManager {
         "apksigner" to "libapksigner.so",
         "gemini" to "libgemini.so"
     )
-    // These are non-executable files
+
+    // These are non-executable files that are still needed. We'll copy them from assets.
     private val ASSET_FILES = listOf(
         "android.jar",
         "debug.keystore"
     )
 
     /**
-     * Copies all tools from assets to the internal filesDir to make them executable.
+     * Copies non-native asset files from assets to the internal filesDir.
+     * Native tools are expected to be installed by the system from jniLibs.
      */
     fun installTools(context: Context) {
-        Log.d(TAG, "Checking and installing tools...")
+        Log.d(TAG, "Checking and installing asset files...")
         val toolsDir = File(context.filesDir, TOOLS_DIR)
         if (!toolsDir.exists()) {
             toolsDir.mkdirs()
         }
 
-        val abi = Build.SUPPORTED_ABIS[0] // e.g., arm64-v8a
-        Log.d(TAG, "Installing tools for ABI: $abi")
-
-        // 1. Copy Native Executables
-        NATIVE_TOOLS.forEach { (toolName, assetName) ->
-            val assetPath = "tools/$abi/$assetName"
-            val destFile = File(toolsDir, toolName) // Rename lib<name>.so to <name>
-            copyAndMakeExecutable(context, assetPath, destFile)
-        }
-
-        // 2. Copy other asset files
+        // Copy non-executable asset files from the assets directory.
         ASSET_FILES.forEach { assetName ->
-            val assetPath = "tools/$assetName" // ABI-independent
+            val assetPath = "tools/$assetName" // These are ABI-independent
             val destFile = File(toolsDir, assetName)
             copyAsset(context, assetPath, destFile)
         }
-        Log.d(TAG, "Tool installation complete.")
-    }
-
-    private fun copyAndMakeExecutable(context: Context, assetPath: String, destFile: File) {
-        if (copyAsset(context, assetPath, destFile)) {
-            try {
-                destFile.setExecutable(true, true)
-                Log.d(TAG, "Made executable: ${destFile.name}")
-            } catch (e: SecurityException) {
-                Log.e(TAG, "Failed to make executable: ${destFile.name}", e)
-            }
-        }
+        Log.d(TAG, "Asset file installation complete.")
     }
 
     private fun copyAsset(context: Context, assetPath: String, destFile: File): Boolean {
         if (destFile.exists()) {
-            // Log.d(TAG, "Tool already exists: ${destFile.name}")
             return true // Already exists
         }
-        Log.d(TAG, "Copying tool from assets: $assetPath -> ${destFile.absolutePath}")
+        Log.d(TAG, "Copying asset: $assetPath -> ${destFile.absolutePath}")
         try {
             context.assets.open(assetPath).use { input ->
                 FileOutputStream(destFile).use { output ->
@@ -83,31 +62,42 @@ object ToolManager {
             }
             return true
         } catch (e: IOException) {
-            Log.e(TAG, "Failed to copy tool: $assetPath", e)
+            Log.e(TAG, "Failed to copy asset: $assetPath", e)
             return false
         }
     }
 
     /**
      * Gets the path to an installed tool.
+     * For native tools, it looks in the native library directory.
+     * For other assets, it looks in our custom tools directory.
      */
     fun getToolPath(context: Context, toolName: String): String? {
-        val file = File(context.filesDir, "$TOOLS_DIR/$toolName")
-
-        if (file.exists()) {
-            if (NATIVE_TOOLS.containsKey(toolName)) {
-                if (file.canExecute()) {
-                    return file.absolutePath
-                } else {
-                    Log.e(TAG, "Tool '$toolName' exists but is not executable.")
-                }
+        // 1. Check if it's a native tool from jniLibs
+        if (NATIVE_TOOLS.containsKey(toolName)) {
+            val libName = NATIVE_TOOLS[toolName]!!
+            val nativeLibDir = context.applicationInfo.nativeLibraryDir
+            val toolFile = File(nativeLibDir, libName)
+            return if (toolFile.exists() && toolFile.canExecute()) {
+                toolFile.absolutePath
             } else {
-                // It's a non-executable asset file like android.jar
-                return file.absolutePath
+                Log.e(TAG, "Native tool '${toolFile.absolutePath}' not found or not executable.")
+                null
             }
         }
 
-        Log.e(TAG, "Tool '$toolName' not found. Did installTools() run? Looked for: ${file.absolutePath}")
+        // 2. Check if it's a non-native asset file we copied
+        if (ASSET_FILES.contains(toolName)) {
+            val toolFile = File(context.filesDir, "$TOOLS_DIR/$toolName")
+            return if (toolFile.exists()) {
+                toolFile.absolutePath
+            } else {
+                Log.e(TAG, "Asset file '$toolName' not found. Looked for: ${toolFile.absolutePath}")
+                null
+            }
+        }
+
+        Log.e(TAG, "Tool '$toolName' is not a known native tool or asset file.")
         return null
     }
 }

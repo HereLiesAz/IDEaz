@@ -16,7 +16,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.Flow
@@ -29,14 +28,13 @@ fun LiveOutputBottomCard(
 ) {
     val logMessages by logStream.collectAsState(initial = "")
 
-    // Reversing the list so the newest line is at the top (index 0)
-    val logLines = logMessages.lines().reversed()
+    val logLines = logMessages.lines()
     val listState = rememberLazyListState()
 
-    // Autoscroll to the top (index 0) when logLines size changes
+    // Autoscroll to the bottom when logLines size changes
     LaunchedEffect(logLines.size) {
         if (logLines.isNotEmpty()) {
-            listState.animateScrollToItem(0)
+            listState.animateScrollToItem(logLines.size - 1)
         }
     }
 

@@ -4,8 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -16,7 +20,8 @@ fun IdeNavHost(
     navController: NavHostController,
     viewModel: MainViewModel,
     settingsViewModel: SettingsViewModel,
-    onThemeToggle: (Boolean) -> Unit
+    onThemeToggle: (Boolean) -> Unit,
+    bottomPadding: Dp = 0.dp
 ) {
     NavHost(
         navController = navController,
@@ -24,12 +29,10 @@ fun IdeNavHost(
         modifier = modifier
     ) {
         composable("main") {
-            // --- FIX: Update call to match LiveOutputBottomCard's new signature ---
             LiveOutputBottomCard(
-                logStream = viewModel.filteredLog
-                // bottomPadding = 0.dp // This will use the default
+                logStream = viewModel.filteredLog,
+                bottomPadding = bottomPadding
             )
-            // --- END FIX ---
         }
         composable("settings") {
             SettingsScreen(
@@ -39,10 +42,11 @@ fun IdeNavHost(
             )
         }
         composable("project_settings") {
-            ProjectSettingsScreen(
+            val sources by viewModel.ownedSources.collectAsState()
+            ProjectScreen(
                 viewModel = viewModel,
                 settingsViewModel = settingsViewModel,
-                navController = navController
+                sources = sources
             )
         }
         composable("build") {
