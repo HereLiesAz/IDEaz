@@ -148,7 +148,7 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onBackground,
                     style = MaterialTheme.typography.titleLarge
                 )
-            }
+
             Spacer(modifier = Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
 
@@ -352,6 +352,7 @@ fun SettingsScreen(
             )
         }
     }
+}
 }
 
 fun isAccessibilityServiceEnabled(context: Context, serviceName: String): Boolean {
