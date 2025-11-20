@@ -95,8 +95,6 @@ fun MainScreen(
         }
     }
 
-    val containerColor = Color.Transparent
-
     val handleActionClick = { action: () -> Unit ->
         // --- FIX: Dock rail when switching to settings ---
         // This was already correct, but the service bug made it seem broken.
@@ -156,7 +154,7 @@ fun MainScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = containerColor,
+        containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
 
         // Use a Box to layer the IDE content and the BottomSheet
@@ -178,6 +176,7 @@ fun MainScreen(
                     scope = scope
                 )
 
+                val chatHeight = screenHeight * 0.05f
                 // This is the main screen content, which we make visible/invisible
                 AnimatedVisibility(visible = isIdeVisible) {
                     // Call the extracted NavHost
@@ -186,7 +185,8 @@ fun MainScreen(
                         navController = navController,
                         viewModel = viewModel,
                         settingsViewModel = viewModel.settingsViewModel,
-                        onThemeToggle = onThemeToggle
+                        onThemeToggle = onThemeToggle,
+                        bottomPadding = chatHeight
                     )
                 }
             }
