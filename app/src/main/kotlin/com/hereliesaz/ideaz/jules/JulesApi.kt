@@ -8,7 +8,6 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface JulesApi {
-    // List sources from API
     @GET("sources")
     suspend fun listSources(
         @Query("pageSize") pageSize: Int? = null,
@@ -34,6 +33,8 @@ interface JulesApi {
     @POST("sessions/{sessionId}:approvePlan")
     suspend fun approvePlan(@Path("sessionId") sessionId: String)
 
+    // Reverted to explicit path structure.
+    // If this 404s, MainViewModel will fallback to CLI.
     @GET("sessions/{sessionId}/activities")
     suspend fun listActivities(
         @Path("sessionId") sessionId: String,
