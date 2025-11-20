@@ -42,6 +42,7 @@ object JulesApiClient {
         getClient().sendMessage(sessionId, request)
     }
 
+    // Used by MainViewModel
     suspend fun listSources(): ListSourcesResponse {
         return getClient().listSources()
     }
