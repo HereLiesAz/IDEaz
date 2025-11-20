@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -60,7 +61,7 @@ fun ProjectSettingsScreen(
     val sources by viewModel.ownedSources.collectAsState()
     val localProjects by settingsViewModel.localProjects.collectAsState(initial = emptyList())
     var selectedTabIndex by remember { mutableStateOf(0) }
-    val tabs = listOf("Create", "Clone", "Load")
+    val tabs = listOf("Setup", "Clone", "Load")
 
     LaunchedEffect(selectedTabIndex) {
         if (selectedTabIndex == 1 && sources.isEmpty()) {
@@ -77,6 +78,7 @@ fun ProjectSettingsScreen(
     }
 
     val hazeState = rememberHazeState()
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
 
     Box(modifier = Modifier.fillMaxSize()) {
         Box(
@@ -84,81 +86,90 @@ fun ProjectSettingsScreen(
                 .fillMaxSize()
                 .hazeSource(state = hazeState)
         )
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp)
-                .hazeEffect(
-                    state = hazeState,
-                    style = HazeStyle(
-                        backgroundColor = MaterialTheme.colorScheme.background.copy(alpha = 0.5f),
-                        tints = listOf(HazeTint(Color.Black.copy(alpha = 0.2f)))
-                    )
+                .padding(
+                    top = screenHeight * 0.1f,
+                    bottom = screenHeight * 0.1f
                 )
         ) {
-            // Header
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+                    .hazeEffect(
+                        state = hazeState,
+                        style = HazeStyle(
+                            backgroundColor = MaterialTheme.colorScheme.background.copy(alpha = 0.5f),
+                            tints = listOf(HazeTint(Color.Black.copy(alpha = 0.2f)))
+                        )
+                    )
+            ) {
+                // Header
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Project Settings", style = MaterialTheme.typography.headlineSmall)
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Project Settings", style = MaterialTheme.typography.headlineSmall)
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider()
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
 
-            TabRow(selectedTabIndex = selectedTabIndex) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTabIndex == index,
-                        onClick = { selectedTabIndex = index },
-                        text = { Text(title) }
+                TabRow(selectedTabIndex = selectedTabIndex) {
+                    tabs.forEachIndexed { index, title ->
+                        Tab(
+                            selected = selectedTabIndex == index,
+                            onClick = { selectedTabIndex = index },
+                            text = { Text(title) }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                when (selectedTabIndex) {
+                    0 -> SetupTab(
+                        appName = appNameState,
+                        githubUser = githubUserState,
+                        onAppNameChange = { appNameState = it },
+                        onGithubUserChange = { githubUserState = it }
+                    )
+                    1 -> CloneTab(
+                        sources = sources,
+                        loading = sourcesLoading,
+                        onClone = { source ->
+                            val url = source.githubRepo?.let { "https://github.com/${it.owner}/${it.repo}" } ?: ""
+                            viewModel.cloneProject(url, source.name)
+                            navController.popBackStack()
+                        }
+                    )
+                    2 -> LoadTab(
+                        projects = localProjects,
+                        onLoad = { projectName ->
+                            viewModel.loadProject(projectName)
+                            navController.popBackStack()
+                        }
                     )
                 }
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            when (selectedTabIndex) {
-                0 -> CreateTab(
-                    appName = appNameState,
-                    githubUser = githubUserState,
-                    onAppNameChange = { appNameState = it },
-                    onGithubUserChange = { githubUserState = it }
-                )
-                1 -> CloneTab(
-                    sources = sources,
-                    loading = sourcesLoading,
-                    onClone = { source ->
-                        val url = source.githubRepo?.let { "https://github.com/${it.owner}/${it.repo}" } ?: ""
-                        viewModel.cloneProject(url, source.name)
-                        navController.popBackStack()
-                    }
-                )
-                2 -> LoadTab(
-                    projects = localProjects,
-                    onLoad = { projectName ->
-                        viewModel.loadProject(projectName)
-                        navController.popBackStack()
-                    }
-                )
-            }
-
-            Spacer(modifier = Modifier.weight(1f))
-            Button(
-                onClick = onSave,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Save and Go Back")
+                Spacer(modifier = Modifier.weight(1f))
+                Button(
+                    onClick = onSave,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Save and Go Back")
+                }
             }
         }
     }
 }
 
 @Composable
-fun CreateTab(
+fun SetupTab(
     appName: String,
     githubUser: String,
     onAppNameChange: (String) -> Unit,
