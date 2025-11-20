@@ -65,6 +65,12 @@ class MainViewModel(
     private val _isLoadingSources = MutableStateFlow(false)
     val isLoadingSources = _isLoadingSources.asStateFlow()
 
+    private val _availableSessions = MutableStateFlow<List<com.hereliesaz.ideaz.api.Session>>(emptyList())
+    val availableSessions = _availableSessions.asStateFlow()
+
+    private val _activeSessionId = MutableStateFlow<String?>(null)
+    val activeSessionId = _activeSessionId.asStateFlow()
+
     private val _showCancelDialog = MutableStateFlow(false)
     val showCancelDialog = _showCancelDialog.asStateFlow()
     private var contextualTaskJob: Job? = null
@@ -85,6 +91,7 @@ class MainViewModel(
 
     init {
         fetchOwnedSources()
+        fetchSessions()
     }
 
     override fun onCleared() {
@@ -434,6 +441,15 @@ class MainViewModel(
                             return@launch
                         }
 
+                        // Check active session
+                        val activeId = _activeSessionId.value
+                        if (activeId != null) {
+                            _buildLog.value += "[INFO] Sending message to existing session $activeId...\n"
+                            JulesApiClient.sendMessage(activeId, promptText)
+                            pollForPatch(activeId, _buildLog)
+                            return@launch
+                        }
+
                         val request = CreateSessionRequest(
                             prompt = promptText,
                             sourceContext = SourceContext(
@@ -443,9 +459,10 @@ class MainViewModel(
                         )
 
                         val session = JulesApiClient.createSession(request)
-                        val sessionId = session.name.removePrefix("sessions/")
+                        val sessionId = session.name.substringAfterLast("/")
 
                         _buildLog.value += "[INFO] Jules session created. ID: $sessionId\n"
+                        _activeSessionId.value = sessionId
                         _buildLog.value += "[INFO] AI Status: Session created. Waiting for patch...\n"
                         pollForPatch(sessionId, _buildLog)
 
@@ -536,7 +553,7 @@ class MainViewModel(
                         )
 
                         val session = JulesApiClient.createSession(request)
-                        val sessionId = session.name.removePrefix("sessions/")
+                        val sessionId = session.name.substringAfterLast("/")
 
                         logToOverlay("Session created. ID: $sessionId. Waiting for patch...")
                         pollForPatch(sessionId, "OVERLAY")
@@ -699,6 +716,30 @@ class MainViewModel(
         }
     }
 
+    fun fetchSessions() {
+        viewModelScope.launch {
+            try {
+                val response = JulesApiClient.listSessions()
+                val appName = settingsViewModel.getAppName()
+                val githubUser = settingsViewModel.getGithubUser()
+                val currentSource = "sources/github/$githubUser/$appName"
+
+                val filtered = response.sessions?.filter {
+                    it.sourceContext.source == currentSource
+                } ?: emptyList()
+
+                _availableSessions.value = filtered
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to list sessions", e)
+            }
+        }
+    }
+
+    fun setActiveSession(sessionId: String) {
+        _activeSessionId.value = sessionId
+        _buildLog.value += "[INFO] Active session set to: $sessionId\n"
+    }
+
     fun loadLastProject(context: Context) {
         val lastApp = settingsViewModel.getAppName()
         if (!lastApp.isNullOrBlank()) {
@@ -815,7 +856,7 @@ class MainViewModel(
                         )
 
                         val session = JulesApiClient.createSession(request)
-                        val sessionId = session.name.removePrefix("sessions/")
+                        val sessionId = session.name.substringAfterLast("/")
 
                         _buildLog.value += "AI Status: Debug info sent ($sessionId). Waiting for new patch...\n"
                         pollForPatch(sessionId, _buildLog)
@@ -912,7 +953,10 @@ class MainViewModel(
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error polling for patch", e)
-                logTo(logTarget, "[INFO] AI Status: Error polling for patch: ${e.message}")
+                val urlInfo = if (e is retrofit2.HttpException) {
+                    "URL: ${e.response()?.raw()?.request?.url} - "
+                } else ""
+                logTo(logTarget, "[INFO] AI Status: Error polling for patch: $urlInfo${e.message}")
                 if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
             }
         }
