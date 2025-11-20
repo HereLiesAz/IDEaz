@@ -1,6 +1,6 @@
 package com.hereliesaz.ideaz.jules
 
-import android.content.Context
+import com.hereliesaz.ideaz.api.*
 import com.hereliesaz.ideaz.api.AuthInterceptor
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import kotlinx.serialization.json.Json
@@ -38,7 +38,15 @@ object JulesApiClient {
     }
 
     suspend fun sendMessage(sessionId: String, prompt: String) {
-        val body = mapOf("prompt" to prompt)
-        getClient().sendMessage(sessionId, body)
+        val request = SendMessageRequest(prompt = prompt)
+        getClient().sendMessage(sessionId, request)
+    }
+
+    suspend fun listSources(): ListSourcesResponse {
+        return getClient().listSources()
+    }
+
+    suspend fun getSession(sessionId: String): Session {
+        return getClient().getSession(sessionId)
     }
 }

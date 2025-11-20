@@ -636,8 +636,8 @@ class MainViewModel(
             if (sourcesJson != null) {
                 try {
                     val response = json.decodeFromString<ListSourcesResponse>(sourcesJson)
-                    _ownedSources.value = response.sources
-                    Log.d(TAG, "fetchOwnedSources: Success. Found ${response.sources.size} sources.")
+                    _ownedSources.value = response.sources ?: emptyList()
+                    Log.d(TAG, "fetchOwnedSources: Success. Found ${response.sources?.size ?: 0} sources.")
                 } catch (e: Exception) {
                     Log.e(TAG, "fetchOwnedSources: Failed to parse JSON", e)
                     _ownedSources.value = emptyList()

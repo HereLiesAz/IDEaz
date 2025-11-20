@@ -191,11 +191,11 @@ fun ProjectScreen(
                                 onClick = {
                                     appName = repo.repo
                                     githubUser = repo.owner
-                                    branchName = repo.defaultBranch.displayName
+                                    branchName = repo.defaultBranch?.displayName ?: "main"
                                     Toast.makeText(context, "Config loaded. Go to 'Setup' tab to save.", Toast.LENGTH_LONG).show()
                                     tabIndex = 0 // Switch to Setup tab
                                 },
-                                text = "${repo.owner}/${repo.repo} (Branch: ${repo.defaultBranch.displayName})",
+                                text = "${repo.owner}/${repo.repo} (Branch: ${repo.defaultBranch?.displayName ?: "main"})",
                                 modifier = Modifier.padding(bottom = 8.dp).fillMaxWidth()
                             )
                         }

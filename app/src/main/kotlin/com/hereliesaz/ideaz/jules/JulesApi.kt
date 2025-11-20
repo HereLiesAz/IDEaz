@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.jules
 
+import com.hereliesaz.ideaz.api.*
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
@@ -48,6 +49,6 @@ interface JulesApi {
     @POST("sessions/{sessionId}:sendMessage")
     suspend fun sendMessage(
         @Path("sessionId") sessionId: String,
-        @Body prompt: Map<String, String>
+        @Body request: SendMessageRequest
     )
 }
