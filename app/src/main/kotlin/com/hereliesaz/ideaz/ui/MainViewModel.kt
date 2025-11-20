@@ -650,6 +650,54 @@ class MainViewModel(
     }
     // --- END NEW ---
 
+    fun cloneProject(url: String, name: String) {
+        viewModelScope.launch {
+            _buildLog.value += "[INFO] Cloning project from $url...\n"
+            try {
+                // Use the project name for the directory to support multiple projects
+                val projectDir = getApplication<Application>().filesDir.resolve(name)
+                if (projectDir.exists()) {
+                    projectDir.deleteRecursively()
+                }
+                projectDir.mkdirs()
+
+                // Extract owner and repo from URL to pass to GitManager
+                val urlParts = url.split("/")
+                val owner = urlParts[urlParts.size - 2]
+                val repo = urlParts.last().removeSuffix(".git")
+
+                val gitManager = GitManager(projectDir)
+                gitManager.clone(owner, repo)
+                settingsViewModel.addProject(name)
+                _buildLog.value += "[INFO] Project '$name' cloned successfully.\n"
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to clone project", e)
+                _buildLog.value += "[INFO] Error cloning project: ${e.message}\n"
+            }
+        }
+    }
+
+    fun loadProject(projectName: String) {
+        viewModelScope.launch {
+            _buildLog.value += "[INFO] Loading project '$projectName'...\n"
+            try {
+                val projectDir = getApplication<Application>().filesDir.resolve(projectName)
+                if (!projectDir.exists()) {
+                    _buildLog.value += "[INFO] Error: Project '$projectName' not found.\n"
+                    return@launch
+                }
+                // Here, you might set the "active" project directory,
+                // rather than copying it, for efficiency.
+                // For now, we'll just log that it's "loaded".
+                settingsViewModel.setAppName(projectName)
+                settingsViewModel.setGithubUser("") // Or load from project config
+                _buildLog.value += "[INFO] Project '$projectName' loaded successfully.\n"
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load project", e)
+                _buildLog.value += "[INFO] Error loading project: ${e.message}\n"
+            }
+        }
+    }
 
     fun debugBuild() {
         Log.d(TAG, "debugBuild called")

@@ -13,9 +13,11 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -38,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -45,6 +48,12 @@ import androidx.core.content.ContextCompat
 import com.hereliesaz.aznavrail.AzButton
 import com.hereliesaz.aznavrail.AzTextBox
 import com.hereliesaz.aznavrail.model.AzButtonShape
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 
 private const val TAG = "SettingsScreen"
 
@@ -100,15 +109,46 @@ fun SettingsScreen(
         }
     )
 
-    Column {
-        Spacer(modifier = Modifier.height(screenHeight * 0.1f))
-        Column(
+    val hazeState = rememberHazeState()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+    ) {
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(all = 8.dp)
-                .verticalScroll(rememberScrollState())
+                .fillMaxSize()
+                .hazeSource(
+                    state = hazeState,
+                )
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    top = screenHeight * 0.1f,
+                    bottom = screenHeight * 0.1f
+                )
         ) {
-            Text("API Keys", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+                    .hazeEffect(
+                        state = hazeState,
+                        style = HazeStyle(
+                            backgroundColor = MaterialTheme.colorScheme.background.copy(alpha = 0.5f),
+                            tints = listOf(HazeTint(Color.Black.copy(alpha = 0.2f)))
+                        )
+                    )
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    "API Keys",
+                    color = MaterialTheme.colorScheme.onBackground,
+                    style = MaterialTheme.typography.titleLarge
+                )
+            }
             Spacer(modifier = Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
 
@@ -128,14 +168,14 @@ fun SettingsScreen(
                     submitButtonContent = { Text("Save") }
                 )
             }
-            Row(Modifier.width(60.dp) , verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.width(60.dp), verticalAlignment = Alignment.CenterVertically) {
                 AzButton(onClick = {
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://jules.google.com/settings"))
                     context.startActivity(intent)
                 }, text = "Get Key", shape = AzButtonShape.NONE)
             }
 
-            Row(Modifier.fillMaxWidth() , verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Spacer(modifier = Modifier.height(24.dp))
 
             }
@@ -155,15 +195,16 @@ fun SettingsScreen(
                         Toast.makeText(context, "AI Studio Key Saved", Toast.LENGTH_SHORT).show()
                     },
                     submitButtonContent = { Text("Save") }
-                )}
-            Row(Modifier.width(60.dp) , verticalAlignment = Alignment.CenterVertically) {
+                )
+            }
+            Row(Modifier.width(60.dp), verticalAlignment = Alignment.CenterVertically) {
                 AzButton(onClick = {
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/api-keys"))
                     context.startActivity(intent)
                 }, text = "Get Key", shape = AzButtonShape.NONE)
             }
 
-            Row(Modifier.fillMaxWidth() , verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Spacer(modifier = Modifier.height(24.dp))
 
             }
@@ -192,11 +233,19 @@ fun SettingsScreen(
             Text("Permissions", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
             Spacer(modifier = Modifier.height(16.dp))
 
-            val hasOverlay by remember(refreshTrigger) { mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context) else true) }
-            val hasNotify by remember(refreshTrigger) { mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED else true) }
-            val hasInstall by remember(refreshTrigger) { mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.packageManager.canRequestPackageInstalls() else true) }
+            val hasOverlay by remember(refreshTrigger) {
+                mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context) else true)
+            }
+            val hasNotify by remember(refreshTrigger) {
+                mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED else true)
+            }
+            val hasInstall by remember(refreshTrigger) {
+                mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.packageManager.canRequestPackageInstalls() else true)
+            }
             val hasScreenshot by remember(viewModel.hasScreenCapturePermission()) { mutableStateOf(viewModel.hasScreenCapturePermission()) }
-            val hasAccessibility by remember(refreshTrigger) { mutableStateOf(isAccessibilityServiceEnabled(context, ".services.ScreenshotService")) }
+            val hasAccessibility by remember(refreshTrigger) {
+                mutableStateOf(isAccessibilityServiceEnabled(context, ".services.ScreenshotService"))
+            }
 
             PermissionCheckRow(
                 name = "Draw Over Other Apps",
