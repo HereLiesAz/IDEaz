@@ -399,8 +399,14 @@ class MainViewModel(
                         val branchName = settingsViewModel.getBranchName()
                         val sourceString = "sources/github/$githubUser/$appName"
 
+                        val promptText = prompt ?: ""
+                        if (promptText.isBlank()) {
+                            _buildLog.value += "[INFO] AI Status: Error: Prompt cannot be empty.\n"
+                            return@launch
+                        }
+
                         val request = CreateSessionRequest(
-                            prompt = prompt ?: "",
+                            prompt = promptText,
                             sourceContext = SourceContext(
                                 source = sourceString,
                                 githubRepoContext = GitHubRepoContext(startingBranch = branchName)
