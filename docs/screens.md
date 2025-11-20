@@ -27,7 +27,13 @@ This is a traditional Android screen within the IDEaz IDE app that serves as the
 
 **Key Components:**
 -   **Nav Rail:** Provides navigation to Project Settings, **IDE** (which contains the Interact/Select toggle), and App Settings.
--   **Main Content Area:** Displays settings screens. The "main" screen is now empty, as all status has moved to the bottom sheet.
+-   **Main Content Area:** Displays the active screen (Project Settings, IDE View, or App Settings).
+    -   **Project Settings Screen:**
+        -   **Header:** A "Current Repository" card displays the active project context (Repo/Branch).
+        -   **Setup Tab:** Configure basic project info (App Name, GitHub User, Branch, Package Name). The "Build" button saves config and triggers a Git Pull before initializing the session.
+        -   **Clone Tab:** Lists repositories from the user's GitHub account (fetched via Jules API). Displayed as a scrollable list of clickable cards. Includes a "Reload" button.
+        -   **Load Tab:** Lists locally saved projects for quick switching.
+-   **Global Console (Bottom Sheet):** The pull-up card described in section 2.
 -   **Global Console (Bottom Sheet):** The pull-up card described in section 2.
 
 ## 4. Settings Screen

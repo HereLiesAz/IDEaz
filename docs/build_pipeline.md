@@ -37,6 +37,15 @@ The build pipeline relies on the following essential native binaries and data fi
 
 ## **2. The Build Sequence**
 
+### **Pre-Build Phase: Version Control**
+
+Before the build pipeline is invoked, the IDEaz host application ensures the project source code is up-to-date.
+
+*   **Git Pull:** When the user initiates a build (e.g., via the "Build" button on the Setup tab), the application uses the `GitManager` (backed by JGit) to pull the latest changes from the remote repository. This ensures the local source code reflects the most recent state.
+*   **AI Patch Application:** If the AI agent has generated a code patch, the `JulesApiClient` retrieves the patch content, and `GitManager` applies it locally before triggering a rebuild.
+
+### **Build Execution Steps**
+
 The `On-Device Build Service` executes the following precise sequence of command-line invocations to transform a project's source code into a runnable APK.
 
 1.  **Step 1: Resource Compilation (aapt2 compile):** The service invokes `libaapt2.so compile`, passing it the `res/` directory. This command does *not* take SDK version flags.
