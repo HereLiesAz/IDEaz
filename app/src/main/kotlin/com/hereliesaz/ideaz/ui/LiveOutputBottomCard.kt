@@ -43,7 +43,7 @@ fun LiveOutputBottomCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color.Transparent)
+            .background(MaterialTheme.colorScheme.surface)
     ) {
         // Add the drag handle
         DragIndication(
