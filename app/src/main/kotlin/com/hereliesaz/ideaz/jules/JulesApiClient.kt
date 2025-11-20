@@ -15,7 +15,11 @@ object JulesApiClient {
     private fun getClient(): JulesApi {
         val okHttpClient = OkHttpClient.Builder()
             .addInterceptor(AuthInterceptor)
+            .addInterceptor(RetryInterceptor())
             .addInterceptor(LoggingInterceptor)
+            .connectTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
             .build()
 
         val contentType = "application/json".toMediaType()
