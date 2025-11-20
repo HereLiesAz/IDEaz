@@ -443,9 +443,9 @@ class MainViewModel(
                         )
 
                         val session = JulesApiClient.createSession(request)
-                        val sessionId = session.id
+                        val sessionId = session.name.removePrefix("sessions/")
 
-                        _buildLog.value += "[INFO] Jules session created. ID: $sessionId, Name: ${session.name}\n"
+                        _buildLog.value += "[INFO] Jules session created. ID: $sessionId\n"
                         _buildLog.value += "[INFO] AI Status: Session created. Waiting for patch...\n"
                         pollForPatch(sessionId, _buildLog)
 
@@ -536,9 +536,9 @@ class MainViewModel(
                         )
 
                         val session = JulesApiClient.createSession(request)
-                        val sessionId = session.id
+                        val sessionId = session.name.removePrefix("sessions/")
 
-                        logToOverlay("Session created. ID: $sessionId, Name: ${session.name}. Waiting for patch...")
+                        logToOverlay("Session created. ID: $sessionId. Waiting for patch...")
                         pollForPatch(sessionId, "OVERLAY")
 
                     } catch (e: Exception) {
@@ -815,7 +815,7 @@ class MainViewModel(
                         )
 
                         val session = JulesApiClient.createSession(request)
-                        val sessionId = session.id
+                        val sessionId = session.name.removePrefix("sessions/")
 
                         _buildLog.value += "AI Status: Debug info sent ($sessionId). Waiting for new patch...\n"
                         pollForPatch(sessionId, _buildLog)
