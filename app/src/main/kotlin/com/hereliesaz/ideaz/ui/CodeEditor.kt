@@ -28,7 +28,12 @@ fun EnhancedCodeEditor(
             val newText = it.text
             textFieldValue = it.copy(annotatedString = syntaxHighlight(newText))
             onValueChange(newText)
-        }
+        },
+        colors = androidx.compose.material3.TextFieldDefaults.colors(
+            focusedContainerColor = Color.Transparent,
+            unfocusedContainerColor = Color.Transparent,
+            disabledContainerColor = Color.Transparent,
+        )
     )
 }
 
