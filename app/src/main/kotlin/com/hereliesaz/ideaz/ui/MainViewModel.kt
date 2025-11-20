@@ -60,6 +60,9 @@ class MainViewModel(
     private val _ownedSources = MutableStateFlow<List<Source>>(emptyList())
     val ownedSources = _ownedSources.asStateFlow()
 
+    private val _isLoadingSources = MutableStateFlow(false)
+    val isLoadingSources = _isLoadingSources.asStateFlow()
+
     private val _showCancelDialog = MutableStateFlow(false)
     val showCancelDialog = _showCancelDialog.asStateFlow()
     private var contextualTaskJob: Job? = null
@@ -624,6 +627,7 @@ class MainViewModel(
 
     fun fetchOwnedSources() {
         viewModelScope.launch {
+            _isLoadingSources.value = true
             Log.d(TAG, "fetchOwnedSources: Fetching sources...")
             try {
                 val response = JulesApiClient.listSources()
@@ -632,7 +636,17 @@ class MainViewModel(
             } catch (e: Exception) {
                 Log.e(TAG, "fetchOwnedSources: Failed to fetch sources", e)
                 _ownedSources.value = emptyList()
+            } finally {
+                _isLoadingSources.value = false
             }
+        }
+    }
+
+    fun loadLastProject(context: Context) {
+        val lastApp = settingsViewModel.getAppName()
+        if (!lastApp.isNullOrBlank()) {
+            Log.d(TAG, "Auto-loading last project: $lastApp")
+            loadProject(lastApp)
         }
     }
 
