@@ -42,11 +42,11 @@ fun IdeNavHost(
             )
         }
         composable("project_settings") {
-            val sources by viewModel.ownedSources.collectAsState()
+            // REMOVED: No longer collect sources here, as ProjectScreen handles it internally.
             ProjectScreen(
                 viewModel = viewModel,
                 settingsViewModel = settingsViewModel,
-                sources = sources
+                // REMOVED: sources parameter is no longer required.
             )
         }
         composable("build") {

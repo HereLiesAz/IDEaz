@@ -34,13 +34,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import com.hereliesaz.aznavrail.AzTextBox
 
 private const val TAG = "ProjectScreen"
 
 @Composable
 fun ProjectScreen(
     viewModel: MainViewModel,
-    sources: List<Source>,
     settingsViewModel: SettingsViewModel
 ) {
     Log.d(TAG, "ProjectScreen: Composing")
@@ -59,13 +59,16 @@ fun ProjectScreen(
         mutableStateOf(settingsViewModel.getTargetPackageName() ?: "com.example.helloworld")
     }
 
+    // NEW: Collect sources from ViewModel and use local githubUser state for filtering
+    val allSources by viewModel.ownedSources.collectAsState()
+
     // State for "Clone" tab
     var cloneUrl by remember { mutableStateOf("") }
     val projectList = settingsViewModel.getProjectList()
-    val ownedSources = sources.filter {
+    val ownedSources = allSources.filter {
         val repo = it.githubRepo
+        // REMOVED: repo.owner == githubUser check is redundant and breaks filtering when githubUser is unset
         repo != null &&
-                repo.owner == settingsViewModel.getGithubUser() &&
                 !projectList.contains("${repo.owner}/${repo.repo}")
     }
 
@@ -148,21 +151,20 @@ fun ProjectScreen(
                         .verticalScroll(rememberScrollState())
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextField(
+                        AzTextBox(
                             value = cloneUrl,
                             onValueChange = { cloneUrl = it },
-                            label = { Text("Paste a URL to fork it") },
-                            placeholder = { Text("https://github.com/user/repo") },
-                            modifier = Modifier.weight(1f)
+                            hint = "https://github.com/user/repo",
+                            modifier = Modifier.weight(1f),
+                            onSubmit = {
+                                if (cloneUrl.isNotBlank() && cloneUrl.startsWith("https://github.com/")) {
+                                    val forkedUrl = cloneUrl.removeSuffix("/") + "/fork"
+                                    Toast.makeText(context, "Forking at: $forkedUrl", Toast.LENGTH_LONG).show()
+                                } else {
+                                    Toast.makeText(context, "Please enter a valid GitHub URL.", Toast.LENGTH_LONG).show()
+                                }},
+                            submitButtonContent = {Text("Fork")}
                         )
-                        AzButton(onClick = {
-                            if (cloneUrl.isNotBlank() && cloneUrl.startsWith("https://github.com/")) {
-                                val forkedUrl = cloneUrl.removeSuffix("/") + "/fork"
-                                Toast.makeText(context, "Forking at: $forkedUrl", Toast.LENGTH_LONG).show()
-                            } else {
-                                Toast.makeText(context, "Please enter a valid GitHub URL.", Toast.LENGTH_LONG).show()
-                            }
-                        }, text = "Fork")
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))

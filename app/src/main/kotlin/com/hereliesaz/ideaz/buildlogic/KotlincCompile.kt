@@ -5,12 +5,11 @@ import com.hereliesaz.ideaz.utils.ProcessExecutor
 import java.io.File
 
 class KotlincCompile(
-    private val kotlincPath: String,
+    private val kotlincJarPath: String, // MODIFIED: Renamed to reflect it's a JAR
     private val androidJarPath: String,
     private val srcDir: String,
     private val outputDir: File,
     private val classpath: String
-    // --- REMOVED javaPath ---
 ) : BuildStep {
 
     override fun execute(callback: IBuildCallback?): BuildResult {
@@ -22,8 +21,11 @@ class KotlincCompile(
 
         val fullClasspath = "$androidJarPath${File.pathSeparator}$classpath".trim(File.pathSeparatorChar)
 
+        // MODIFIED: Changed command invocation to use 'java -jar' instead of running the tool as a native binary
         val command = mutableListOf(
-            kotlincPath, // --- Use native binary directly ---
+            "java",
+            "-jar",
+            kotlincJarPath, // MODIFIED: Use the correct path variable
             "-d", outputDir.absolutePath,
             "-no-reflect",
             "-no-stdlib",
