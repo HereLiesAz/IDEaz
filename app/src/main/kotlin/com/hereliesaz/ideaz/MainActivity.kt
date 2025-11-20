@@ -127,6 +127,9 @@ class MainActivity : ComponentActivity() {
         // Bind the BuildService now that the ViewModel is initialized
         viewModel.bindBuildService(this)
 
+        // Auto-load last project
+        viewModel.loadLastProject(this)
+
         mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
 
         enableEdgeToEdge()
