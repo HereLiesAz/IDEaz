@@ -90,6 +90,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         )
     }
 
+    private val _localProjects = MutableStateFlow<List<String>>(emptyList())
+    val localProjects = _localProjects.asStateFlow()
+
     init {
         Log.d(TAG, "init: Creating SettingsViewModel (hash: ${this.hashCode()})")
         // Initialize AuthInterceptor with saved API key
@@ -215,9 +218,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
 
     // --- Project Config ---
-
-    private val _localProjects = MutableStateFlow<List<String>>(emptyList())
-    val localProjects = _localProjects.asStateFlow()
 
     private fun loadLocalProjects() {
         _localProjects.value = getProjectList().toList()
