@@ -157,6 +157,44 @@ class MainViewModel(
         }
     }
 
+    fun cloneOrPullProject(owner: String, repo: String, branch: String) {
+        val appName = repo
+        settingsViewModel.saveProjectConfig(appName, owner, branch)
+        settingsViewModel.addProject("$owner/$appName")
+        settingsViewModel.setAppName(appName)
+        settingsViewModel.setGithubUser(owner)
+
+        viewModelScope.launch {
+            _buildLog.value += "[INFO] Selecting repository '$owner/$appName'...\n"
+            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+
+            try {
+                if (projectDir.exists() && File(projectDir, ".git").exists()) {
+                    _buildLog.value += "[INFO] Project exists. Pulling latest changes...\n"
+                    withContext(Dispatchers.IO) {
+                        GitManager(projectDir).pull()
+                    }
+                    _buildLog.value += "[INFO] Pull complete.\n"
+                } else {
+                    if (projectDir.exists()) {
+                        _buildLog.value += "[INFO] Cleaning up existing directory...\n"
+                        projectDir.deleteRecursively()
+                    }
+                    projectDir.mkdirs()
+
+                    _buildLog.value += "[INFO] Cloning $owner/$repo...\n"
+                    withContext(Dispatchers.IO) {
+                        GitManager(projectDir).clone(owner, repo)
+                    }
+                    _buildLog.value += "[INFO] Clone complete.\n"
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to clone/pull", e)
+                _buildLog.value += "[INFO] Error: ${e.message}\n"
+            }
+        }
+    }
+
     fun bindBuildService(context: Context) {
         Log.d(TAG, "bindBuildService called")
 
@@ -938,7 +976,13 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 logTo(logTarget, "[INFO] AI Status: Applying patch...")
-                val projectDir = context.filesDir.resolve("project")
+                val appName = settingsViewModel.getAppName()
+                val projectDir = if (!appName.isNullOrBlank()) {
+                    context.filesDir.resolve(appName)
+                } else {
+                    context.filesDir.resolve("project")
+                }
+
                 val gitManager = GitManager(projectDir)
                 gitManager.applyPatch(patchContent)
                 logTo(logTarget, "[INFO] AI Status: Patch applied. Rebuilding...")
