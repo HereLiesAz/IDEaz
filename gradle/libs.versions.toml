@@ -5,6 +5,7 @@ coreKtx = "1.17.0"
 googleGenai = "1.26.0"
 preferenceKtx = "1.2.1"
 jcabiAether = "0.10.1"
+mavenSettingsBuilder = "3.0.3"
 junit = "4.13.2"
 junitVersion = "1.3.0"
 espressoCore = "3.7.0"
@@ -38,6 +39,7 @@ androidx-navigation-compose = { module = "androidx.navigation:navigation-compose
 aznavrail = { module = "com.github.HereLiesAz:AzNavRail", version.ref = "aznavrail" }
 google-genai = { module = "com.google.genai:google-genai", version.ref = "googleGenai" }
 jcabi-aether = { module = "com.jcabi:jcabi-aether", version.ref = "jcabiAether" }
+maven-settings-builder = { module = "org.apache.maven:maven-settings-builder", version.ref = "mavenSettingsBuilder" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
