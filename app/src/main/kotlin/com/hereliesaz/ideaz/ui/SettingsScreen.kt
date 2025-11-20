@@ -122,21 +122,33 @@ fun SettingsScreen(
                     state = hazeState,
                 )
         )
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp)
-                .hazeEffect(
-                    state = hazeState,
-                    style = HazeStyle(
-                        backgroundColor = MaterialTheme.colorScheme.background.copy(alpha = 0.5f),
-                        tints = listOf(HazeTint(Color.Black.copy(alpha = 0.2f)))
-                    )
+                .padding(
+                    top = screenHeight * 0.1f,
+                    bottom = screenHeight * 0.1f
                 )
-                .verticalScroll(rememberScrollState())
         ) {
-            Spacer(modifier = Modifier.height(screenHeight * 0.1f))
-            Text("API Keys", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+                    .hazeEffect(
+                        state = hazeState,
+                        style = HazeStyle(
+                            backgroundColor = MaterialTheme.colorScheme.background.copy(alpha = 0.5f),
+                            tints = listOf(HazeTint(Color.Black.copy(alpha = 0.2f)))
+                        )
+                    )
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    "API Keys",
+                    color = MaterialTheme.colorScheme.onBackground,
+                    style = MaterialTheme.typography.titleLarge
+                )
+            }
             Spacer(modifier = Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
 
