@@ -164,7 +164,7 @@ fun ProjectScreen(
                             settingsViewModel.saveProjectConfig(finalAppName, finalGithubUser, finalBranchName)
                             settingsViewModel.saveTargetPackageName(finalPackageName)
                             Toast.makeText(context, "Project saved. Starting build...", Toast.LENGTH_SHORT).show()
-                            viewModel.sendPrompt(initialPromptValue, isInitialization = true)
+                            viewModel.initializeProject(initialPromptValue)
                         }
                     ){
                         entry(entryName = "appName", hint = "App Name (Current: $appName)", multiline = false, secret = false)

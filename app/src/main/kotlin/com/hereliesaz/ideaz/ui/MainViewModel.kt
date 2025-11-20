@@ -16,8 +16,10 @@ import com.hereliesaz.ideaz.IBuildService
 import com.hereliesaz.ideaz.jules.JulesApiClient
 import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.services.BuildService
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import com.hereliesaz.ideaz.models.SourceMapEntry
 import com.hereliesaz.ideaz.utils.SourceMapParser
@@ -352,6 +354,29 @@ class MainViewModel(
                 Log.e(TAG, "Failed to clear caches", e)
                 _buildLog.value += "[INFO] Error clearing caches: ${e.message}\n"
             }
+        }
+    }
+
+    fun initializeProject(prompt: String?) {
+        viewModelScope.launch {
+            _buildLog.value += "[INFO] Checking for updates...\n"
+            try {
+                val appName = settingsViewModel.getAppName()
+                if (!appName.isNullOrBlank()) {
+                    val projectDir = getApplication<Application>().filesDir.resolve(appName)
+                    if (projectDir.exists()) {
+                        withContext(Dispatchers.IO) {
+                            GitManager(projectDir).pull()
+                        }
+                        _buildLog.value += "[INFO] Project updated.\n"
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to pull", e)
+                _buildLog.value += "[INFO] Warning: Failed to update project: ${e.message}\n"
+            }
+
+            sendPrompt(prompt, isInitialization = true)
         }
     }
 
