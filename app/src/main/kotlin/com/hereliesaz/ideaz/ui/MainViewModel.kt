@@ -376,7 +376,11 @@ class MainViewModel(
                 _buildLog.value += "[INFO] Warning: Failed to update project: ${e.message}\n"
             }
 
-            sendPrompt(prompt, isInitialization = true)
+            if (!prompt.isNullOrBlank()) {
+                sendPrompt(prompt, isInitialization = true)
+            } else {
+                _buildLog.value += "[INFO] No initial prompt provided. Skipping AI initialization.\n"
+            }
         }
     }
 
@@ -447,7 +451,17 @@ class MainViewModel(
 
                     } catch (e: Exception) {
                         Log.e(TAG, "Error creating Jules session", e)
-                        _buildLog.value += "[INFO] AI Status: Error: ${e.message}\n"
+                        val errorMessage = if (e is retrofit2.HttpException) {
+                            try {
+                                val errorBody = e.response()?.errorBody()?.string()
+                                "HTTP ${e.code()} - $errorBody"
+                            } catch (ioe: Exception) {
+                                "HTTP ${e.code()} ${e.message()}"
+                            }
+                        } else {
+                            e.message
+                        }
+                        _buildLog.value += "[INFO] AI Status: Error: $errorMessage\n"
                     }
                 }
                 AiModels.GEMINI_FLASH -> {
