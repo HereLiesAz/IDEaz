@@ -14,6 +14,11 @@ class GitManager(private val projectDir: File) {
             .call()
     }
 
+    fun pull() {
+        val git = Git.open(projectDir)
+        git.pull().call()
+    }
+
     fun init() {
         if (!projectDir.exists()) {
             projectDir.mkdirs()

@@ -1,6 +1,6 @@
 package com.hereliesaz.ideaz.jules
 
-import android.content.Context
+import com.hereliesaz.ideaz.api.*
 import com.hereliesaz.ideaz.api.AuthInterceptor
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import kotlinx.serialization.json.Json
@@ -29,16 +29,31 @@ object JulesApiClient {
         return retrofit.create(JulesApi::class.java)
     }
 
+    /**
+     * Creates a new Jules session.
+     */
     suspend fun createSession(request: CreateSessionRequest): Session {
         return getClient().createSession(request)
     }
 
+    /**
+     * Lists activities for a given session.
+     */
     suspend fun listActivities(sessionId: String): ListActivitiesResponse {
         return getClient().listActivities(sessionId)
     }
 
     suspend fun sendMessage(sessionId: String, prompt: String) {
-        val body = mapOf("prompt" to prompt)
-        getClient().sendMessage(sessionId, body)
+        val request = SendMessageRequest(prompt = prompt)
+        getClient().sendMessage(sessionId, request)
+    }
+
+    // Used by MainViewModel
+    suspend fun listSources(): ListSourcesResponse {
+        return getClient().listSources()
+    }
+
+    suspend fun getSession(sessionId: String): Session {
+        return getClient().getSession(sessionId)
     }
 }
