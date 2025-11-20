@@ -38,6 +38,7 @@ This phase implements the first half of the core visual interaction loop: tappin
 This phase completes the core feature loop by integrating the Jules API.
 
 - [x] **4.1: Integrate the API Client (Retrofit, Ktor, etc.)**
+    - Implemented `JulesApiClient` using Retrofit to interface with the Jules AI API, replacing runtime dependency on the unstable CLI.
 - [x] **4.2: Implement the AI Prompt Workflow**
 - [x] **4.3: Implement Patch Application (JGit)**
 - [x] **4.4: Automate the Rebuild after patch application**
