@@ -29,10 +29,16 @@ object JulesApiClient {
         return retrofit.create(JulesApi::class.java)
     }
 
+    /**
+     * Creates a new Jules session.
+     */
     suspend fun createSession(request: CreateSessionRequest): Session {
         return getClient().createSession(request)
     }
 
+    /**
+     * Lists activities for a given session.
+     */
     suspend fun listActivities(sessionId: String): ListActivitiesResponse {
         return getClient().listActivities(sessionId)
     }
