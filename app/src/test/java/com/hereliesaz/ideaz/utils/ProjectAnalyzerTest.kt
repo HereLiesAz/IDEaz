@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.utils
 
+import com.hereliesaz.ideaz.models.ProjectType
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -17,7 +18,7 @@ class ProjectAnalyzerTest {
         File(projectDir, "build.gradle").createNewFile()
 
         val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals("Android", type)
+        assertEquals(ProjectType.ANDROID, type)
     }
 
     @Test
@@ -26,7 +27,7 @@ class ProjectAnalyzerTest {
         File(projectDir, "build.gradle.kts").createNewFile()
 
         val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals("Android", type)
+        assertEquals(ProjectType.ANDROID, type)
     }
 
     @Test
@@ -35,7 +36,7 @@ class ProjectAnalyzerTest {
         File(projectDir, "pubspec.yaml").createNewFile()
 
         val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals("Flutter", type)
+        assertEquals(ProjectType.FLUTTER, type)
     }
 
     @Test
@@ -45,7 +46,7 @@ class ProjectAnalyzerTest {
         File(projectDir, "app.json").createNewFile()
 
         val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals("React Native", type)
+        assertEquals(ProjectType.REACT_NATIVE, type)
     }
 
     @Test
@@ -54,7 +55,7 @@ class ProjectAnalyzerTest {
         File(projectDir, "index.html").createNewFile()
 
         val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals("Web", type)
+        assertEquals(ProjectType.WEB, type)
     }
 
     @Test
@@ -64,7 +65,7 @@ class ProjectAnalyzerTest {
         File(projectDir, "index.html").createNewFile()
 
         val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals("Web", type)
+        assertEquals(ProjectType.WEB, type)
     }
 
     @Test
@@ -73,6 +74,6 @@ class ProjectAnalyzerTest {
         File(projectDir, "readme.md").createNewFile()
 
         val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals("Other", type)
+        assertEquals(ProjectType.OTHER, type)
     }
 }
