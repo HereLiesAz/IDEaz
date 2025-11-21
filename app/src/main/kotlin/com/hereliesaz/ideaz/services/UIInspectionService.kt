@@ -124,7 +124,33 @@ class UIInspectionService : AccessibilityService() {
                             val bounds = Rect()
                             var resourceId: String? = null
                             if (node != null) {
-                                resourceId = node.viewIdResourceName
+                                var targetNode: AccessibilityNodeInfo? = node
+                                var depth = 0
+                                val maxDepth = 20
+                                var foundResourceId: String? = null
+
+                                while (targetNode != null && depth < maxDepth) {
+                                    val desc = targetNode.contentDescription?.toString()
+                                    if (desc != null && desc.startsWith("__source:")) {
+                                        resourceId = desc
+                                        break
+                                    }
+                                    if (foundResourceId == null) {
+                                        foundResourceId = targetNode.viewIdResourceName
+                                    }
+
+                                    val parent = targetNode.parent
+                                    if (targetNode != node) {
+                                        targetNode.recycle()
+                                    }
+                                    targetNode = parent
+                                    depth++
+                                }
+
+                                if (resourceId == null) {
+                                    resourceId = foundResourceId
+                                }
+
                                 node.getBoundsInScreen(bounds)
                                 showPromptUI(bounds, resourceId)
                             }
