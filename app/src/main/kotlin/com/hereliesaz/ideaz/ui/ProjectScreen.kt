@@ -44,6 +44,12 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material.icons.filled.Delete
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 
 private const val TAG = "ProjectScreen"
 
@@ -62,12 +68,23 @@ fun ProjectScreen(
     var tabIndex by remember { mutableStateOf(0) }
     val tabs = listOf("Setup", "Clone", "Load")
 
-    // Central state for project config
-    var appName by remember { mutableStateOf(settingsViewModel.getAppName() ?: "IDEazProject") }
-    var githubUser by remember { mutableStateOf(settingsViewModel.getGithubUser() ?: "") }
-    var branchName by remember { mutableStateOf(settingsViewModel.getBranchName()) }
-    var packageName by remember {
-        mutableStateOf(settingsViewModel.getTargetPackageName() ?: "com.example.helloworld")
+    // Central state for project config - Synced with SettingsViewModel
+    val currentAppNameState by settingsViewModel.currentAppName.collectAsState()
+    val loadingProgress by viewModel.loadingProgress.collectAsState()
+
+    var appName by remember { mutableStateOf("") }
+    var githubUser by remember { mutableStateOf("") }
+    var branchName by remember { mutableStateOf("") }
+    var packageName by remember { mutableStateOf("") }
+    var selectedType by remember { mutableStateOf(ProjectType.ANDROID) }
+
+    // Sync local state when current app name changes (e.g. project loaded)
+    LaunchedEffect(currentAppNameState) {
+        appName = settingsViewModel.getAppName() ?: "IDEazProject"
+        githubUser = settingsViewModel.getGithubUser() ?: ""
+        branchName = settingsViewModel.getBranchName()
+        packageName = settingsViewModel.getTargetPackageName() ?: "com.example.helloworld"
+        selectedType = ProjectType.fromString(settingsViewModel.getProjectType())
     }
 
     // NEW: Collect sources from ViewModel and use local githubUser state for filtering
@@ -101,8 +118,62 @@ fun ProjectScreen(
     }
 
     // State for "Load" tab
-    val loadableProjects = projectList.toList()
+    var projectMetadataList by remember { mutableStateOf<List<ProjectMetadata>>(emptyList()) }
+    var projectToDelete by remember { mutableStateOf<String?>(null) }
+
+    // Observe local projects list to trigger refresh
+    val localProjects by settingsViewModel.localProjects.collectAsState()
+
+    LaunchedEffect(tabIndex, localProjects) {
+        if (tabIndex == 2) {
+            withContext(Dispatchers.IO) {
+                projectMetadataList = viewModel.getLocalProjectsWithMetadata()
+            }
+        }
+    }
+
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+
+    if (loadingProgress != null) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Working...") },
+            text = {
+                Column {
+                    LinearProgressIndicator(
+                        progress = { (loadingProgress ?: 0) / 100f },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("${loadingProgress}% complete")
+                }
+            },
+            confirmButton = {}
+        )
+    }
+
+    if (projectToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { projectToDelete = null },
+            title = { Text("Delete Project?") },
+            text = { Text("Are you sure you want to delete '$projectToDelete' from the device? The project will still be available on GitHub.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteProject(projectToDelete!!)
+                    projectToDelete = null
+                }) { Text("Yes (Delete)") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        viewModel.syncAndDeleteProject(projectToDelete!!)
+                        projectToDelete = null
+                    }) { Text("Sync") }
+                    TextButton(onClick = { projectToDelete = null }) { Text("No") }
+                }
+            }
+        )
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Spacer(modifier = Modifier.height(screenHeight * 0.1f))
@@ -220,9 +291,6 @@ fun ProjectScreen(
                     // Project Type Dropdown
                     var expanded by remember { mutableStateOf(false) }
                     val projectTypes = ProjectType.values().toList()
-                    val savedTypeStr = settingsViewModel.getProjectType()
-                    val savedType = ProjectType.fromString(savedTypeStr)
-                    var selectedType by remember { mutableStateOf(savedType) }
 
                     ExposedDropdownMenuBox(
                         expanded = expanded,
@@ -463,30 +531,58 @@ fun ProjectScreen(
 
                 // --- LOAD TAB ---
                 2 -> LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    if (loadableProjects.isEmpty()) {
+                    if (projectMetadataList.isEmpty()) {
                         item {
                             Spacer(modifier = Modifier.height(16.dp))
                             Text("No saved projects found.", color = MaterialTheme.colorScheme.onBackground)
                         }
                     } else {
-                        items(loadableProjects) { projectString ->
-                            Text(
-                                text = projectString,
+                        items(projectMetadataList) { project ->
+                            Card(
                                 modifier = Modifier
+                                    .padding(bottom = 8.dp)
                                     .fillMaxWidth()
                                     .clickable {
-                                        val parts = projectString.split("/")
-                                        if (parts.size == 2) {
-                                            viewModel.loadProjectAndBuild(context, parts[1])
-                                            Toast.makeText(context, "Loading and building project...", Toast.LENGTH_SHORT).show()
-                                        }
+                                        viewModel.loadProjectAndBuild(context, project.name)
+                                        Toast.makeText(context, "Loading and building project...", Toast.LENGTH_SHORT).show()
+                                    },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                    contentColor = MaterialTheme.colorScheme.onSurface
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = project.name,
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        Text(
+                                            text = "Size: ${formatSize(project.sizeBytes)}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                        )
                                     }
-                                    .padding(16.dp)
-                            )
+                                    IconButton(onClick = { projectToDelete = project.name }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete Project")
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
     }
+}
+
+fun formatSize(size: Long): String {
+    if (size <= 0) return "0 B"
+    val units = arrayOf("B", "KB", "MB", "GB", "TB")
+    val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt()
+    return java.text.DecimalFormat("#,##0.#").format(size / Math.pow(1024.0, digitGroups.toDouble())) + " " + units[digitGroups]
 }

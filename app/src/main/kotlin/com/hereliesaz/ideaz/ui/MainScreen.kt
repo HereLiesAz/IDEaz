@@ -191,8 +191,7 @@ fun MainScreen(
                         navController = navController,
                         viewModel = viewModel,
                         settingsViewModel = viewModel.settingsViewModel,
-                        onThemeToggle = onThemeToggle,
-                        bottomPadding = chatHeight
+                        onThemeToggle = onThemeToggle
                     )
                 }
             }
@@ -206,12 +205,7 @@ fun MainScreen(
                     sheetState = sheetState,
                     viewModel = viewModel,
                     peekDetent = Peek,
-                    halfwayDetent = Halfway,
-                    chatHeight = chatHeight,
-                    buildStatus = "", // Not needed
-                    aiStatus = "", // Not needed
-                    sessions = emptyList(), // Not needed
-                    activities = emptyList() // Not needed
+                    halfwayDetent = Halfway
                 )
             }
 
@@ -225,6 +219,30 @@ fun MainScreen(
                     modifier = Modifier.height(chatHeight),
                     onSend = { viewModel.sendPrompt(it) }
                 )
+            }
+
+            // --- External Log Output ---
+            // Layered ON TOP of the BottomSheet, with strict absolute positioning relative to screen height.
+            val logTopPadding = screenHeight * 0.45f
+            val logBottomPadding = screenHeight * 0.25f
+
+            AnimatedVisibility(
+                visible = isChatVisible, // Log shares visibility with chat (Sheet open)
+                modifier = Modifier.fillMaxSize() // Fill max size to apply absolute padding
+            ) {
+                // We need a container here to apply padding, but AnimatedVisibility content
+                // is already in a layout scope. We apply padding to the card itself
+                // via modifier or a wrapping Box.
+                Box(modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = logTopPadding, bottom = logBottomPadding)
+                ) {
+                   LiveOutputBottomCard(
+                        logStream = viewModel.filteredLog,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp)
+                    )
+                }
             }
         }
     }
