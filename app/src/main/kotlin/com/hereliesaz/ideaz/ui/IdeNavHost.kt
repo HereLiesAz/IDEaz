@@ -20,8 +20,7 @@ fun IdeNavHost(
     navController: NavHostController,
     viewModel: MainViewModel,
     settingsViewModel: SettingsViewModel,
-    onThemeToggle: (Boolean) -> Unit,
-    bottomPadding: Dp = 0.dp
+    onThemeToggle: (Boolean) -> Unit
 ) {
     NavHost(
         navController = navController,
@@ -31,7 +30,7 @@ fun IdeNavHost(
         composable("main") {
             LiveOutputBottomCard(
                 logStream = viewModel.filteredLog,
-                bottomPadding = bottomPadding
+                modifier = Modifier.fillMaxSize()
             )
         }
         composable("settings") {

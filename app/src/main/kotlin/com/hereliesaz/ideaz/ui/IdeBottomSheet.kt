@@ -1,6 +1,7 @@
 package com.hereliesaz.ideaz.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -35,13 +36,8 @@ fun IdeBottomSheet(
     viewModel: MainViewModel,
     peekDetent: SheetDetent,
     halfwayDetent: SheetDetent,
-    chatHeight: Dp,
-    buildStatus: String,
-    aiStatus: String,
-    sessions: List<Session>,
-    activities: List<Activity>
+    onSendPrompt: (String) -> Unit
 ) {
-    val isChatVisible = sheetState.currentDetent == peekDetent || sheetState.currentDetent == halfwayDetent
     val isHalfwayExpanded = sheetState.currentDetent == halfwayDetent
     val logMessages by viewModel.filteredLog.collectAsState(initial = "")
     val clipboardManager = LocalClipboardManager.current
@@ -51,35 +47,40 @@ fun IdeBottomSheet(
         state = sheetState,
         modifier = Modifier.fillMaxSize()
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            LiveOutputBottomCard(
-                logStream = viewModel.filteredLog,
-                modifier = Modifier.fillMaxSize(),
-                bottomPadding = if (isChatVisible) chatHeight else 0.dp
-            )
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.weight(1f)) {
+                LiveOutputBottomCard(
+                    logStream = viewModel.filteredLog,
+                    modifier = Modifier.fillMaxSize()
+                )
 
-            if (isHalfwayExpanded) {
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(16.dp)
-                ) {
-                    IconButton(onClick = { coroutineScope.launch { clipboardManager.setText(AnnotatedString(logMessages)) } }) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = "Copy Log",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    IconButton(onClick = { viewModel.clearLog() }) {
-                        Icon(
-                            imageVector = Icons.Default.Clear,
-                            contentDescription = "Clear Log",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
+                if (isHalfwayExpanded) {
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(16.dp)
+                    ) {
+                        IconButton(onClick = { coroutineScope.launch { clipboardManager.setText(AnnotatedString(logMessages)) } }) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "Copy Log",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        IconButton(onClick = { viewModel.clearLog() }) {
+                            Icon(
+                                imageVector = Icons.Default.Clear,
+                                contentDescription = "Clear Log",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 }
             }
-            }
+
+            ContextlessChatInput(
+                onSend = onSendPrompt
+            )
+        }
     }
 }
