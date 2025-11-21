@@ -78,12 +78,12 @@ This phase focuses on improving the user experience during long-running backgrou
 ### **Phase 7: Project Templates and Multi-Platform Support**
 This phase will broaden the IDE's appeal and capabilities by supporting a wider range of project types and development frameworks beyond the initial all-Kotlin focus. All implementations must adhere to the "post-code" editing model.
 
-- [ ] **7.1: Lay Groundwork for Multi-Platform Support**
-    - [ ] Update `MainViewModel` and `ProjectRepository` to support non-Android project structures (Web, React Native, Flutter).
-    - [ ] Create file structure and basic templates for:
-        - [ ] Web (HTML/CSS/JS)
-        - [ ] React Native (JS/TS)
-        - [ ] Flutter (Dart)
+- [x] **7.1: Lay Groundwork for Multi-Platform Support**
+    - [x] Update `MainViewModel` (acts as ProjectRepository) to support non-Android project structures (Web, React Native, Flutter).
+    - [x] Create file structure and basic templates for:
+        - [x] Web (HTML/CSS/JS)
+        - [x] React Native (JS/TS)
+        - [x] Flutter (Dart)
 
 - [ ] **7.2: Implement Web Design Support**
     - [ ] Create a `WebBuildStep` for processing HTML/CSS.
@@ -94,7 +94,7 @@ This phase will broaden the IDE's appeal and capabilities by supporting a wider 
     - [x] Create a `ReactNativeBuildStep` (uses `SimpleJsBundler` and Android shell template).
     - [x] Create Android shell template for React Native.
     - [x] Implement `SimpleJsBundler` with source map injection (`accessibilityLabel`).
-    - [ ] Adapt the `UIInspectionService` to handle React Native UI trees (or bridge integration).
+    - [x] Adapt the `UIInspectionService` to handle React Native UI trees (or bridge integration).
 
 - [ ] **7.4: Implement Flutter Support (Final Stage)**
     - [ ] Create a `FlutterBuildStep`.

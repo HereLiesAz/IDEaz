@@ -15,6 +15,7 @@ import com.hereliesaz.ideaz.utils.ApkInstaller
 import com.hereliesaz.ideaz.utils.ToolManager
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.models.ProjectType
+import com.hereliesaz.ideaz.ui.web.WebRuntimeActivity
 import java.io.File
 
 class BuildService : Service() {
@@ -70,6 +71,25 @@ class BuildService : Service() {
         val localRepoDir = File(filesDir, "local-repo").apply { mkdirs() }
 
         val type = ProjectAnalyzer.detectProjectType(projectDir)
+
+        if (type == ProjectType.WEB) {
+            val outputDir = File(filesDir, "web_dist")
+            val step = WebBuildStep(projectDir, outputDir)
+            val result = step.execute(callback)
+            if (result.success) {
+                val indexHtml = File(outputDir, "index.html")
+                callback.onSuccess(indexHtml.absolutePath)
+
+                val intent = Intent(this, WebRuntimeActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    putExtra("URL", indexHtml.toURI().toString())
+                }
+                startActivity(intent)
+            } else {
+                callback.onFailure(result.output)
+            }
+            return
+        }
 
         if (type == ProjectType.REACT_NATIVE) {
             val step = ReactNativeBuildStep(this, projectDir, buildDir, cacheDir, localRepoDir)
