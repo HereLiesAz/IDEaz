@@ -69,10 +69,8 @@ android {
             excludes.add("META-INF/LICENSE")
             excludes.add("META-INF/NOTICE")
             excludes.add("META-INF/INDEX.LIST")
-            excludes.add("META-INF/sisu/javax.inject.Named")
             excludes.add("mime.types")
             excludes.add("META-INF/THIRD-PARTY.txt")
-            excludes.add("META-INF/plexus/components.xml")
             excludes.add("META-INF/ASL2.0")
         }
     }
