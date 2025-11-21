@@ -1,12 +1,18 @@
 package com.hereliesaz.ideaz.utils
 
+import android.util.Base64
 import com.hereliesaz.ideaz.models.IdeazProjectConfig
+import com.hereliesaz.ideaz.models.PromptEntry
+import com.hereliesaz.ideaz.models.PromptHistory
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.FileOutputStream
 
 object ProjectConfigManager {
     private const val CONFIG_DIR = ".ideaz"
     private const val CONFIG_FILE = "config.json"
+    private const val HISTORY_FILE = "prompt_history.json"
+    private const val SCREENSHOTS_DIR = "screenshots"
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -38,6 +44,76 @@ object ProjectConfigManager {
         } catch (e: Exception) {
             e.printStackTrace()
             null
+        }
+    }
+
+    fun ensureGitIgnore(projectDir: File) {
+        try {
+            val gitignore = File(projectDir, ".gitignore")
+            val ideazEntry = ".ideaz/"
+
+            if (gitignore.exists()) {
+                val content = gitignore.readText()
+                if (!content.contains(ideazEntry)) {
+                    gitignore.appendText("\n$ideazEntry\n")
+                }
+            } else {
+                gitignore.writeText("$ideazEntry\n")
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun appendPromptToHistory(projectDir: File, promptText: String, screenshotBase64: String? = null) {
+        try {
+            val ideazDir = File(projectDir, CONFIG_DIR)
+            if (!ideazDir.exists()) ideazDir.mkdirs()
+
+            val historyFile = File(ideazDir, HISTORY_FILE)
+
+            // Load existing
+            val currentHistory = if (historyFile.exists()) {
+                try {
+                    json.decodeFromString(PromptHistory.serializer(), historyFile.readText())
+                } catch (e: Exception) {
+                    PromptHistory()
+                }
+            } else {
+                PromptHistory()
+            }
+
+            // Save screenshot if exists
+            var screenshotFilename: String? = null
+            if (screenshotBase64 != null) {
+                val screenshotsDir = File(ideazDir, SCREENSHOTS_DIR)
+                if (!screenshotsDir.exists()) screenshotsDir.mkdirs()
+
+                val timestamp = System.currentTimeMillis()
+                val filename = "screen_$timestamp.png"
+                val file = File(screenshotsDir, filename)
+
+                try {
+                    val imageBytes = Base64.decode(screenshotBase64, Base64.DEFAULT)
+                    FileOutputStream(file).use { it.write(imageBytes) }
+                    screenshotFilename = filename
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
+            val newEntry = PromptEntry(
+                timestamp = System.currentTimeMillis(),
+                text = promptText,
+                screenshotFilename = screenshotFilename
+            )
+
+            val newHistory = currentHistory.copy(entries = currentHistory.entries + newEntry)
+
+            historyFile.writeText(json.encodeToString(PromptHistory.serializer(), newHistory))
+
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }
