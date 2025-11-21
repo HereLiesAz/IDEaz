@@ -124,7 +124,12 @@ class UIInspectionService : AccessibilityService() {
                             val bounds = Rect()
                             var resourceId: String? = null
                             if (node != null) {
-                                resourceId = node.viewIdResourceName
+                                val description = node.contentDescription?.toString()
+                                if (description != null && description.startsWith("__source:")) {
+                                    resourceId = description
+                                } else {
+                                    resourceId = node.viewIdResourceName
+                                }
                                 node.getBoundsInScreen(bounds)
                                 showPromptUI(bounds, resourceId)
                             }

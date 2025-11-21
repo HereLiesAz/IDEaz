@@ -53,13 +53,13 @@ class ReactNativeBuildStep(
         // 4. Run Android Build on Shell
         val aapt2Path = ToolManager.getToolPath(context, "aapt2")
         val kotlincJarPath = ToolManager.getToolPath(context, "kotlin-compiler.jar")
-        val d8Path = ToolManager.getToolPath(context, "d8")
-        val apkSignerPath = ToolManager.getToolPath(context, "apksigner")
+        val d8Path = ToolManager.getToolPath(context, "d8.jar")
+        val apkSignerPath = ToolManager.getToolPath(context, "apksigner.jar")
         val keystorePath = ToolManager.getToolPath(context, "debug.keystore")
         val androidJarPath = ToolManager.getToolPath(context, "android.jar")
         val javaBinaryPath = ToolManager.getToolPath(context, "java")
 
-        if (javaBinaryPath == null || aapt2Path == null || kotlincJarPath == null || d8Path == null || apkSignerPath == null || androidJarPath == null) {
+        if (javaBinaryPath == null || aapt2Path == null || kotlincJarPath == null || d8Path == null || apkSignerPath == null || androidJarPath == null || keystorePath == null) {
              return BuildResult(false, "Missing build tools. Check logs.")
         }
 
@@ -78,9 +78,9 @@ class ReactNativeBuildStep(
             Aapt2Compile(aapt2Path, shellResDir.absolutePath, compiledResDir.absolutePath, MIN_SDK, TARGET_SDK),
             Aapt2Link(aapt2Path, compiledResDir.absolutePath, androidJarPath, shellManifest.absolutePath, File(buildDir, "app.apk").absolutePath, shellGenDir.absolutePath, MIN_SDK, TARGET_SDK),
             KotlincCompile(kotlincJarPath, androidJarPath, shellJavaDir.absolutePath, shellClassesDir, resolverResult.output, javaBinaryPath),
-            D8Compile(d8Path, androidJarPath, shellClassesDir.absolutePath, shellClassesDir.absolutePath, resolverResult.output),
+            D8Compile(d8Path, javaBinaryPath, androidJarPath, shellClassesDir.absolutePath, shellClassesDir.absolutePath, resolverResult.output),
             ApkBuild(File(buildDir, "app-signed.apk").absolutePath, File(buildDir, "app.apk").absolutePath, shellClassesDir.absolutePath),
-            ApkSign(apkSignerPath, keystorePath!!, "android", "androiddebugkey", File(buildDir, "app-signed.apk").absolutePath)
+            ApkSign(apkSignerPath, javaBinaryPath, keystorePath, "android", "androiddebugkey", File(buildDir, "app-signed.apk").absolutePath)
         )
 
         val orchestrator = BuildOrchestrator(steps)
