@@ -23,8 +23,7 @@ import kotlinx.coroutines.flow.Flow
 @Composable
 fun LiveOutputBottomCard(
     logStream: Flow<String>,
-    modifier: Modifier = Modifier,
-    bottomPadding: Dp = 0.dp // New parameter for padding
+    modifier: Modifier = Modifier
 ) {
     val logMessages by logStream.collectAsState(initial = "")
 
@@ -56,7 +55,7 @@ fun LiveOutputBottomCard(
             modifier = Modifier.weight(1f),
             reverseLayout = true, // Anchor content to the bottom
             // Apply padding to the content, not the column
-            contentPadding = PaddingValues(top = 8.dp, bottom = bottomPadding, start = 16.dp, end = 16.dp)
+            contentPadding = PaddingValues(top = 8.dp, bottom = 8.dp, start = 16.dp, end = 16.dp)
         ) {
 
             items(logLines) { line ->
