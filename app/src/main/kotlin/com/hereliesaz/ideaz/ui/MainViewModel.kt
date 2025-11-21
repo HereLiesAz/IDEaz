@@ -58,6 +58,7 @@ class MainViewModel(
 
     private var buildService: IBuildService? = null
     private var isBuildServiceBound = false
+    private var isServiceRegistered = false
 
     private var sourceMap: Map<String, SourceMapEntry> = emptyMap()
 
@@ -299,19 +300,25 @@ class MainViewModel(
         }.stateIn(viewModelScope, SharingStarted.Lazily, "")
 
         Log.d(TAG, "Binding to BuildService")
-        Intent("com.hereliesaz.ideaz.BUILD_SERVICE").also { intent ->
-            intent.component = ComponentName(context, BuildService::class.java)
-            context.bindService(intent, buildServiceConnection, Context.BIND_AUTO_CREATE)
+        val app = getApplication<Application>()
+        Intent(app, BuildService::class.java).also { intent ->
+            isServiceRegistered = app.bindService(intent, buildServiceConnection, Context.BIND_AUTO_CREATE)
         }
     }
 
     fun unbindBuildService(context: Context) {
         Log.d(TAG, "unbindBuildService called")
-        if (isBuildServiceBound) {
+        if (isServiceRegistered) {
             Log.d(TAG, "Unbinding from BuildService")
-            context.unbindService(buildServiceConnection)
-            isBuildServiceBound = false
+            try {
+                getApplication<Application>().unbindService(buildServiceConnection)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error unbinding service", e)
+            }
+            isServiceRegistered = false
         }
+        isBuildServiceBound = false
+        buildService = null
     }
 
     fun clearLog() {
