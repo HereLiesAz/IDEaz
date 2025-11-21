@@ -45,6 +45,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_GOOGLE_API_KEY = "google_api_key" // Gemini
         const val KEY_GITHUB_TOKEN = "github_token"
 
+        const val KEY_PROJECT_TYPE = "project_type"
+
         const val KEY_TARGET_PACKAGE_NAME = "target_package_name"
         const val ACTION_TARGET_PACKAGE_CHANGED = "com.hereliesaz.ideaz.TARGET_PACKAGE_CHANGED"
 
@@ -274,5 +276,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun getBranchName(): String {
         // Default to "main" if nothing is saved
         return sharedPreferences.getString(KEY_BRANCH_NAME, "main")!!
+    }
+
+    fun getProjectType(): String {
+        return sharedPreferences.getString(KEY_PROJECT_TYPE, "UNKNOWN") ?: "UNKNOWN"
+    }
+
+    fun setProjectType(type: String) {
+        sharedPreferences.edit().putString(KEY_PROJECT_TYPE, type).apply()
     }
 }
