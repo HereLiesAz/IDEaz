@@ -19,7 +19,7 @@ A monolithic architecture, where the IDE, build tools, and target application al
 ### **2.2 The Four Core Components**
 
 1.  **IDEaz Host Application:** The primary, user-facing application providing the UI for project management, code editing, and AI interaction. It is the central orchestrator of the entire system. It also provides a **global build/compile log** and a **contextless AI chat prompt**.
-2.  **On-Device Build Service:** A background `Service` running in a separate process (`:build_process`). It manages the entire on-device build toolchain, receiving build requests from the Host App and reporting back status and logs.
+2.  **On-Device Build Service:** A background `Service` running in a separate process (`:build_process`). It manages the entire on-device build toolchain (for Android, React Native, Flutter, and Web), receiving build requests from the Host App and reporting back status and logs.
 3.  **UI Inspection Service:** A privileged `AccessibilityService` running in its own dedicated process. It is responsible for drawing the visual overlay on the target application, capturing **user taps (for element selection) and drags (for area selection)**, and **rendering the contextual AI prompt and log UI** for a selected element.
 4.  **Target Application Process:** The user's application being developed. It runs in its own standard Android sandbox, completely isolated from the IDEaz components, ensuring an accurate representation of its real-world behavior.
 
@@ -32,6 +32,12 @@ Communication between the isolated processes will be handled using the **Android
 ## **3. The "No-Gradle" On-Device Build Pipeline**
 
 The IDE eschews a full Gradle system in favor of a direct, scripted orchestration of core command-line build tools. This "No-Gradle" approach prioritizes speed, simplicity, and a minimal resource footprint.
+
+The build pipeline is designed to be extensible for multiple platforms:
+*   **Android:** Uses `aapt2`, `d8`, and `kotlinc`.
+*   **React Native:** (Planned) Will utilize a custom Metro-like bundler or optimized JS packaging for on-device execution.
+*   **Flutter:** (Planned) Will leverage the `flutter` tool or a dart compilation step compatible with the on-device environment.
+*   **Web:** (Planned) A lightweight build process handling HTML/CSS/JS minification and asset linking.
 
 For a complete breakdown of this system, see **`docs/build_pipeline.md`**.
 
@@ -69,6 +75,16 @@ When the user submits a prompt, the `MainViewModel` constructs a "rich prompt" b
 ## **5. AI Integration and Abstraction**
 
 The IDE will use an embedded **JGit** library to manage every project as a local Git repository. This is a prerequisite for AI models that operate on changesets.
+
+### **5.0 Multi-Platform "Post-Code" Vision**
+
+The core "post-code" philosophy—interacting with the running app rather than text files—must be preserved across all supported platforms:
+*   **Android:** (Current) Visual inspection via AccessibilityService.
+*   **React Native:** Visual inspection via AccessibilityService or a custom bridge to the JS runtime.
+*   **Web:** Visual inspection via DOM injection or a custom Chrome/WebView client.
+*   **Flutter:** Visual inspection via the Flutter Inspector protocol or AccessibilityService.
+
+Regardless of the underlying technology, the user experience remains constant: Select Element -> Describe Change -> AI Implements -> Rebuild/Reload.
 
 ### **5.1 AI Abstraction Layer**
 

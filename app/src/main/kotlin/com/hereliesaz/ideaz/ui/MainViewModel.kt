@@ -24,6 +24,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import com.hereliesaz.ideaz.models.SourceMapEntry
 import com.hereliesaz.ideaz.utils.SourceMapParser
+import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.services.ScreenshotService
 import androidx.preference.PreferenceManager
 import com.hereliesaz.ideaz.api.GeminiApiClient
@@ -36,6 +37,7 @@ import com.hereliesaz.ideaz.api.ListActivitiesResponse
 import java.io.FileOutputStream
 import java.io.IOException
 import com.hereliesaz.ideaz.utils.ToolManager
+import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
@@ -194,6 +196,11 @@ class MainViewModel(
                     }
                     _buildLog.value += "[INFO] Clone complete.\n"
                 }
+
+                val type = ProjectAnalyzer.detectProjectType(projectDir)
+                settingsViewModel.setProjectType(type.displayName)
+                _buildLog.value += "[INFO] Detected project type: ${type.displayName}\n"
+
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to clone/pull", e)
                 _buildLog.value += "[INFO] Error: ${e.message}\n"
@@ -870,7 +877,11 @@ class MainViewModel(
                 }
                 settingsViewModel.setAppName(projectName)
                 settingsViewModel.setGithubUser("")
-                _buildLog.value += "[INFO] Project '$projectName' loaded successfully.\n"
+
+                val type = ProjectAnalyzer.detectProjectType(projectDir)
+                settingsViewModel.setProjectType(type.displayName)
+
+                _buildLog.value += "[INFO] Project '$projectName' loaded successfully (Type: ${type.displayName}).\n"
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load project", e)
                 _buildLog.value += "[INFO] Error loading project: ${e.message}\n"
@@ -889,13 +900,54 @@ class MainViewModel(
                 }
                 settingsViewModel.setAppName(projectName)
                 settingsViewModel.setGithubUser("")
-                _buildLog.value += "[INFO] Project '$projectName' loaded successfully.\n"
+
+                val type = ProjectAnalyzer.detectProjectType(projectDir)
+                settingsViewModel.setProjectType(type.displayName)
+                _buildLog.value += "[INFO] Project '$projectName' loaded successfully (Type: ${type.displayName}).\n"
 
                 startBuild(context, projectDir)
 
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load project", e)
                 _buildLog.value += "[INFO] Error loading project: ${e.message}\n"
+            }
+        }
+    }
+
+    fun createProjectFromTemplate(context: Context, templateType: String, projectName: String) {
+        viewModelScope.launch {
+            _buildLog.value += "[INFO] Creating project '$projectName' from template '$templateType'...\n"
+            try {
+                val projectDir = context.filesDir.resolve(projectName)
+                if (projectDir.exists()) {
+                    _buildLog.value += "[INFO] Cleaning up existing directory...\n"
+                    projectDir.deleteRecursively()
+                }
+                projectDir.mkdirs()
+
+                val templatePath = when (templateType) {
+                    "web" -> "templates/web"
+                    "react_native" -> "templates/react_native"
+                    "flutter" -> "templates/flutter"
+                    else -> "project" // Default to Android (legacy path)
+                }
+
+                // Note: copyAsset handles single file copy. We need to iterate if it's a directory.
+                // The existing logic in extractProject just iterates the top level.
+                // Let's use the existing copyAsset which handles recursion if we modify it slightly or trust it?
+                // The existing copyAsset implementation handles directories recursively!
+
+                context.assets.list(templatePath)?.forEach {
+                    copyAsset(context, "$templatePath/$it", projectDir.resolve(it).absolutePath)
+                }
+
+                settingsViewModel.setAppName(projectName)
+                settingsViewModel.setGithubUser("") // Local project
+                _buildLog.value += "[INFO] Project '$projectName' created successfully.\n"
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to create project from template", e)
+                _buildLog.value += "[INFO] Error creating project: ${e.message}\n"
             }
         }
     }
