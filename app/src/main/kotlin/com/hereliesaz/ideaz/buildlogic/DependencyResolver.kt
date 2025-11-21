@@ -6,6 +6,22 @@ import org.sonatype.aether.repository.RemoteRepository
 import org.sonatype.aether.util.artifact.DefaultArtifact
 import java.io.File
 
+// Visible for testing
+internal fun cleanDependencyLine(line: String): String {
+    var cleaned = line.trim()
+    // Remove quotes
+    cleaned = cleaned.replace("\"", "").replace("'", "")
+
+    // Handle "group:artifact" = "version" or "group:artifact = version"
+    if (cleaned.contains("=")) {
+        val parts = cleaned.split("=")
+        if (parts.size == 2) {
+            return "${parts[0].trim()}:${parts[1].trim()}"
+        }
+    }
+    return cleaned
+}
+
 class DependencyResolver(
     private val projectDir: File,
     private val dependenciesFile: File,
@@ -35,8 +51,9 @@ class DependencyResolver(
 
             dependenciesFile.readLines().forEach { line ->
                 if (line.isNotBlank()) {
-                    callback?.onLog("  - $line")
-                    val artifact = DefaultArtifact(line)
+                    val cleanedLine = cleanDependencyLine(line)
+                    callback?.onLog("  - $cleanedLine")
+                    val artifact = DefaultArtifact(cleanedLine)
                     aether.resolve(artifact, "runtime")
                 }
             }
