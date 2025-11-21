@@ -5,8 +5,8 @@ import com.hereliesaz.ideaz.utils.ProcessExecutor
 import java.io.File
 
 class D8Compile(
-    // --- REMOVED javaPath ---
     private val d8Path: String,
+    private val javaPath: String,
     private val androidJarPath: String,
     private val classesDir: String,
     private val outputDir: String,
@@ -20,7 +20,9 @@ class D8Compile(
         }
 
         val command = mutableListOf(
-            d8Path, // --- Use native binary directly ---
+            javaPath,
+            "-jar",
+            d8Path,
             "--output",
             outputDir
         )
