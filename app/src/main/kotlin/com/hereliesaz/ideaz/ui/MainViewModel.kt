@@ -407,12 +407,12 @@ class MainViewModel(
 
     fun startInspection(context: Context) {
         Log.d(TAG, "startInspection called")
-        context.startService(Intent(context, com.hereliesaz.ideaz.services.UIInspectionService::class.java))
+        context.sendBroadcast(Intent("com.hereliesaz.ideaz.START_INSPECTION"))
     }
 
     fun stopInspection(context: Context) {
         Log.d(TAG, "stopInspection called")
-        context.stopService(Intent(context, com.hereliesaz.ideaz.services.UIInspectionService::class.java))
+        context.sendBroadcast(Intent("com.hereliesaz.ideaz.STOP_INSPECTION"))
         confirmCancelTask()
     }
 
@@ -421,8 +421,8 @@ class MainViewModel(
         if (isBuildServiceBound) {
             viewModelScope.launch {
                 _buildLog.value = "[INFO] Status: Building...\n"
-                val targetDir = projectDir ?: File(extractProject(context))
-                Log.d(TAG, "Project extracted to: ${targetDir.absolutePath}")
+                val targetDir = projectDir ?: getOrCreateProject(context)
+                Log.d(TAG, "Project directory: ${targetDir.absolutePath}")
                 buildService?.startBuild(targetDir.absolutePath, buildCallback)
             }
         } else {
@@ -431,8 +431,25 @@ class MainViewModel(
         }
     }
 
-    private fun extractProject(context: Context): String {
-        Log.d(TAG, "extractProject called")
+    private fun getOrCreateProject(context: Context): File {
+        val appName = settingsViewModel.getAppName()
+        if (appName.isNullOrBlank()) {
+             // Fallback to legacy behavior if no app name set
+             return File(extractLegacyProject(context))
+        }
+
+        val projectDir = context.filesDir.resolve(appName)
+        if (!projectDir.exists()) {
+            _buildLog.value += "[INFO] Project '$appName' not found. Creating from template...\n"
+            val typeStr = settingsViewModel.getProjectType()
+            val type = ProjectType.fromString(typeStr)
+            createProjectFromTemplateInternal(context, type, projectDir)
+        }
+        return projectDir
+    }
+
+    private fun extractLegacyProject(context: Context): String {
+        Log.d(TAG, "extractLegacyProject called")
         val projectDir = context.filesDir.resolve("project")
         if (projectDir.exists()) {
             Log.d(TAG, "Deleting existing project directory")
@@ -445,6 +462,23 @@ class MainViewModel(
             copyAsset(context, "project/$it", projectDir.resolve(it).absolutePath)
         }
         return projectDir.absolutePath
+    }
+
+    private fun createProjectFromTemplateInternal(context: Context, type: ProjectType, projectDir: File) {
+        val templatePath = when (type) {
+            ProjectType.WEB -> "templates/web"
+            ProjectType.REACT_NATIVE -> "templates/react_native"
+            ProjectType.FLUTTER -> "templates/flutter"
+            else -> "project" // Default to Android (legacy path)
+        }
+
+        Log.d(TAG, "Creating project from template: $templatePath")
+        projectDir.mkdirs()
+
+        // Copy template files. Using copyAsset recursively.
+        context.assets.list(templatePath)?.forEach {
+            copyAsset(context, "$templatePath/$it", projectDir.resolve(it).absolutePath)
+        }
     }
 
     private fun copyAsset(context: Context, assetPath: String, destPath: String) {
@@ -950,26 +984,19 @@ class MainViewModel(
                     _buildLog.value += "[INFO] Cleaning up existing directory...\n"
                     projectDir.deleteRecursively()
                 }
-                projectDir.mkdirs()
 
-                val templatePath = when (templateType) {
-                    "web" -> "templates/web"
-                    "react_native" -> "templates/react_native"
-                    "flutter" -> "templates/flutter"
-                    else -> "project" // Default to Android (legacy path)
+                val type = when (templateType.lowercase()) {
+                    "web" -> ProjectType.WEB
+                    "react_native" -> ProjectType.REACT_NATIVE
+                    "flutter" -> ProjectType.FLUTTER
+                    else -> ProjectType.ANDROID
                 }
 
-                // Note: copyAsset handles single file copy. We need to iterate if it's a directory.
-                // The existing logic in extractProject just iterates the top level.
-                // Let's use the existing copyAsset which handles recursion if we modify it slightly or trust it?
-                // The existing copyAsset implementation handles directories recursively!
-
-                context.assets.list(templatePath)?.forEach {
-                    copyAsset(context, "$templatePath/$it", projectDir.resolve(it).absolutePath)
-                }
+                createProjectFromTemplateInternal(context, type, projectDir)
 
                 settingsViewModel.setAppName(projectName)
                 settingsViewModel.setGithubUser("") // Local project
+                settingsViewModel.setProjectType(type.name)
                 _buildLog.value += "[INFO] Project '$projectName' created successfully.\n"
 
             } catch (e: Exception) {
