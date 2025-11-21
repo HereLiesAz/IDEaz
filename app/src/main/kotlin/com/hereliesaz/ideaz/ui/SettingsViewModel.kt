@@ -43,6 +43,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_BRANCH_NAME = "branch_name"
         const val KEY_PROJECT_LIST = "project_list"
         const val KEY_GOOGLE_API_KEY = "google_api_key" // Gemini
+        const val KEY_GITHUB_TOKEN = "github_token"
 
         const val KEY_TARGET_PACKAGE_NAME = "target_package_name"
         const val ACTION_TARGET_PACKAGE_CHANGED = "com.hereliesaz.ideaz.TARGET_PACKAGE_CHANGED"
@@ -159,6 +160,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun getGoogleApiKey(): String? {
         return sharedPreferences.getString(KEY_GOOGLE_API_KEY, null)
+    }
+
+    fun saveGithubToken(token: String) {
+        sharedPreferences.edit().putString(KEY_GITHUB_TOKEN, token).apply()
+    }
+
+    fun getGithubToken(): String? {
+        return sharedPreferences.getString(KEY_GITHUB_TOKEN, null)
     }
 
     fun saveApiKey(apiKey: String) {
