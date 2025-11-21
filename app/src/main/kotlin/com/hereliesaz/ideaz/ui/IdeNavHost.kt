@@ -28,10 +28,7 @@ fun IdeNavHost(
         modifier = modifier
     ) {
         composable("main") {
-            LiveOutputBottomCard(
-                logStream = viewModel.filteredLog,
-                modifier = Modifier.fillMaxSize()
-            )
+            Box(modifier = Modifier.fillMaxSize().background(Color.Transparent))
         }
         composable("settings") {
             SettingsScreen(

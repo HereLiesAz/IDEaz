@@ -196,14 +196,28 @@ fun MainScreen(
                 }
             }
 
+            val chatHeight = screenHeight * 0.05f
+            val isChatVisible = sheetState.currentDetent == Peek || sheetState.currentDetent == Halfway
+
             if (isBottomSheetVisible) {
                 // Call the extracted BottomSheet
                 IdeBottomSheet(
                     sheetState = sheetState,
                     viewModel = viewModel,
                     peekDetent = Peek,
-                    halfwayDetent = Halfway,
-                    onSendPrompt = { viewModel.sendPrompt(it) }
+                    halfwayDetent = Halfway
+                )
+            }
+
+            // --- External Chat Input ---
+            // This floats ON TOP of the BottomSheet, but is aligned to the screen bottom.
+            AnimatedVisibility(
+                visible = isChatVisible,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                ContextlessChatInput(
+                    modifier = Modifier.height(chatHeight),
+                    onSend = { viewModel.sendPrompt(it) }
                 )
             }
         }
