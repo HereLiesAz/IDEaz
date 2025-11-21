@@ -157,6 +157,119 @@ class MainViewModel(
         }
     }
 
+    fun cloneOrPullProject(owner: String, repo: String, branch: String) {
+        val appName = repo
+        settingsViewModel.saveProjectConfig(appName, owner, branch)
+        settingsViewModel.addProject("$owner/$appName")
+        settingsViewModel.setAppName(appName)
+        settingsViewModel.setGithubUser(owner)
+
+        val token = settingsViewModel.getGithubToken()
+        // For auth, we use the configured github user, but usually token is enough
+        val authUser = settingsViewModel.getGithubUser()
+
+        viewModelScope.launch {
+            _buildLog.value += "[INFO] Selecting repository '$owner/$appName'...\n"
+            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+
+            try {
+                if (projectDir.exists() && File(projectDir, ".git").exists()) {
+                    _buildLog.value += "[INFO] Project exists. Pulling latest changes...\n"
+                    withContext(Dispatchers.IO) {
+                        GitManager(projectDir).pull(authUser, token)
+                    }
+                    _buildLog.value += "[INFO] Pull complete.\n"
+                } else {
+                    if (projectDir.exists()) {
+                        _buildLog.value += "[INFO] Cleaning up existing directory...\n"
+                        projectDir.deleteRecursively()
+                    }
+                    projectDir.mkdirs()
+
+                    _buildLog.value += "[INFO] Cloning $owner/$repo...\n"
+                    withContext(Dispatchers.IO) {
+                        GitManager(projectDir).clone(owner, repo, authUser, token)
+                    }
+                    _buildLog.value += "[INFO] Clone complete.\n"
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to clone/pull", e)
+                _buildLog.value += "[INFO] Error: ${e.message}\n"
+            }
+        }
+    }
+
+    fun deleteSession(session: com.hereliesaz.ideaz.api.Session) {
+        viewModelScope.launch {
+            try {
+                JulesApiClient.deleteSession(session.id)
+                fetchSessions() // Refresh list
+                _buildLog.value += "[INFO] Session ${session.id} deleted.\n"
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to delete session", e)
+                _buildLog.value += "[ERROR] Failed to delete session: ${e.message}\n"
+            }
+        }
+    }
+
+    fun trySession(session: com.hereliesaz.ideaz.api.Session) {
+        val prUrl = session.outputs?.firstOrNull()?.pullRequest?.url
+        if (prUrl == null) {
+            _buildLog.value += "[ERROR] No Pull Request found for session.\n"
+            return
+        }
+
+        val prId = prUrl.substringAfterLast("/")
+        val branchName = "pr-$prId"
+        val appName = settingsViewModel.getAppName() ?: return
+        val projectDir = getApplication<Application>().filesDir.resolve(appName)
+        val token = settingsViewModel.getGithubToken()
+        val user = settingsViewModel.getGithubUser()
+
+        viewModelScope.launch {
+            try {
+                _buildLog.value += "[INFO] Fetching PR #$prId...\n"
+                withContext(Dispatchers.IO) {
+                    val gitManager = GitManager(projectDir)
+                    gitManager.fetchPr(prId, branchName, user, token)
+                    gitManager.checkout(branchName)
+                }
+                _buildLog.value += "[INFO] Checked out PR branch. Building...\n"
+                startBuild(getApplication())
+            } catch (e: Exception) {
+                Log.e(TAG, "Try session failed", e)
+                _buildLog.value += "[ERROR] Try session failed: ${e.message}\n"
+            }
+        }
+    }
+
+    fun acceptSession(session: com.hereliesaz.ideaz.api.Session) {
+        val prUrl = session.outputs?.firstOrNull()?.pullRequest?.url ?: return
+        val prId = prUrl.substringAfterLast("/")
+        val branchName = "pr-$prId"
+        val appName = settingsViewModel.getAppName() ?: return
+        val projectDir = getApplication<Application>().filesDir.resolve(appName)
+        val mainBranch = settingsViewModel.getBranchName()
+        val token = settingsViewModel.getGithubToken()
+        val user = settingsViewModel.getGithubUser()
+
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val gitManager = GitManager(projectDir)
+                    gitManager.checkout(mainBranch)
+                    gitManager.pull(user, token)
+                    gitManager.merge(branchName)
+                }
+                _buildLog.value += "[INFO] Merged PR #$prId. Building...\n"
+                startBuild(getApplication())
+            } catch (e: Exception) {
+                Log.e(TAG, "Accept session failed", e)
+                _buildLog.value += "[ERROR] Accept session failed: ${e.message}\n"
+            }
+        }
+    }
+
     fun bindBuildService(context: Context) {
         Log.d(TAG, "bindBuildService called")
 
@@ -938,7 +1051,13 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 logTo(logTarget, "[INFO] AI Status: Applying patch...")
-                val projectDir = context.filesDir.resolve("project")
+                val appName = settingsViewModel.getAppName()
+                val projectDir = if (!appName.isNullOrBlank()) {
+                    context.filesDir.resolve(appName)
+                } else {
+                    context.filesDir.resolve("project")
+                }
+
                 val gitManager = GitManager(projectDir)
                 gitManager.applyPatch(patchContent)
                 logTo(logTarget, "[INFO] AI Status: Patch applied. Rebuilding...")
