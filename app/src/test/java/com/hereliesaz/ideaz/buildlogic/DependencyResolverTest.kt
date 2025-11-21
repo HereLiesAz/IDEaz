@@ -12,7 +12,7 @@ class DependencyResolverTest {
     val tempFolder = TemporaryFolder()
 
     @Test
-    @Ignore("Known issue: jcabi-aether 0.10.1 uses legacy transport that fails with TLS 1.2+ on modern JDKs/Environments.")
+    // @Ignore("Known issue: jcabi-aether 0.10.1 uses legacy transport that fails with TLS 1.2+ on modern JDKs/Environments.")
     fun testResolverInstantiationAndExecution() {
         val projectDir = tempFolder.newFolder("project")
         val dependenciesFile = File(projectDir, "dependencies.txt")
