@@ -191,14 +191,10 @@ fun MainScreen(
                         navController = navController,
                         viewModel = viewModel,
                         settingsViewModel = viewModel.settingsViewModel,
-                        onThemeToggle = onThemeToggle,
-                        bottomPadding = chatHeight
+                        onThemeToggle = onThemeToggle
                     )
                 }
             }
-
-            val chatHeight = screenHeight * 0.05f
-            val isChatVisible = sheetState.currentDetent == Peek || sheetState.currentDetent == Halfway
 
             if (isBottomSheetVisible) {
                 // Call the extracted BottomSheet
@@ -207,23 +203,7 @@ fun MainScreen(
                     viewModel = viewModel,
                     peekDetent = Peek,
                     halfwayDetent = Halfway,
-                    chatHeight = chatHeight,
-                    buildStatus = "", // Not needed
-                    aiStatus = "", // Not needed
-                    sessions = emptyList(), // Not needed
-                    activities = emptyList() // Not needed
-                )
-            }
-
-            // --- External Chat Input ---
-            // This floats ON TOP of the BottomSheet, but is aligned to the screen bottom.
-            AnimatedVisibility(
-                visible = isChatVisible,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            ) {
-                ContextlessChatInput(
-                    modifier = Modifier.height(chatHeight),
-                    onSend = { viewModel.sendPrompt(it) }
+                    onSendPrompt = { viewModel.sendPrompt(it) }
                 )
             }
         }
