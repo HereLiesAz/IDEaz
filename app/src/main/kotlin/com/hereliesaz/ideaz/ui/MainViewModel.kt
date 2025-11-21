@@ -201,6 +201,12 @@ class MainViewModel(
                 settingsViewModel.setProjectType(type.displayName)
                 _buildLog.value += "[INFO] Detected project type: ${type.displayName}\n"
 
+                val pkg = ProjectAnalyzer.detectPackageName(projectDir)
+                if (pkg != null) {
+                    settingsViewModel.saveTargetPackageName(pkg)
+                    _buildLog.value += "[INFO] Detected package name: $pkg\n"
+                }
+
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to clone/pull", e)
                 _buildLog.value += "[INFO] Error: ${e.message}\n"
@@ -881,6 +887,11 @@ class MainViewModel(
                 val type = ProjectAnalyzer.detectProjectType(projectDir)
                 settingsViewModel.setProjectType(type.displayName)
 
+                val pkg = ProjectAnalyzer.detectPackageName(projectDir)
+                if (pkg != null) {
+                    settingsViewModel.saveTargetPackageName(pkg)
+                }
+
                 _buildLog.value += "[INFO] Project '$projectName' loaded successfully (Type: ${type.displayName}).\n"
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load project", e)
@@ -903,6 +914,12 @@ class MainViewModel(
 
                 val type = ProjectAnalyzer.detectProjectType(projectDir)
                 settingsViewModel.setProjectType(type.displayName)
+
+                val pkg = ProjectAnalyzer.detectPackageName(projectDir)
+                if (pkg != null) {
+                    settingsViewModel.saveTargetPackageName(pkg)
+                }
+
                 _buildLog.value += "[INFO] Project '$projectName' loaded successfully (Type: ${type.displayName}).\n"
 
                 startBuild(context, projectDir)

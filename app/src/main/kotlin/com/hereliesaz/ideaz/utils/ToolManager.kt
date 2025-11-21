@@ -16,8 +16,6 @@ object ToolManager {
         "jules" to "libjules.so",
         "java" to "libjava.so",
         "aapt2" to "libaapt2.so",
-        "d8" to "libd8.so",
-        "apksigner" to "libapksigner.so",
         "gemini" to "libgemini.so"
     )
 
@@ -25,7 +23,9 @@ object ToolManager {
     private val ASSET_FILES = listOf(
         "android.jar",
         "debug.keystore",
-        "kotlin-compiler.jar" // Required for the Kotlin compilation fix.
+        "kotlin-compiler.jar", // Required for the Kotlin compilation fix.
+        "d8.jar",
+        "apksigner.jar"
     )
 
     /**
