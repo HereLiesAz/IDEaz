@@ -73,6 +73,7 @@ android {
             excludes.add("META-INF/THIRD-PARTY.txt")
             excludes.add("META-INF/ASL2.0")
             excludes.add("META-INF/plexus/components.xml")
+            excludes.add("plugin.properties")
         }
     }
 
@@ -93,16 +94,21 @@ configurations.all {
 }
 
 dependencies {
-    implementation(libs.jcabi.aether)
-    implementation(libs.maven.core)
-    implementation(libs.maven.settings.builder)
+    implementation(libs.jcabi.aether) {
+        exclude(group = "org.sonatype.sisu", module = "sisu-guava")
+    }
+    implementation(libs.maven.core) {
+        exclude(group = "org.sonatype.sisu", module = "sisu-guava")
+    }
+    implementation(libs.maven.settings.builder) {
+        exclude(group = "org.sonatype.sisu", module = "sisu-guava")
+    }
     implementation(libs.wagon.http.lightweight)
     implementation(libs.wagon.provider.api)
     implementation(libs.wagon.file)
     implementation(libs.jaxb.api)
     implementation(libs.javax.annotation.api)
     implementation(libs.validation.api)
-    implementation(libs.javax.el)
     implementation(libs.glassfish.el)
     implementation(libs.slf4j.simple)
     constraints {
