@@ -42,11 +42,10 @@ fun IdeNavHost(
             )
         }
         composable("project_settings") {
-            // REMOVED: No longer collect sources here, as ProjectScreen handles it internally.
             ProjectScreen(
                 viewModel = viewModel,
                 settingsViewModel = settingsViewModel,
-                // REMOVED: sources parameter is no longer required.
+                onBuildTriggered = { navController.navigate("build") }
             )
         }
         composable("build") {
