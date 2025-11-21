@@ -199,7 +199,7 @@ class MainViewModel(
                 }
 
                 val type = ProjectAnalyzer.detectProjectType(projectDir)
-                settingsViewModel.setProjectType(type.displayName)
+                settingsViewModel.setProjectType(type.name)
                 _buildLog.value += "[INFO] Detected project type: ${type.displayName}\n"
 
                 val pkg = ProjectAnalyzer.detectPackageName(projectDir)
