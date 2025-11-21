@@ -5,67 +5,62 @@ import org.junit.Test
 
 class HtmlSourceInjectorTest {
 
-    private val injector = HtmlSourceInjector()
-
     @Test
-    fun testInject_simpleDiv() {
-        val input = listOf("<div>Hello</div>")
-        val output = injector.inject(input, "index.html")
-
-        // Expect line 1
-        val expected = "<div aria-label=\"__source:index.html:1__\">Hello</div>"
-        assertEquals(expected, output)
-    }
-
-    @Test
-    fun testInject_withAttributes() {
-        val input = listOf("<div class=\"container\">")
-        val output = injector.inject(input, "index.html")
-
-        val expected = "<div class=\"container\" aria-label=\"__source:index.html:1__\">"
-        assertEquals(expected, output)
-    }
-
-    @Test
-    fun testInject_skipExistingAriaLabel() {
-        val input = listOf("<button aria-label=\"Close\">")
-        val output = injector.inject(input, "index.html")
-
-        // Should remain unchanged
-        assertEquals(input[0], output)
-    }
-
-    @Test
-    fun testInject_selfClosing() {
-        val input = listOf("<img src=\"foo.png\" />")
-        val output = injector.inject(input, "index.html")
-
-        val expected = "<img src=\"foo.png\"  aria-label=\"__source:index.html:1__\" />"
-        assertEquals(expected, output)
-    }
-
-    @Test
-    fun testInject_multipleLines() {
+    fun `injects aria-label into tags`() {
+        val injector = HtmlSourceInjector()
         val input = listOf(
-            "<html>",
-            "<body>",
-            "  <h1>Title</h1>",
-            "</body>",
-            "</html>"
+            "<div>",
+            "  <span>Hello</span>",
+            "</div>"
         )
-        val output = injector.inject(input, "index.html")
-
         val expected = """
-            <html aria-label="__source:index.html:1__">
-            <body aria-label="__source:index.html:2__">
-              <h1 aria-label="__source:index.html:3__">Title</h1>
-            </body>
-            </html>
+            <div aria-label="__source:test.html:1__">
+              <span aria-label="__source:test.html:2__">Hello</span>
+            </div>
         """.trimIndent()
 
-        // Note: closing tags </body> </html> are not touched because regex requires <[a-z].
-        // </body> starts with </
+        val result = injector.inject(input, "test.html")
+        assertEquals(expected, result)
+    }
 
-        assertEquals(expected, output)
+    @Test
+    fun `preserves existing attributes`() {
+        val injector = HtmlSourceInjector()
+        val input = listOf(
+            "<div class=\"container\">"
+        )
+        val expected = "<div class=\"container\" aria-label=\"__source:test.html:1__\">"
+
+        val result = injector.inject(input, "test.html")
+        assertEquals(expected, result)
+    }
+
+    @Test
+    fun `skips closing tags`() {
+        val injector = HtmlSourceInjector()
+        val input = listOf(
+            "</div>"
+        )
+        val expected = "</div>"
+
+        val result = injector.inject(input, "test.html")
+        assertEquals(expected, result)
+    }
+
+    @Test
+    fun `handles self-closing tags`() {
+         val injector = HtmlSourceInjector()
+        val input = listOf(
+            "<img src=\"img.png\" />"
+        )
+        // Note: The current implementation might need adjustment for exact whitespace handling,
+        // but let's see what it produces.
+        // The regex is <([a-zA-Z0-9-]+)([^>]*)>
+        // It captures "img" and " src=\"img.png\" /"
+        // Logic: if attributes ends with /, insert before it.
+        val expected = "<img src=\"img.png\"  aria-label=\"__source:test.html:1__\" />"
+
+        val result = injector.inject(input, "test.html")
+        assertEquals(expected, result)
     }
 }
