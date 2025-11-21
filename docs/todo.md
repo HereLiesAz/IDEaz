@@ -85,10 +85,10 @@ This phase will broaden the IDE's appeal and capabilities by supporting a wider 
         - [x] React Native (JS/TS)
         - [x] Flutter (Dart)
 
-- [ ] **7.2: Implement Web Design Support**
-    - [ ] Create a `WebBuildStep` for processing HTML/CSS.
-    - [ ] Implement a WebView-based runtime environment for the "post-code" overlay.
-    - [ ] Ensure visual selection works via DOM interaction.
+- [x] **7.2: Implement Web Design Support**
+    - [x] Create a `WebBuildStep` for processing HTML/CSS.
+    - [x] Implement a WebView-based runtime environment for the "post-code" overlay.
+    - [x] Ensure visual selection works via DOM interaction.
 
 - [ ] **7.3: Implement React Native Support**
     - [x] Create a `ReactNativeBuildStep` (uses `SimpleJsBundler` and Android shell template).
