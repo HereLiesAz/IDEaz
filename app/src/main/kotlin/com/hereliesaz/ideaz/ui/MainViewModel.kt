@@ -24,6 +24,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import com.hereliesaz.ideaz.models.SourceMapEntry
 import com.hereliesaz.ideaz.utils.SourceMapParser
+import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.services.ScreenshotService
 import androidx.preference.PreferenceManager
 import com.hereliesaz.ideaz.api.GeminiApiClient
@@ -197,8 +198,8 @@ class MainViewModel(
                 }
 
                 val type = ProjectAnalyzer.detectProjectType(projectDir)
-                settingsViewModel.setProjectType(type)
-                _buildLog.value += "[INFO] Detected project type: $type\n"
+                settingsViewModel.setProjectType(type.displayName)
+                _buildLog.value += "[INFO] Detected project type: ${type.displayName}\n"
 
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to clone/pull", e)
@@ -878,9 +879,9 @@ class MainViewModel(
                 settingsViewModel.setGithubUser("")
 
                 val type = ProjectAnalyzer.detectProjectType(projectDir)
-                settingsViewModel.setProjectType(type)
+                settingsViewModel.setProjectType(type.displayName)
 
-                _buildLog.value += "[INFO] Project '$projectName' loaded successfully (Type: $type).\n"
+                _buildLog.value += "[INFO] Project '$projectName' loaded successfully (Type: ${type.displayName}).\n"
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load project", e)
                 _buildLog.value += "[INFO] Error loading project: ${e.message}\n"
@@ -901,8 +902,8 @@ class MainViewModel(
                 settingsViewModel.setGithubUser("")
 
                 val type = ProjectAnalyzer.detectProjectType(projectDir)
-                settingsViewModel.setProjectType(type)
-                _buildLog.value += "[INFO] Project '$projectName' loaded successfully (Type: $type).\n"
+                settingsViewModel.setProjectType(type.displayName)
+                _buildLog.value += "[INFO] Project '$projectName' loaded successfully (Type: ${type.displayName}).\n"
 
                 startBuild(context, projectDir)
 
@@ -929,25 +930,6 @@ class MainViewModel(
                     "react_native" -> "templates/react_native"
                     "flutter" -> "templates/flutter"
                     else -> "project" // Default to Android (legacy path)
-                }
-
-                // Helper to copy recursively from assets
-                fun copyAssetsRecursively(path: String, dest: File) {
-                    context.assets.list(path)?.forEach { fileName ->
-                        val assetPath = if (path.isEmpty()) fileName else "$path/$fileName"
-                        val destFile = File(dest, fileName)
-
-                        // Check if it's a directory or file by trying to list it
-                        val subFiles = context.assets.list(assetPath)
-                        if (subFiles.isNullOrEmpty()) {
-                            // It's a file (or empty dir, but we assume file for simplification in assets)
-                            copyAsset(context, assetPath, destFile.absolutePath)
-                        } else {
-                            // It's a directory
-                            destFile.mkdirs()
-                            copyAssetsRecursively(assetPath, destFile)
-                        }
-                    }
                 }
 
                 // Note: copyAsset handles single file copy. We need to iterate if it's a directory.
