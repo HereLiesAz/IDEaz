@@ -1,22 +1,104 @@
 package com.hereliesaz.ideaz.git
 
 import org.eclipse.jgit.api.Git
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import java.io.File
 import java.io.ByteArrayInputStream
 
 class GitManager(private val projectDir: File) {
 
-    fun clone(owner: String, repo: String) {
+    fun clone(owner: String, repo: String, username: String? = null, token: String? = null) {
         val url = "https://github.com/$owner/$repo.git"
-        Git.cloneRepository()
+        val cmd = Git.cloneRepository()
             .setURI(url)
             .setDirectory(projectDir)
-            .call()
+
+        if (!token.isNullOrBlank()) {
+            val user = if (!username.isNullOrBlank()) username else token
+            cmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(user, token))
+        }
+
+        cmd.call()
     }
 
-    fun pull() {
+    fun pull(username: String? = null, token: String? = null) {
         val git = Git.open(projectDir)
-        git.pull().call()
+        val cmd = git.pull()
+
+        if (!token.isNullOrBlank()) {
+            val user = if (!username.isNullOrBlank()) username else token
+            cmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(user, token))
+        }
+
+        cmd.call()
+    }
+
+    fun fetchPr(prId: String, localBranch: String, username: String? = null, token: String? = null) {
+        val git = Git.open(projectDir)
+        val cmd = git.fetch()
+            .setRemote("origin")
+            .setRefSpecs(org.eclipse.jgit.transport.RefSpec("refs/pull/$prId/head:$localBranch"))
+
+        if (!token.isNullOrBlank()) {
+            val user = if (!username.isNullOrBlank()) username else token
+            cmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(user, token))
+        }
+        cmd.call()
+    }
+
+    fun checkout(branch: String) {
+        val git = Git.open(projectDir)
+        // Check if branch exists locally
+        val branchExists = git.branchList().call().any { it.name == "refs/heads/$branch" }
+        val cmd = git.checkout().setName(branch)
+        if (!branchExists) {
+            // If not local, assume remote tracking or just creating it
+            // For PR branches fetched via fetchPr, they are local heads.
+            // But usually checkout checks out existing branch.
+        }
+        cmd.call()
+    }
+
+    fun merge(branch: String) {
+        val git = Git.open(projectDir)
+        val repository = git.repository
+        val ref = repository.findRef(branch)
+        git.merge().include(ref).call()
+    }
+
+    fun isAhead(branch: String, base: String): Boolean {
+        try {
+            val git = Git.open(projectDir)
+            val repository = git.repository
+            val branchId = repository.resolve(branch)
+            val baseId = repository.resolve(base)
+
+            if (branchId == null || baseId == null) return false
+
+            val walk = org.eclipse.jgit.revwalk.RevWalk(repository)
+            val branchCommit = walk.parseCommit(branchId)
+            val baseCommit = walk.parseCommit(baseId)
+
+            // Check if branch has commits not in base
+            // count(base..branch) > 0
+            walk.setRevFilter(org.eclipse.jgit.revwalk.filter.RevFilter.MERGE_BASE)
+            walk.markStart(branchCommit)
+            walk.markStart(baseCommit)
+            val mergeBase = walk.next()
+
+            // Reset walk for counting
+            walk.reset()
+            walk.setRevFilter(org.eclipse.jgit.revwalk.filter.RevFilter.ALL)
+            walk.markStart(branchCommit)
+            if (mergeBase != null) {
+                walk.markUninteresting(mergeBase)
+            }
+
+            // Simple check: does the walk return anything?
+            return walk.iterator().hasNext()
+        } catch (e: Exception) {
+            return false
+        }
     }
 
     fun init() {
