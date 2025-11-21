@@ -1,6 +1,7 @@
 package com.hereliesaz.ideaz.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -18,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.Dp
@@ -34,18 +36,18 @@ fun IdeBottomSheet(
     sheetState: BottomSheetState,
     viewModel: MainViewModel,
     peekDetent: SheetDetent,
-    halfwayDetent: SheetDetent,
-    chatHeight: Dp,
-    buildStatus: String,
-    aiStatus: String,
-    sessions: List<Session>,
-    activities: List<Activity>
+    halfwayDetent: SheetDetent
 ) {
-    val isChatVisible = sheetState.currentDetent == peekDetent || sheetState.currentDetent == halfwayDetent
     val isHalfwayExpanded = sheetState.currentDetent == halfwayDetent
     val logMessages by viewModel.filteredLog.collectAsState(initial = "")
     val clipboardManager = LocalClipboardManager.current
     val coroutineScope = rememberCoroutineScope()
+
+    val configuration = LocalConfiguration.current
+    val screenHeight = configuration.screenHeightDp.dp
+
+    val topLogPadding = if (isHalfwayExpanded) screenHeight * 0.45f else screenHeight * 0.05f
+    val bottomLogPadding = if (isHalfwayExpanded) screenHeight * 0.25f else screenHeight * 0.20f
 
     BottomSheet(
         state = sheetState,
@@ -55,7 +57,12 @@ fun IdeBottomSheet(
             LiveOutputBottomCard(
                 logStream = viewModel.filteredLog,
                 modifier = Modifier.fillMaxSize(),
-                bottomPadding = if (isChatVisible) chatHeight else 0.dp
+                contentPadding = PaddingValues(
+                    top = topLogPadding,
+                    bottom = bottomLogPadding,
+                    start = 16.dp,
+                    end = 16.dp
+                )
             )
 
             if (isHalfwayExpanded) {
@@ -80,6 +87,6 @@ fun IdeBottomSheet(
                     }
                 }
             }
-            }
+        }
     }
 }
