@@ -83,6 +83,7 @@ class BuildService : Service() {
                 val intent = Intent(this, WebRuntimeActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     putExtra("URL", indexHtml.toURI().toString())
+                    putExtra("TIMESTAMP", System.currentTimeMillis())
                 }
                 startActivity(intent)
             } else {

@@ -33,16 +33,21 @@ import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import java.net.URL
 import androidx.compose.ui.Alignment
-import com.hereliesaz.aznavrail.AzForm
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import com.hereliesaz.aznavrail.AzTextBox
+import com.hereliesaz.ideaz.models.ProjectType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 
 private const val TAG = "ProjectScreen"
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProjectScreen(
     viewModel: MainViewModel,
@@ -76,14 +81,23 @@ fun ProjectScreen(
         viewModel.fetchSessions()
     }
 
+    // Auto-populate GitHub User
+    LaunchedEffect(allSources) {
+        if (githubUser.isBlank() && allSources.isNotEmpty()) {
+            val candidate = allSources.first().githubRepo?.owner
+            if (!candidate.isNullOrBlank()) {
+                githubUser = candidate
+                settingsViewModel.setGithubUser(candidate)
+            }
+        }
+    }
+
     // State for "Clone" tab
     var cloneUrl by remember { mutableStateOf("") }
     val projectList = settingsViewModel.getProjectList()
     val ownedSources = allSources.filter {
         val repo = it.githubRepo
-        // REMOVED: repo.owner == githubUser check is redundant and breaks filtering when githubUser is unset
-        repo != null &&
-                !projectList.contains("${repo.owner}/${repo.repo}")
+        repo != null && !projectList.contains("${repo.owner}/${repo.repo}")
     }
 
     // State for "Load" tab
@@ -146,47 +160,131 @@ fun ProjectScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
+                        .padding(16.dp)
                 ) {
-                    AzForm(
-                        modifier = Modifier.fillMaxWidth(),
-                        formName = "Project Configuration",
-                        submitButtonContent = { Text("Save") },
-                        onSubmit = { formData ->
-                            // If user leaves a field blank, use the existing value from state
-                            val finalAppName = formData["appName"]?.takeIf { it.isNotBlank() } ?: appName
-                            val finalGithubUser = formData["githubUser"]?.takeIf { it.isNotBlank() } ?: githubUser
-                            val finalBranchName = formData["branchName"]?.takeIf { it.isNotBlank() } ?: branchName
-                            val finalPackageName = formData["packageName"]?.takeIf { it.isNotBlank() } ?: packageName
-                            val initialPromptValue = formData["initialPrompt"] ?: ""
-
-                            // Update state with the new values so hints are correct on recomposition
-                            appName = finalAppName
-                            githubUser = finalGithubUser
-                            branchName = finalBranchName
-                            packageName = finalPackageName
-
-                            settingsViewModel.saveProjectConfig(finalAppName, finalGithubUser, finalBranchName)
-                            settingsViewModel.saveTargetPackageName(finalPackageName)
-                            Toast.makeText(context, "Project saved.", Toast.LENGTH_SHORT).show()
-                            viewModel.initializeProject(initialPromptValue)
-                            viewModel.fetchSessions()
-                        }
-                    ){
-                        entry(entryName = "appName", hint = "App Name (Current: $appName)", multiline = false, secret = false)
-                        entry(entryName = "githubUser", hint = "Github User (Current: $githubUser)", multiline = false, secret = false)
-                        entry(entryName = "branchName", hint = "Branch (Current: $branchName)", multiline = false, secret = false)
-                        entry(entryName = "packageName", hint = "Package (Current: $packageName)", multiline = false, secret = false)
-                        entry(entryName = "initialPrompt", hint = "Describe your app.", multiline = true, secret = false)
-                    }
-
+                    Text(
+                        "Project Configuration",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    AzButton(onClick = {
-                        // This builds and installs the current project
-                        viewModel.startBuild(context)
-                        onBuildTriggered()
-                        Toast.makeText(context, "Building...", Toast.LENGTH_SHORT).show()
-                    }, text = "Build", shape = AzButtonShape.RECTANGLE)
+                    // App Name
+                    AzTextBox(
+                        value = appName,
+                        onValueChange = {
+                            appName = it
+                            settingsViewModel.setAppName(it)
+                        },
+                        hint = "App Name",
+                        onSubmit = {}
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // GitHub User
+                    AzTextBox(
+                        value = githubUser,
+                        onValueChange = {
+                            githubUser = it
+                            settingsViewModel.setGithubUser(it)
+                        },
+                        hint = "GitHub User",
+                        onSubmit = {}
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Branch
+                    AzTextBox(
+                        value = branchName,
+                        onValueChange = {
+                            branchName = it
+                            settingsViewModel.saveProjectConfig(appName, githubUser, it)
+                        },
+                        hint = "Branch (e.g., main)",
+                        onSubmit = {}
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Package
+                    AzTextBox(
+                        value = packageName,
+                        onValueChange = {
+                            packageName = it
+                            settingsViewModel.saveTargetPackageName(it)
+                        },
+                        hint = "Package Name",
+                        onSubmit = {}
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Project Type Dropdown
+                    var expanded by remember { mutableStateOf(false) }
+                    val projectTypes = ProjectType.values().toList()
+                    val savedTypeStr = settingsViewModel.getProjectType()
+                    val savedType = ProjectType.fromString(savedTypeStr)
+                    var selectedType by remember { mutableStateOf(savedType) }
+
+                    ExposedDropdownMenuBox(
+                        expanded = expanded,
+                        onExpandedChange = { expanded = !expanded },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        TextField(
+                            modifier = Modifier.menuAnchor().fillMaxWidth(),
+                            readOnly = true,
+                            value = selectedType.displayName,
+                            onValueChange = {},
+                            label = { Text("Project Type") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                            colors = ExposedDropdownMenuDefaults.textFieldColors()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }
+                        ) {
+                            projectTypes.forEach { type ->
+                                DropdownMenuItem(
+                                    text = { Text(type.displayName) },
+                                    onClick = {
+                                        selectedType = type
+                                        settingsViewModel.setProjectType(type.name)
+                                        expanded = false
+                                    },
+                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Row {
+                        AzButton(
+                            onClick = {
+                                settingsViewModel.saveProjectConfig(appName, githubUser, branchName)
+                                settingsViewModel.setProjectType(selectedType.name)
+                                settingsViewModel.saveTargetPackageName(packageName)
+
+                                Toast.makeText(context, "Configuration saved.", Toast.LENGTH_SHORT).show()
+                                viewModel.initializeProject("")
+                                viewModel.fetchSessions()
+                            },
+                            text = "Save & Initialize",
+                            shape = AzButtonShape.RECTANGLE,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.padding(8.dp))
+                        AzButton(
+                            onClick = {
+                                viewModel.startBuild(context)
+                                onBuildTriggered()
+                                Toast.makeText(context, "Building...", Toast.LENGTH_SHORT).show()
+                            },
+                            text = "Build",
+                            shape = AzButtonShape.RECTANGLE,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(24.dp))
 
