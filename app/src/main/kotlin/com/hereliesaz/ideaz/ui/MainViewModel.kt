@@ -58,6 +58,7 @@ class MainViewModel(
 
     private var buildService: IBuildService? = null
     private var isBuildServiceBound = false
+    private var isServiceRegistered = false
 
     private var sourceMap: Map<String, SourceMapEntry> = emptyMap()
 
@@ -106,14 +107,14 @@ class MainViewModel(
             Log.d(TAG, "onServiceConnected: Service connected")
             buildService = IBuildService.Stub.asInterface(service)
             isBuildServiceBound = true
-            _buildLog.value += "[INFO] Status: Build Service Connected\n"
+            _buildLog.value += "[IDE] Status: Build Service Connected\n"
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
             Log.d(TAG, "onServiceDisconnected: Service disconnected")
             buildService = null
             isBuildServiceBound = false
-            _buildLog.value += "[INFO] Status: Build Service Disconnected\n"
+            _buildLog.value += "[IDE] Status: Build Service Disconnected\n"
         }
     }
 
@@ -121,7 +122,8 @@ class MainViewModel(
         override fun onLog(message: String) {
             Log.d(TAG, "onLog: $message")
             viewModelScope.launch {
-                _buildLog.value += "[VERBOSE] $message\n"
+                // Message should have its own prefix from the source (IDE or BUILD)
+                _buildLog.value += "$message\n"
                 buildService?.updateNotification(message)
             }
         }
@@ -129,8 +131,8 @@ class MainViewModel(
         override fun onSuccess(apkPath: String) {
             Log.d(TAG, "onSuccess: Build successful, APK at $apkPath")
             viewModelScope.launch {
-                _buildLog.value += "\n[INFO] Build successful: $apkPath\n"
-                _buildLog.value += "[INFO] Status: Build Successful\n"
+                _buildLog.value += "\n[IDE] Build successful: $apkPath\n"
+                _buildLog.value += "[IDE] Status: Build Successful\n"
                 contextualTaskJob = null
                 logToOverlay("Build successful. Task finished.")
                 sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
@@ -147,12 +149,125 @@ class MainViewModel(
         override fun onFailure(log: String) {
             Log.e(TAG, "onFailure: Build failed with log:\n$log")
             viewModelScope.launch {
-                _buildLog.value += "\n[INFO] Build failed:\n$log\n"
-                _buildLog.value += "[INFO] Status: Build Failed\n"
+                _buildLog.value += "\n[IDE] Build failed:\n$log\n"
+                _buildLog.value += "[IDE] Status: Build Failed\n"
                 contextualTaskJob = null
                 logToOverlay("Build failed. See global log to debug.")
-                _buildLog.value += "[INFO] AI Status: Build failed, asking AI to debug...\n"
+                _buildLog.value += "[IDE] AI Status: Build failed, asking AI to debug...\n"
                 debugBuild()
+            }
+        }
+    }
+
+    fun cloneOrPullProject(owner: String, repo: String, branch: String) {
+        val appName = repo
+        settingsViewModel.saveProjectConfig(appName, owner, branch)
+        settingsViewModel.addProject("$owner/$appName")
+        settingsViewModel.setAppName(appName)
+        settingsViewModel.setGithubUser(owner)
+
+        val token = settingsViewModel.getGithubToken()
+        // For auth, we use the configured github user, but usually token is enough
+        val authUser = settingsViewModel.getGithubUser()
+
+        viewModelScope.launch {
+            _buildLog.value += "[INFO] Selecting repository '$owner/$appName'...\n"
+            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+
+            try {
+                if (projectDir.exists() && File(projectDir, ".git").exists()) {
+                    _buildLog.value += "[INFO] Project exists. Pulling latest changes...\n"
+                    withContext(Dispatchers.IO) {
+                        GitManager(projectDir).pull(authUser, token)
+                    }
+                    _buildLog.value += "[INFO] Pull complete.\n"
+                } else {
+                    if (projectDir.exists()) {
+                        _buildLog.value += "[INFO] Cleaning up existing directory...\n"
+                        projectDir.deleteRecursively()
+                    }
+                    projectDir.mkdirs()
+
+                    _buildLog.value += "[INFO] Cloning $owner/$repo...\n"
+                    withContext(Dispatchers.IO) {
+                        GitManager(projectDir).clone(owner, repo, authUser, token)
+                    }
+                    _buildLog.value += "[INFO] Clone complete.\n"
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to clone/pull", e)
+                _buildLog.value += "[INFO] Error: ${e.message}\n"
+            }
+        }
+    }
+
+    fun deleteSession(session: com.hereliesaz.ideaz.api.Session) {
+        viewModelScope.launch {
+            try {
+                JulesApiClient.deleteSession(session.id)
+                fetchSessions() // Refresh list
+                _buildLog.value += "[INFO] Session ${session.id} deleted.\n"
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to delete session", e)
+                _buildLog.value += "[ERROR] Failed to delete session: ${e.message}\n"
+            }
+        }
+    }
+
+    fun trySession(session: com.hereliesaz.ideaz.api.Session) {
+        val prUrl = session.outputs?.firstOrNull()?.pullRequest?.url
+        if (prUrl == null) {
+            _buildLog.value += "[ERROR] No Pull Request found for session.\n"
+            return
+        }
+
+        val prId = prUrl.substringAfterLast("/")
+        val branchName = "pr-$prId"
+        val appName = settingsViewModel.getAppName() ?: return
+        val projectDir = getApplication<Application>().filesDir.resolve(appName)
+        val token = settingsViewModel.getGithubToken()
+        val user = settingsViewModel.getGithubUser()
+
+        viewModelScope.launch {
+            try {
+                _buildLog.value += "[INFO] Fetching PR #$prId...\n"
+                withContext(Dispatchers.IO) {
+                    val gitManager = GitManager(projectDir)
+                    gitManager.fetchPr(prId, branchName, user, token)
+                    gitManager.checkout(branchName)
+                }
+                _buildLog.value += "[INFO] Checked out PR branch. Building...\n"
+                startBuild(getApplication())
+            } catch (e: Exception) {
+                Log.e(TAG, "Try session failed", e)
+                _buildLog.value += "[ERROR] Try session failed: ${e.message}\n"
+            }
+        }
+    }
+
+    fun acceptSession(session: com.hereliesaz.ideaz.api.Session) {
+        val prUrl = session.outputs?.firstOrNull()?.pullRequest?.url ?: return
+        val prId = prUrl.substringAfterLast("/")
+        val branchName = "pr-$prId"
+        val appName = settingsViewModel.getAppName() ?: return
+        val projectDir = getApplication<Application>().filesDir.resolve(appName)
+        val mainBranch = settingsViewModel.getBranchName()
+        val token = settingsViewModel.getGithubToken()
+        val user = settingsViewModel.getGithubUser()
+
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val gitManager = GitManager(projectDir)
+                    gitManager.checkout(mainBranch)
+                    gitManager.pull(user, token)
+                    gitManager.merge(branchName)
+                }
+                _buildLog.value += "[INFO] Merged PR #$prId. Building...\n"
+                startBuild(getApplication())
+            } catch (e: Exception) {
+                Log.e(TAG, "Accept session failed", e)
+                _buildLog.value += "[ERROR] Accept session failed: ${e.message}\n"
             }
         }
     }
@@ -186,19 +301,25 @@ class MainViewModel(
         }.stateIn(viewModelScope, SharingStarted.Lazily, "")
 
         Log.d(TAG, "Binding to BuildService")
-        Intent("com.hereliesaz.ideaz.BUILD_SERVICE").also { intent ->
-            intent.component = ComponentName(context, BuildService::class.java)
-            context.bindService(intent, buildServiceConnection, Context.BIND_AUTO_CREATE)
+        val app = getApplication<Application>()
+        Intent(app, BuildService::class.java).also { intent ->
+            isServiceRegistered = app.bindService(intent, buildServiceConnection, Context.BIND_AUTO_CREATE)
         }
     }
 
     fun unbindBuildService(context: Context) {
         Log.d(TAG, "unbindBuildService called")
-        if (isBuildServiceBound) {
+        if (isServiceRegistered) {
             Log.d(TAG, "Unbinding from BuildService")
-            context.unbindService(buildServiceConnection)
-            isBuildServiceBound = false
+            try {
+                getApplication<Application>().unbindService(buildServiceConnection)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error unbinding service", e)
+            }
+            isServiceRegistered = false
         }
+        isBuildServiceBound = false
+        buildService = null
     }
 
     fun clearLog() {
@@ -938,7 +1059,13 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 logTo(logTarget, "[INFO] AI Status: Applying patch...")
-                val projectDir = context.filesDir.resolve("project")
+                val appName = settingsViewModel.getAppName()
+                val projectDir = if (!appName.isNullOrBlank()) {
+                    context.filesDir.resolve(appName)
+                } else {
+                    context.filesDir.resolve("project")
+                }
+
                 val gitManager = GitManager(projectDir)
                 gitManager.applyPatch(patchContent)
                 logTo(logTarget, "[INFO] AI Status: Patch applied. Rebuilding...")
