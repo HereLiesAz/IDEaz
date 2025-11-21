@@ -10,13 +10,14 @@ import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.http.Body
 import retrofit2.http.POST
+import retrofit2.http.Path
 
 @Serializable
 data class CreateRepoRequest(
     val name: String,
     val description: String? = null,
     val private: Boolean = false,
-    @SerialName("auto_init") val autoInit: Boolean = true // Init with README so we can clone immediately
+    @SerialName("auto_init") val autoInit: Boolean = true
 )
 
 @Serializable
@@ -29,9 +30,33 @@ data class GitHubRepoResponse(
     @SerialName("default_branch") val defaultBranch: String? = "main"
 )
 
+// --- NEW: Issue Data Classes ---
+@Serializable
+data class CreateIssueRequest(
+    val title: String,
+    val body: String,
+    val labels: List<String> = listOf("bug", "automated-report")
+)
+
+@Serializable
+data class GitHubIssueResponse(
+    val number: Int,
+    @SerialName("html_url") val htmlUrl: String
+)
+// --- END NEW ---
+
 interface GitHubApi {
     @POST("user/repos")
     suspend fun createRepo(@Body request: CreateRepoRequest): GitHubRepoResponse
+
+    // --- NEW: Create Issue Endpoint ---
+    @POST("repos/{owner}/{repo}/issues")
+    suspend fun createIssue(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Body request: CreateIssueRequest
+    ): GitHubIssueResponse
+    // --- END NEW ---
 }
 
 object GitHubApiClient {

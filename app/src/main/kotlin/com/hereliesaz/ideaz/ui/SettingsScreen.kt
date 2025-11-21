@@ -4,11 +4,9 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.inputmethodservice.Keyboard
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import android.text.TextUtils
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -30,7 +28,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.Icon
@@ -57,7 +54,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.hereliesaz.aznavrail.AzButton
 import com.hereliesaz.aznavrail.AzTextBox
 import com.hereliesaz.aznavrail.model.AzButtonShape
-import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
@@ -73,7 +69,6 @@ fun SettingsScreen(
     onThemeToggle: (Boolean) -> Unit
 ) {
     Log.d(TAG, "SettingsScreen: Composing")
-    Log.d(TAG, "SettingsScreen: SettingsViewModel hash: ${settingsViewModel.hashCode()}")
 
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -85,6 +80,13 @@ fun SettingsScreen(
     var showCancelWarning by remember {
         mutableStateOf(settingsViewModel.getShowCancelWarning())
     }
+
+    // --- NEW: Auto Report State ---
+    var autoReportBugs by remember {
+        mutableStateOf(settingsViewModel.getAutoReportBugs())
+    }
+    // --- END NEW ---
+
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
 
     var refreshTrigger by remember { mutableStateOf(0) } // Force recomposition
@@ -174,239 +176,255 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.titleLarge
                 )
 
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
 
-                Text("Jules API Key", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
-            }
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                AzTextBox(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = apiKey,
-                    onValueChange = { apiKey = it },
-                    hint = "Jules API Key",
-                    secret = true,
-                    onSubmit = {
-                        settingsViewModel.saveApiKey(apiKey)
-                        Toast.makeText(context, "Jules Key Saved", Toast.LENGTH_SHORT).show()
-                    },
-                    submitButtonContent = { Text("Save") }
-                )
-            }
-            Row(Modifier.width(60.dp), verticalAlignment = Alignment.CenterVertically) {
-                AzButton(onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://jules.google.com/settings"))
-                    context.startActivity(intent)
-                }, text = "Get Key", shape = AzButtonShape.NONE)
-            }
+                    Text("Jules API Key", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
+                }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    AzTextBox(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = apiKey,
+                        onValueChange = { apiKey = it },
+                        hint = "Jules API Key",
+                        secret = true,
+                        onSubmit = {
+                            settingsViewModel.saveApiKey(apiKey)
+                            Toast.makeText(context, "Jules Key Saved", Toast.LENGTH_SHORT).show()
+                        },
+                        submitButtonContent = { Text("Save") }
+                    )
+                }
+                Row(Modifier.width(60.dp), verticalAlignment = Alignment.CenterVertically) {
+                    AzButton(onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://jules.google.com/settings"))
+                        context.startActivity(intent)
+                    }, text = "Get Key", shape = AzButtonShape.NONE)
+                }
 
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+
+                    Text("GitHub Personal Access Token", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
+                }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    AzTextBox(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = githubToken,
+                        onValueChange = { githubToken = it },
+                        hint = "GitHub Token",
+                        secret = true,
+                        onSubmit = {
+                            settingsViewModel.saveGithubToken(githubToken)
+                            Toast.makeText(context, "GitHub Token Saved", Toast.LENGTH_SHORT).show()
+                        },
+                        submitButtonContent = { Text("Save") }
+                    )
+                }
+                Row(Modifier.width(60.dp), verticalAlignment = Alignment.CenterVertically) {
+                    AzButton(onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/settings/tokens"))
+                        context.startActivity(intent)
+                    }, text = "Get Key", shape = AzButtonShape.NONE)
+                }
+
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+
+                    Text("AI Studio API Key", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
+                }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    AzTextBox(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = googleApiKey,
+                        onValueChange = { googleApiKey = it },
+                        hint = "AI Studio API Key",
+                        secret = true,
+                        onSubmit = {
+                            settingsViewModel.saveGoogleApiKey(googleApiKey)
+                            Toast.makeText(context, "AI Studio Key Saved", Toast.LENGTH_SHORT).show()
+                        },
+                        submitButtonContent = { Text("Save") }
+                    )
+                }
+                Row(Modifier.width(60.dp), verticalAlignment = Alignment.CenterVertically) {
+                    AzButton(onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/api-keys"))
+                        context.startActivity(intent)
+                    }, text = "Get Key", shape = AzButtonShape.NONE)
+                }
+
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+                Text("AI Assignments", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+
+                SettingsViewModel.aiTasks.forEach { (taskKey, taskName) ->
+                    var currentModelId by remember(taskKey) {
+                        mutableStateOf(settingsViewModel.getAiAssignment(taskKey) ?: AiModels.JULES_DEFAULT)
+                    }
+
+                    AiAssignmentDropdown(
+                        label = taskName,
+                        selectedModelId = currentModelId,
+                        onModelSelected = { model ->
+                            currentModelId = model.id
+                            settingsViewModel.saveAiAssignment(taskKey, model.id)
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+
                 Spacer(modifier = Modifier.height(24.dp))
 
-            }
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Permissions", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(16.dp))
 
-                Text("GitHub Personal Access Token", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
-            }
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                AzTextBox(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = githubToken,
-                    onValueChange = { githubToken = it },
-                    hint = "GitHub Token",
-                    secret = true,
-                    onSubmit = {
-                        settingsViewModel.saveGithubToken(githubToken)
-                        Toast.makeText(context, "GitHub Token Saved", Toast.LENGTH_SHORT).show()
-                    },
-                    submitButtonContent = { Text("Save") }
+                val hasOverlay by remember(refreshTrigger) {
+                    mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context) else true)
+                }
+                val hasNotify by remember(refreshTrigger) {
+                    mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED else true)
+                }
+                val hasInstall by remember(refreshTrigger) {
+                    mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.packageManager.canRequestPackageInstalls() else true)
+                }
+                val hasScreenshot by remember(viewModel.hasScreenCapturePermission()) { mutableStateOf(viewModel.hasScreenCapturePermission()) }
+                val hasAccessibility by remember(refreshTrigger) {
+                    mutableStateOf(isAccessibilityServiceEnabled(context, ".services.UIInspectionService"))
+                }
+
+                PermissionCheckRow(
+                    name = "Draw Over Other Apps",
+                    granted = hasOverlay,
+                    onClick = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:${context.packageName}")
+                            )
+                            overlayPermissionLauncher.launch(intent)
+                        }
+                    }
                 )
-            }
-            Row(Modifier.width(60.dp), verticalAlignment = Alignment.CenterVertically) {
-                AzButton(onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/settings/tokens"))
-                    context.startActivity(intent)
-                }, text = "Get Key", shape = AzButtonShape.NONE)
-            }
 
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                PermissionCheckRow(
+                    name = "Accessibility Service",
+                    granted = hasAccessibility,
+                    onClick = {
+                        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        accessibilitySettingsLauncher.launch(intent)
+                    }
+                )
+
+                PermissionCheckRow(
+                    name = "Post Notifications",
+                    granted = hasNotify,
+                    onClick = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    }
+                )
+
+                PermissionCheckRow(
+                    name = "Install Unknown Apps",
+                    granted = hasInstall,
+                    onClick = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                Uri.parse("package:${context.packageName}")
+                            )
+                            installPermissionLauncher.launch(intent)
+                        }
+                    }
+                )
+
+                PermissionCheckRow(
+                    name = "Screen Capture",
+                    granted = hasScreenshot,
+                    onClick = {
+                        if (!hasScreenshot) {
+                            viewModel.requestScreenCapturePermission()
+                        } else {
+                            Toast.makeText(context, "Permission already granted", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+
                 Spacer(modifier = Modifier.height(24.dp))
 
-            }
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-
-                Text("AI Studio API Key", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
-            }
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                AzTextBox(
+                Text("Preferences", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    value = googleApiKey,
-                    onValueChange = { googleApiKey = it },
-                    hint = "AI Studio API Key",
-                    secret = true,
-                    onSubmit = {
-                        settingsViewModel.saveGoogleApiKey(googleApiKey)
-                        Toast.makeText(context, "AI Studio Key Saved", Toast.LENGTH_SHORT).show()
-                    },
-                    submitButtonContent = { Text("Save") }
-                )
-            }
-            Row(Modifier.width(60.dp), verticalAlignment = Alignment.CenterVertically) {
-                AzButton(onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/api-keys"))
-                    context.startActivity(intent)
-                }, text = "Get Key", shape = AzButtonShape.NONE)
-            }
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = showCancelWarning,
+                        onCheckedChange = {
+                            showCancelWarning = it
+                            settingsViewModel.setShowCancelWarning(it)
+                        }
+                    )
+                    Text("Show warning when cancelling AI task", color = MaterialTheme.colorScheme.onBackground)
+                }
 
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                // --- NEW: Auto Report Checkbox ---
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = autoReportBugs,
+                        onCheckedChange = {
+                            autoReportBugs = it
+                            settingsViewModel.setAutoReportBugs(it)
+                        }
+                    )
+                    Text("Auto-report IDE internal errors to GitHub", color = MaterialTheme.colorScheme.onBackground)
+                }
+                // --- END NEW ---
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                ThemeDropdown(
+                    settingsViewModel = settingsViewModel,
+                    onThemeToggle = onThemeToggle
+                )
+
+
                 Spacer(modifier = Modifier.height(24.dp))
 
-            }
-            Spacer(modifier = Modifier.height(24.dp))
-            Text("AI Assignments", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
-
-            SettingsViewModel.aiTasks.forEach { (taskKey, taskName) ->
-                var currentModelId by remember(taskKey) {
-                    mutableStateOf(settingsViewModel.getAiAssignment(taskKey) ?: AiModels.JULES_DEFAULT)
-                }
-
-                AiAssignmentDropdown(
-                    label = taskName,
-                    selectedModelId = currentModelId,
-                    onModelSelected = { model ->
-                        currentModelId = model.id
-                        settingsViewModel.saveAiAssignment(taskKey, model.id)
-                    }
+                Text("Log Level", color = MaterialTheme.colorScheme.onBackground)
+                LogLevelDropdown(
+                    settingsViewModel = settingsViewModel
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-            }
 
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text("Permissions", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
-            Spacer(modifier = Modifier.height(16.dp))
-
-            val hasOverlay by remember(refreshTrigger) {
-                mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context) else true)
-            }
-            val hasNotify by remember(refreshTrigger) {
-                mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED else true)
-            }
-            val hasInstall by remember(refreshTrigger) {
-                mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.packageManager.canRequestPackageInstalls() else true)
-            }
-            val hasScreenshot by remember(viewModel.hasScreenCapturePermission()) { mutableStateOf(viewModel.hasScreenCapturePermission()) }
-            val hasAccessibility by remember(refreshTrigger) {
-                mutableStateOf(isAccessibilityServiceEnabled(context, ".services.UIInspectionService"))
-            }
-
-            PermissionCheckRow(
-                name = "Draw Over Other Apps",
-                granted = hasOverlay,
-                onClick = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        val intent = Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:${context.packageName}")
-                        )
-                        overlayPermissionLauncher.launch(intent)
-                    }
-                }
-            )
-
-            PermissionCheckRow(
-                name = "Accessibility Service",
-                granted = hasAccessibility,
-                onClick = {
-                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                    accessibilitySettingsLauncher.launch(intent)
-                }
-            )
-
-            PermissionCheckRow(
-                name = "Post Notifications",
-                granted = hasNotify,
-                onClick = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    }
-                }
-            )
-
-            PermissionCheckRow(
-                name = "Install Unknown Apps",
-                granted = hasInstall,
-                onClick = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        val intent = Intent(
-                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                            Uri.parse("package:${context.packageName}")
-                        )
-                        installPermissionLauncher.launch(intent)
-                    }
-                }
-            )
-
-            PermissionCheckRow(
-                name = "Screen Capture",
-                granted = hasScreenshot,
-                onClick = {
-                    if (!hasScreenshot) {
-                        viewModel.requestScreenCapturePermission()
-                    } else {
-                        Toast.makeText(context, "Permission already granted", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text("Preferences", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Checkbox(
-                    checked = showCancelWarning,
-                    onCheckedChange = {
-                        showCancelWarning = it
-                        settingsViewModel.setShowCancelWarning(it)
-                    }
+                Spacer(modifier = Modifier.height(24.dp))
+                Text("Debug", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(16.dp))
+                AzButton(
+                    onClick = {
+                        viewModel.clearBuildCaches(context)
+                        Toast.makeText(context, "Build caches cleared", Toast.LENGTH_SHORT).show()
+                    },
+                    text = "Clear Build Caches",
+                    shape = AzButtonShape.RECTANGLE,
+                    modifier = Modifier.fillMaxWidth()
                 )
-                Text("Show warning when cancelling AI task", color = MaterialTheme.colorScheme.onBackground)
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            ThemeDropdown(
-                settingsViewModel = settingsViewModel,
-                onThemeToggle = onThemeToggle
-            )
-
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text("Log Level", color = MaterialTheme.colorScheme.onBackground)
-            LogLevelDropdown(
-                settingsViewModel = settingsViewModel
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-            Text("Debug", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
-            Spacer(modifier = Modifier.height(16.dp))
-            AzButton(
-                onClick = {
-                    viewModel.clearBuildCaches(context)
-                    Toast.makeText(context, "Build caches cleared", Toast.LENGTH_SHORT).show()
-                },
-                text = "Clear Build Caches",
-                shape = AzButtonShape.RECTANGLE,
-                modifier = Modifier.fillMaxWidth()
-            )
         }
     }
-}
 }
 
 fun isAccessibilityServiceEnabled(context: Context, serviceName: String): Boolean {

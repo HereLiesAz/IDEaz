@@ -49,6 +49,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
+import com.hereliesaz.ideaz.utils.GithubIssueReporter
 
 data class ProjectMetadata(
     val name: String,
@@ -121,6 +122,24 @@ class MainViewModel(
         unbindBuildService(getApplication())
     }
 
+    // --- NEW: Centralized Error Handling with API Support ---
+    private fun handleIdeError(e: Exception, contextMessage: String) {
+        Log.e(TAG, contextMessage, e)
+        _buildLog.value += "[IDE ERROR] $contextMessage: ${e.message}\n"
+
+        if (settingsViewModel.getAutoReportBugs()) {
+            _buildLog.value += "[IDE] Reporting internal error to GitHub...\n"
+            viewModelScope.launch(Dispatchers.IO) {
+                val token = settingsViewModel.getGithubToken()
+                val result = GithubIssueReporter.reportError(getApplication(), token, e, contextMessage)
+                _buildLog.value += "[IDE] $result\n"
+            }
+        } else {
+            _buildLog.value += "[IDE] Auto-report is disabled in settings.\n"
+        }
+    }
+    // --- END NEW ---
+
     private val buildServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             Log.d(TAG, "onServiceConnected: Service connected")
@@ -161,6 +180,8 @@ class MainViewModel(
                     sourceMap = parser.parse()
                     _buildLog.value += "[DEBUG] Source map loaded. Found ${sourceMap.size} entries.\n"
                 }
+
+                _buildLog.value += "[IDE] Waiting for installation to complete to launch app...\n"
             }
         }
 
@@ -171,13 +192,20 @@ class MainViewModel(
                 _buildLog.value += "[IDE] Status: Build Failed\n"
                 contextualTaskJob = null
                 logToOverlay("Build failed. See global log to debug.")
-                _buildLog.value += "[IDE] AI Status: Build failed, asking AI to debug...\n"
-                debugBuild()
+
+                // --- FIX: Distinguish System vs User Errors ---
+                // If the logs contain specific system failures (tools missing), report to GitHub.
+                // Otherwise, assume user code error and use AI Debugger.
+                if (log.contains("tools not found", ignoreCase = true)) {
+                    handleIdeError(Exception("Build Toolchain Verification Failed: $log"), "Build Toolchain Error")
+                } else {
+                    _buildLog.value += "[IDE] AI Status: Build failed, asking AI to debug...\n"
+                    debugBuild()
+                }
+                // --- END FIX ---
             }
         }
     }
-
-    // --- Data Fetching ---
 
     fun fetchOwnedSources() {
         viewModelScope.launch {
@@ -188,7 +216,7 @@ class MainViewModel(
                 _ownedSources.value = response.sources ?: emptyList()
                 Log.d(TAG, "fetchOwnedSources: Success. Found ${response.sources?.size ?: 0} sources.")
             } catch (e: Exception) {
-                Log.e(TAG, "fetchOwnedSources: Failed to fetch sources", e)
+                handleIdeError(e, "Failed to fetch sources")
                 _ownedSources.value = emptyList()
             } finally {
                 _isLoadingSources.value = false
@@ -210,6 +238,7 @@ class MainViewModel(
 
                 _availableSessions.value = filtered
             } catch (e: Exception) {
+                // Log but don't crash or report aggressively
                 Log.e(TAG, "Failed to list sessions", e)
             }
         }
@@ -219,8 +248,6 @@ class MainViewModel(
         _activeSessionId.value = sessionId
         _buildLog.value += "[INFO] Active session set to: $sessionId\n"
     }
-
-    // --- Project Management ---
 
     fun loadLastProject(context: Context) {
         val lastApp = settingsViewModel.getAppName()
@@ -271,7 +298,6 @@ class MainViewModel(
                     }
                     _loadingProgress.value = null
 
-                    // Load config from .ideaz if it exists
                     val loadedConfig = ProjectConfigManager.loadConfig(projectDir)
                     if (loadedConfig != null) {
                         _buildLog.value += "[INFO] Loaded project config from .ideaz\n"
@@ -297,8 +323,7 @@ class MainViewModel(
                     startBuild(getApplication())
 
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to clone/pull", e)
-                    _buildLog.value += "[INFO] Error: ${e.message}\n"
+                    handleIdeError(e, "Failed to clone/pull project")
                 }
             }
         }
@@ -354,10 +379,7 @@ class MainViewModel(
                     _buildLog.value += "[INFO] Applying ${projectType.displayName} template...\n"
                     createProjectFromTemplateInternal(context, projectType, projectDir)
 
-                    // Add .ideaz to .gitignore
                     ProjectConfigManager.ensureGitIgnore(projectDir)
-
-                    // Save config
                     saveProjectConfigToFile(projectDir, projectType.name, packageName, response.defaultBranch ?: "main")
 
                     _buildLog.value += "[INFO] Pushing initial commit...\n"
@@ -376,8 +398,7 @@ class MainViewModel(
                 }
 
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to create repository", e)
-                _buildLog.value += "[ERROR] Failed to create repository: ${e.message}\n"
+                handleIdeError(e, "Failed to create repository")
             }
         }
     }
@@ -427,26 +448,21 @@ class MainViewModel(
                         createProjectFromTemplateInternal(context, type, projectDir)
                     }
 
-                    // Ensure .ideaz is ignored and config is saved
                     ProjectConfigManager.ensureGitIgnore(projectDir)
                     saveProjectConfigToFile(projectDir, type.name, pkg, branch)
 
                     if (!initialPrompt.isNullOrBlank()) {
                         _buildLog.value += "[INFO] Saving initial prompt and sending to AI...\n"
                         logPromptToHistory(initialPrompt, null)
-                        // Release lock before calling sendPrompt to avoid recursion issues if it uses lock (it doesn't, but safe practice)
                     } else {
                         _buildLog.value += "[INFO] Starting initial build...\n"
                         startBuild(context, projectDir)
                     }
 
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed during saveAndInitialize", e)
-                    _buildLog.value += "[ERROR] Initialization failed: ${e.message}\n"
+                    handleIdeError(e, "Failed during saveAndInitialize")
                 }
             }
-            // If we had a prompt, we send it now, outside the lock if possible, or inside if safe.
-            // sendPrompt is async (launches own scope), so calling it here is fine.
             if (!initialPrompt.isNullOrBlank()) {
                 sendPrompt(initialPrompt, isInitialization = true)
             }
@@ -498,8 +514,7 @@ class MainViewModel(
 
                 _buildLog.value += "[INFO] Project '$projectName' loaded successfully.\n"
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to load project", e)
-                _buildLog.value += "[INFO] Error loading project: ${e.message}\n"
+                handleIdeError(e, "Failed to load project")
             }
         }
     }
@@ -510,8 +525,6 @@ class MainViewModel(
         startBuild(context, projectDir)
     }
 
-    // --- Sessions & AI ---
-
     fun deleteSession(session: com.hereliesaz.ideaz.api.Session) {
         viewModelScope.launch {
             try {
@@ -519,8 +532,7 @@ class MainViewModel(
                 fetchSessions()
                 _buildLog.value += "[INFO] Session ${session.id} deleted.\n"
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to delete session", e)
-                _buildLog.value += "[ERROR] Failed to delete session: ${e.message}\n"
+                handleIdeError(e, "Failed to delete session")
             }
         }
     }
@@ -551,8 +563,7 @@ class MainViewModel(
                     _buildLog.value += "[INFO] Checked out PR branch. Building...\n"
                     startBuild(getApplication())
                 } catch (e: Exception) {
-                    Log.e(TAG, "Try session failed", e)
-                    _buildLog.value += "[ERROR] Try session failed: ${e.message}\n"
+                    handleIdeError(e, "Try session failed")
                 }
             }
         }
@@ -580,8 +591,7 @@ class MainViewModel(
                     _buildLog.value += "[INFO] Merged PR #$prId. Building...\n"
                     startBuild(getApplication())
                 } catch (e: Exception) {
-                    Log.e(TAG, "Accept session failed", e)
-                    _buildLog.value += "[ERROR] Accept session failed: ${e.message}\n"
+                    handleIdeError(e, "Accept session failed")
                 }
             }
         }
@@ -597,7 +607,6 @@ class MainViewModel(
 
         _buildLog.value += "\n[INFO] Sending prompt: $prompt\n"
 
-        // Log to history if not already logged (isInitialization=true was likely logged in saveAndInitialize)
         if (!isInitialization) {
             logPromptToHistory(prompt ?: "", null)
         }
@@ -632,7 +641,6 @@ class MainViewModel(
                         val sourceString = "sources/github/$githubUser/$appName"
                         val promptText = prompt ?: ""
 
-                        // Check active session
                         val activeId = _activeSessionId.value
                         if (activeId != null) {
                             _buildLog.value += "[INFO] Sending message to existing session $activeId...\n"
@@ -658,8 +666,7 @@ class MainViewModel(
                         pollForPatch(sessionId, _buildLog)
 
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error creating Jules session", e)
-                        _buildLog.value += "[INFO] AI Status: Error: ${e.message}\n"
+                        handleIdeError(e, "Error creating Jules session")
                     }
                 }
                 AiModels.GEMINI_FLASH -> {
@@ -676,8 +683,6 @@ class MainViewModel(
             }
         }
     }
-
-    // --- UI Inspection & Screenshots ---
 
     fun onNodePromptSubmitted(resourceId: String, prompt: String, bounds: Rect) {
         pendingRect = bounds
@@ -743,7 +748,6 @@ class MainViewModel(
         pendingRichPrompt = null
         val finalRichPrompt = "$prompt\n\n[IMAGE: data:image/png;base64,$base64]"
 
-        // Save to history with screenshot
         logPromptToHistory(prompt, base64)
 
         startContextualAITask(finalRichPrompt)
@@ -791,6 +795,7 @@ class MainViewModel(
                     } catch (e: Exception) {
                         logToOverlay("Error: ${e.message}")
                         logToOverlay("Task Finished.")
+                        handleIdeError(e, "Contextual AI Task Failed")
                     }
                 }
                 AiModels.GEMINI_FLASH -> {
@@ -807,8 +812,6 @@ class MainViewModel(
             }
         }
     }
-
-    // --- Permissions & Cancellation ---
 
     fun requestCancelTask() {
         if (settingsViewModel.getShowCancelWarning()) {
@@ -846,8 +849,6 @@ class MainViewModel(
             _buildLog.value += "Warning: Screen capture permission denied.\n"
         }
     }
-
-    // --- Helper Methods ---
 
     fun startInspection(context: Context) {
         context.sendBroadcast(Intent("com.hereliesaz.ideaz.START_INSPECTION"))
@@ -924,7 +925,7 @@ class MainViewModel(
                 settingsViewModel.setProjectType(type.name)
                 _buildLog.value += "[INFO] Project '$projectName' created.\n"
             } catch (e: Exception) {
-                _buildLog.value += "[INFO] Error creating project: ${e.message}\n"
+                handleIdeError(e, "Error creating project from template")
             }
         }
     }
@@ -943,7 +944,6 @@ class MainViewModel(
                 files.forEach { copyAsset(context, "$assetPath/$it", "$destPath/$it") }
             }
         } catch (e: IOException) {
-            // Fallback for files that act weirdly
             try {
                 assetManager.open(assetPath).use { input ->
                     FileOutputStream(destPath).use { output -> input.copyTo(output) }
@@ -963,7 +963,7 @@ class MainViewModel(
                 if (repoDir.exists()) repoDir.deleteRecursively()
                 _buildLog.value += "[INFO] Build caches cleared.\n"
             } catch (e: Exception) {
-                _buildLog.value += "[INFO] Error clearing caches: ${e.message}\n"
+                handleIdeError(e, "Error clearing caches")
             }
         }
     }
@@ -991,7 +991,7 @@ class MainViewModel(
                         _buildLog.value += "AI Status: Debug info sent. Waiting for patch...\n"
                         pollForPatch(session.name.substringAfterLast("/"), _buildLog)
                     } catch (e: Exception) {
-                        _buildLog.value += "AI Status: Error debugging: ${e.message}\n"
+                        handleIdeError(e, "Error debugging build")
                     }
                 }
                 AiModels.GEMINI_FLASH -> {
@@ -1063,6 +1063,7 @@ class MainViewModel(
                 } catch (e: Exception) {
                     logTo(logTarget, "[INFO] AI Status: Error applying patch: ${e.message}")
                     if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
+                    handleIdeError(e, "Error applying patch")
                 }
             }
         }

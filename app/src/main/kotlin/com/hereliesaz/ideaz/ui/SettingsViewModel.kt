@@ -1,9 +1,7 @@
 package com.hereliesaz.ideaz.ui
 
-import android.content.Context
-import android.content.Intent
-import android.util.Log
 import android.app.Application
+import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.saveable.Saver
@@ -59,6 +57,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         // New key for cancel warning
         const val KEY_SHOW_CANCEL_WARNING = "show_cancel_warning"
 
+        // --- NEW: Auto report bugs key ---
+        const val KEY_AUTO_REPORT_BUGS = "auto_report_bugs"
+        // --- END NEW ---
+
         // --- NEW: Theme Keys ---
         const val KEY_THEME_MODE = "theme_mode"
         const val THEME_AUTO = "auto"
@@ -100,7 +102,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val currentAppName = _currentAppName.asStateFlow()
 
     init {
-        Log.d(TAG, "init: Creating SettingsViewModel (hash: ${this.hashCode()})")
         // Initialize AuthInterceptor with saved API key
         val savedKey = getApiKey()
         if (savedKey != null) {
@@ -122,19 +123,18 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         sharedPreferences.edit().putBoolean(KEY_SHOW_CANCEL_WARNING, show).apply()
     }
 
+    // --- NEW: Auto Report Bugs ---
+    fun getAutoReportBugs(): Boolean {
+        return sharedPreferences.getBoolean(KEY_AUTO_REPORT_BUGS, true) // Default to true
+    }
+
+    fun setAutoReportBugs(enabled: Boolean) {
+        sharedPreferences.edit().putBoolean(KEY_AUTO_REPORT_BUGS, enabled).apply()
+    }
+    // --- END NEW ---
+
     // --- Theme ---
 
-    // This function is now deprecated, use getThemeMode()
-    fun isDarkMode(): Boolean {
-        return getThemeMode() == THEME_DARK
-    }
-
-    // This function is now deprecated, use setThemeMode()
-    fun setDarkMode(isDark: Boolean) {
-        setThemeMode(if (isDark) THEME_DARK else THEME_LIGHT)
-    }
-
-    // --- NEW: Theme Get/Set ---
     fun getThemeMode(): String {
         return sharedPreferences.getString(KEY_THEME_MODE, THEME_AUTO) ?: THEME_AUTO
     }
@@ -142,8 +142,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setThemeMode(mode: String) {
         sharedPreferences.edit().putString(KEY_THEME_MODE, mode).apply()
     }
-    // --- END NEW ---
-
 
     // --- Log Verbosity ---
 
@@ -196,11 +194,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         sharedPreferences.edit().putString(taskKey, modelId).apply()
     }
 
-    /**
-     * Gets the assigned model for a task.
-     * If the task is not "Default" and has no specific assignment,
-     * it falls back to the "Default" assignment.
-     */
     fun getAiAssignment(taskKey: String): String? {
         val defaultModelId = sharedPreferences.getString(KEY_AI_ASSIGNMENT_DEFAULT, AiModels.JULES_DEFAULT)
 
