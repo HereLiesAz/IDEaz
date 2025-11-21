@@ -45,8 +45,9 @@ fun IdeBottomSheet(
 
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
-    val topLogPadding = screenHeight * 0.05f
-    val bottomLogPadding = screenHeight * 0.20f
+
+    val topLogPadding = if (isHalfwayExpanded) screenHeight * 0.45f else screenHeight * 0.05f
+    val bottomLogPadding = if (isHalfwayExpanded) screenHeight * 0.25f else screenHeight * 0.20f
 
     BottomSheet(
         state = sheetState,
