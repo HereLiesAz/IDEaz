@@ -1,0 +1,16 @@
+name: Auto-assign Jules
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  add-jules-label:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: 'Auto-add "jules" label'
+        uses: andymckay/labeler@1.0.2
+        with:
+          add-labels: 'jules'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
