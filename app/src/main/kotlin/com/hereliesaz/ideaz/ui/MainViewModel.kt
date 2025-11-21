@@ -107,14 +107,14 @@ class MainViewModel(
             Log.d(TAG, "onServiceConnected: Service connected")
             buildService = IBuildService.Stub.asInterface(service)
             isBuildServiceBound = true
-            _buildLog.value += "[INFO] Status: Build Service Connected\n"
+            _buildLog.value += "[IDE] Status: Build Service Connected\n"
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
             Log.d(TAG, "onServiceDisconnected: Service disconnected")
             buildService = null
             isBuildServiceBound = false
-            _buildLog.value += "[INFO] Status: Build Service Disconnected\n"
+            _buildLog.value += "[IDE] Status: Build Service Disconnected\n"
         }
     }
 
@@ -122,7 +122,8 @@ class MainViewModel(
         override fun onLog(message: String) {
             Log.d(TAG, "onLog: $message")
             viewModelScope.launch {
-                _buildLog.value += "[VERBOSE] $message\n"
+                // Message should have its own prefix from the source (IDE or BUILD)
+                _buildLog.value += "$message\n"
                 buildService?.updateNotification(message)
             }
         }
@@ -130,8 +131,8 @@ class MainViewModel(
         override fun onSuccess(apkPath: String) {
             Log.d(TAG, "onSuccess: Build successful, APK at $apkPath")
             viewModelScope.launch {
-                _buildLog.value += "\n[INFO] Build successful: $apkPath\n"
-                _buildLog.value += "[INFO] Status: Build Successful\n"
+                _buildLog.value += "\n[IDE] Build successful: $apkPath\n"
+                _buildLog.value += "[IDE] Status: Build Successful\n"
                 contextualTaskJob = null
                 logToOverlay("Build successful. Task finished.")
                 sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
@@ -148,11 +149,11 @@ class MainViewModel(
         override fun onFailure(log: String) {
             Log.e(TAG, "onFailure: Build failed with log:\n$log")
             viewModelScope.launch {
-                _buildLog.value += "\n[INFO] Build failed:\n$log\n"
-                _buildLog.value += "[INFO] Status: Build Failed\n"
+                _buildLog.value += "\n[IDE] Build failed:\n$log\n"
+                _buildLog.value += "[IDE] Status: Build Failed\n"
                 contextualTaskJob = null
                 logToOverlay("Build failed. See global log to debug.")
-                _buildLog.value += "[INFO] AI Status: Build failed, asking AI to debug...\n"
+                _buildLog.value += "[IDE] AI Status: Build failed, asking AI to debug...\n"
                 debugBuild()
             }
         }
