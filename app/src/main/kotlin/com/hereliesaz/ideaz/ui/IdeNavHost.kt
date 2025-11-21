@@ -31,7 +31,8 @@ fun IdeNavHost(
         composable("main") {
             LiveOutputBottomCard(
                 logStream = viewModel.filteredLog,
-                bottomPadding = bottomPadding
+                bottomPadding = bottomPadding,
+                modifier = Modifier.fillMaxSize()
             )
         }
         composable("settings") {

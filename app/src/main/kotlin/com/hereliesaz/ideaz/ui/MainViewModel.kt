@@ -41,6 +41,8 @@ import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.SourceContextHelper
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
 
@@ -58,6 +60,8 @@ class MainViewModel(
 
     private val _loadingProgress = MutableStateFlow<Int?>(null)
     val loadingProgress = _loadingProgress.asStateFlow()
+
+    private val gitMutex = Mutex()
 
     private val _buildLog = MutableStateFlow("")
     val buildLog = _buildLog.asStateFlow()
@@ -178,15 +182,15 @@ class MainViewModel(
         settingsViewModel.setGithubUser(owner)
 
         val token = settingsViewModel.getGithubToken()
-        // For auth, we use the configured github user, but usually token is enough
         val authUser = settingsViewModel.getGithubUser()
 
         viewModelScope.launch {
-            _buildLog.value += "[INFO] Selecting repository '$owner/$appName'...\n"
-            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            gitMutex.withLock {
+                _buildLog.value += "[INFO] Selecting repository '$owner/$appName'...\n"
+                val projectDir = getApplication<Application>().filesDir.resolve(appName)
 
-            try {
-                if (projectDir.exists() && File(projectDir, ".git").exists()) {
+                try {
+                    if (projectDir.exists() && File(projectDir, ".git").exists()) {
                     _buildLog.value += "[INFO] Project exists. Pulling latest changes...\n"
                     withContext(Dispatchers.IO) {
                         GitManager(projectDir).pull(authUser, token) { percent, task ->
@@ -221,12 +225,13 @@ class MainViewModel(
                     _buildLog.value += "[INFO] Detected package name: $pkg\n"
                 }
 
-                fetchSessions()
-                startBuild(getApplication())
+                    fetchSessions()
+                    startBuild(getApplication())
 
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to clone/pull", e)
-                _buildLog.value += "[INFO] Error: ${e.message}\n"
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to clone/pull", e)
+                    _buildLog.value += "[INFO] Error: ${e.message}\n"
+                }
             }
         }
     }
@@ -259,18 +264,20 @@ class MainViewModel(
         val user = settingsViewModel.getGithubUser()
 
         viewModelScope.launch {
-            try {
-                _buildLog.value += "[INFO] Fetching PR #$prId...\n"
-                withContext(Dispatchers.IO) {
-                    val gitManager = GitManager(projectDir)
-                    gitManager.fetchPr(prId, branchName, user, token)
-                    gitManager.checkout(branchName)
+            gitMutex.withLock {
+                try {
+                    _buildLog.value += "[INFO] Fetching PR #$prId...\n"
+                    withContext(Dispatchers.IO) {
+                        val gitManager = GitManager(projectDir)
+                        gitManager.fetchPr(prId, branchName, user, token)
+                        gitManager.checkout(branchName)
+                    }
+                    _buildLog.value += "[INFO] Checked out PR branch. Building...\n"
+                    startBuild(getApplication())
+                } catch (e: Exception) {
+                    Log.e(TAG, "Try session failed", e)
+                    _buildLog.value += "[ERROR] Try session failed: ${e.message}\n"
                 }
-                _buildLog.value += "[INFO] Checked out PR branch. Building...\n"
-                startBuild(getApplication())
-            } catch (e: Exception) {
-                Log.e(TAG, "Try session failed", e)
-                _buildLog.value += "[ERROR] Try session failed: ${e.message}\n"
             }
         }
     }
@@ -286,18 +293,20 @@ class MainViewModel(
         val user = settingsViewModel.getGithubUser()
 
         viewModelScope.launch {
-            try {
-                withContext(Dispatchers.IO) {
-                    val gitManager = GitManager(projectDir)
-                    gitManager.checkout(mainBranch)
-                    gitManager.pull(user, token)
-                    gitManager.merge(branchName)
+            gitMutex.withLock {
+                try {
+                    withContext(Dispatchers.IO) {
+                        val gitManager = GitManager(projectDir)
+                        gitManager.checkout(mainBranch)
+                        gitManager.pull(user, token)
+                        gitManager.merge(branchName)
+                    }
+                    _buildLog.value += "[INFO] Merged PR #$prId. Building...\n"
+                    startBuild(getApplication())
+                } catch (e: Exception) {
+                    Log.e(TAG, "Accept session failed", e)
+                    _buildLog.value += "[ERROR] Accept session failed: ${e.message}\n"
                 }
-                _buildLog.value += "[INFO] Merged PR #$prId. Building...\n"
-                startBuild(getApplication())
-            } catch (e: Exception) {
-                Log.e(TAG, "Accept session failed", e)
-                _buildLog.value += "[ERROR] Accept session failed: ${e.message}\n"
             }
         }
     }
@@ -556,53 +565,55 @@ class MainViewModel(
 
     fun initializeProject(prompt: String?) {
         viewModelScope.launch {
-            _buildLog.value += "[INFO] Checking for updates...\n"
-            try {
-                val appName = settingsViewModel.getAppName()
-                val token = settingsViewModel.getGithubToken()
-                val user = settingsViewModel.getGithubUser()
+            gitMutex.withLock {
+                _buildLog.value += "[INFO] Checking for updates...\n"
+                try {
+                    val appName = settingsViewModel.getAppName()
+                    val token = settingsViewModel.getGithubToken()
+                    val user = settingsViewModel.getGithubUser()
 
-                if (!appName.isNullOrBlank()) {
-                    val projectDir = getApplication<Application>().filesDir.resolve(appName)
-                    if (projectDir.exists()) {
-                        withContext(Dispatchers.IO) {
-                            val git = GitManager(projectDir)
-                            try {
-                                git.pull(user, token) { percent, task ->
-                                    _loadingProgress.value = percent
-                                }
-                            } catch (e: Exception) {
-                                val msg = e.message ?: ""
-                                if (msg.contains("Checkout conflict") || msg.contains("checkout conflict")) {
-                                    _buildLog.value += "[INFO] Conflict detected. Stashing local changes...\n"
-                                    git.stash("Auto-stash " + System.currentTimeMillis())
+                    if (!appName.isNullOrBlank()) {
+                        val projectDir = getApplication<Application>().filesDir.resolve(appName)
+                        if (projectDir.exists()) {
+                            withContext(Dispatchers.IO) {
+                                val git = GitManager(projectDir)
+                                try {
                                     git.pull(user, token) { percent, task ->
                                         _loadingProgress.value = percent
                                     }
-                                    _buildLog.value += "[INFO] Restoring local changes...\n"
-                                    try {
-                                        git.unstash()
-                                    } catch (e2: Exception) {
-                                        _buildLog.value += "[WARN] Merge conflict during unstash. Resolve manually.\n"
+                                } catch (e: Exception) {
+                                    val msg = e.message ?: ""
+                                    if (msg.contains("Checkout conflict") || msg.contains("checkout conflict")) {
+                                        _buildLog.value += "[INFO] Conflict detected. Stashing local changes...\n"
+                                        git.stash("Auto-stash " + System.currentTimeMillis())
+                                        git.pull(user, token) { percent, task ->
+                                            _loadingProgress.value = percent
+                                        }
+                                        _buildLog.value += "[INFO] Restoring local changes...\n"
+                                        try {
+                                            git.unstash()
+                                        } catch (e2: Exception) {
+                                            _buildLog.value += "[WARN] Merge conflict during unstash. Resolve manually.\n"
+                                        }
+                                    } else {
+                                        throw e
                                     }
-                                } else {
-                                    throw e
                                 }
                             }
+                            _loadingProgress.value = null
+                            _buildLog.value += "[INFO] Project updated.\n"
                         }
-                        _loadingProgress.value = null
-                        _buildLog.value += "[INFO] Project updated.\n"
                     }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to pull", e)
+                    _buildLog.value += "[INFO] Warning: Failed to update project: ${e.message}\n"
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to pull", e)
-                _buildLog.value += "[INFO] Warning: Failed to update project: ${e.message}\n"
-            }
 
-            if (!prompt.isNullOrBlank()) {
-                sendPrompt(prompt, isInitialization = true)
-            } else {
-                _buildLog.value += "[INFO] No initial prompt provided. Skipping AI initialization.\n"
+                if (!prompt.isNullOrBlank()) {
+                    sendPrompt(prompt, isInitialization = true)
+                } else {
+                    _buildLog.value += "[INFO] No initial prompt provided. Skipping AI initialization.\n"
+                }
             }
         }
     }
@@ -1203,24 +1214,26 @@ class MainViewModel(
     private fun applyPatch(context: Context, patchContent: String, logTarget: Any) {
         Log.d(TAG, "applyPatch called")
         viewModelScope.launch {
-            try {
-                logTo(logTarget, "[INFO] AI Status: Applying patch...")
-                val appName = settingsViewModel.getAppName()
-                val projectDir = if (!appName.isNullOrBlank()) {
-                    context.filesDir.resolve(appName)
-                } else {
-                    context.filesDir.resolve("project")
+            gitMutex.withLock {
+                try {
+                    logTo(logTarget, "[INFO] AI Status: Applying patch...")
+                    val appName = settingsViewModel.getAppName()
+                    val projectDir = if (!appName.isNullOrBlank()) {
+                        context.filesDir.resolve(appName)
+                    } else {
+                        context.filesDir.resolve("project")
+                    }
+
+                    val gitManager = GitManager(projectDir)
+                    gitManager.applyPatch(patchContent)
+                    logTo(logTarget, "[INFO] AI Status: Patch applied. Rebuilding...")
+                    startBuild(context, projectDir)
+
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error applying patch", e)
+                    logTo(logTarget, "[INFO] AI Status: Error applying patch: ${e.message}")
+                    if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
                 }
-
-                val gitManager = GitManager(projectDir)
-                gitManager.applyPatch(patchContent)
-                logTo(logTarget, "[INFO] AI Status: Patch applied. Rebuilding...")
-                startBuild(context, projectDir)
-
-            } catch (e: Exception) {
-                Log.e(TAG, "Error applying patch", e)
-                logTo(logTarget, "[INFO] AI Status: Error applying patch: ${e.message}")
-                if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
             }
         }
     }
@@ -1252,25 +1265,27 @@ class MainViewModel(
 
     fun syncAndDeleteProject(projectName: String) {
         viewModelScope.launch {
-            _buildLog.value += "[INFO] Syncing and deleting project '$projectName'...\n"
-            val projectDir = getApplication<Application>().filesDir.resolve(projectName)
-            if (projectDir.exists()) {
-                try {
-                    withContext(Dispatchers.IO) {
-                        val git = GitManager(projectDir)
-                        val token = settingsViewModel.getGithubToken()
-                        val user = settingsViewModel.getGithubUser()
-                        git.addAll()
-                        git.commit("Sync before delete")
-                        git.push(user, token)
+            gitMutex.withLock {
+                _buildLog.value += "[INFO] Syncing and deleting project '$projectName'...\n"
+                val projectDir = getApplication<Application>().filesDir.resolve(projectName)
+                if (projectDir.exists()) {
+                    try {
+                        withContext(Dispatchers.IO) {
+                            val git = GitManager(projectDir)
+                            val token = settingsViewModel.getGithubToken()
+                            val user = settingsViewModel.getGithubUser()
+                            git.addAll()
+                            git.commit("Sync before delete")
+                            git.push(user, token)
+                        }
+                        _buildLog.value += "[INFO] Sync complete.\n"
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to sync project", e)
+                        _buildLog.value += "[INFO] Error syncing project: ${e.message}. Deleting anyway...\n"
                     }
-                    _buildLog.value += "[INFO] Sync complete.\n"
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to sync project", e)
-                    _buildLog.value += "[INFO] Error syncing project: ${e.message}. Deleting anyway...\n"
                 }
+                deleteProject(projectName)
             }
-            deleteProject(projectName)
         }
     }
 }
