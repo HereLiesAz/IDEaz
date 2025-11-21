@@ -94,7 +94,7 @@ configurations.all {
 }
 
 dependencies {
-    implementation(libs.jcabi.aether) {
+    implementation(libs.aether.connector.wagon) {
         exclude(group = "org.sonatype.sisu", module = "sisu-guava")
     }
     implementation(libs.maven.core) {
