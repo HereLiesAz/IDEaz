@@ -18,6 +18,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
+import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -208,7 +209,10 @@ class UIInspectionService : AccessibilityService() {
 
     private fun showLogUI(rect: Rect) {
         touchInterceptor?.visibility = View.GONE
-        if (overlayView == null) overlayView = LayoutInflater.from(this).inflate(R.layout.inspection_overlay, null)
+        if (overlayView == null) {
+            val themedContext = ContextThemeWrapper(this, R.style.Theme_IDEaz)
+            overlayView = LayoutInflater.from(themedContext).inflate(R.layout.inspection_overlay, null)
+        }
 
         val lp = WindowManager.LayoutParams().apply {
             type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
@@ -237,7 +241,8 @@ class UIInspectionService : AccessibilityService() {
         hideOverlayUI()
         touchInterceptor?.visibility = View.GONE
 
-        overlayView = LayoutInflater.from(this).inflate(R.layout.inspection_overlay, null)
+        val themedContext = ContextThemeWrapper(this, R.style.Theme_IDEaz)
+        overlayView = LayoutInflater.from(themedContext).inflate(R.layout.inspection_overlay, null)
         val lp = WindowManager.LayoutParams().apply {
             type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
             format = PixelFormat.TRANSLUCENT
