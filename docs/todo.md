@@ -79,7 +79,7 @@ This phase focuses on improving the user experience during long-running backgrou
 This phase will broaden the IDE's appeal and capabilities by supporting a wider range of project types and development frameworks beyond the initial all-Kotlin focus. All implementations must adhere to the "post-code" editing model.
 
 - [x] **7.1: Lay Groundwork for Multi-Platform Support**
-    - [x] Update `MainViewModel` and `ProjectRepository` to support non-Android project structures (Web, React Native, Flutter).
+    - [x] Update `MainViewModel` (acts as ProjectRepository) to support non-Android project structures (Web, React Native, Flutter).
     - [x] Create file structure and basic templates for:
         - [x] Web (HTML/CSS/JS)
         - [x] React Native (JS/TS)

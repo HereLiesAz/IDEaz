@@ -37,6 +37,12 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ui.web.WebRuntimeActivity"
+            android:exported="false"
+            android:label="Web Preview"
+            android:theme="@style/Theme.IDEaz" />
+
         <!--
              BuildService requires 'dataSync' on Android 14+
              because it performs long-running processing/compilation.
