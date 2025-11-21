@@ -91,7 +91,9 @@ This phase will broaden the IDE's appeal and capabilities by supporting a wider 
     - [ ] Ensure visual selection works via DOM interaction.
 
 - [ ] **7.3: Implement React Native Support**
-    - [ ] Create a `ReactNativeBuildStep` (likely using a bundled JS engine or simplified packager).
+    - [x] Create a `ReactNativeBuildStep` (uses `SimpleJsBundler` and Android shell template).
+    - [x] Create Android shell template for React Native.
+    - [x] Implement `SimpleJsBundler` with source map injection (`accessibilityLabel`).
     - [ ] Adapt the `UIInspectionService` to handle React Native UI trees (or bridge integration).
 
 - [ ] **7.4: Implement Flutter Support (Final Stage)**
