@@ -76,6 +76,7 @@ fun ProjectScreen(
     var githubUser by remember { mutableStateOf("") }
     var branchName by remember { mutableStateOf("") }
     var packageName by remember { mutableStateOf("") }
+    var selectedType by remember { mutableStateOf(ProjectType.ANDROID) }
 
     // Sync local state when current app name changes (e.g. project loaded)
     LaunchedEffect(currentAppNameState) {
@@ -83,6 +84,7 @@ fun ProjectScreen(
         githubUser = settingsViewModel.getGithubUser() ?: ""
         branchName = settingsViewModel.getBranchName()
         packageName = settingsViewModel.getTargetPackageName() ?: "com.example.helloworld"
+        selectedType = ProjectType.fromString(settingsViewModel.getProjectType())
     }
 
     // NEW: Collect sources from ViewModel and use local githubUser state for filtering
@@ -289,9 +291,6 @@ fun ProjectScreen(
                     // Project Type Dropdown
                     var expanded by remember { mutableStateOf(false) }
                     val projectTypes = ProjectType.values().toList()
-                    val savedTypeStr = settingsViewModel.getProjectType()
-                    val savedType = ProjectType.fromString(savedTypeStr)
-                    var selectedType by remember { mutableStateOf(savedType) }
 
                     ExposedDropdownMenuBox(
                         expanded = expanded,
