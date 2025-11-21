@@ -44,12 +44,20 @@ import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
 
+data class ProjectMetadata(
+    val name: String,
+    val sizeBytes: Long
+)
+
 class MainViewModel(
     application: Application,
     val settingsViewModel: SettingsViewModel
 ) : AndroidViewModel(application) {
 
     private val TAG = "MainViewModel"
+
+    private val _loadingProgress = MutableStateFlow<Int?>(null)
+    val loadingProgress = _loadingProgress.asStateFlow()
 
     private val _buildLog = MutableStateFlow("")
     val buildLog = _buildLog.asStateFlow()
@@ -181,7 +189,9 @@ class MainViewModel(
                 if (projectDir.exists() && File(projectDir, ".git").exists()) {
                     _buildLog.value += "[INFO] Project exists. Pulling latest changes...\n"
                     withContext(Dispatchers.IO) {
-                        GitManager(projectDir).pull(authUser, token)
+                        GitManager(projectDir).pull(authUser, token) { percent, task ->
+                            _loadingProgress.value = percent
+                        }
                     }
                     _buildLog.value += "[INFO] Pull complete.\n"
                 } else {
@@ -193,10 +203,13 @@ class MainViewModel(
 
                     _buildLog.value += "[INFO] Cloning $owner/$repo...\n"
                     withContext(Dispatchers.IO) {
-                        GitManager(projectDir).clone(owner, repo, authUser, token)
+                        GitManager(projectDir).clone(owner, repo, authUser, token) { percent, task ->
+                            _loadingProgress.value = percent
+                        }
                     }
                     _buildLog.value += "[INFO] Clone complete.\n"
                 }
+                _loadingProgress.value = null
 
                 val type = ProjectAnalyzer.detectProjectType(projectDir)
                 settingsViewModel.setProjectType(type.name)
@@ -209,6 +222,7 @@ class MainViewModel(
                 }
 
                 fetchSessions()
+                startBuild(getApplication())
 
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to clone/pull", e)
@@ -1182,6 +1196,55 @@ class MainViewModel(
                 logTo(logTarget, "[INFO] AI Status: Error applying patch: ${e.message}")
                 if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
             }
+        }
+    }
+
+    fun getLocalProjectsWithMetadata(): List<ProjectMetadata> {
+        val projects = settingsViewModel.getProjectList()
+        return projects.map { name ->
+            val dir = getApplication<Application>().filesDir.resolve(name)
+            val size = if (dir.exists()) dir.walkTopDown().sumOf { it.length() } else 0L
+            ProjectMetadata(name, size)
+        }
+    }
+
+    fun deleteProject(projectName: String) {
+        viewModelScope.launch {
+            _buildLog.value += "[INFO] Deleting project '$projectName'...\n"
+            val projectDir = getApplication<Application>().filesDir.resolve(projectName)
+            if (projectDir.exists()) {
+                projectDir.deleteRecursively()
+            }
+            settingsViewModel.removeProject(projectName)
+            // If deleted project was active, maybe clear active state?
+            if (settingsViewModel.getAppName() == projectName) {
+                settingsViewModel.setAppName("")
+            }
+            _buildLog.value += "[INFO] Project '$projectName' deleted.\n"
+        }
+    }
+
+    fun syncAndDeleteProject(projectName: String) {
+        viewModelScope.launch {
+            _buildLog.value += "[INFO] Syncing and deleting project '$projectName'...\n"
+            val projectDir = getApplication<Application>().filesDir.resolve(projectName)
+            if (projectDir.exists()) {
+                try {
+                    withContext(Dispatchers.IO) {
+                        val git = GitManager(projectDir)
+                        val token = settingsViewModel.getGithubToken()
+                        val user = settingsViewModel.getGithubUser()
+                        git.addAll()
+                        git.commit("Sync before delete")
+                        git.push(user, token)
+                    }
+                    _buildLog.value += "[INFO] Sync complete.\n"
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to sync project", e)
+                    _buildLog.value += "[INFO] Error syncing project: ${e.message}. Deleting anyway...\n"
+                }
+            }
+            deleteProject(projectName)
         }
     }
 }

@@ -96,6 +96,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _localProjects = MutableStateFlow<List<String>>(emptyList())
     val localProjects = _localProjects.asStateFlow()
 
+    private val _currentAppName = MutableStateFlow(getAppName())
+    val currentAppName = _currentAppName.asStateFlow()
+
     init {
         Log.d(TAG, "init: Creating SettingsViewModel (hash: ${this.hashCode()})")
         // Initialize AuthInterceptor with saved API key
@@ -242,6 +245,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         loadLocalProjects() // Refresh the flow
     }
 
+    fun removeProject(projectName: String) {
+        if (projectName.isBlank()) return
+        val projects = getProjectList().toMutableSet()
+        projects.remove(projectName)
+        sharedPreferences.edit().putStringSet(KEY_PROJECT_LIST, projects).apply()
+        loadLocalProjects()
+    }
+
     fun saveProjectConfig(appName: String, githubUser: String, branchName: String) {
         sharedPreferences.edit()
             .putString(KEY_APP_NAME, appName)
@@ -264,6 +275,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
     fun setAppName(appName: String) {
         sharedPreferences.edit().putString(KEY_APP_NAME, appName).apply()
+        _currentAppName.value = appName
     }
 
     fun getGithubUser(): String? {
