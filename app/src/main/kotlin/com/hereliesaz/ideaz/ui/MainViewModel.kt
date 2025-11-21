@@ -559,12 +559,38 @@ class MainViewModel(
             _buildLog.value += "[INFO] Checking for updates...\n"
             try {
                 val appName = settingsViewModel.getAppName()
+                val token = settingsViewModel.getGithubToken()
+                val user = settingsViewModel.getGithubUser()
+
                 if (!appName.isNullOrBlank()) {
                     val projectDir = getApplication<Application>().filesDir.resolve(appName)
                     if (projectDir.exists()) {
                         withContext(Dispatchers.IO) {
-                            GitManager(projectDir).pull()
+                            val git = GitManager(projectDir)
+                            try {
+                                git.pull(user, token) { percent, task ->
+                                    _loadingProgress.value = percent
+                                }
+                            } catch (e: Exception) {
+                                val msg = e.message ?: ""
+                                if (msg.contains("Checkout conflict") || msg.contains("checkout conflict")) {
+                                    _buildLog.value += "[INFO] Conflict detected. Stashing local changes...\n"
+                                    git.stash("Auto-stash " + System.currentTimeMillis())
+                                    git.pull(user, token) { percent, task ->
+                                        _loadingProgress.value = percent
+                                    }
+                                    _buildLog.value += "[INFO] Restoring local changes...\n"
+                                    try {
+                                        git.unstash()
+                                    } catch (e2: Exception) {
+                                        _buildLog.value += "[WARN] Merge conflict during unstash. Resolve manually.\n"
+                                    }
+                                } else {
+                                    throw e
+                                }
+                            }
                         }
+                        _loadingProgress.value = null
                         _buildLog.value += "[INFO] Project updated.\n"
                     }
                 }
