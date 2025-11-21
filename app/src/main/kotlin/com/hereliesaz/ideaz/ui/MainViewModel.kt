@@ -207,6 +207,8 @@ class MainViewModel(
                     _buildLog.value += "[INFO] Detected package name: $pkg\n"
                 }
 
+                fetchSessions()
+
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to clone/pull", e)
                 _buildLog.value += "[INFO] Error: ${e.message}\n"
@@ -824,7 +826,7 @@ class MainViewModel(
                 val currentSource = "sources/github/$githubUser/$appName"
 
                 val filtered = response.sessions?.filter {
-                    it.sourceContext.source == currentSource
+                    it.sourceContext.source.equals(currentSource, ignoreCase = true)
                 } ?: emptyList()
 
                 _availableSessions.value = filtered
@@ -892,6 +894,8 @@ class MainViewModel(
                     settingsViewModel.saveTargetPackageName(pkg)
                 }
 
+                fetchSessions()
+
                 _buildLog.value += "[INFO] Project '$projectName' loaded successfully (Type: ${type.displayName}).\n"
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load project", e)
@@ -919,6 +923,8 @@ class MainViewModel(
                 if (pkg != null) {
                     settingsViewModel.saveTargetPackageName(pkg)
                 }
+
+                fetchSessions()
 
                 _buildLog.value += "[INFO] Project '$projectName' loaded successfully (Type: ${type.displayName}).\n"
 
