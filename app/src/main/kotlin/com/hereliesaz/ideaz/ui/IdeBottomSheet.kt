@@ -43,50 +43,15 @@ fun IdeBottomSheet(
     val clipboardManager = LocalClipboardManager.current
     val coroutineScope = rememberCoroutineScope()
 
-    val configuration = LocalConfiguration.current
-    val screenHeight = configuration.screenHeightDp.dp
-
-    val topLogPadding = if (isHalfwayExpanded) screenHeight * 0.45f else screenHeight * 0.05f
-    val bottomLogPadding = if (isHalfwayExpanded) screenHeight * 0.25f else screenHeight * 0.20f
-
     BottomSheet(
         state = sheetState,
         modifier = Modifier.fillMaxSize()
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            LiveOutputBottomCard(
-                logStream = viewModel.filteredLog,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    top = topLogPadding,
-                    bottom = bottomLogPadding,
-                    start = 16.dp,
-                    end = 16.dp
-                )
-            )
+        // BottomSheet content is now empty or minimal as requested components are layered externally.
+        // If the drag handle is part of the BottomSheet implementation (library specific), it remains here.
+        // Otherwise, this block defines the "sheet" surface.
 
-            if (isHalfwayExpanded) {
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(16.dp)
-                ) {
-                    IconButton(onClick = { coroutineScope.launch { clipboardManager.setText(AnnotatedString(logMessages)) } }) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = "Copy Log",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    IconButton(onClick = { viewModel.clearLog() }) {
-                        Icon(
-                            imageVector = Icons.Default.Clear,
-                            contentDescription = "Clear Log",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            }
-        }
+        // Keeping the Box to provide a surface for the sheet, but empty for now as content is lifted out.
+        Box(modifier = Modifier.fillMaxSize())
     }
 }
