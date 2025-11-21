@@ -74,6 +74,7 @@ android {
             excludes.add("META-INF/ASL2.0")
             excludes.add("META-INF/plexus/components.xml")
             excludes.add("plugin.properties")
+            pickFirsts += "META-INF/sisu/javax.inject.Named"
         }
     }
 
