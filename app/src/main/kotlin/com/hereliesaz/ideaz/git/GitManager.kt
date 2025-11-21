@@ -140,6 +140,18 @@ class GitManager(private val projectDir: File) {
         git.apply().setPatch(patchInputStream).call()
     }
 
+    fun stash(message: String? = null) {
+        val git = Git.open(projectDir)
+        val cmd = git.stashCreate()
+        if (message != null) cmd.setWorkingDirectoryMessage(message)
+        cmd.call()
+    }
+
+    fun unstash() {
+        val git = Git.open(projectDir)
+        git.stashApply().call()
+    }
+
     private class SimpleProgressMonitor(private val callback: (Int, String) -> Unit) : ProgressMonitor {
         private var totalWork = 0
         private var currentWork = 0
