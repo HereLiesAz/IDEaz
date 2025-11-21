@@ -3,6 +3,7 @@ package com.hereliesaz.ideaz.ui
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -224,6 +225,30 @@ fun ProjectScreen(
                                         Text(
                                             text = "Last Updated: ${session.updateTime}",
                                             style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                        if (session.outputs?.any { it.pullRequest != null } == true) {
+                                            AzButton(
+                                                onClick = { viewModel.trySession(session) },
+                                                text = "Try",
+                                                shape = AzButtonShape.RECTANGLE,
+                                                modifier = Modifier.padding(end = 8.dp)
+                                            )
+                                            AzButton(
+                                                onClick = { viewModel.acceptSession(session) },
+                                                text = "Accept",
+                                                shape = AzButtonShape.RECTANGLE,
+                                                modifier = Modifier.padding(end = 8.dp)
+                                            )
+                                        }
+                                        AzButton(
+                                            onClick = { viewModel.deleteSession(session) },
+                                            text = "Delete",
+                                            shape = AzButtonShape.RECTANGLE
                                         )
                                     }
                                 }
