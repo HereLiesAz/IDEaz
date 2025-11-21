@@ -1,6 +1,7 @@
 package com.hereliesaz.ideaz.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -18,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.Dp
@@ -34,14 +36,8 @@ fun IdeBottomSheet(
     sheetState: BottomSheetState,
     viewModel: MainViewModel,
     peekDetent: SheetDetent,
-    halfwayDetent: SheetDetent,
-    chatHeight: Dp,
-    buildStatus: String,
-    aiStatus: String,
-    sessions: List<Session>,
-    activities: List<Activity>
+    halfwayDetent: SheetDetent
 ) {
-    val isChatVisible = sheetState.currentDetent == peekDetent || sheetState.currentDetent == halfwayDetent
     val isHalfwayExpanded = sheetState.currentDetent == halfwayDetent
     val logMessages by viewModel.filteredLog.collectAsState(initial = "")
     val clipboardManager = LocalClipboardManager.current
@@ -51,35 +47,11 @@ fun IdeBottomSheet(
         state = sheetState,
         modifier = Modifier.fillMaxSize()
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            LiveOutputBottomCard(
-                logStream = viewModel.filteredLog,
-                modifier = Modifier.fillMaxSize(),
-                bottomPadding = if (isChatVisible) chatHeight else 0.dp
-            )
+        // BottomSheet content is now empty or minimal as requested components are layered externally.
+        // If the drag handle is part of the BottomSheet implementation (library specific), it remains here.
+        // Otherwise, this block defines the "sheet" surface.
 
-            if (isHalfwayExpanded) {
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(16.dp)
-                ) {
-                    IconButton(onClick = { coroutineScope.launch { clipboardManager.setText(AnnotatedString(logMessages)) } }) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = "Copy Log",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    IconButton(onClick = { viewModel.clearLog() }) {
-                        Icon(
-                            imageVector = Icons.Default.Clear,
-                            contentDescription = "Clear Log",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            }
-            }
+        // Keeping the Box to provide a surface for the sheet, but empty for now as content is lifted out.
+        Box(modifier = Modifier.fillMaxSize())
     }
 }
