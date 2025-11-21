@@ -69,6 +69,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     var apiKey by remember { mutableStateOf(settingsViewModel.getApiKey() ?: "") }
     var googleApiKey by remember { mutableStateOf(settingsViewModel.getGoogleApiKey() ?: "") }
+    var githubToken by remember { mutableStateOf(settingsViewModel.getGithubToken() ?: "") }
 
     var showCancelWarning by remember {
         mutableStateOf(settingsViewModel.getShowCancelWarning())
@@ -171,6 +172,35 @@ fun SettingsScreen(
             Row(Modifier.width(60.dp), verticalAlignment = Alignment.CenterVertically) {
                 AzButton(onClick = {
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://jules.google.com/settings"))
+                    context.startActivity(intent)
+                }, text = "Get Key", shape = AzButtonShape.NONE)
+            }
+
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Spacer(modifier = Modifier.height(24.dp))
+
+            }
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+
+                Text("GitHub Personal Access Token", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
+            }
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                AzTextBox(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = githubToken,
+                    onValueChange = { githubToken = it },
+                    hint = "GitHub Token",
+                    secret = true,
+                    onSubmit = {
+                        settingsViewModel.saveGithubToken(githubToken)
+                        Toast.makeText(context, "GitHub Token Saved", Toast.LENGTH_SHORT).show()
+                    },
+                    submitButtonContent = { Text("Save") }
+                )
+            }
+            Row(Modifier.width(60.dp), verticalAlignment = Alignment.CenterVertically) {
+                AzButton(onClick = {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/settings/tokens"))
                     context.startActivity(intent)
                 }, text = "Get Key", shape = AzButtonShape.NONE)
             }

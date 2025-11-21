@@ -65,4 +65,8 @@ object JulesApiClient {
     suspend fun getSession(sessionId: String): Session {
         return getClient().getSession(sessionId)
     }
+
+    suspend fun deleteSession(sessionId: String) {
+        getClient().deleteSession(sessionId)
+    }
 }

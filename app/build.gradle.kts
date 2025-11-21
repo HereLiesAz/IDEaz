@@ -95,6 +95,10 @@ configurations.all {
 
 dependencies {
     implementation(libs.jcabi.aether)
+    implementation(libs.maven.settings.builder)
+    implementation(libs.wagon.http.lightweight)
+    implementation(libs.wagon.provider.api)
+    implementation(libs.wagon.file)
     implementation(libs.slf4j.simple)
     constraints {
         implementation("com.google.guava:guava:32.1.3-android") {
