@@ -69,10 +69,8 @@ android {
             excludes.add("META-INF/LICENSE")
             excludes.add("META-INF/NOTICE")
             excludes.add("META-INF/INDEX.LIST")
-            excludes.add("META-INF/sisu/javax.inject.Named")
             excludes.add("mime.types")
             excludes.add("META-INF/THIRD-PARTY.txt")
-            excludes.add("META-INF/plexus/components.xml")
             excludes.add("META-INF/ASL2.0")
         }
     }
@@ -95,6 +93,10 @@ configurations.all {
 
 dependencies {
     implementation(libs.jcabi.aether)
+    implementation(libs.maven.settings.builder)
+    implementation(libs.wagon.http.lightweight)
+    implementation(libs.wagon.provider.api)
+    implementation(libs.wagon.file)
     implementation(libs.slf4j.simple)
     constraints {
         implementation("com.google.guava:guava:32.1.3-android") {
