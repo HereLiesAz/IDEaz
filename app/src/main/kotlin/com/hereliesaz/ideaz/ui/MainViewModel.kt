@@ -201,6 +201,14 @@ class MainViewModel(
                 settingsViewModel.setProjectType(type.displayName)
                 _buildLog.value += "[INFO] Detected project type: ${type.displayName}\n"
 
+                val pkg = ProjectAnalyzer.detectPackageName(projectDir)
+                if (pkg != null) {
+                    settingsViewModel.saveTargetPackageName(pkg)
+                    _buildLog.value += "[INFO] Detected package name: $pkg\n"
+                }
+
+                fetchSessions()
+
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to clone/pull", e)
                 _buildLog.value += "[INFO] Error: ${e.message}\n"
@@ -347,10 +355,52 @@ class MainViewModel(
         Log.d(TAG, "onNodePromptSubmitted: resourceId=$resourceId, prompt='$prompt', bounds=$bounds")
 
         pendingRect = bounds
-        val entry = sourceMap[resourceId]
 
-        if (entry != null) {
-            viewModelScope.launch {
+        viewModelScope.launch {
+            // Handle React Native source mapping directly encoded in the ID
+            if (resourceId.startsWith("__source:")) {
+                try {
+                    // Format: __source:filename:line__
+                    val cleanId = resourceId.removePrefix("__source:").removeSuffix("__")
+                    val parts = cleanId.split(":")
+                    if (parts.size >= 2) {
+                        val fileName = parts[0]
+                        val lineNumber = parts[1].toIntOrNull() ?: 1
+
+                        val appName = settingsViewModel.getAppName() ?: ""
+                        val projectDir = getApplication<Application>().filesDir.resolve(appName)
+                        val sourceFile = File(projectDir, fileName)
+
+                        if (sourceFile.exists()) {
+                            val lines = sourceFile.readLines()
+                            val lineIndex = lineNumber - 1
+                            val snippet = lines.getOrNull(lineIndex)?.trim() ?: ""
+
+                            pendingRichPrompt = """
+                            Context (React Native):
+                            File: $fileName
+                            Line: $lineNumber
+                            Code Snippet: $snippet
+
+                            User Request: "$prompt"
+                            """.trimIndent()
+                        } else {
+                            pendingRichPrompt = "Context: $fileName:$lineNumber (Error: File not found)\nUser Request: \"$prompt\""
+                        }
+                    } else {
+                        pendingRichPrompt = "Context: $resourceId (Error: Invalid format)\nUser Request: \"$prompt\""
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing RN source", e)
+                    pendingRichPrompt = "Context: $resourceId (Error: ${e.message})\nUser Request: \"$prompt\""
+                }
+                takeScreenshot(bounds)
+                return@launch
+            }
+
+            // Handle standard Android XML source mapping
+            val entry = sourceMap[resourceId]
+            if (entry != null) {
                 try {
                     val file = File(entry.file)
                     val lines = file.readLines()
@@ -371,10 +421,10 @@ class MainViewModel(
                     pendingRichPrompt = "Context: Element $resourceId (Error: Could not read source file ${e.message})\nUser Request: \"$prompt\""
                     takeScreenshot(bounds)
                 }
+            } else {
+                pendingRichPrompt = "Context: Element $resourceId (Error: Not found in source map)\nUser Request: \"$prompt\""
+                takeScreenshot(bounds)
             }
-        } else {
-            pendingRichPrompt = "Context: Element $resourceId (Error: Not found in source map)\nUser Request: \"$prompt\""
-            takeScreenshot(bounds)
         }
     }
 
@@ -818,7 +868,7 @@ class MainViewModel(
                 val currentSource = "sources/github/$githubUser/$appName"
 
                 val filtered = response.sessions?.filter {
-                    it.sourceContext.source == currentSource
+                    it.sourceContext.source.equals(currentSource, ignoreCase = true)
                 } ?: emptyList()
 
                 _availableSessions.value = filtered
@@ -881,6 +931,13 @@ class MainViewModel(
                 val type = ProjectAnalyzer.detectProjectType(projectDir)
                 settingsViewModel.setProjectType(type.displayName)
 
+                val pkg = ProjectAnalyzer.detectPackageName(projectDir)
+                if (pkg != null) {
+                    settingsViewModel.saveTargetPackageName(pkg)
+                }
+
+                fetchSessions()
+
                 _buildLog.value += "[INFO] Project '$projectName' loaded successfully (Type: ${type.displayName}).\n"
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load project", e)
@@ -903,6 +960,14 @@ class MainViewModel(
 
                 val type = ProjectAnalyzer.detectProjectType(projectDir)
                 settingsViewModel.setProjectType(type.displayName)
+
+                val pkg = ProjectAnalyzer.detectPackageName(projectDir)
+                if (pkg != null) {
+                    settingsViewModel.saveTargetPackageName(pkg)
+                }
+
+                fetchSessions()
+
                 _buildLog.value += "[INFO] Project '$projectName' loaded successfully (Type: ${type.displayName}).\n"
 
                 startBuild(context, projectDir)
