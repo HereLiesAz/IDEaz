@@ -73,6 +73,7 @@ fun ProjectScreen(
     // Auto-refresh sources when entering the screen
     LaunchedEffect(Unit) {
         viewModel.fetchOwnedSources()
+        viewModel.fetchSessions()
     }
 
     // State for "Clone" tab
@@ -168,6 +169,7 @@ fun ProjectScreen(
                             settingsViewModel.saveTargetPackageName(finalPackageName)
                             Toast.makeText(context, "Project saved.", Toast.LENGTH_SHORT).show()
                             viewModel.initializeProject(initialPromptValue)
+                            viewModel.fetchSessions()
                         }
                     ){
                         entry(entryName = "appName", hint = "App Name (Current: $appName)", multiline = false, secret = false)
