@@ -72,6 +72,7 @@ android {
             excludes.add("mime.types")
             excludes.add("META-INF/THIRD-PARTY.txt")
             excludes.add("META-INF/ASL2.0")
+            excludes.add("META-INF/plexus/components.xml")
         }
     }
 
