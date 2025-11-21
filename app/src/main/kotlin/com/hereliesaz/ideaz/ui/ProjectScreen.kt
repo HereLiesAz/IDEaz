@@ -45,7 +45,8 @@ private const val TAG = "ProjectScreen"
 @Composable
 fun ProjectScreen(
     viewModel: MainViewModel,
-    settingsViewModel: SettingsViewModel
+    settingsViewModel: SettingsViewModel,
+    onBuildTriggered: () -> Unit
 ) {
     Log.d(TAG, "ProjectScreen: Composing")
     Log.d(TAG, "ProjectScreen: MainViewModel hash: ${viewModel.hashCode()}")
@@ -147,7 +148,7 @@ fun ProjectScreen(
                     AzForm(
                         modifier = Modifier.fillMaxWidth(),
                         formName = "Project Configuration",
-                        submitButtonContent = { Text("Build") },
+                        submitButtonContent = { Text("Save") },
                         onSubmit = { formData ->
                             // If user leaves a field blank, use the existing value from state
                             val finalAppName = formData["appName"]?.takeIf { it.isNotBlank() } ?: appName
@@ -164,7 +165,7 @@ fun ProjectScreen(
 
                             settingsViewModel.saveProjectConfig(finalAppName, finalGithubUser, finalBranchName)
                             settingsViewModel.saveTargetPackageName(finalPackageName)
-                            Toast.makeText(context, "Project saved. Starting build...", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Project saved.", Toast.LENGTH_SHORT).show()
                             viewModel.initializeProject(initialPromptValue)
                         }
                     ){
@@ -178,11 +179,11 @@ fun ProjectScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     AzButton(onClick = {
-                        // This just builds and installs the current template project
-                        // It's the "first APK"
+                        // This builds and installs the current project
                         viewModel.startBuild(context)
-                        Toast.makeText(context, "Building template...", Toast.LENGTH_SHORT).show()
-                    }, text = "Save Template", shape = AzButtonShape.NONE)
+                        onBuildTriggered()
+                        Toast.makeText(context, "Building...", Toast.LENGTH_SHORT).show()
+                    }, text = "Build", shape = AzButtonShape.RECTANGLE)
 
                     Spacer(modifier = Modifier.height(24.dp))
 
@@ -305,12 +306,12 @@ fun ProjectScreen(
                                             appName = repo.repo
                                             githubUser = repo.owner
                                             branchName = repo.defaultBranch?.displayName ?: "main"
+                                            viewModel.cloneOrPullProject(repo.owner, repo.repo, branchName ?: "main")
                                             Toast.makeText(
                                                 context,
-                                                "Config loaded. Go to 'Setup' tab to save.",
-                                                Toast.LENGTH_LONG
+                                                "Repository selected. Syncing...",
+                                                Toast.LENGTH_SHORT
                                             ).show()
-                                            tabIndex = 0 // Switch to Setup tab
                                         },
                                     colors = CardDefaults.cardColors(
                                         containerColor = MaterialTheme.colorScheme.surface,

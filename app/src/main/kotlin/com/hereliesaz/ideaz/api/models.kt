@@ -141,7 +141,7 @@ data class PlanStep(
     val id: String,
     val title: String,
     val description: String,
-    val index: Int
+    val index: Int? = null
 )
 
 @Serializable
