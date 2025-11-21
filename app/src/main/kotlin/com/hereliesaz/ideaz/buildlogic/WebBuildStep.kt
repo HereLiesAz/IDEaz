@@ -25,7 +25,24 @@ class WebBuildStep(
 
         // Copy to output (simulating a 'dist' build)
         if (!outputDir.exists()) outputDir.mkdirs()
-        projectDir.copyRecursively(outputDir, overwrite = true)
+
+        val injector = HtmlSourceInjector()
+        projectDir.walkTopDown().forEach { file ->
+            val relativePath = file.toRelativeString(projectDir)
+            val outFile = File(outputDir, relativePath)
+
+            if (file.isDirectory) {
+                outFile.mkdirs()
+            } else {
+                if (file.extension == "html") {
+                    val content = file.readLines()
+                    val injected = injector.inject(content, relativePath)
+                    outFile.writeText(injected)
+                } else {
+                    file.copyTo(outFile, overwrite = true)
+                }
+            }
+        }
 
         callback?.onLog("[Web] Build complete. Files ready in ${outputDir.absolutePath}")
         return BuildResult(true, "Web build successful")
