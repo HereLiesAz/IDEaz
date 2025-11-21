@@ -14,16 +14,15 @@ class DependencyResolverTest {
     fun testResolverInstantiationAndExecution() {
         val projectDir = tempFolder.newFolder("project")
         val dependenciesFile = File(projectDir, "dependencies.txt")
-        dependenciesFile.writeText("junit:junit:4.12")
+        // Use a small dependency. gson is what failed for the user.
+        dependenciesFile.writeText("com.google.code.gson:gson:2.8.8")
         val cacheDir = tempFolder.newFolder("cache")
 
         val resolver = DependencyResolver(projectDir, dependenciesFile, cacheDir)
 
-        // Execute with null callback.
-        // Should not throw NoClassDefFoundError.
         val result = resolver.execute(null)
 
-        assertNotNull(result)
         println("Resolver result: ${result.output}")
+        assertTrue("Resolution failed: ${result.output}", result.success)
     }
 }

@@ -41,7 +41,7 @@ class DependencyResolver(
             return BuildResult(true, "No dependencies file found. Skipping resolution.")
         }
 
-        callback?.onLog("Resolving dependencies...")
+        callback?.onLog("[IDE] Resolving dependencies...")
 
         return try {
             val google = RemoteRepository("google", "default", "https://maven.google.com/")
@@ -52,17 +52,18 @@ class DependencyResolver(
             dependenciesFile.readLines().forEach { line ->
                 if (line.isNotBlank()) {
                     val cleanedLine = cleanDependencyLine(line)
-                    callback?.onLog("  - $cleanedLine")
+                    callback?.onLog("  [IDE] - $cleanedLine")
                     val artifact = DefaultArtifact(cleanedLine)
                     aether.resolve(artifact, "runtime")
                 }
             }
 
-            callback?.onLog("Dependencies resolved successfully.")
-            BuildResult(true, "Dependencies resolved successfully.")
+            callback?.onLog("[IDE] Dependencies resolved successfully.")
+            BuildResult(true, "[IDE] Dependencies resolved successfully.")
         } catch (e: Exception) {
-            callback?.onLog("Failed to resolve dependencies: ${e.message}")
-            BuildResult(false, "Failed to resolve dependencies: ${e.message}")
+            callback?.onLog("[IDE] Failed to resolve dependencies: ${e.message}")
+            callback?.onLog("[IDE] Stack trace: ${e.stackTraceToString()}")
+            BuildResult(false, "[IDE] Failed to resolve dependencies: ${e.message}")
         }
     }
 }
