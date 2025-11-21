@@ -3,7 +3,6 @@ package com.hereliesaz.ideaz.services
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
@@ -17,6 +16,7 @@ import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.web.WebRuntimeActivity
 import java.io.File
+import java.util.ArrayDeque
 
 class BuildService : Service() {
     companion object {
@@ -24,7 +24,11 @@ class BuildService : Service() {
         private const val NOTIFICATION_ID = 1
         private const val MIN_SDK = 26
         private const val TARGET_SDK = 36
+        private const val MAX_LOG_LINES = 5
     }
+
+    // Buffer to hold the last 5 lines of logs
+    private val logBuffer = ArrayDeque<String>(MAX_LOG_LINES)
 
     private val binder = object : IBuildService.Stub() {
         override fun startBuild(projectPath: String, callback: IBuildCallback) = this@BuildService.startBuild(projectPath, callback)
@@ -56,15 +60,40 @@ class BuildService : Service() {
     }
 
     private fun updateNotification(message: String) {
+        // Synchronize access to the buffer to handle potential threading issues from AIDL calls
+        synchronized(logBuffer) {
+            // Split message by newlines in case a chunk contains multiple lines
+            message.lines().forEach { line ->
+                if (line.isNotBlank()) {
+                    if (logBuffer.size >= MAX_LOG_LINES) {
+                        logBuffer.removeFirst()
+                    }
+                    logBuffer.addLast(line)
+                }
+            }
+        }
+
+        val latestLog = synchronized(logBuffer) { logBuffer.lastOrNull() } ?: "Processing..."
+        val bigText = synchronized(logBuffer) { logBuffer.joinToString("\n") }
+
         val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setContentTitle("IDEaz IDE")
-            .setContentText(message)
+            .setContentText(latestLog) // Collapsed state shows the single most recent line
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText)) // Expanded state shows the buffer (up to 5 lines)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setOnlyAlertOnce(true) // Prevents sound/vibration on every log update
             .build()
+
         getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification)
     }
 
     private fun startBuild(projectPath: String, callback: IBuildCallback) {
+        // Clear buffer at start of new build
+        synchronized(logBuffer) {
+            logBuffer.clear()
+        }
+        updateNotification("Starting build...")
+
         val projectDir = File(projectPath)
         val buildDir = File(filesDir, "build").apply { mkdirs() }
         val cacheDir = File(filesDir, "cache").apply { mkdirs() }
