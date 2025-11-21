@@ -75,15 +75,28 @@ This phase focuses on improving the user experience during long-running backgrou
 
 ---
 
-### **Phase 7: Project Templates and Alternative Frameworks**
-This phase will broaden the IDE's appeal and capabilities by supporting a wider range of project types and development frameworks beyond the initial all-Kotlin focus.
+### **Phase 7: Project Templates and Multi-Platform Support**
+This phase will broaden the IDE's appeal and capabilities by supporting a wider range of project types and development frameworks beyond the initial all-Kotlin focus. All implementations must adhere to the "post-code" editing model.
 
-- [ ] **7.1: Implement React Native Project Template**
-    - Offer a template for building lightweight, cross-platform applications using React Native.
-- [ ] **7.2: Implement KMP Backend / React Native Frontend Template**
-    - Provide a default template that combines a Kotlin Multiplatform (KMP) backend for shared business logic with a React Native frontend for a native UI experience.
-- [ ] **7.3: Explore Additional Framework Support**
-    - Investigate and potentially implement templates for other popular frameworks, such as Flutter or XML-based approaches similar to Sketchware Pro.
+- [ ] **7.1: Lay Groundwork for Multi-Platform Support**
+    - [ ] Update `MainViewModel` and `ProjectRepository` to support non-Android project structures (Web, React Native, Flutter).
+    - [ ] Create file structure and basic templates for:
+        - [ ] Web (HTML/CSS/JS)
+        - [ ] React Native (JS/TS)
+        - [ ] Flutter (Dart)
+
+- [ ] **7.2: Implement Web Design Support**
+    - [ ] Create a `WebBuildStep` for processing HTML/CSS.
+    - [ ] Implement a WebView-based runtime environment for the "post-code" overlay.
+    - [ ] Ensure visual selection works via DOM interaction.
+
+- [ ] **7.3: Implement React Native Support**
+    - [ ] Create a `ReactNativeBuildStep` (likely using a bundled JS engine or simplified packager).
+    - [ ] Adapt the `UIInspectionService` to handle React Native UI trees (or bridge integration).
+
+- [ ] **7.4: Implement Flutter Support (Final Stage)**
+    - [ ] Create a `FlutterBuildStep`.
+    - [ ] Investigate and implement connection to the Flutter Inspector for UI selection.
 
 ---
 

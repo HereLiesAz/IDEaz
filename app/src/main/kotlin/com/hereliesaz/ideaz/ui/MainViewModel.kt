@@ -36,6 +36,7 @@ import com.hereliesaz.ideaz.api.ListActivitiesResponse
 import java.io.FileOutputStream
 import java.io.IOException
 import com.hereliesaz.ideaz.utils.ToolManager
+import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
@@ -194,6 +195,11 @@ class MainViewModel(
                     }
                     _buildLog.value += "[INFO] Clone complete.\n"
                 }
+
+                val type = ProjectAnalyzer.detectProjectType(projectDir)
+                settingsViewModel.setProjectType(type)
+                _buildLog.value += "[INFO] Detected project type: $type\n"
+
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to clone/pull", e)
                 _buildLog.value += "[INFO] Error: ${e.message}\n"
@@ -870,7 +876,11 @@ class MainViewModel(
                 }
                 settingsViewModel.setAppName(projectName)
                 settingsViewModel.setGithubUser("")
-                _buildLog.value += "[INFO] Project '$projectName' loaded successfully.\n"
+
+                val type = ProjectAnalyzer.detectProjectType(projectDir)
+                settingsViewModel.setProjectType(type)
+
+                _buildLog.value += "[INFO] Project '$projectName' loaded successfully (Type: $type).\n"
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load project", e)
                 _buildLog.value += "[INFO] Error loading project: ${e.message}\n"
@@ -889,13 +899,73 @@ class MainViewModel(
                 }
                 settingsViewModel.setAppName(projectName)
                 settingsViewModel.setGithubUser("")
-                _buildLog.value += "[INFO] Project '$projectName' loaded successfully.\n"
+
+                val type = ProjectAnalyzer.detectProjectType(projectDir)
+                settingsViewModel.setProjectType(type)
+                _buildLog.value += "[INFO] Project '$projectName' loaded successfully (Type: $type).\n"
 
                 startBuild(context, projectDir)
 
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load project", e)
                 _buildLog.value += "[INFO] Error loading project: ${e.message}\n"
+            }
+        }
+    }
+
+    fun createProjectFromTemplate(context: Context, templateType: String, projectName: String) {
+        viewModelScope.launch {
+            _buildLog.value += "[INFO] Creating project '$projectName' from template '$templateType'...\n"
+            try {
+                val projectDir = context.filesDir.resolve(projectName)
+                if (projectDir.exists()) {
+                    _buildLog.value += "[INFO] Cleaning up existing directory...\n"
+                    projectDir.deleteRecursively()
+                }
+                projectDir.mkdirs()
+
+                val templatePath = when (templateType) {
+                    "web" -> "templates/web"
+                    "react_native" -> "templates/react_native"
+                    "flutter" -> "templates/flutter"
+                    else -> "project" // Default to Android (legacy path)
+                }
+
+                // Helper to copy recursively from assets
+                fun copyAssetsRecursively(path: String, dest: File) {
+                    context.assets.list(path)?.forEach { fileName ->
+                        val assetPath = if (path.isEmpty()) fileName else "$path/$fileName"
+                        val destFile = File(dest, fileName)
+
+                        // Check if it's a directory or file by trying to list it
+                        val subFiles = context.assets.list(assetPath)
+                        if (subFiles.isNullOrEmpty()) {
+                            // It's a file (or empty dir, but we assume file for simplification in assets)
+                            copyAsset(context, assetPath, destFile.absolutePath)
+                        } else {
+                            // It's a directory
+                            destFile.mkdirs()
+                            copyAssetsRecursively(assetPath, destFile)
+                        }
+                    }
+                }
+
+                // Note: copyAsset handles single file copy. We need to iterate if it's a directory.
+                // The existing logic in extractProject just iterates the top level.
+                // Let's use the existing copyAsset which handles recursion if we modify it slightly or trust it?
+                // The existing copyAsset implementation handles directories recursively!
+
+                context.assets.list(templatePath)?.forEach {
+                    copyAsset(context, "$templatePath/$it", projectDir.resolve(it).absolutePath)
+                }
+
+                settingsViewModel.setAppName(projectName)
+                settingsViewModel.setGithubUser("") // Local project
+                _buildLog.value += "[INFO] Project '$projectName' created successfully.\n"
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to create project from template", e)
+                _buildLog.value += "[INFO] Error creating project: ${e.message}\n"
             }
         }
     }
