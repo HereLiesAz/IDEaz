@@ -41,7 +41,6 @@ fun LiveOutputBottomCard(
 
     Column(
         modifier = modifier
-            .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
     ) {
         // Add the drag handle
