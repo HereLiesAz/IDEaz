@@ -66,8 +66,19 @@ fun ProjectScreen(
     val context = LocalContext.current
 
     val hasToken = !settingsViewModel.getGithubToken().isNullOrBlank()
-    // Dynamic tabs based on token presence
-    val tabs = if (hasToken) listOf("Create", "Setup", "Clone", "Load") else listOf("Setup", "Clone", "Load")
+    var isCreateTabEnabled by remember { mutableStateOf(false) }
+
+    // Track if we are in the flow of creating a new project to show specific UI elements
+    var isNewProjectFlow by remember { mutableStateOf(false) }
+
+    // Dynamic tabs logic
+    val tabs = remember(hasToken, isCreateTabEnabled) {
+        if (hasToken && isCreateTabEnabled) {
+            listOf("Create", "Setup", "Clone", "Load")
+        } else {
+            listOf("Setup", "Clone", "Load")
+        }
+    }
 
     var tabIndex by remember { mutableStateOf(0) }
 
@@ -80,6 +91,7 @@ fun ProjectScreen(
     var branchName by remember { mutableStateOf("main") }
     var packageName by remember { mutableStateOf("com.example.app") }
     var selectedType by remember { mutableStateOf(ProjectType.ANDROID) }
+    var initialPrompt by remember { mutableStateOf("") }
 
     // Create specific fields
     var repoDescription by remember { mutableStateOf("Created with IDEaz") }
@@ -129,11 +141,12 @@ fun ProjectScreen(
 
     val localProjects by settingsViewModel.localProjects.collectAsState()
 
-    // Adjust logic for dynamic tabs
-    val isCreateTab = hasToken && tabIndex == 0
-    val isSetupTab = (hasToken && tabIndex == 1) || (!hasToken && tabIndex == 0)
-    val isCloneTab = (hasToken && tabIndex == 2) || (!hasToken && tabIndex == 1)
-    val isLoadTab = (hasToken && tabIndex == 3) || (!hasToken && tabIndex == 2)
+    // Logic to identify current tab based on dynamic list
+    val currentTabName = tabs.getOrElse(tabIndex) { "Setup" }
+    val isCreateTab = currentTabName == "Create"
+    val isSetupTab = currentTabName == "Setup"
+    val isCloneTab = currentTabName == "Clone"
+    val isLoadTab = currentTabName == "Load"
 
     LaunchedEffect(tabIndex, localProjects) {
         if (isLoadTab) {
@@ -323,23 +336,84 @@ fun ProjectScreen(
                                 selectedType,
                                 packageName,
                                 context
-                            )
-                            onBuildTriggered()
+                            ) {
+                                // onSuccess - switch to Setup tab
+                                isCreateTabEnabled = false
+                                // Enable prompt input on Setup tab
+                                isNewProjectFlow = true
+
+                                // Tabs list will update to ["Setup", "Clone", "Load"]
+                                // Setup is index 0.
+                                tabIndex = 0
+                            }
                             Toast.makeText(context, "Creating repository...", Toast.LENGTH_SHORT).show()
                         },
-                        text = "Create & Initialize",
+                        text = "Create & Continue",
                         shape = AzButtonShape.RECTANGLE,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
             } else if (isSetupTab) {
-                // --- SETUP TAB (Existing Logic) ---
+                // --- SETUP TAB ---
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
                         .padding(16.dp)
                 ) {
+                    // --- Project Repository Header & Buttons ---
+                    Text(
+                        "Project Repository",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Navigation Buttons Row - 1/3 Width Each
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        AzButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                if (hasToken) {
+                                    isCreateTabEnabled = true
+                                    // With Create enabled, "Create" becomes index 0.
+                                    tabIndex = 0
+                                } else {
+                                    Toast.makeText(context, "Please add GitHub Token in Settings", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            text = "Create",
+                            shape = AzButtonShape.RECTANGLE
+                        )
+                        AzButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                // Switch to Clone tab (always present)
+                                isNewProjectFlow = false // Reset flow
+                                val cloneIndex = tabs.indexOf("Clone")
+                                if (cloneIndex != -1) tabIndex = cloneIndex
+                            },
+                            text = "Clone",
+                            shape = AzButtonShape.RECTANGLE
+                        )
+                        AzButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                // Switch to Load tab (always present)
+                                isNewProjectFlow = false // Reset flow
+                                val loadIndex = tabs.indexOf("Load")
+                                if (loadIndex != -1) tabIndex = loadIndex
+                            },
+                            text = "Load",
+                            shape = AzButtonShape.RECTANGLE
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(24.dp))
+                    // -------------------------------------------
+
                     Text(
                         "Project Configuration",
                         style = MaterialTheme.typography.headlineSmall,
@@ -433,6 +507,18 @@ fun ProjectScreen(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
+                    // Initial Prompt Input - ONLY VISIBLE IN NEW PROJECT FLOW
+                    if (isNewProjectFlow) {
+                        AzTextBox(
+                            value = initialPrompt,
+                            onValueChange = { initialPrompt = it },
+                            hint = "Initial Prompt / Instruction (Optional)",
+                            onSubmit = {},
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
                     // SINGLE ACTION BUTTON
                     AzButton(
                         onClick = {
@@ -442,8 +528,10 @@ fun ProjectScreen(
                                 branchName,
                                 packageName,
                                 selectedType,
-                                context
+                                context,
+                                if (isNewProjectFlow) initialPrompt else null // Pass prompt only if flow active
                             )
+                            isNewProjectFlow = false // Reset flow after save
                             onBuildTriggered()
                             Toast.makeText(context, "Saving & Initializing...", Toast.LENGTH_SHORT).show()
                         },
@@ -603,6 +691,10 @@ fun ProjectScreen(
                                                 "Repository selected. Syncing...",
                                                 Toast.LENGTH_SHORT
                                             ).show()
+
+                                            // Switch back to Setup to review/build
+                                            val setupIndex = tabs.indexOf("Setup")
+                                            if (setupIndex != -1) tabIndex = setupIndex
                                         },
                                     colors = CardDefaults.cardColors(
                                         containerColor = MaterialTheme.colorScheme.surface,

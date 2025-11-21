@@ -271,6 +271,7 @@ class MainViewModel(
                     }
                     _loadingProgress.value = null
 
+                    // Load config from .ideaz if it exists
                     val loadedConfig = ProjectConfigManager.loadConfig(projectDir)
                     if (loadedConfig != null) {
                         _buildLog.value += "[INFO] Loaded project config from .ideaz\n"
@@ -309,7 +310,8 @@ class MainViewModel(
         isPrivate: Boolean,
         projectType: ProjectType,
         packageName: String,
-        context: Context
+        context: Context,
+        onSuccess: () -> Unit
     ) {
         viewModelScope.launch {
             val token = settingsViewModel.getGithubToken()
@@ -352,6 +354,10 @@ class MainViewModel(
                     _buildLog.value += "[INFO] Applying ${projectType.displayName} template...\n"
                     createProjectFromTemplateInternal(context, projectType, projectDir)
 
+                    // Add .ideaz to .gitignore
+                    ProjectConfigManager.ensureGitIgnore(projectDir)
+
+                    // Save config
                     saveProjectConfigToFile(projectDir, projectType.name, packageName, response.defaultBranch ?: "main")
 
                     _buildLog.value += "[INFO] Pushing initial commit...\n"
@@ -362,8 +368,11 @@ class MainViewModel(
                         git.push(settingsViewModel.getGithubUser(), token)
                     }
 
-                    _buildLog.value += "[INFO] Initialization complete. Starting build...\n"
-                    startBuild(context, projectDir)
+                    _buildLog.value += "[INFO] Initialization complete. Proceed to Setup to build.\n"
+                }
+
+                withContext(Dispatchers.Main) {
+                    onSuccess()
                 }
 
             } catch (e: Exception) {
@@ -388,7 +397,8 @@ class MainViewModel(
         branch: String,
         pkg: String,
         type: ProjectType,
-        context: Context
+        context: Context,
+        initialPrompt: String? = null
     ) {
         settingsViewModel.saveProjectConfig(appName, user, branch)
         settingsViewModel.saveTargetPackageName(pkg)
@@ -417,15 +427,38 @@ class MainViewModel(
                         createProjectFromTemplateInternal(context, type, projectDir)
                     }
 
+                    // Ensure .ideaz is ignored and config is saved
+                    ProjectConfigManager.ensureGitIgnore(projectDir)
                     saveProjectConfigToFile(projectDir, type.name, pkg, branch)
 
-                    _buildLog.value += "[INFO] Starting initial build...\n"
-                    startBuild(context, projectDir)
+                    if (!initialPrompt.isNullOrBlank()) {
+                        _buildLog.value += "[INFO] Saving initial prompt and sending to AI...\n"
+                        logPromptToHistory(initialPrompt, null)
+                        // Release lock before calling sendPrompt to avoid recursion issues if it uses lock (it doesn't, but safe practice)
+                    } else {
+                        _buildLog.value += "[INFO] Starting initial build...\n"
+                        startBuild(context, projectDir)
+                    }
 
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed during saveAndInitialize", e)
                     _buildLog.value += "[ERROR] Initialization failed: ${e.message}\n"
                 }
+            }
+            // If we had a prompt, we send it now, outside the lock if possible, or inside if safe.
+            // sendPrompt is async (launches own scope), so calling it here is fine.
+            if (!initialPrompt.isNullOrBlank()) {
+                sendPrompt(initialPrompt, isInitialization = true)
+            }
+        }
+    }
+
+    private fun logPromptToHistory(text: String, screenshotBase64: String?) {
+        val appName = settingsViewModel.getAppName()
+        if (!appName.isNullOrBlank()) {
+            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            if (projectDir.exists()) {
+                ProjectConfigManager.appendPromptToHistory(projectDir, text, screenshotBase64)
             }
         }
     }
@@ -563,6 +596,11 @@ class MainViewModel(
         }
 
         _buildLog.value += "\n[INFO] Sending prompt: $prompt\n"
+
+        // Log to history if not already logged (isInitialization=true was likely logged in saveAndInitialize)
+        if (!isInitialization) {
+            logPromptToHistory(prompt ?: "", null)
+        }
 
         val model = getAssignedModelForTask(taskKey)
         if (model == null) {
@@ -704,6 +742,10 @@ class MainViewModel(
         val prompt = pendingRichPrompt ?: "Error: No pending prompt"
         pendingRichPrompt = null
         val finalRichPrompt = "$prompt\n\n[IMAGE: data:image/png;base64,$base64]"
+
+        // Save to history with screenshot
+        logPromptToHistory(prompt, base64)
+
         startContextualAITask(finalRichPrompt)
     }
 
