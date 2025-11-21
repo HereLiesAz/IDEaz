@@ -94,18 +94,16 @@ configurations.all {
 }
 
 dependencies {
-    implementation(libs.aether.connector.wagon) {
-        exclude(group = "org.sonatype.sisu", module = "sisu-guava")
-    }
-    implementation(libs.maven.core) {
-        exclude(group = "org.sonatype.sisu", module = "sisu-guava")
-    }
-    implementation(libs.maven.settings.builder) {
-        exclude(group = "org.sonatype.sisu", module = "sisu-guava")
-    }
-    implementation(libs.wagon.http.lightweight)
-    implementation(libs.wagon.provider.api)
-    implementation(libs.wagon.file)
+    implementation(libs.maven.resolver.api)
+    implementation(libs.maven.resolver.spi)
+    implementation(libs.maven.resolver.util)
+    implementation(libs.maven.resolver.impl)
+    implementation(libs.maven.resolver.connector.basic)
+    implementation(libs.maven.resolver.transport.http)
+
+    implementation(libs.maven.core)
+    implementation(libs.maven.settings.builder)
+
     implementation(libs.jaxb.api)
     implementation(libs.javax.annotation.api)
     implementation(libs.validation.api)

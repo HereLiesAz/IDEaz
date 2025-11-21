@@ -1,24 +1,17 @@
 package com.hereliesaz.ideaz.buildlogic
 
 import com.hereliesaz.ideaz.IBuildCallback
-import org.sonatype.aether.repository.RemoteRepository
-import org.sonatype.aether.util.artifact.DefaultArtifact
-import org.sonatype.aether.impl.internal.DefaultServiceLocator
-import org.apache.maven.repository.internal.MavenServiceLocator
-import org.sonatype.aether.RepositorySystem
-import org.sonatype.aether.connector.wagon.WagonProvider
-import org.sonatype.aether.connector.wagon.WagonRepositoryConnectorFactory
-import org.sonatype.aether.connector.wagon.WagonConfigurator
-import org.sonatype.aether.spi.connector.RepositoryConnectorFactory
-import org.sonatype.aether.spi.io.FileProcessor
-import org.sonatype.aether.impl.internal.DefaultFileProcessor
-import org.apache.maven.wagon.Wagon
-import org.apache.maven.wagon.providers.http.LightweightHttpWagon
-import org.apache.maven.repository.internal.MavenRepositorySystemSession
-import org.sonatype.aether.repository.LocalRepository
-import org.sonatype.aether.graph.Dependency
-import org.sonatype.aether.resolution.DependencyRequest
+import org.apache.maven.repository.internal.MavenRepositorySystemUtils
+import org.eclipse.aether.RepositorySystem
+import org.eclipse.aether.artifact.DefaultArtifact
+import org.eclipse.aether.collection.CollectRequest
+import org.eclipse.aether.graph.Dependency
+import org.eclipse.aether.repository.LocalRepository
+import org.eclipse.aether.repository.RemoteRepository
+import org.eclipse.aether.resolution.DependencyRequest
+import org.eclipse.aether.util.filter.DependencyFilterUtils
 import java.io.File
+
 
 // Visible for testing
 internal fun cleanDependencyLine(line: String): String {
@@ -47,19 +40,17 @@ class DependencyResolver(
             .filter { it.isFile && it.extension == "jar" }
             .joinToString(File.pathSeparator) { it.absolutePath }
 
-    class ManualWagonProvider : WagonProvider {
-        override fun lookup(roleHint: String): Wagon? {
-            if (roleHint == "http" || roleHint == "https") {
-                return LightweightHttpWagon()
-            }
-            return null
-        }
 
-        override fun release(wagon: Wagon) { }
+    private fun newRepositorySystem(): RepositorySystem {
+        val locator = MavenRepositorySystemUtils.newServiceLocator()
+        return locator.getService(RepositorySystem::class.java)
     }
 
-    class NoOpWagonConfigurator : WagonConfigurator {
-        override fun configure(wagon: Wagon, configuration: Any?) { }
+    private fun newSession(system: RepositorySystem): org.eclipse.aether.RepositorySystemSession {
+        val session = MavenRepositorySystemUtils.newSession()
+        val localRepo = LocalRepository(cacheDir)
+        session.localRepositoryManager = system.newLocalRepositoryManager(session, localRepo)
+        return session
     }
 
     override fun execute(callback: IBuildCallback?): BuildResult {
@@ -74,21 +65,12 @@ class DependencyResolver(
         callback?.onLog("[IDE] Resolving dependencies...")
 
         return try {
-            val locator = MavenServiceLocator()
-            locator.addService(RepositoryConnectorFactory::class.java, WagonRepositoryConnectorFactory::class.java)
-            locator.setService(WagonProvider::class.java, ManualWagonProvider::class.java)
-            locator.setService(WagonConfigurator::class.java, NoOpWagonConfigurator::class.java)
-            locator.addService(FileProcessor::class.java, DefaultFileProcessor::class.java)
+            val system = newRepositorySystem()
+            val session = newSession(system)
 
-            val system = locator.getService(RepositorySystem::class.java)
-
-            val localRepo = LocalRepository(cacheDir)
-            val session = MavenRepositorySystemSession()
-            session.localRepositoryManager = system.newLocalRepositoryManager(localRepo)
-
-            val google = RemoteRepository("google", "default", "https://maven.google.com/")
-            val central = RemoteRepository("central", "default", "https://repo.maven.apache.org/maven2/")
-            val jitpack = RemoteRepository("jitpack", "default", "https://jitpack.io")
+            val google = RemoteRepository.Builder("google", "default", "https://maven.google.com/").build()
+            val central = RemoteRepository.Builder("central", "default", "https://repo.maven.apache.org/maven2/").build()
+            val jitpack = RemoteRepository.Builder("jitpack", "default", "https://jitpack.io").build()
 
             dependenciesFile.readLines().forEach { line ->
                 if (line.isNotBlank()) {
@@ -97,8 +79,14 @@ class DependencyResolver(
 
                     val artifact = DefaultArtifact(cleanedLine)
                     val dependency = Dependency(artifact, "runtime")
-                    val collectRequest = org.sonatype.aether.collection.CollectRequest(dependency, listOf(google, central, jitpack))
-                    val dependencyRequest = DependencyRequest(collectRequest, null)
+
+                    val collectRequest = CollectRequest()
+                    collectRequest.root = dependency
+                    collectRequest.addRepository(google)
+                    collectRequest.addRepository(central)
+                    collectRequest.addRepository(jitpack)
+
+                    val dependencyRequest = DependencyRequest(collectRequest, DependencyFilterUtils.classpathFilter("runtime"))
 
                     system.resolveDependencies(session, dependencyRequest)
                 }
