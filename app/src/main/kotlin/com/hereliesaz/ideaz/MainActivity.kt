@@ -10,6 +10,7 @@ import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -42,12 +43,41 @@ class MainActivity : ComponentActivity() {
         private const val TAG = "MainActivity"
     }
 
-    // --- NEW: ActivityResultLauncher for MediaProjection ---
+    // --- NEW: Receiver to Auto-Launch App after Install ---
+    // This listens for package installation events. If the installed package matches
+    // the one we are currently working on, we launch it immediately.
+    private val packageInstallReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val action = intent?.action
+            if (action == Intent.ACTION_PACKAGE_ADDED || action == Intent.ACTION_PACKAGE_REPLACED) {
+                val data = intent.data
+                val installedPackageName = data?.encodedSchemeSpecificPart
+                val targetPackage = viewModel.settingsViewModel.getTargetPackageName()
+
+                if (installedPackageName != null && installedPackageName == targetPackage) {
+                    Log.d(TAG, "Target package $installedPackageName installed. Launching...")
+                    try {
+                        val launchIntent = packageManager.getLaunchIntentForPackage(installedPackageName)
+                        if (launchIntent != null) {
+                            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            startActivity(launchIntent)
+                            Toast.makeText(context, "Launching $installedPackageName...", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Log.w(TAG, "No launch intent found for package $installedPackageName")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to auto-launch app", e)
+                    }
+                }
+            }
+        }
+    }
+    // --- END NEW ---
+
     private val screenCaptureLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == Activity.RESULT_OK) {
                 // Permission granted. Pass the data to the ViewModel.
-                // FIX: Check for null on result.data before passing
                 result.data?.let {
                     viewModel.setScreenCapturePermission(result.resultCode, it)
                 }
@@ -56,7 +86,6 @@ class MainActivity : ComponentActivity() {
                 viewModel.setScreenCapturePermission(Activity.RESULT_CANCELED, null)
             }
         }
-    // --- END NEW ---
 
     // --- Broadcast Receiver for events from UIInspectionService ---
     private val inspectionReceiver = object : BroadcastReceiver() {
@@ -134,7 +163,6 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
-            // --- FIX: Theme resolution logic ---
             var trigger by remember { mutableStateOf(true) } // Used to force recomposition
 
             val useDarkTheme = when (viewModel.settingsViewModel.getThemeMode()) {
@@ -156,7 +184,6 @@ class MainActivity : ComponentActivity() {
                     onThemeToggle = { trigger = !trigger } // Just flip the trigger
                 )
             }
-            // --- END FIX ---
         }
         Log.d(TAG, "onCreate: End")
     }
@@ -180,8 +207,18 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(inspectionReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
-            registerReceiver(inspectionReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            registerReceiver(inspectionReceiver, filter)
         }
+
+        // --- NEW: Register Package Install Receiver ---
+        val packageFilter = IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_REPLACED)
+            addDataScheme("package")
+        }
+        registerReceiver(packageInstallReceiver, packageFilter)
+        // --- END NEW ---
+
         Log.d(TAG, "onStart: BroadcastReceiver registered")
         Log.d(TAG, "onStart: End")
     }
@@ -189,7 +226,16 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         Log.d(TAG, "onStop: Start")
-        unregisterReceiver(inspectionReceiver) // Unregister
+        unregisterReceiver(inspectionReceiver)
+
+        // --- NEW: Unregister Package Receiver ---
+        try {
+            unregisterReceiver(packageInstallReceiver)
+        } catch (e: Exception) {
+            // Ignore if not registered
+        }
+        // --- END NEW ---
+
         Log.d(TAG, "onStop: End")
     }
 }

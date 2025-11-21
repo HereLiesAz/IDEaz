@@ -44,9 +44,6 @@ android {
         aidl = true
     }
 
-    // --- FIX: This block is required ---
-    // It tells Gradle where to find your Kotlin code (fixing the "Default Activity" error)
-    // and also where to find your in-app tool assets and AIDL files.
     sourceSets {
         getByName("main") {
             kotlin.srcDirs("src/main/kotlin")
@@ -54,11 +51,9 @@ android {
             res.srcDirs("src/main/res")
             aidl.srcDirs("src/main/aidl")
             assets.srcDirs("src/main/assets")
-            // We DO include jniLibs here for the NATIVE tools (java, aapt2, jules)
             jniLibs.srcDirs("src/main/jniLibs")
         }
     }
-    // --- END FIX ---
 
     packaging {
         jniLibs {
@@ -101,6 +96,8 @@ dependencies {
     implementation(libs.maven.resolver.impl)
     implementation(libs.maven.resolver.connector.basic)
     implementation(libs.maven.resolver.transport.http)
+    // Added explicitly to fix DefaultServiceLocator access issue
+    implementation(libs.maven.resolver.provider)
 
     implementation(libs.maven.core)
     implementation(libs.maven.settings.builder)

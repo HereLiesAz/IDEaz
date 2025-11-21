@@ -18,5 +18,13 @@ User authentication is completely separate from API authentication. To use the A
 -   **User-Provided Keys:** The user is responsible for obtaining their own API keys from the respective platforms (Jules, Google AI Studio).
 -   **Input and Storage:** The user will enter these keys into the "Settings" screen. The app will then save these keys securely on the device using Android's **`EncryptedSharedPreferences`**.
 -   **Usage:**
-    -   **Jules:** The `JulesCliClient` does not use the API key directly. It is assumed the native `libjules.so` binary is pre-configured or handles its own auth (e.g., prompting for a login) via its CLI interface.
+    -   **Jules:** The `JulesCliClient` does not use the API key directly. It is assumed the native `libjules.so` binary is pre-configured or handles its own auth (e.g., prompting for a login) via its CLI interface. The `JulesApiClient` uses the key for HTTP requests.
     -   **Gemini:** The `GeminiApiClient` retrieves the securely stored key and uses it for all HTTP API calls.
+
+## 3. GitHub Authentication
+**Goal:** To enable repository management and automated bug reporting.
+
+-   **Personal Access Token (PAT):** The user provides a GitHub PAT with `repo` scope in the Settings screen.
+-   **Usage:**
+    -   **Project Management:** Used by `GitManager` and `GitHubApiClient` to clone repositories, create new repositories, and push changes.
+    -   **Automated Bug Reporting:** Used by `GithubIssueReporter` to automatically open issues on the `HereLiesAz/IDEaz` repository when an internal IDE error occurs. If no token is present (or the API call fails), the app falls back to opening a browser window with the issue details pre-filled.

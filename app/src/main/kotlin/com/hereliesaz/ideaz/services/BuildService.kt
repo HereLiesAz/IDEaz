@@ -6,6 +6,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.IBuildService
@@ -20,6 +21,7 @@ import java.util.ArrayDeque
 
 class BuildService : Service() {
     companion object {
+        private const val TAG = "BuildService"
         private const val NOTIFICATION_CHANNEL_ID = "IDEAZ_BUILD_CHANNEL_ID"
         private const val NOTIFICATION_ID = 1
         private const val MIN_SDK = 26
@@ -37,6 +39,8 @@ class BuildService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        // Ensure tools are installed/repaired on service creation
+        ToolManager.installTools(this)
         createNotificationChannel()
     }
 
@@ -85,6 +89,26 @@ class BuildService : Service() {
             .build()
 
         getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification)
+    }
+
+    // Helper to check tool and log specifically to the user console
+    private fun checkTool(name: String, callback: IBuildCallback): String? {
+        callback.onLog("Verifying tool: $name...")
+        val path = ToolManager.getToolPath(this, name)
+
+        if (path != null) {
+            val file = File(path)
+            if (file.exists()) {
+                callback.onLog("  OK: $path (${file.length()} bytes)")
+                return path
+            } else {
+                callback.onLog("  ERROR: Path returned '$path' but file does not exist!")
+                return null
+            }
+        } else {
+            callback.onLog("  ERROR: ToolManager returned null for '$name'. Check nativeLibraryDir or assets.")
+            return null
+        }
     }
 
     private fun startBuild(projectPath: String, callback: IBuildCallback) {
@@ -140,28 +164,45 @@ class BuildService : Service() {
             return
         }
 
-        val aapt2Path = ToolManager.getToolPath(this, "aapt2")
-        val kotlincJarPath = ToolManager.getToolPath(this, "kotlin-compiler.jar")
-        val d8Path = ToolManager.getToolPath(this, "d8.jar")
-        val apkSignerPath = ToolManager.getToolPath(this, "apksigner.jar")
-        val keystorePath = ToolManager.getToolPath(this, "debug.keystore")
-        val androidJarPath = ToolManager.getToolPath(this, "android.jar")
-        val javaBinaryPath = ToolManager.getToolPath(this, "java")
+        // --- VERBOSE TOOL CHECK ---
+        callback.onLog("\n--- Toolchain Verification ---")
+        val aapt2Path = checkTool("aapt2", callback)
+        val kotlincJarPath = checkTool("kotlin-compiler.jar", callback)
+        val d8Path = checkTool("d8.jar", callback)
+        val apkSignerPath = checkTool("apksigner.jar", callback)
+        val keystorePath = checkTool("debug.keystore", callback)
+        val androidJarPath = checkTool("android.jar", callback)
+        val javaBinaryPath = checkTool("java", callback)
+        callback.onLog("------------------------------\n")
 
-        if (aapt2Path == null || kotlincJarPath == null || d8Path == null || apkSignerPath == null || keystorePath == null || androidJarPath == null || javaBinaryPath == null) {
-            callback.onFailure("Build failed: One or more tools not found. check logs for details.")
+        val missingTools = mutableListOf<String>()
+        if (aapt2Path == null) missingTools.add("aapt2")
+        if (kotlincJarPath == null) missingTools.add("kotlin-compiler.jar")
+        if (d8Path == null) missingTools.add("d8.jar")
+        if (apkSignerPath == null) missingTools.add("apksigner.jar")
+        if (keystorePath == null) missingTools.add("debug.keystore")
+        if (androidJarPath == null) missingTools.add("android.jar")
+        if (javaBinaryPath == null) missingTools.add("java")
+
+        if (missingTools.isNotEmpty()) {
+            // This exact string "tools not found" triggers the GitHub Issue Reporter in MainViewModel
+            val errorMsg = "Build failed: One or more tools not found: ${missingTools.joinToString(", ")}"
+            Log.e(TAG, errorMsg)
+            callback.onFailure(errorMsg)
             return
         }
+        // ---------------------------
 
         val buildOrchestrator = BuildOrchestrator(
             listOf(
-                GenerateSourceMap(File(projectDir, "app/src/main/res"), buildDir, cacheDir),
-                Aapt2Compile(aapt2Path, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK),
-                Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath, File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK),
-                KotlincCompile(kotlincJarPath, androidJarPath, File(projectDir, "app/src/main/java").absolutePath, File(buildDir, "classes"), resolverResult.output, javaBinaryPath),
-                D8Compile(d8Path, javaBinaryPath, androidJarPath, File(buildDir, "classes").absolutePath, File(buildDir, "classes").absolutePath, resolverResult.output),
+                Aapt2Compile(aapt2Path!!, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK),
+                Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK),
+                KotlincCompile(kotlincJarPath!!, androidJarPath, File(projectDir, "app/src/main/java").absolutePath, File(buildDir, "classes"), resolverResult.output, javaBinaryPath!!),
+                D8Compile(d8Path!!, javaBinaryPath, androidJarPath, File(buildDir, "classes").absolutePath, File(buildDir, "classes").absolutePath, resolverResult.output),
                 ApkBuild(File(buildDir, "app-signed.apk").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "classes").absolutePath),
-                ApkSign(apkSignerPath, javaBinaryPath, keystorePath, "android", "androiddebugkey", File(buildDir, "app-signed.apk").absolutePath)
+                ApkSign(apkSignerPath!!, javaBinaryPath, keystorePath!!, "android", "androiddebugkey", File(buildDir, "app-signed.apk").absolutePath),
+                // GenerateSourceMap moved to last step
+                GenerateSourceMap(File(projectDir, "app/src/main/res"), buildDir, cacheDir)
             )
         )
 

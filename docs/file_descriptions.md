@@ -4,17 +4,17 @@ This document provides a brief overview of the purpose of each documentation fil
 
 -   **`UI_UX.md`**: Describes the "post-code" user experience, focusing on the "Interact" vs. "Select" modes, the **hybrid tap-and-drag selection model**, the "Live App" view, and the "Select and Instruct" user journey.
 
--   **`auth.md`**: Outlines the dual-layer security model: social sign-on for the app, and the "Bring Your Own Key" (BYOK) model for authenticating calls to the **Gemini API**. Notes that the **Jules Tools CLI** handles its own authentication.
+-   **`auth.md`**: Outlines the dual-layer security model: social sign-on for the app, and the "Bring Your Own Key" (BYOK) model for authenticating calls to the **Gemini API** and **GitHub API**.
 
--   **`blueprint.md`**: The **primary architectural document**. Details the 4 core components, the IPC strategy, the hybrid tap/drag selection model, and the AI abstraction layer (which routes between `JulesCliClient` and `GeminiApiClient`).
+-   **`blueprint.md`**: The **primary architectural document**. Details the 4 core components, the IPC strategy, the hybrid tap/drag selection model, and the AI abstraction layer.
 
--   **`build_pipeline.md`**: A detailed, step-by-step breakdown of the "No-Gradle" on-device build system. **Crucially, this file explains the `jniLibs` bundling strategy for all native toolchain binaries.**
+-   **`build_pipeline.md`**: A detailed, step-by-step breakdown of the "No-Gradle" on-device build system. **Crucially, this file explains the `jniLibs` bundling strategy and the exact execution order (Compile -> Link -> Dex -> Sign -> SourceMap).**
 
 -   **`conduct.md`**: Establishes the Code of Conduct for all contributors to the IDEaz IDE project.
 
--   **`data_layer.md`**: Describes the dual data layer architecture: the "Invisible Repository" (Git) that acts as the source of truth for the user's app, and the local, on-device storage (EncryptedSharedPreferences, Room) used by the IDEaz IDE app itself.
+-   **`data_layer.md`**: Describes the dual data layer architecture: the "Invisible Repository" (Git) that acts as the source of truth for the user's app, and the local, on-device storage.
 
--   **`fauxpas.md`**: A guide to common pitfalls, such as insecure API key storage, mixing the global and contextual log streams, and **ignoring the AI abstraction layer**.
+-   **`fauxpas.md`**: A guide to common pitfalls, such as insecure API key storage, mixing log streams, and **silencing internal IDE errors**.
 
 -   **`file_descriptions.md`**: This file. It serves as a meta-document to help navigate the project's documentation.
 
@@ -22,42 +22,24 @@ This document provides a brief overview of the purpose of each documentation fil
 
 -   **`performance.md`**: Focuses on the unique performance challenges of the on-device architecture, including the new UI rendering overhead in the `UIInspectionService`.
 
--   **`screens.md`**: Provides an overview of the minimal UI of the IDEaz IDE app itself, detailing the **hybrid Contextual Prompt/Log UI (with its cancel button)** and the "Global Console (Bottom Sheet)".
+-   **`screens.md`**: Provides an overview of the minimal UI of the IDEaz IDE app itself, detailing the **hybrid Contextual Prompt/Log UI** and the "Global Console (Bottom Sheet)".
 
--   **`task_flow.md`**: Narrates the end-to-end user journey with concrete scenarios, explicitly describing the **separate flows for tap-to-select and drag-to-select**, and the **task cancellation flow**.
+-   **`task_flow.md`**: Narrates the end-to-end user journey with concrete scenarios, explicitly describing the **auto-launch behavior** after a build and the **automated bug reporting** flow.
 
--   **`testing.md`**: Outlines the testing strategy, emphasizing E2E tests using `UI Automator` to validate the floating overlay UI and the AI routing logic.
+-   **`testing.md`**: Outlines the testing strategy, emphasizing E2E tests using `UI Automator`.
 
--   **`todo.md`**: The phased implementation plan, now updated to reflect the dual-log system and the new contextual overlay UI in Phase 6.
+-   **`todo.md`**: The phased implementation plan, updated with completed status for Phase 6 and robustness tasks.
 
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/services/BuildService.kt`**: A background service that runs in a separate process to manage the on-device build toolchain. It receives build requests from the Host App and reports back the status and logs.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/services/BuildService.kt`**: A background service that manages the on-device build toolchain. Corrected to execute `GenerateSourceMap` last.
 
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/BuildStep.kt`**: An interface that defines a contract for all the build steps.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/BuildStep.kt`**: Interface for build steps.
 
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/Aapt2Compile.kt`**: A class that implements the `BuildStep` interface and is responsible for compiling the Android resources using `aapt2`.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/*.kt`**: Individual build steps (Aapt2Compile, Aapt2Link, etc.). `Aapt2Link` now includes validation for `android.jar`.
 
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/Aapt2Link.kt`**: A class that implements the `BuildStep` interface and is responsible for linking the compiled resources and the `AndroidManifest.xml` to produce a preliminary `resources.apk` and the `R.java` file.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/utils/ToolManager.kt`**: Utility for managing native tools and assets. Now includes logic to validate and repair corrupt/empty asset files.
 
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/KotlincCompile.kt`**: A class that implements the `BuildStep` interface and is responsible for compiling the Kotlin source code to JVM bytecode using `kotlinc`.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/utils/GithubIssueReporter.kt`**: **New utility** that automatically reports internal IDE exceptions to GitHub issues via API or browser fallback.
 
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/D8Compile.kt`**: A class that implements the `BuildStep` interface and is responsible for converting the JVM bytecode into Android's `.dex` format using `d8`.
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/ui/MainViewModel.kt`**: The ViewModel for `MainActivity`. Orchestrates the build, routes AI requests, and now **handles internal errors using `GithubIssueReporter`**.
 
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/ApkBuild.kt`**: A class that implements the `BuildStep` interface and is responsible for packaging the final APK.
-
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/ApkSign.kt`**: A class that implements the `BuildStep` interface and is responsible for signing the APK with a debug certificate using `apksigner`.
-
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/BuildOrchestrator.kt`**: A class that is responsible for executing the build steps in the correct order.
-
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/utils/ProcessExecutor.kt`**: A utility object that provides methods to execute command-line processes.
-
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/utils/ToolManager.kt`**: A utility object that manages **getting the executable paths for native binaries (from `jniLibs`) and data files (from `assets`)**.
-
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/ui/MainViewModel.kt`**: The ViewModel for the `MainActivity`. It manages the UI state, handles the `BuildService` connection, and orchestrates the build process. **It also routes AI requests, handles tap/drag contexts, and manages the cancel-task logic.**
-
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/models/SourceMapEntry.kt`**: A data class that represents an entry in the source map.
-
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/utils/SourceMapParser.kt`**: A utility class that is responsible for parsing the `source_map.json` file.
-
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/api/JulesCliClient.kt`**: A client for executing the **native `libjules.so` command-line tool**.
-
-- **`app/src/main/kotlin/com/hereliesaz/ideaz/api/ApiClient.kt`**: A singleton object that provides a configured Retrofit instance for the `JulesApiService` (Web API).
+- **`app/src/main/kotlin/com/hereliesaz/ideaz/MainActivity.kt`**: The entry point. Now includes a `BroadcastReceiver` to **auto-launch the user's app** upon successful installation.

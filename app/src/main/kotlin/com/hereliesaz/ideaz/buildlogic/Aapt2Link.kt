@@ -16,6 +16,15 @@ class Aapt2Link(
 ) : BuildStep {
 
     override fun execute(callback: IBuildCallback?): BuildResult {
+        // --- Validation Logic ---
+        val androidJar = File(androidJarPath)
+        if (!androidJar.exists() || androidJar.length() == 0L) {
+            val msg = "Aapt2Link Failed: android.jar at $androidJarPath is missing or empty."
+            callback?.onLog(msg)
+            return BuildResult(false, msg)
+        }
+        // ------------------------
+
         File(outputApkPath).parentFile?.mkdirs()
         File(outputJavaPath).mkdirs()
 
