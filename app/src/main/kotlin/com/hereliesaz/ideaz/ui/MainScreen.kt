@@ -191,8 +191,7 @@ fun MainScreen(
                         navController = navController,
                         viewModel = viewModel,
                         settingsViewModel = viewModel.settingsViewModel,
-                        onThemeToggle = onThemeToggle,
-                        bottomPadding = chatHeight
+                        onThemeToggle = onThemeToggle
                     )
                 }
             }
@@ -206,12 +205,7 @@ fun MainScreen(
                     sheetState = sheetState,
                     viewModel = viewModel,
                     peekDetent = Peek,
-                    halfwayDetent = Halfway,
-                    chatHeight = chatHeight,
-                    buildStatus = "", // Not needed
-                    aiStatus = "", // Not needed
-                    sessions = emptyList(), // Not needed
-                    activities = emptyList() // Not needed
+                    halfwayDetent = Halfway
                 )
             }
 
