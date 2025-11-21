@@ -28,13 +28,14 @@ fun LiveOutputBottomCard(
 ) {
     val logMessages by logStream.collectAsState(initial = "")
 
-    val logLines = logMessages.lines()
+    // Reverse lines for reverseLayout
+    val logLines = logMessages.trim().lines().reversed()
     val listState = rememberLazyListState()
 
-    // Autoscroll to the bottom when logLines size changes
+    // Autoscroll to the bottom (index 0) when logLines size changes
     LaunchedEffect(logLines.size) {
         if (logLines.isNotEmpty()) {
-            listState.animateScrollToItem(logLines.size - 1)
+            listState.animateScrollToItem(0)
         }
     }
 
@@ -53,17 +54,20 @@ fun LiveOutputBottomCard(
         LazyColumn(
             state = listState, // Pass the state to the LazyColumn
             modifier = Modifier.weight(1f),
+            reverseLayout = true, // Anchor content to the bottom
             // Apply padding to the content, not the column
             contentPadding = PaddingValues(top = 8.dp, bottom = bottomPadding, start = 16.dp, end = 16.dp)
         ) {
 
             items(logLines) { line ->
-                Text(
-                    text = line,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                if (line.isNotBlank()) {
+                    Text(
+                        text = line,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         }
     }
