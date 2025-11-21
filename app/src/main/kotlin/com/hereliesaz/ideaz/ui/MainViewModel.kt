@@ -41,8 +41,15 @@ import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.SourceContextHelper
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
+
+data class ProjectMetadata(
+    val name: String,
+    val sizeBytes: Long
+)
 
 class MainViewModel(
     application: Application,
@@ -50,6 +57,11 @@ class MainViewModel(
 ) : AndroidViewModel(application) {
 
     private val TAG = "MainViewModel"
+
+    private val _loadingProgress = MutableStateFlow<Int?>(null)
+    val loadingProgress = _loadingProgress.asStateFlow()
+
+    private val gitMutex = Mutex()
 
     private val _buildLog = MutableStateFlow("")
     val buildLog = _buildLog.asStateFlow()
@@ -170,18 +182,20 @@ class MainViewModel(
         settingsViewModel.setGithubUser(owner)
 
         val token = settingsViewModel.getGithubToken()
-        // For auth, we use the configured github user, but usually token is enough
         val authUser = settingsViewModel.getGithubUser()
 
         viewModelScope.launch {
-            _buildLog.value += "[INFO] Selecting repository '$owner/$appName'...\n"
-            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            gitMutex.withLock {
+                _buildLog.value += "[INFO] Selecting repository '$owner/$appName'...\n"
+                val projectDir = getApplication<Application>().filesDir.resolve(appName)
 
-            try {
-                if (projectDir.exists() && File(projectDir, ".git").exists()) {
+                try {
+                    if (projectDir.exists() && File(projectDir, ".git").exists()) {
                     _buildLog.value += "[INFO] Project exists. Pulling latest changes...\n"
                     withContext(Dispatchers.IO) {
-                        GitManager(projectDir).pull(authUser, token)
+                        GitManager(projectDir).pull(authUser, token) { percent, task ->
+                            _loadingProgress.value = percent
+                        }
                     }
                     _buildLog.value += "[INFO] Pull complete.\n"
                 } else {
@@ -193,10 +207,13 @@ class MainViewModel(
 
                     _buildLog.value += "[INFO] Cloning $owner/$repo...\n"
                     withContext(Dispatchers.IO) {
-                        GitManager(projectDir).clone(owner, repo, authUser, token)
+                        GitManager(projectDir).clone(owner, repo, authUser, token) { percent, task ->
+                            _loadingProgress.value = percent
+                        }
                     }
                     _buildLog.value += "[INFO] Clone complete.\n"
                 }
+                _loadingProgress.value = null
 
                 val type = ProjectAnalyzer.detectProjectType(projectDir)
                 settingsViewModel.setProjectType(type.name)
@@ -208,11 +225,13 @@ class MainViewModel(
                     _buildLog.value += "[INFO] Detected package name: $pkg\n"
                 }
 
-                fetchSessions()
+                    fetchSessions()
+                    startBuild(getApplication())
 
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to clone/pull", e)
-                _buildLog.value += "[INFO] Error: ${e.message}\n"
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to clone/pull", e)
+                    _buildLog.value += "[INFO] Error: ${e.message}\n"
+                }
             }
         }
     }
@@ -245,18 +264,20 @@ class MainViewModel(
         val user = settingsViewModel.getGithubUser()
 
         viewModelScope.launch {
-            try {
-                _buildLog.value += "[INFO] Fetching PR #$prId...\n"
-                withContext(Dispatchers.IO) {
-                    val gitManager = GitManager(projectDir)
-                    gitManager.fetchPr(prId, branchName, user, token)
-                    gitManager.checkout(branchName)
+            gitMutex.withLock {
+                try {
+                    _buildLog.value += "[INFO] Fetching PR #$prId...\n"
+                    withContext(Dispatchers.IO) {
+                        val gitManager = GitManager(projectDir)
+                        gitManager.fetchPr(prId, branchName, user, token)
+                        gitManager.checkout(branchName)
+                    }
+                    _buildLog.value += "[INFO] Checked out PR branch. Building...\n"
+                    startBuild(getApplication())
+                } catch (e: Exception) {
+                    Log.e(TAG, "Try session failed", e)
+                    _buildLog.value += "[ERROR] Try session failed: ${e.message}\n"
                 }
-                _buildLog.value += "[INFO] Checked out PR branch. Building...\n"
-                startBuild(getApplication())
-            } catch (e: Exception) {
-                Log.e(TAG, "Try session failed", e)
-                _buildLog.value += "[ERROR] Try session failed: ${e.message}\n"
             }
         }
     }
@@ -272,18 +293,20 @@ class MainViewModel(
         val user = settingsViewModel.getGithubUser()
 
         viewModelScope.launch {
-            try {
-                withContext(Dispatchers.IO) {
-                    val gitManager = GitManager(projectDir)
-                    gitManager.checkout(mainBranch)
-                    gitManager.pull(user, token)
-                    gitManager.merge(branchName)
+            gitMutex.withLock {
+                try {
+                    withContext(Dispatchers.IO) {
+                        val gitManager = GitManager(projectDir)
+                        gitManager.checkout(mainBranch)
+                        gitManager.pull(user, token)
+                        gitManager.merge(branchName)
+                    }
+                    _buildLog.value += "[INFO] Merged PR #$prId. Building...\n"
+                    startBuild(getApplication())
+                } catch (e: Exception) {
+                    Log.e(TAG, "Accept session failed", e)
+                    _buildLog.value += "[ERROR] Accept session failed: ${e.message}\n"
                 }
-                _buildLog.value += "[INFO] Merged PR #$prId. Building...\n"
-                startBuild(getApplication())
-            } catch (e: Exception) {
-                Log.e(TAG, "Accept session failed", e)
-                _buildLog.value += "[ERROR] Accept session failed: ${e.message}\n"
             }
         }
     }
@@ -407,12 +430,12 @@ class MainViewModel(
 
     fun startInspection(context: Context) {
         Log.d(TAG, "startInspection called")
-        context.startService(Intent(context, com.hereliesaz.ideaz.services.UIInspectionService::class.java))
+        context.sendBroadcast(Intent("com.hereliesaz.ideaz.START_INSPECTION"))
     }
 
     fun stopInspection(context: Context) {
         Log.d(TAG, "stopInspection called")
-        context.stopService(Intent(context, com.hereliesaz.ideaz.services.UIInspectionService::class.java))
+        context.sendBroadcast(Intent("com.hereliesaz.ideaz.STOP_INSPECTION"))
         confirmCancelTask()
     }
 
@@ -421,8 +444,8 @@ class MainViewModel(
         if (isBuildServiceBound) {
             viewModelScope.launch {
                 _buildLog.value = "[INFO] Status: Building...\n"
-                val targetDir = projectDir ?: File(extractProject(context))
-                Log.d(TAG, "Project extracted to: ${targetDir.absolutePath}")
+                val targetDir = projectDir ?: getOrCreateProject(context)
+                Log.d(TAG, "Project directory: ${targetDir.absolutePath}")
                 buildService?.startBuild(targetDir.absolutePath, buildCallback)
             }
         } else {
@@ -431,8 +454,25 @@ class MainViewModel(
         }
     }
 
-    private fun extractProject(context: Context): String {
-        Log.d(TAG, "extractProject called")
+    private fun getOrCreateProject(context: Context): File {
+        val appName = settingsViewModel.getAppName()
+        if (appName.isNullOrBlank()) {
+             // Fallback to legacy behavior if no app name set
+             return File(extractLegacyProject(context))
+        }
+
+        val projectDir = context.filesDir.resolve(appName)
+        if (!projectDir.exists()) {
+            _buildLog.value += "[INFO] Project '$appName' not found. Creating from template...\n"
+            val typeStr = settingsViewModel.getProjectType()
+            val type = ProjectType.fromString(typeStr)
+            createProjectFromTemplateInternal(context, type, projectDir)
+        }
+        return projectDir
+    }
+
+    private fun extractLegacyProject(context: Context): String {
+        Log.d(TAG, "extractLegacyProject called")
         val projectDir = context.filesDir.resolve("project")
         if (projectDir.exists()) {
             Log.d(TAG, "Deleting existing project directory")
@@ -445,6 +485,23 @@ class MainViewModel(
             copyAsset(context, "project/$it", projectDir.resolve(it).absolutePath)
         }
         return projectDir.absolutePath
+    }
+
+    private fun createProjectFromTemplateInternal(context: Context, type: ProjectType, projectDir: File) {
+        val templatePath = when (type) {
+            ProjectType.WEB -> "templates/web"
+            ProjectType.REACT_NATIVE -> "templates/react_native"
+            ProjectType.FLUTTER -> "templates/flutter"
+            else -> "project" // Default to Android (legacy path)
+        }
+
+        Log.d(TAG, "Creating project from template: $templatePath")
+        projectDir.mkdirs()
+
+        // Copy template files. Using copyAsset recursively.
+        context.assets.list(templatePath)?.forEach {
+            copyAsset(context, "$templatePath/$it", projectDir.resolve(it).absolutePath)
+        }
     }
 
     private fun copyAsset(context: Context, assetPath: String, destPath: String) {
@@ -508,27 +565,55 @@ class MainViewModel(
 
     fun initializeProject(prompt: String?) {
         viewModelScope.launch {
-            _buildLog.value += "[INFO] Checking for updates...\n"
-            try {
-                val appName = settingsViewModel.getAppName()
-                if (!appName.isNullOrBlank()) {
-                    val projectDir = getApplication<Application>().filesDir.resolve(appName)
-                    if (projectDir.exists()) {
-                        withContext(Dispatchers.IO) {
-                            GitManager(projectDir).pull()
-                        }
-                        _buildLog.value += "[INFO] Project updated.\n"
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to pull", e)
-                _buildLog.value += "[INFO] Warning: Failed to update project: ${e.message}\n"
-            }
+            gitMutex.withLock {
+                _buildLog.value += "[INFO] Checking for updates...\n"
+                try {
+                    val appName = settingsViewModel.getAppName()
+                    val token = settingsViewModel.getGithubToken()
+                    val user = settingsViewModel.getGithubUser()
 
-            if (!prompt.isNullOrBlank()) {
-                sendPrompt(prompt, isInitialization = true)
-            } else {
-                _buildLog.value += "[INFO] No initial prompt provided. Skipping AI initialization.\n"
+                    if (!appName.isNullOrBlank()) {
+                        val projectDir = getApplication<Application>().filesDir.resolve(appName)
+                        if (projectDir.exists()) {
+                            withContext(Dispatchers.IO) {
+                                val git = GitManager(projectDir)
+                                try {
+                                    git.pull(user, token) { percent, task ->
+                                        _loadingProgress.value = percent
+                                    }
+                                } catch (e: Exception) {
+                                    val msg = e.message ?: ""
+                                    if (msg.contains("Checkout conflict") || msg.contains("checkout conflict")) {
+                                        _buildLog.value += "[INFO] Conflict detected. Stashing local changes...\n"
+                                        git.stash("Auto-stash " + System.currentTimeMillis())
+                                        git.pull(user, token) { percent, task ->
+                                            _loadingProgress.value = percent
+                                        }
+                                        _buildLog.value += "[INFO] Restoring local changes...\n"
+                                        try {
+                                            git.unstash()
+                                        } catch (e2: Exception) {
+                                            _buildLog.value += "[WARN] Merge conflict during unstash. Resolve manually.\n"
+                                        }
+                                    } else {
+                                        throw e
+                                    }
+                                }
+                            }
+                            _loadingProgress.value = null
+                            _buildLog.value += "[INFO] Project updated.\n"
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to pull", e)
+                    _buildLog.value += "[INFO] Warning: Failed to update project: ${e.message}\n"
+                }
+
+                if (!prompt.isNullOrBlank()) {
+                    sendPrompt(prompt, isInitialization = true)
+                } else {
+                    _buildLog.value += "[INFO] No initial prompt provided. Skipping AI initialization.\n"
+                }
             }
         }
     }
@@ -950,26 +1035,19 @@ class MainViewModel(
                     _buildLog.value += "[INFO] Cleaning up existing directory...\n"
                     projectDir.deleteRecursively()
                 }
-                projectDir.mkdirs()
 
-                val templatePath = when (templateType) {
-                    "web" -> "templates/web"
-                    "react_native" -> "templates/react_native"
-                    "flutter" -> "templates/flutter"
-                    else -> "project" // Default to Android (legacy path)
+                val type = when (templateType.lowercase()) {
+                    "web" -> ProjectType.WEB
+                    "react_native" -> ProjectType.REACT_NATIVE
+                    "flutter" -> ProjectType.FLUTTER
+                    else -> ProjectType.ANDROID
                 }
 
-                // Note: copyAsset handles single file copy. We need to iterate if it's a directory.
-                // The existing logic in extractProject just iterates the top level.
-                // Let's use the existing copyAsset which handles recursion if we modify it slightly or trust it?
-                // The existing copyAsset implementation handles directories recursively!
-
-                context.assets.list(templatePath)?.forEach {
-                    copyAsset(context, "$templatePath/$it", projectDir.resolve(it).absolutePath)
-                }
+                createProjectFromTemplateInternal(context, type, projectDir)
 
                 settingsViewModel.setAppName(projectName)
                 settingsViewModel.setGithubUser("") // Local project
+                settingsViewModel.setProjectType(type.name)
                 _buildLog.value += "[INFO] Project '$projectName' created successfully.\n"
 
             } catch (e: Exception) {
@@ -1136,24 +1214,77 @@ class MainViewModel(
     private fun applyPatch(context: Context, patchContent: String, logTarget: Any) {
         Log.d(TAG, "applyPatch called")
         viewModelScope.launch {
-            try {
-                logTo(logTarget, "[INFO] AI Status: Applying patch...")
-                val appName = settingsViewModel.getAppName()
-                val projectDir = if (!appName.isNullOrBlank()) {
-                    context.filesDir.resolve(appName)
-                } else {
-                    context.filesDir.resolve("project")
+            gitMutex.withLock {
+                try {
+                    logTo(logTarget, "[INFO] AI Status: Applying patch...")
+                    val appName = settingsViewModel.getAppName()
+                    val projectDir = if (!appName.isNullOrBlank()) {
+                        context.filesDir.resolve(appName)
+                    } else {
+                        context.filesDir.resolve("project")
+                    }
+
+                    val gitManager = GitManager(projectDir)
+                    gitManager.applyPatch(patchContent)
+                    logTo(logTarget, "[INFO] AI Status: Patch applied. Rebuilding...")
+                    startBuild(context, projectDir)
+
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error applying patch", e)
+                    logTo(logTarget, "[INFO] AI Status: Error applying patch: ${e.message}")
+                    if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
                 }
+            }
+        }
+    }
 
-                val gitManager = GitManager(projectDir)
-                gitManager.applyPatch(patchContent)
-                logTo(logTarget, "[INFO] AI Status: Patch applied. Rebuilding...")
-                startBuild(context, projectDir)
+    fun getLocalProjectsWithMetadata(): List<ProjectMetadata> {
+        val projects = settingsViewModel.getProjectList()
+        return projects.map { name ->
+            val dir = getApplication<Application>().filesDir.resolve(name)
+            val size = if (dir.exists()) dir.walkTopDown().sumOf { it.length() } else 0L
+            ProjectMetadata(name, size)
+        }
+    }
 
-            } catch (e: Exception) {
-                Log.e(TAG, "Error applying patch", e)
-                logTo(logTarget, "[INFO] AI Status: Error applying patch: ${e.message}")
-                if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
+    fun deleteProject(projectName: String) {
+        viewModelScope.launch {
+            _buildLog.value += "[INFO] Deleting project '$projectName'...\n"
+            val projectDir = getApplication<Application>().filesDir.resolve(projectName)
+            if (projectDir.exists()) {
+                projectDir.deleteRecursively()
+            }
+            settingsViewModel.removeProject(projectName)
+            // If deleted project was active, maybe clear active state?
+            if (settingsViewModel.getAppName() == projectName) {
+                settingsViewModel.setAppName("")
+            }
+            _buildLog.value += "[INFO] Project '$projectName' deleted.\n"
+        }
+    }
+
+    fun syncAndDeleteProject(projectName: String) {
+        viewModelScope.launch {
+            gitMutex.withLock {
+                _buildLog.value += "[INFO] Syncing and deleting project '$projectName'...\n"
+                val projectDir = getApplication<Application>().filesDir.resolve(projectName)
+                if (projectDir.exists()) {
+                    try {
+                        withContext(Dispatchers.IO) {
+                            val git = GitManager(projectDir)
+                            val token = settingsViewModel.getGithubToken()
+                            val user = settingsViewModel.getGithubUser()
+                            git.addAll()
+                            git.commit("Sync before delete")
+                            git.push(user, token)
+                        }
+                        _buildLog.value += "[INFO] Sync complete.\n"
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to sync project", e)
+                        _buildLog.value += "[INFO] Error syncing project: ${e.message}. Deleting anyway...\n"
+                    }
+                }
+                deleteProject(projectName)
             }
         }
     }
