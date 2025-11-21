@@ -13,6 +13,8 @@ import com.hereliesaz.ideaz.IBuildService
 import com.hereliesaz.ideaz.buildlogic.*
 import com.hereliesaz.ideaz.utils.ApkInstaller
 import com.hereliesaz.ideaz.utils.ToolManager
+import com.hereliesaz.ideaz.utils.ProjectAnalyzer
+import com.hereliesaz.ideaz.models.ProjectType
 import java.io.File
 
 class BuildService : Service() {
@@ -66,6 +68,20 @@ class BuildService : Service() {
         val buildDir = File(filesDir, "build").apply { mkdirs() }
         val cacheDir = File(filesDir, "cache").apply { mkdirs() }
         val localRepoDir = File(filesDir, "local-repo").apply { mkdirs() }
+
+        val type = ProjectAnalyzer.detectProjectType(projectDir)
+
+        if (type == ProjectType.REACT_NATIVE) {
+            val step = ReactNativeBuildStep(this, projectDir, buildDir, cacheDir, localRepoDir)
+            val result = step.execute(callback)
+            if (result.success) {
+                callback.onSuccess(File(buildDir, "app-signed.apk").absolutePath)
+                ApkInstaller.installApk(this, File(buildDir, "app-signed.apk").absolutePath)
+            } else {
+                callback.onFailure(result.output)
+            }
+            return
+        }
 
         val resolver = DependencyResolver(projectDir, File(projectDir, "dependencies.toml"), localRepoDir)
         val resolverResult = resolver.execute()
