@@ -4,8 +4,8 @@ import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.utils.ProcessExecutor
 
 class ApkSign(
-    // --- REMOVED javaPath ---
     private val apkSignerPath: String,
+    private val javaPath: String,
     private val keystorePath: String,
     private val keystorePass: String,
     private val keyAlias: String,
@@ -14,7 +14,9 @@ class ApkSign(
 
     override fun execute(callback: IBuildCallback?): BuildResult {
         val command = listOf(
-            apkSignerPath, // --- Use native binary directly ---
+            javaPath,
+            "-jar",
+            apkSignerPath,
             "sign",
             "--ks", keystorePath,
             "--ks-pass", "pass:$keystorePass",

@@ -92,26 +92,26 @@ class BuildService : Service() {
 
         val aapt2Path = ToolManager.getToolPath(this, "aapt2")
         val kotlincJarPath = ToolManager.getToolPath(this, "kotlin-compiler.jar")
-        val d8Path = ToolManager.getToolPath(this, "d8")
-        val apkSignerPath = ToolManager.getToolPath(this, "apksigner")
+        val d8Path = ToolManager.getToolPath(this, "d8.jar")
+        val apkSignerPath = ToolManager.getToolPath(this, "apksigner.jar")
         val keystorePath = ToolManager.getToolPath(this, "debug.keystore")
         val androidJarPath = ToolManager.getToolPath(this, "android.jar")
         val javaBinaryPath = ToolManager.getToolPath(this, "java")
 
-        if (javaBinaryPath == null) {
-            callback.onFailure("Build failed: java tool not found")
+        if (aapt2Path == null || kotlincJarPath == null || d8Path == null || apkSignerPath == null || keystorePath == null || androidJarPath == null || javaBinaryPath == null) {
+            callback.onFailure("Build failed: One or more tools not found. check logs for details.")
             return
         }
 
         val buildOrchestrator = BuildOrchestrator(
             listOf(
                 GenerateSourceMap(File(projectDir, "app/src/main/res"), buildDir, cacheDir),
-                Aapt2Compile(aapt2Path!!, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK),
-                Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK),
-                KotlincCompile(kotlincJarPath!!, androidJarPath, File(projectDir, "app/src/main/java").absolutePath, File(buildDir, "classes"), resolverResult.output, javaBinaryPath),
-                D8Compile(d8Path!!, androidJarPath, File(buildDir, "classes").absolutePath, File(buildDir, "classes").absolutePath, resolverResult.output),
+                Aapt2Compile(aapt2Path, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK),
+                Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath, File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK),
+                KotlincCompile(kotlincJarPath, androidJarPath, File(projectDir, "app/src/main/java").absolutePath, File(buildDir, "classes"), resolverResult.output, javaBinaryPath),
+                D8Compile(d8Path, javaBinaryPath, androidJarPath, File(buildDir, "classes").absolutePath, File(buildDir, "classes").absolutePath, resolverResult.output),
                 ApkBuild(File(buildDir, "app-signed.apk").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "classes").absolutePath),
-                ApkSign(apkSignerPath!!, keystorePath!!, "android", "androiddebugkey", File(buildDir, "app-signed.apk").absolutePath)
+                ApkSign(apkSignerPath, javaBinaryPath, keystorePath, "android", "androiddebugkey", File(buildDir, "app-signed.apk").absolutePath)
             )
         )
 
