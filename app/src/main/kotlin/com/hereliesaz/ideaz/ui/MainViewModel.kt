@@ -38,6 +38,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import com.hereliesaz.ideaz.utils.ToolManager
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
+import com.hereliesaz.ideaz.utils.SourceContextHelper
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
@@ -357,74 +358,35 @@ class MainViewModel(
         pendingRect = bounds
 
         viewModelScope.launch {
-            // Handle React Native source mapping directly encoded in the ID
-            if (resourceId.startsWith("__source:")) {
-                try {
-                    // Format: __source:filename:line__
-                    val cleanId = resourceId.removePrefix("__source:").removeSuffix("__")
-                    val parts = cleanId.split(":")
-                    if (parts.size >= 2) {
-                        val fileName = parts[0]
-                        val lineNumber = parts[1].toIntOrNull() ?: 1
-
-                        val appName = settingsViewModel.getAppName() ?: ""
-                        val projectDir = getApplication<Application>().filesDir.resolve(appName)
-                        val sourceFile = File(projectDir, fileName)
-
-                        if (sourceFile.exists()) {
-                            val lines = sourceFile.readLines()
-                            val lineIndex = lineNumber - 1
-                            val snippet = lines.getOrNull(lineIndex)?.trim() ?: ""
-
-                            pendingRichPrompt = """
-                            Context (React Native):
-                            File: $fileName
-                            Line: $lineNumber
-                            Code Snippet: $snippet
-
-                            User Request: "$prompt"
-                            """.trimIndent()
-                        } else {
-                            pendingRichPrompt = "Context: $fileName:$lineNumber (Error: File not found)\nUser Request: \"$prompt\""
-                        }
-                    } else {
-                        pendingRichPrompt = "Context: $resourceId (Error: Invalid format)\nUser Request: \"$prompt\""
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error parsing RN source", e)
-                    pendingRichPrompt = "Context: $resourceId (Error: ${e.message})\nUser Request: \"$prompt\""
-                }
+            val appName = settingsViewModel.getAppName()
+            if (appName.isNullOrBlank()) {
+                pendingRichPrompt = "Context: Error: No project loaded.\nUser Request: \"$prompt\""
                 takeScreenshot(bounds)
                 return@launch
             }
 
-            // Handle standard Android XML source mapping
-            val entry = sourceMap[resourceId]
-            if (entry != null) {
-                try {
-                    val file = File(entry.file)
-                    val lines = file.readLines()
-                    val lineIndex = entry.line - 1
-                    val snippet = lines.getOrNull(lineIndex)?.trim()
+            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            val currentMap = sourceMap
 
-                    pendingRichPrompt = """
+            // Background thread for IO
+            val contextResult = withContext(Dispatchers.IO) {
+                SourceContextHelper.resolveContext(resourceId, projectDir, currentMap)
+            }
+
+            if (!contextResult.isError) {
+                pendingRichPrompt = """
                     Context (for element $resourceId):
-                    File: ${entry.file}
-                    Line: ${entry.line}
-                    Code Snippet: $snippet
+                    File: ${contextResult.file}
+                    Line: ${contextResult.line}
+                    Code Snippet: ${contextResult.snippet}
                     
                     User Request: "$prompt"
                     """.trimIndent()
-                    takeScreenshot(bounds)
-
-                } catch (e: Exception) {
-                    pendingRichPrompt = "Context: Element $resourceId (Error: Could not read source file ${e.message})\nUser Request: \"$prompt\""
-                    takeScreenshot(bounds)
-                }
             } else {
-                pendingRichPrompt = "Context: Element $resourceId (Error: Not found in source map)\nUser Request: \"$prompt\""
-                takeScreenshot(bounds)
+                pendingRichPrompt = "Context: Element $resourceId (Error: ${contextResult.errorMessage})\nUser Request: \"$prompt\""
             }
+
+            takeScreenshot(bounds)
         }
     }
 
