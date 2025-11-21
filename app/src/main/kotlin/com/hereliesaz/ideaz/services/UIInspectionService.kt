@@ -188,6 +188,15 @@ class UIInspectionService : AccessibilityService() {
                     }
                     rect?.let { mainHandler?.post { showLogUI(it) } }
                 }
+                "com.hereliesaz.ideaz.START_INSPECTION" -> {
+                    mainHandler?.post { showTouchInterceptor() }
+                }
+                "com.hereliesaz.ideaz.STOP_INSPECTION" -> {
+                    mainHandler?.post {
+                        hideTouchInterceptor()
+                        hideOverlayUI()
+                    }
+                }
             }
         }
     }
@@ -205,19 +214,29 @@ class UIInspectionService : AccessibilityService() {
             addAction("com.hereliesaz.ideaz.AI_LOG")
             addAction("com.hereliesaz.ideaz.TASK_FINISHED")
             addAction("com.hereliesaz.ideaz.SHOW_LOG_UI")
+            addAction("com.hereliesaz.ideaz.START_INSPECTION")
+            addAction("com.hereliesaz.ideaz.STOP_INSPECTION")
         }
-        registerReceiver(commandReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(commandReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(commandReceiver, filter)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        mainHandler?.post { if (touchInterceptor == null) showTouchInterceptor() }
+        // We use broadcasts now, but keep this for compatibility if needed, or just return.
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
         hideTouchInterceptor()
         hideOverlayUI()
-        unregisterReceiver(commandReceiver)
+        try {
+            unregisterReceiver(commandReceiver)
+        } catch (e: IllegalArgumentException) {
+            Log.w("UIInspectionService", "Receiver already unregistered or not registered", e)
+        }
         super.onDestroy()
     }
 
