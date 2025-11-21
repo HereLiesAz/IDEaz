@@ -48,6 +48,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.Switch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 
@@ -61,24 +62,30 @@ fun ProjectScreen(
     onBuildTriggered: () -> Unit
 ) {
     Log.d(TAG, "ProjectScreen: Composing")
-    Log.d(TAG, "ProjectScreen: MainViewModel hash: ${viewModel.hashCode()}")
-    Log.d(TAG, "ProjectScreen: SettingsViewModel hash: ${settingsViewModel.hashCode()}")
 
     val context = LocalContext.current
-    var tabIndex by remember { mutableStateOf(0) }
-    val tabs = listOf("Setup", "Clone", "Load")
 
-    // Central state for project config - Synced with SettingsViewModel
+    val hasToken = !settingsViewModel.getGithubToken().isNullOrBlank()
+    // Dynamic tabs based on token presence
+    val tabs = if (hasToken) listOf("Create", "Setup", "Clone", "Load") else listOf("Setup", "Clone", "Load")
+
+    var tabIndex by remember { mutableStateOf(0) }
+
+    // Central state for project config
     val currentAppNameState by settingsViewModel.currentAppName.collectAsState()
     val loadingProgress by viewModel.loadingProgress.collectAsState()
 
     var appName by remember { mutableStateOf("") }
     var githubUser by remember { mutableStateOf("") }
-    var branchName by remember { mutableStateOf("") }
-    var packageName by remember { mutableStateOf("") }
+    var branchName by remember { mutableStateOf("main") }
+    var packageName by remember { mutableStateOf("com.example.app") }
     var selectedType by remember { mutableStateOf(ProjectType.ANDROID) }
 
-    // Sync local state when current app name changes (e.g. project loaded)
+    // Create specific fields
+    var repoDescription by remember { mutableStateOf("Created with IDEaz") }
+    var isPrivateRepo by remember { mutableStateOf(false) }
+
+    // Sync local state when current app name changes
     LaunchedEffect(currentAppNameState) {
         appName = settingsViewModel.getAppName() ?: "IDEazProject"
         githubUser = settingsViewModel.getGithubUser() ?: ""
@@ -87,12 +94,11 @@ fun ProjectScreen(
         selectedType = ProjectType.fromString(settingsViewModel.getProjectType())
     }
 
-    // NEW: Collect sources from ViewModel and use local githubUser state for filtering
+    // Collect sources
     val allSources by viewModel.ownedSources.collectAsState()
     val isLoadingSources by viewModel.isLoadingSources.collectAsState()
     val availableSessions by viewModel.availableSessions.collectAsState()
 
-    // Auto-refresh sources when entering the screen
     LaunchedEffect(Unit) {
         viewModel.fetchOwnedSources()
         viewModel.fetchSessions()
@@ -121,11 +127,16 @@ fun ProjectScreen(
     var projectMetadataList by remember { mutableStateOf<List<ProjectMetadata>>(emptyList()) }
     var projectToDelete by remember { mutableStateOf<String?>(null) }
 
-    // Observe local projects list to trigger refresh
     val localProjects by settingsViewModel.localProjects.collectAsState()
 
+    // Adjust logic for dynamic tabs
+    val isCreateTab = hasToken && tabIndex == 0
+    val isSetupTab = (hasToken && tabIndex == 1) || (!hasToken && tabIndex == 0)
+    val isCloneTab = (hasToken && tabIndex == 2) || (!hasToken && tabIndex == 1)
+    val isLoadTab = (hasToken && tabIndex == 3) || (!hasToken && tabIndex == 2)
+
     LaunchedEffect(tabIndex, localProjects) {
-        if (tabIndex == 2) {
+        if (isLoadTab) {
             withContext(Dispatchers.IO) {
                 projectMetadataList = viewModel.getLocalProjectsWithMetadata()
             }
@@ -225,9 +236,105 @@ fun ProjectScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            when (tabIndex) {
-                // --- SETUP TAB ---
-                0 -> Column(
+            if (isCreateTab) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp)
+                ) {
+                    Text("Create New Repository", style = MaterialTheme.typography.headlineSmall)
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    AzTextBox(
+                        value = appName,
+                        onValueChange = { appName = it },
+                        hint = "Repository Name (App Name)",
+                        onSubmit = {}
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    AzTextBox(
+                        value = repoDescription,
+                        onValueChange = { repoDescription = it },
+                        hint = "Description",
+                        onSubmit = {}
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Project Type Dropdown (Shared)
+                    var expanded by remember { mutableStateOf(false) }
+                    val projectTypes = ProjectType.values().toList()
+                    ExposedDropdownMenuBox(
+                        expanded = expanded,
+                        onExpandedChange = { expanded = !expanded },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        TextField(
+                            modifier = Modifier.menuAnchor().fillMaxWidth(),
+                            readOnly = true,
+                            value = selectedType.displayName,
+                            onValueChange = {},
+                            label = { Text("Project Type") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                            colors = ExposedDropdownMenuDefaults.textFieldColors()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }
+                        ) {
+                            projectTypes.forEach { type ->
+                                DropdownMenuItem(
+                                    text = { Text(type.displayName) },
+                                    onClick = {
+                                        selectedType = type
+                                        expanded = false
+                                    },
+                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    AzTextBox(
+                        value = packageName,
+                        onValueChange = { packageName = it },
+                        hint = "Package Name",
+                        onSubmit = {}
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Private Repository")
+                        Spacer(modifier = Modifier.weight(1f))
+                        Switch(checked = isPrivateRepo, onCheckedChange = { isPrivateRepo = it })
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    AzButton(
+                        onClick = {
+                            viewModel.createGitHubRepository(
+                                appName,
+                                repoDescription,
+                                isPrivateRepo,
+                                selectedType,
+                                packageName,
+                                context
+                            )
+                            onBuildTriggered()
+                            Toast.makeText(context, "Creating repository...", Toast.LENGTH_SHORT).show()
+                        },
+                        text = "Create & Initialize",
+                        shape = AzButtonShape.RECTANGLE,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            } else if (isSetupTab) {
+                // --- SETUP TAB (Existing Logic) ---
+                Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
@@ -326,33 +433,24 @@ fun ProjectScreen(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    Row {
-                        AzButton(
-                            onClick = {
-                                settingsViewModel.saveProjectConfig(appName, githubUser, branchName)
-                                settingsViewModel.setProjectType(selectedType.name)
-                                settingsViewModel.saveTargetPackageName(packageName)
-
-                                Toast.makeText(context, "Configuration saved.", Toast.LENGTH_SHORT).show()
-                                viewModel.initializeProject("")
-                                viewModel.fetchSessions()
-                            },
-                            text = "Save & Initialize",
-                            shape = AzButtonShape.RECTANGLE,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Spacer(modifier = Modifier.padding(8.dp))
-                        AzButton(
-                            onClick = {
-                                viewModel.startBuild(context)
-                                onBuildTriggered()
-                                Toast.makeText(context, "Building...", Toast.LENGTH_SHORT).show()
-                            },
-                            text = "Build",
-                            shape = AzButtonShape.RECTANGLE,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                    // SINGLE ACTION BUTTON
+                    AzButton(
+                        onClick = {
+                            viewModel.saveAndInitialize(
+                                appName,
+                                githubUser,
+                                branchName,
+                                packageName,
+                                selectedType,
+                                context
+                            )
+                            onBuildTriggered()
+                            Toast.makeText(context, "Saving & Initializing...", Toast.LENGTH_SHORT).show()
+                        },
+                        text = "Save & Initialize",
+                        shape = AzButtonShape.RECTANGLE,
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
                     Spacer(modifier = Modifier.height(24.dp))
 
@@ -424,9 +522,9 @@ fun ProjectScreen(
                         }
                     }
                 }
-
+            } else if (isCloneTab) {
                 // --- CLONE TAB ---
-                1 -> LazyColumn(
+                LazyColumn(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     item {
@@ -528,9 +626,9 @@ fun ProjectScreen(
                         }
                     }
                 }
-
+            } else if (isLoadTab) {
                 // --- LOAD TAB ---
-                2 -> LazyColumn(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
                     if (projectMetadataList.isEmpty()) {
                         item {
                             Spacer(modifier = Modifier.height(16.dp))
@@ -545,6 +643,8 @@ fun ProjectScreen(
                                     .clickable {
                                         viewModel.loadProjectAndBuild(context, project.name)
                                         Toast.makeText(context, "Loading and building project...", Toast.LENGTH_SHORT).show()
+                                        // Switch view on manual load
+                                        onBuildTriggered()
                                     },
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surface,
