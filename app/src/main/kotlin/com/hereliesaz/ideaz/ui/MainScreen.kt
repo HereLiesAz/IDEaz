@@ -68,6 +68,12 @@ fun MainScreen(
     val isIdeVisible = sheetState.currentDetent != AlmostHidden || isOnSettings || isOnProjectSettings
     val isBottomSheetVisible = currentRoute == "main" || currentRoute == "build"
 
+    // Auto-expand sheet when navigating to Build screen
+    LaunchedEffect(currentRoute) {
+        if (currentRoute == "build") {
+            sheetState.animateTo(Halfway)
+        }
+    }
 
     // --- End Visibility Logic ---
 
