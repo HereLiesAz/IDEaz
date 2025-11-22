@@ -1,43 +1,36 @@
-# Peridium IDE: A Narrative User Journey
+# IDEaz IDE: A Narrative User Journey
 
-This document describes the end-to-end user journey within the Peridium IDE. The user is a "director," not a developer, and their interaction is entirely visual and conversational.
+This document describes the end-to-end user journey within the IDEaz IDE.
 
 ---
 
-### **Scenario 1: A Successful Visual Change**
+### **Scenario 1: A Successful Visual Change (Tap-to-Select)**
 
 **Goal:** Change the color of a button in the live application.
 
-1.  **Activate Edit Mode:** The user is looking at their running application on their Android device. They tap a floating "Peridium" button to activate the IDE's overlay. The screen dims slightly, and a message "Select an element to change" appears.
-
-2.  **Visual Selection & Intent:** The user draws a box around a login button. The overlay shows the highlighted selection on a static screenshot. A text input field appears.
+1.  **Activate Selection Mode:** The user taps the **"Select"** button.
+2.  **Visual Selection & Intent:** The user **taps** a login button. A **floating log overlay** appears.
     > **User Input:** "Make this button red."
-
-3.  **Automated AI Workflow:** The user taps "Submit." A small, non-intrusive notification appears: "Jules is working on your request..." In the background, the on-device Peridium Service:
-    a.  Captures the annotated screenshot and sends the request to the Jules API.
-    b.  Waits for the Jules agent to commit the code change to the Invisible Repository.
-    c.  Automatically pulls the latest commit.
-    d.  Triggers an on-device compilation of the app.
-
-4.  **Seamless Relaunch:** After a short period, the application automatically restarts. The user now sees the live app again, and the login button is red. The task is complete. The user never saw a line of code or a single IDE command.
+3.  **Automated AI Workflow:** The user taps "Submit."
+    The `MainViewModel` coordinates the AI request, receives a patch, and triggers the build.
+4.  **Build & Relaunch:**
+    *   The **global log** in the bottom sheet streams the build output.
+    *   The build succeeds (`ApkSign` completes).
+    *   The `BuildService` installs the APK.
+    *   **Auto-Launch:** The `MainActivity` detects the package update and **automatically launches the user's app**.
+    *   The user sees the app restart with the red button.
 
 ---
 
-### **Scenario 2: The Automated Debugging Loop**
+### **Scenario 2: Handling an IDE Internal Error**
 
-**Goal:** Add a new, complex feature that results in a compile error.
+**Goal:** The IDE encounters a crash (e.g., Network Failure during `fetchSources`) that is NOT a user code error.
 
-1.  **Activate Edit Mode:** The user activates the overlay and selects the main content area of a page.
-    > **User Input:** "Add a user profile card here that shows the user's name, email, and a profile picture."
-
-2.  **Automated AI Workflow (Initial Attempt):** The user submits the request. The "Jules is working..." notification appears. In the background, the same workflow as before begins: the AI commits the code, the Peridium Service pulls it and attempts to compile.
-
-3.  **Compilation Fails:** This time, the on-device compilation fails. The Jules agent made a mistake, perhaps using an incorrect variable name.
-
-4.  **Automated Self-Correction:** The Peridium Service automatically detects the build failure. Instead of showing an error to the user, it:
-    a.  Captures the entire compilation error log.
-    b.  Triggers a *new* Jules API call with a new prompt: "Your last change failed to compile. Here is the error log. Please fix it and commit the corrected code."
-    c.  The user-facing notification smoothly transitions to: "Jules is debugging an issue..."
-
-5.  **Successful Relaunch:** The Jules agent debugs its own mistake, commits a fix, and the loop repeats. The Peridium Service pulls the new commit and re-compiles. This time, it succeeds.
-    The user's application restarts, and they now see the new user profile card, correctly implemented. They were never exposed to the intermediate failure or the technical error log.
+1.  **Action:** The user attempts to refresh the repository list in Project Settings.
+2.  **Failure:** The `JulesApiClient` throws an exception.
+3.  **Auto-Report:**
+    *   `MainViewModel` catches the exception in `handleIdeError`.
+    *   It checks if "Auto-report" is enabled (default: true) and if a GitHub Token is saved.
+    *   It uses `GithubIssueReporter` to **POST a new issue** to `HereLiesAz/IDEaz` via the GitHub API. The issue contains the stack trace, device info, and context "Failed to fetch sources".
+    *   **Feedback:** The global log displays: `[IDE] Reported automatically: https://github.com/.../issues/123`.
+    *   **Fallback:** If the API call fails (no token/network), it opens a browser window with the issue details pre-filled for manual submission.

@@ -6,26 +6,35 @@ This document outlines the UI/UX design for the IDEaz, an intent-driven creation
 ## The Core Interaction Model
 The entire user experience is built around the user interacting with their live, running application while an AI agent works on it in the background, orchestrated by services on the user's device.
 
-1.  **The Live App (The Target Application):** This is the user's primary and only interface. It is the running, compiled Android application they are building, running in its own sandboxed process.
+1.  **The Live App (The Target Application):** This is the user's primary and only interface. It is the running, compiled Android application they are building.
+2.  **The IDEaz Overlay (The UI Inspection Service):** A privileged `AccessibilityService` that is active during "Selection Mode." It draws a transparent overlay over the LiveApp to capture all touch events.
+3.  **The Global Console (The Host App):** A bottom sheet within the main IDEaz app that provides a **consolidated global log** for build status, AI status, compile output, and contextless AI chat.
 
-2.  **The IDEaz Overlay (The UI Inspection Service):** When the user enters "Inspection Mode," a privileged `AccessibilityService` is activated. This service draws a transparent overlay over the Live App and captures touch events to identify the UI element the user is selecting. This is the core of the interactive canvas.
+## The Two Modes: "Interact" vs. "Select"
+
+The app operates in two distinct, user-controlled modes, managed by both a toggle button in the **"IDE" NavRail group** and the bottom sheet gesture:
+
+1.  **Interaction Mode:**
+    * **State:** The bottom sheet is fully hidden (`AlmostHidden`).
+    * **Button:** The NavRail toggle shows **"Select"**.
+    * **Action:** The `UIInspectionService` is **stopped**. The user can fully interact with their live application (tap buttons, navigate, etc.).
+    * **Trigger:** User swipes the bottom sheet all the way down OR taps the "Interact" button.
+
+2.  **Selection Mode:**
+    * **State:** The bottom sheet is visible (`Peek` or `Halfway`).
+    * **Button:** The NavRail toggle shows **"Interact"**.
+    * **Action:** The `UIInspectionService` is **started**. All touches are intercepted by the `touchInterceptor` overlay.
+    * **Trigger:** User swipes the bottom sheet up OR taps the "Select" button.
 
 ## The User Journey: "Select and Instruct"
 The core workflow is a simple, powerful, and asynchronous loop:
 
-1.  **Enter Inspection Mode:** The user taps a single "Inspect" button to activate the UI Inspection Service's overlay.
-2.  **Visual Selection:** The user taps on an element in their live app. The overlay highlights the element's bounds to confirm the selection.
-3.  **Contextual Instruction:** A small text prompt appears in the IDEaz Host App. The user types their desired change in plain English (e.g., "Make this button orange").
-4.  **Asynchronous Feedback:** A non-intrusive notification indicates that the AI agent is working. The user is never blocked.
-5.  **Seamless Relaunch:** Once the AI agent has completed the code modification and the app has been recompiled by the On-Device Build Service, the Live App automatically restarts, seamlessly showing the new change.
-
-## Automated Error Handling
-The user is never shown a technical error. If the AI writes code that fails to compile, a process detailed in the Blueprint, the system handles it autonomously, keeping the user informed with a simple "Jules is debugging an issue..." status.
-
-## A Responsive "Undo" Experience
-A critical part of a seamless user experience is a fast and intuitive "undo" feature. A standard `git revert` followed by a full re-compile and relaunch cycle would feel too slow.
-
-To address this, IDEaz will implement a more responsive, two-phase undo strategy:
-
-1.  **Instant Visual Rollback:** The On-Device Build Service will always cache the last known-good APK before a new version is installed. When the user requests an "undo," the service will immediately reinstall this cached APK for a near-instant visual rollback.
-2.  **Background Source Synchronization:** While the user sees the instant rollback, the Host App will perform the necessary `git revert` operation in the background. It will then trigger a re-compile to ensure the project's source of truth is correctly synchronized with the version the user is now seeing.
+1.  **Enter Selection Mode:** The user taps the "Select" button (or swipes up the bottom sheet). The button text changes to "Interact," and the inspection overlay becomes active.
+2.  **Visual Selection (Hybrid):**
+    * **If the user taps:** The service identifies the UI element, and its bounds are highlighted.
+    * **If the user drags:** The service draws a red, semi-transparent rectangle. On release, this rectangle is highlighted.
+3.  **Contextual Instruction:** In both cases, a **floating UI window (the log overlay)** is created matching the selection's bounds, and a **prompt input box** appears just below it. The user types their instruction.
+4.  **Asynchronous Feedback:** Once submitted, the prompt box disappears, and the floating log overlay begins streaming the AI's chat output. A small **(X) button** is visible in the corner of the log overlay.
+5.  **Cancellation:** If the user presses the (X), a dialog asks for confirmation. If confirmed, the AI task is cancelled, and the overlay UI disappears, returning the user to Selection Mode.
+6.  **Build & Relaunch:** If successful, the AI provides a patch. The `BuildService` compiles the app, streaming all **build logs** to the **main app's bottom sheet**.
+7.  **Cycle Complete:** The build succeeds, the user's app restarts with the change, and the floating AI log UI disappears. The app remains in "Selection Mode."

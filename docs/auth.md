@@ -1,9 +1,9 @@
-# Peridium IDE: Authentication & API Key Management
+# IDEaz IDE: Authentication & Tooling
 
-This document outlines the authentication strategy for the Peridium IDE application and the management of the user's Jules API key.
+This document outlines the authentication strategy for the IDEaz IDE application and the management of its core toolchain.
 
-## 1. User Authentication for Peridium IDE
-**Goal:** To provide a seamless and secure login experience for users of the Peridium IDE app itself.
+## 1. User Authentication for IDEaz IDE
+**Goal:** To provide a seamless and secure login experience for users of the IDEaz IDE app itself.
 
 The authentication for the main app will follow standard, user-friendly web and mobile practices.
 
@@ -11,11 +11,20 @@ The authentication for the main app will follow standard, user-friendly web and 
 -   **Authentication Flow:** The app will use a standard OAuth 2.0 flow to authenticate the user and receive a JWT to maintain the session.
 
 ## 2. API Key Management: The "Bring Your Own Key" (BYOK) Model
-**Goal:** To ensure all calls to the Jules API are authenticated without exposing a secret key in the app or requiring a backend server.
+**Goal:** To ensure all calls to the Jules and Gemini APIs are authenticated without exposing a secret key in the app.
 
-User authentication is completely separate from API authentication. To use the AI's code generation capabilities, the user must provide their own Jules API key.
+User authentication is completely separate from API authentication. To use the AI's code generation capabilities, the user must provide their own API keys.
 
--   **User-Provided Key:** The user is responsible for obtaining their own API key from the Jules platform.
--   **Input and Storage:** The user will enter this key into a dedicated "Settings" screen within the Peridium IDE app. The app will then save this key securely on the device using Android's **EncryptedSharedPreferences**.
--   **Usage:** When the on-device Peridium Service makes a call to the Jules API, it will retrieve the securely stored key and use it to authenticate the request.
--   **Security:** This model shifts the responsibility for API costs and access to the user. The app's primary security responsibility is to ensure the key is stored on the device as securely as possible and is only ever sent directly to the Jules API over HTTPS. It is never transmitted elsewhere.
+-   **User-Provided Keys:** The user is responsible for obtaining their own API keys from the respective platforms (Jules, Google AI Studio).
+-   **Input and Storage:** The user will enter these keys into the "Settings" screen. The app will then save these keys securely on the device using Android's **`EncryptedSharedPreferences`**.
+-   **Usage:**
+    -   **Jules:** The `JulesCliClient` does not use the API key directly. It is assumed the native `libjules.so` binary is pre-configured or handles its own auth (e.g., prompting for a login) via its CLI interface. The `JulesApiClient` uses the key for HTTP requests.
+    -   **Gemini:** The `GeminiApiClient` retrieves the securely stored key and uses it for all HTTP API calls.
+
+## 3. GitHub Authentication
+**Goal:** To enable repository management and automated bug reporting.
+
+-   **Personal Access Token (PAT):** The user provides a GitHub PAT with `repo` scope in the Settings screen.
+-   **Usage:**
+    -   **Project Management:** Used by `GitManager` and `GitHubApiClient` to clone repositories, create new repositories, and push changes.
+    -   **Automated Bug Reporting:** Used by `GithubIssueReporter` to automatically open issues on the `HereLiesAz/IDEaz` repository when an internal IDE error occurs. If no token is present (or the API call fails), the app falls back to opening a browser window with the issue details pre-filled.
