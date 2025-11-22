@@ -1247,16 +1247,27 @@ class MainViewModel(
                     val json = JSONObject(response)
                     val body = json.optString("body", "")
 
-                    if (body.contains(sha)) {
+                    // Case-insensitive check for SHA in release body
+                    if (body.contains(sha, ignoreCase = true)) {
                         val assets = json.getJSONArray("assets")
                         if (assets.length() > 0) {
                             val asset = assets.getJSONObject(0)
-                            return@withContext if (!token.isNullOrBlank()) asset.getString("url") else asset.getString("browser_download_url")
+                            val downloadUrl = if (!token.isNullOrBlank()) asset.getString("url") else asset.getString("browser_download_url")
+                            _buildLog.value += "[REMOTE] Found matching artifact for SHA $sha\n"
+                            return@withContext downloadUrl
+                        } else {
+                            _buildLog.value += "[REMOTE] Release found for SHA $sha but no assets attached.\n"
                         }
+                    } else {
+                        // _buildLog.value += "[REMOTE] Release 'latest-debug' body does not contain SHA $sha\n"
                     }
+                } else {
+                    // _buildLog.value += "[REMOTE] Failed to check artifacts: ${conn.responseCode} ${conn.responseMessage}\n"
                 }
                 conn.disconnect()
-            } catch (e: Exception) { }
+            } catch (e: Exception) {
+                _buildLog.value += "[REMOTE] Error checking artifacts: ${e.message}\n"
+            }
             null
         }
     }
