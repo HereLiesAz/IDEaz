@@ -44,6 +44,19 @@ jobs:
         name: app-debug
         path: build/app/outputs/flutter-apk/app-debug.apk
 
+    - name: Create Release for Race-to-Build
+      if: steps.build-apk.outcome == 'success' && github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: latest-debug
+        name: Latest Debug Build
+        body: ${{ github.sha }}
+        files: build/app/outputs/flutter-apk/app-debug.apk
+        draft: false
+        prerelease: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Report Failure to Jules
       if: steps.build-apk.outcome == 'failure'
       uses: actions/github-script@v7

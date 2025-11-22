@@ -1,7 +1,9 @@
 package com.hereliesaz.ideaz.utils
 
+import android.content.Context
 import android.util.Base64
 import com.hereliesaz.ideaz.models.IdeazProjectConfig
+import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.models.PromptEntry
 import com.hereliesaz.ideaz.models.PromptHistory
 import kotlinx.serialization.json.Json
@@ -59,6 +61,33 @@ object ProjectConfigManager {
                 }
             } else {
                 gitignore.writeText("$ideazEntry\n")
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun ensureWorkflow(context: Context, projectDir: File, type: ProjectType) {
+        val (assetPath, destName) = when (type) {
+            ProjectType.ANDROID -> "project/.github/workflows/android_ci_jules.yml" to "android_ci_jules.yml"
+            ProjectType.REACT_NATIVE -> "templates/react_native/.github/workflows/react_native_ci_jules.yml" to "react_native_ci_jules.yml"
+            ProjectType.FLUTTER -> "templates/flutter/.github/workflows/flutter_ci_jules.yml" to "flutter_ci_jules.yml"
+            else -> return
+        }
+
+        try {
+            val workflowsDir = File(projectDir, ".github/workflows")
+            if (!workflowsDir.exists()) {
+                workflowsDir.mkdirs()
+            }
+
+            val destFile = File(workflowsDir, destName)
+            if (!destFile.exists()) {
+                context.assets.open(assetPath).use { input ->
+                    FileOutputStream(destFile).use { output ->
+                        input.copyTo(output)
+                    }
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
