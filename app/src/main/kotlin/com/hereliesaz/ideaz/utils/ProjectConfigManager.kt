@@ -83,13 +83,13 @@ object ProjectConfigManager {
             }
 
             val destFile = File(workflowsDir, destName)
-            if (!destFile.exists()) {
-                context.assets.open(assetPath).use { input ->
-                    FileOutputStream(destFile).use { output ->
-                        input.copyTo(output)
-                    }
+            // Force overwrite to ensure latest workflow
+            context.assets.open(assetPath).use { input ->
+                val content = input.readBytes()
+                if (!destFile.exists() || !destFile.readBytes().contentEquals(content)) {
+                    destFile.writeBytes(content)
+                    modified = true
                 }
-                modified = true
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -123,8 +123,10 @@ object ProjectConfigManager {
         var modified = false
         try {
             val setupFile = File(projectDir, "setup_env.sh")
-            if (!setupFile.exists()) {
-                setupFile.writeText(EnvironmentSetup.ANDROID_SETUP_SCRIPT)
+            val content = EnvironmentSetup.ANDROID_SETUP_SCRIPT
+
+            if (!setupFile.exists() || setupFile.readText() != content) {
+                setupFile.writeText(content)
                 setupFile.setExecutable(true)
                 modified = true
             }
