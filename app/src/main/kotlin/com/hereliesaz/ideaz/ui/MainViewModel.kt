@@ -50,7 +50,9 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
 import com.hereliesaz.ideaz.utils.GithubIssueReporter
-import com.hereliesaz.ideaz.utils.EnvironmentSetup
+import java.net.HttpURLConnection
+import java.net.URL
+import java.io.BufferedInputStream
 
 data class ProjectMetadata(
     val name: String,
@@ -107,6 +109,7 @@ class MainViewModel(
     private val _showCancelDialog = MutableStateFlow(false)
     val showCancelDialog = _showCancelDialog.asStateFlow()
     private var contextualTaskJob: Job? = null
+    private var remotePollJob: Job? = null
 
     private val _requestScreenCapture = MutableStateFlow(false)
     val requestScreenCapture = _requestScreenCapture.asStateFlow()
@@ -181,6 +184,7 @@ class MainViewModel(
 
         override fun onSuccess(apkPath: String) {
             Log.d(TAG, "onSuccess: Build successful, APK at $apkPath")
+            remotePollJob?.cancel() // Cancel remote polling since local won
             viewModelScope.launch {
                 _buildLog.value += "\n[IDE] Build successful: $apkPath\n"
                 _buildLog.value += "[IDE] Status: Build Successful\n"
@@ -333,10 +337,6 @@ class MainViewModel(
                         saveProjectConfigToFile(projectDir, type.name, pkg ?: "com.example", branch)
                     }
 
-                    if (settingsViewModel.getProjectType() == ProjectType.ANDROID.name) {
-                        ensureEnvironmentSetupScript(projectDir)
-                    }
-
                     fetchSessions()
                     startBuild(getApplication())
 
@@ -344,28 +344,6 @@ class MainViewModel(
                     handleIdeError(e, "Failed to clone/pull project")
                 }
             }
-        }
-    }
-
-    private fun ensureEnvironmentSetupScript(projectDir: File) {
-        val scriptFile = File(projectDir, "setup_env.sh")
-        val setupScript = EnvironmentSetup.ANDROID_SETUP_SCRIPT
-        try {
-            if (scriptFile.exists()) {
-                val content = scriptFile.readText()
-                if (!content.contains("Automated Android Environment Setup Script")) {
-                    scriptFile.appendText("\n\n$setupScript")
-                    scriptFile.setExecutable(true)
-                    _buildLog.value += "[INFO] Appended Android environment setup to setup_env.sh.\n"
-                }
-            } else {
-                scriptFile.writeText(setupScript)
-                scriptFile.setExecutable(true)
-                _buildLog.value += "[INFO] Created setup_env.sh for automated environment setup.\n"
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to ensure setup_env.sh", e)
-            _buildLog.value += "[WARN] Failed to ensure setup_env.sh: ${e.message}\n"
         }
     }
 
@@ -418,10 +396,6 @@ class MainViewModel(
 
                     _buildLog.value += "[INFO] Applying ${projectType.displayName} template...\n"
                     createProjectFromTemplateInternal(context, projectType, projectDir)
-
-                    if (projectType == ProjectType.ANDROID) {
-                        ensureEnvironmentSetupScript(projectDir)
-                    }
 
                     ProjectConfigManager.ensureGitIgnore(projectDir)
                     saveProjectConfigToFile(projectDir, projectType.name, packageName, response.defaultBranch ?: "main")
@@ -488,10 +462,6 @@ class MainViewModel(
                     } else {
                         _buildLog.value += "[INFO] Project directory not found. Creating from template...\n"
                         createProjectFromTemplateInternal(context, type, projectDir)
-                    }
-
-                    if (type == ProjectType.ANDROID) {
-                        ensureEnvironmentSetupScript(projectDir)
                     }
 
                     ProjectConfigManager.ensureGitIgnore(projectDir)
@@ -685,7 +655,7 @@ class MainViewModel(
 
                         val branchName = settingsViewModel.getBranchName()
                         val sourceString = "sources/github/$githubUser/$appName"
-                        var promptText = prompt ?: ""
+                        val promptText = prompt ?: ""
 
                         val activeId = _activeSessionId.value
                         if (activeId != null) {
@@ -693,10 +663,6 @@ class MainViewModel(
                             JulesApiClient.sendMessage(activeId, promptText)
                             pollForPatch(activeId, _buildLog)
                             return@launch
-                        }
-
-                        if (settingsViewModel.getProjectType() == ProjectType.ANDROID.name) {
-                             promptText = "Please run ./setup_env.sh to set up the environment.\n$promptText"
                         }
 
                         val request = CreateSessionRequest(
@@ -915,9 +881,28 @@ class MainViewModel(
     fun startBuild(context: Context, projectDir: File? = null) {
         if (isBuildServiceBound) {
             viewModelScope.launch {
-                _buildLog.value = "[INFO] Status: Building...\n"
                 val targetDir = projectDir ?: getOrCreateProject(context)
+                val headSha = withContext(Dispatchers.IO) { GitManager(targetDir).getHeadSha() }
+
+                // Check Remote First
+                if (headSha != null) {
+                    _buildLog.value += "[INFO] Checking remote artifact for $headSha...\n"
+                    val remoteUrl = checkForArtifact(headSha)
+                    if (remoteUrl != null) {
+                        _buildLog.value += "[INFO] Found remote artifact. Installing...\n"
+                        downloadAndInstallRemoteApk(remoteUrl, settingsViewModel.getGithubToken(), _buildLog)
+                        return@launch
+                    }
+                }
+
+                _buildLog.value += "[INFO] Status: Building locally...\n"
                 buildService?.startBuild(targetDir.absolutePath, buildCallback)
+
+                // Race: Start Polling
+                if (headSha != null) {
+                    remotePollJob?.cancel()
+                    remotePollJob = launch { pollRemoteBuild(targetDir, headSha, _buildLog) }
+                }
             }
         } else {
             _buildLog.value += "[INFO] Status: Service not bound\n"
@@ -1108,6 +1093,20 @@ class MainViewModel(
                     val projectDir = context.filesDir.resolve(appName ?: "project")
                     val gitManager = GitManager(projectDir)
                     gitManager.applyPatch(patchContent)
+
+                    logTo(logTarget, "[GIT] Committing patch...")
+                    gitManager.addAll()
+                    gitManager.commit("Applied AI Patch")
+
+                    logTo(logTarget, "[GIT] Pushing to remote...")
+                    withContext(Dispatchers.IO) {
+                        GitManager(projectDir).push(
+                            settingsViewModel.getGithubUser(),
+                            settingsViewModel.getGithubToken(),
+                            ::onGitProgress
+                        )
+                    }
+
                     logTo(logTarget, "[INFO] AI Status: Patch applied. Rebuilding...")
                     startBuild(context, projectDir)
                 } catch (e: Exception) {
@@ -1116,6 +1115,80 @@ class MainViewModel(
                     handleIdeError(e, "Error applying patch")
                 }
             }
+        }
+    }
+
+    private suspend fun checkForArtifact(sha: String): String? {
+        val user = settingsViewModel.getGithubUser() ?: return null
+        val appName = settingsViewModel.getAppName() ?: return null
+        val token = settingsViewModel.getGithubToken()
+        val urlStr = "https://api.github.com/repos/$user/$appName/releases/tags/latest-debug"
+
+        return withContext(Dispatchers.IO) {
+            try {
+                val url = URL(urlStr)
+                val conn = url.openConnection() as HttpURLConnection
+                if (!token.isNullOrBlank()) {
+                    conn.setRequestProperty("Authorization", "token $token")
+                }
+                conn.requestMethod = "GET"
+
+                if (conn.responseCode == 200) {
+                    val response = conn.inputStream.bufferedReader().readText()
+                    val json = JSONObject(response)
+                    val body = json.optString("body", "")
+
+                    if (body.contains(sha)) {
+                        val assets = json.getJSONArray("assets")
+                        if (assets.length() > 0) {
+                            val asset = assets.getJSONObject(0)
+                            return@withContext if (!token.isNullOrBlank()) asset.getString("url") else asset.getString("browser_download_url")
+                        }
+                    }
+                }
+                conn.disconnect()
+            } catch (e: Exception) { }
+            null
+        }
+    }
+
+    private suspend fun pollRemoteBuild(projectDir: File, sha: String, logTarget: Any) {
+        logTo(logTarget, "[REMOTE] Polling GitHub for build...")
+        for (i in 1..60) { // 5 minutes
+            delay(5000)
+            val url = checkForArtifact(sha)
+            if (url != null) {
+                logTo(logTarget, "[REMOTE] Build ready! Downloading...")
+                downloadAndInstallRemoteApk(url, settingsViewModel.getGithubToken(), logTarget)
+                return
+            }
+        }
+        logTo(logTarget, "[REMOTE] Polling timed out.")
+    }
+
+    private suspend fun downloadAndInstallRemoteApk(urlStr: String, token: String?, logTarget: Any) {
+        try {
+            val destFile = File(getApplication<Application>().externalCacheDir, "remote_app.apk")
+            val url = URL(urlStr)
+            val conn = url.openConnection() as HttpURLConnection
+            if (!token.isNullOrBlank()) {
+                conn.setRequestProperty("Authorization", "token $token")
+                conn.setRequestProperty("Accept", "application/octet-stream")
+            }
+            conn.inputStream.use { input ->
+                FileOutputStream(destFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+
+            logTo(logTarget, "[REMOTE] Download complete. Installing...")
+            buildService?.cancelBuild()
+            com.hereliesaz.ideaz.utils.ApkInstaller.installApk(getApplication(), destFile.absolutePath)
+            logTo(logTarget, "[REMOTE] Installation triggered.")
+            if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
+
+        } catch (e: Exception) {
+            logTo(logTarget, "[REMOTE] Install failed: ${e.message}")
         }
     }
 
