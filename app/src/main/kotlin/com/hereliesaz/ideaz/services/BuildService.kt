@@ -212,6 +212,7 @@ class BuildService : Service() {
             val localRepoDir = File(filesDir, "local-repo").apply { mkdirs() }
 
             val type = ProjectAnalyzer.detectProjectType(projectDir)
+            val packageName = ProjectAnalyzer.detectPackageName(projectDir)
 
             if (type == ProjectType.WEB) {
                 val outputDir = File(filesDir, "web_dist")
@@ -320,7 +321,7 @@ class BuildService : Service() {
             val buildOrchestrator = BuildOrchestrator(
                 listOf(
                     Aapt2Compile(aapt2Path, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK),
-                    Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK, processAars.compiledAars),
+                    Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK, processAars.compiledAars, packageName),
                     KotlincCompile(kotlincJarPath!!, androidJarPath, File(projectDir, "app/src/main/java").absolutePath, File(buildDir, "classes"), fullClasspath, javaBinaryPath!!),
                     D8Compile(d8Path!!, javaBinaryPath, androidJarPath, File(buildDir, "classes").absolutePath, File(buildDir, "classes").absolutePath, fullClasspath),
                     ApkBuild(File(buildDir, "app-signed.apk").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "classes").absolutePath),
