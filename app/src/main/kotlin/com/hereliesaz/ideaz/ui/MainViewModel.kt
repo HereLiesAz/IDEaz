@@ -358,8 +358,9 @@ class MainViewModel(
                     val currentType = ProjectType.fromString(settingsViewModel.getProjectType())
                     val workflowAdded = ProjectConfigManager.ensureWorkflow(getApplication(), projectDir, currentType)
                     val scriptAdded = if (currentType == ProjectType.ANDROID) ProjectConfigManager.ensureSetupScript(projectDir) else false
+                    val agentsMdAdded = if (currentType == ProjectType.ANDROID) ProjectConfigManager.ensureAgentsSetupMd(projectDir) else false
 
-                    if (workflowAdded || scriptAdded) {
+                    if (workflowAdded || scriptAdded || agentsMdAdded) {
                         _buildLog.value += "[INFO] Committing initialization files...\n"
                         withContext(Dispatchers.IO) {
                             val git = GitManager(projectDir)
@@ -501,8 +502,9 @@ class MainViewModel(
 
                     val workflowAdded = ProjectConfigManager.ensureWorkflow(getApplication(), projectDir, type)
                     val scriptAdded = if (type == ProjectType.ANDROID) ProjectConfigManager.ensureSetupScript(projectDir) else false
+                    val agentsMdAdded = if (type == ProjectType.ANDROID) ProjectConfigManager.ensureAgentsSetupMd(projectDir) else false
 
-                    if (workflowAdded || scriptAdded) {
+                    if (workflowAdded || scriptAdded || agentsMdAdded) {
                         _buildLog.value += "[INFO] Committing initialization files...\n"
                         withContext(Dispatchers.IO) {
                             val git = GitManager(projectDir)
