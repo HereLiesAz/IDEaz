@@ -160,9 +160,12 @@ fun MainScreen(
                     scope = scope
                 )
 
-                AnimatedVisibility(visible = isIdeVisible) {
+                AnimatedVisibility(
+                    visible = isIdeVisible,
+                    modifier = Modifier.weight(1f)
+                ) {
                     IdeNavHost(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.fillMaxSize(),
                         navController = navController,
                         viewModel = viewModel,
                         settingsViewModel = viewModel.settingsViewModel,
