@@ -21,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.isActive
 import java.io.File
 import com.hereliesaz.ideaz.models.SourceMapEntry
 import com.hereliesaz.ideaz.utils.SourceMapParser
@@ -34,6 +35,7 @@ import com.hereliesaz.ideaz.api.GitHubRepoContext
 import com.hereliesaz.ideaz.api.ListSourcesResponse
 import com.hereliesaz.ideaz.api.Source
 import com.hereliesaz.ideaz.api.ListActivitiesResponse
+import com.hereliesaz.ideaz.api.Activity
 import java.io.FileOutputStream
 import java.io.IOException
 import com.hereliesaz.ideaz.utils.ToolManager
@@ -1165,31 +1167,73 @@ class MainViewModel(
         getApplication<Application>().sendBroadcast(intent)
     }
 
-    private fun pollForPatch(sessionId: String, logTarget: Any, attempt: Int = 1) {
-        if (attempt > 20) {
-            logTo(logTarget, "[INFO] AI Status: Error: Timed out waiting for patch.")
-            if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
-            return
-        }
+    private fun pollForPatch(sessionId: String, logTarget: Any) {
         viewModelScope.launch {
-            try {
-                val response = JulesApiClient.listActivities(sessionId)
-                val patchActivity = response.activities?.find { it.artifacts?.any { a -> a.changeSet?.gitPatch?.unidiffPatch != null } == true }
-                if (patchActivity != null) {
-                    val patchContent = patchActivity.artifacts?.firstOrNull { it.changeSet?.gitPatch?.unidiffPatch != null }?.changeSet?.gitPatch?.unidiffPatch
-                    if (patchContent != null) {
-                        logTo(logTarget, "[INFO] AI Status: Patch is ready! Applying...")
-                        applyPatch(getApplication(), patchContent, logTarget)
-                    } else {
-                        delay(15000); pollForPatch(sessionId, logTarget, attempt + 1)
+            val seenActivityIds = mutableSetOf<String>()
+            var attempt = 0
+            val maxAttempts = 240 // 1 hour (240 * 15s)
+
+            logTo(logTarget, "[INFO] AI Status: Polling for updates (max 60m)...")
+
+            while (isActive && attempt < maxAttempts) {
+                attempt++
+                try {
+                    val response = JulesApiClient.listActivities(sessionId)
+                    val activities = response.activities ?: emptyList()
+
+                    // Log new activities
+                    activities.sortedBy { it.createTime }.forEach { activity ->
+                        if (!seenActivityIds.contains(activity.id)) {
+                            seenActivityIds.add(activity.id)
+                            logActivity(activity, logTarget)
+                        }
                     }
-                } else {
-                    delay(15000); pollForPatch(sessionId, logTarget, attempt + 1)
+
+                    // Check for patch
+                    val patchActivity = activities.find { it.artifacts?.any { a -> a.changeSet?.gitPatch?.unidiffPatch != null } == true }
+                    if (patchActivity != null) {
+                        val patchContent = patchActivity.artifacts?.firstOrNull { it.changeSet?.gitPatch?.unidiffPatch != null }?.changeSet?.gitPatch?.unidiffPatch
+                        if (patchContent != null) {
+                            logTo(logTarget, "[INFO] AI Status: Patch is ready! Applying...")
+                            applyPatch(getApplication(), patchContent, logTarget)
+                            return@launch
+                        }
+                    }
+
+                    // Check for failure
+                    val failedActivity = activities.find { it.sessionFailed != null }
+                    if (failedActivity != null) {
+                        val reason = failedActivity.sessionFailed?.reason ?: "Unknown error"
+                        logTo(logTarget, "[INFO] AI Status: Session failed: $reason")
+                        if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
+                        return@launch
+                    }
+
+                    delay(15000)
+                } catch (e: Exception) {
+                    logTo(logTarget, "[INFO] AI Status: Error polling: ${e.message}")
+                    delay(15000)
                 }
-            } catch (e: Exception) {
-                logTo(logTarget, "[INFO] AI Status: Error polling for patch: ${e.message}")
-                if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
             }
+            logTo(logTarget, "[INFO] AI Status: Polling timed out after 1 hour.")
+            if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
+        }
+    }
+
+    private fun logActivity(activity: Activity, logTarget: Any) {
+        val message = when {
+            activity.agentMessaged != null -> "[AI] Message: ${activity.agentMessaged.agentMessage}"
+            activity.userMessaged != null -> "[User] Message: ${activity.userMessaged.userMessage}"
+            activity.progressUpdated != null -> "[AI] Progress: ${activity.progressUpdated.description ?: activity.progressUpdated.title ?: "Working..."}"
+            activity.planGenerated != null -> "[AI] Plan generated."
+            activity.planApproved != null -> "[AI] Plan approved."
+            activity.sessionCompleted != null -> "[AI] Session completed."
+            activity.sessionFailed != null -> "[AI] Session failed."
+            !activity.description.isNullOrBlank() -> "[AI] ${activity.description}"
+            else -> null
+        }
+        if (message != null) {
+            logTo(logTarget, message)
         }
     }
 
@@ -1273,8 +1317,8 @@ class MainViewModel(
     }
 
     private suspend fun pollRemoteBuild(projectDir: File, sha: String, logTarget: Any, pkgName: String?) {
-        logTo(logTarget, "[REMOTE] Polling GitHub for build...")
-        for (i in 1..60) { // 5 minutes
+        logTo(logTarget, "[REMOTE] Polling GitHub for build (max 20m)...")
+        for (i in 1..240) { // 20 minutes (240 * 5s)
             delay(5000)
             val url = checkForArtifact(sha)
             if (url != null) {
