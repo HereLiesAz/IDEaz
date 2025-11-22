@@ -43,6 +43,8 @@ class DependencyResolver(
 
     private val logger = LoggerFactory.getLogger(DependencyResolver::class.java)
 
+    val resolvedArtifacts = mutableListOf<File>()
+
     val resolvedClasspath: String
         get() = cacheDir.walkTopDown()
             .filter { it.isFile && it.extension == "jar" }
@@ -103,9 +105,17 @@ class DependencyResolver(
 
                     val dependencyRequest = DependencyRequest(collectRequest, DependencyFilterUtils.classpathFilter("runtime"))
 
-                    system.resolveDependencies(session, dependencyRequest)
+                    val result = system.resolveDependencies(session, dependencyRequest)
+                    result.artifactResults.forEach { artifactResult ->
+                        artifactResult.artifact?.file?.let { resolvedArtifacts.add(it) }
+                    }
                 }
             }
+
+            // Remove duplicates
+            val distinctArtifacts = resolvedArtifacts.distinctBy { it.absolutePath }
+            resolvedArtifacts.clear()
+            resolvedArtifacts.addAll(distinctArtifacts)
 
             callback?.onLog("[IDE] Dependencies resolved successfully.")
             BuildResult(true, "[IDE] Dependencies resolved successfully.")

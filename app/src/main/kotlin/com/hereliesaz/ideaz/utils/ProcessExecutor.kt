@@ -11,7 +11,8 @@ object ProcessExecutor {
             val finalCommand: List<String>
 
             if (command.firstOrNull() != "java") {
-                finalCommand = listOf("/system/bin/sh", "-c", command.joinToString(" "))
+                // Use "sh" directly which is available in PATH on Android and Linux
+                finalCommand = listOf("sh", "-c", command.joinToString(" "))
             } else {
                 finalCommand = command
             }
@@ -44,7 +45,7 @@ object ProcessExecutor {
         try {
             val finalCommand: List<String>
             if (command.firstOrNull() != "java") {
-                finalCommand = listOf("/system/bin/sh", "-c", command.joinToString(" "))
+                finalCommand = listOf("sh", "-c", command.joinToString(" "))
             } else {
                 finalCommand = command
             }
