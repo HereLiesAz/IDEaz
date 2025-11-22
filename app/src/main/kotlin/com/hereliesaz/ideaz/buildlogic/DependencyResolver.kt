@@ -15,6 +15,7 @@ import org.eclipse.aether.spi.connector.RepositoryConnectorFactory
 import org.eclipse.aether.spi.connector.transport.TransporterFactory
 import org.eclipse.aether.transport.http.HttpTransporterFactory
 import org.eclipse.aether.util.filter.DependencyFilterUtils
+import org.slf4j.LoggerFactory
 import java.io.File
 
 
@@ -40,6 +41,8 @@ class DependencyResolver(
     private val cacheDir: File
 ) : BuildStep {
 
+    private val logger = LoggerFactory.getLogger(DependencyResolver::class.java)
+
     val resolvedClasspath: String
         get() = cacheDir.walkTopDown()
             .filter { it.isFile && it.extension == "jar" }
@@ -52,7 +55,7 @@ class DependencyResolver(
         locator.addService(TransporterFactory::class.java, HttpTransporterFactory::class.java)
         locator.setErrorHandler(object : DefaultServiceLocator.ErrorHandler() {
             override fun serviceCreationFailed(type: Class<*>, impl: Class<*>, exception: Throwable) {
-                exception.printStackTrace()
+                logger.error("Failed to create Aether service implementation. type={}, impl={}", type.name, impl.name, exception)
             }
         })
         return locator.getService(RepositorySystem::class.java)

@@ -24,8 +24,18 @@ object GithubIssueReporter {
      * 1. Tries to use the GitHub API to auto-post the issue (if token provided).
      * 2. Falls back to opening a browser with pre-filled data.
      */
-    suspend fun reportError(context: Context, token: String?, error: Throwable, contextMessage: String): String {
+    suspend fun reportError(context: Context, token: String?, error: Throwable, contextMessage: String, logContent: String? = null): String {
         val stackTrace = error.stackTraceToString()
+
+        val logSection = if (logContent != null) {
+            """
+
+            **Log Output:**
+            ```
+            ${logContent.takeLast(2000)}
+            ```
+            """.trimIndent()
+        } else ""
 
         // Truncate for safety (API limit is roughly 65k chars, URL limit 2k-8k)
         val bodyContent = """
@@ -37,6 +47,7 @@ object GithubIssueReporter {
             ```
             ${stackTrace.take(3000)}
             ```
+            $logSection
         """.trimIndent()
 
         val titleContent = "IDE Error: ${error::class.simpleName} - ${error.message?.take(50) ?: "Unknown"}"
