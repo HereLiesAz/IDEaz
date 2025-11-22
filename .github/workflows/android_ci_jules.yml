@@ -1,0 +1,84 @@
+name: Android CI with Jules AI Debugging
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Build with Gradle
+      id: gradle-build
+      # capture output while still failing if build fails (but continue-on-error handles the workflow flow)
+      run: |
+        set +e
+        ./gradlew assembleDebug > build.log 2>&1
+        EXIT_CODE=$?
+        echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+        cat build.log
+        exit $EXIT_CODE
+      continue-on-error: true
+
+    - name: Upload APK
+      if: steps.gradle-build.outcome == 'success'
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-debug
+        path: app/build/outputs/apk/debug/app-debug.apk
+
+    - name: Report Failure to Jules
+      if: steps.gradle-build.outcome == 'failure'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          let logTail = 'Log file not found.';
+          try {
+            const log = fs.readFileSync('build.log', 'utf8');
+            logTail = log.slice(-4000); // Capture last 4000 chars
+          } catch (e) {
+            console.log('Error reading build.log', e);
+          }
+
+          const body = `Build failed on ${context.eventName === 'pull_request' ? 'PR #' + context.issue.number : context.ref}.\n\n**Log Output:**\n\`\`\`\n${logTail}\n\`\`\`\n\nJules, @google-labs-jules, please debug and fix this build failure.`;
+
+          if (context.eventName === 'pull_request') {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+          } else {
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Build Failure on ${context.ref}`,
+              body: body
+            });
+          }
+
+    - name: Fail Job if Build Failed
+      if: steps.gradle-build.outcome == 'failure'
+      run: exit 1

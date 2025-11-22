@@ -130,8 +130,12 @@ class MainViewModel(
         if (settingsViewModel.getAutoReportBugs()) {
             _buildLog.value += "[IDE] Reporting internal error to GitHub...\n"
             viewModelScope.launch(Dispatchers.IO) {
+                val logcat = try {
+                    Runtime.getRuntime().exec("logcat -d -t 200").inputStream.bufferedReader().readText()
+                } catch (ex: Exception) { "Failed to capture logcat: ${ex.message}" }
+
                 val token = settingsViewModel.getGithubToken()
-                val result = GithubIssueReporter.reportError(getApplication(), token, e, contextMessage)
+                val result = GithubIssueReporter.reportError(getApplication(), token, e, contextMessage, logcat)
                 _buildLog.value += "[IDE] $result\n"
             }
         } else {
@@ -194,10 +198,14 @@ class MainViewModel(
                 logToOverlay("Build failed. See global log to debug.")
 
                 // --- FIX: Distinguish System vs User Errors ---
-                // If the logs contain specific system failures (tools missing), report to GitHub.
+                // If the logs contain specific system failures, report to GitHub.
                 // Otherwise, assume user code error and use AI Debugger.
-                if (log.contains("tools not found", ignoreCase = true)) {
-                    handleIdeError(Exception("Build Toolchain Verification Failed: $log"), "Build Toolchain Error")
+                val isIdeError = log.contains("[IDE] Failed", ignoreCase = true) ||
+                        log.contains("tools not found", ignoreCase = true) ||
+                        log.contains("Could not initialize RepositorySystem", ignoreCase = true)
+
+                if (isIdeError) {
+                    handleIdeError(Exception("Build Infrastructure Failure:\n$log"), "IDE Build Error")
                 } else {
                     _buildLog.value += "[IDE] AI Status: Build failed, asking AI to debug...\n"
                     debugBuild()
