@@ -5,11 +5,17 @@ import org.apache.maven.repository.internal.MavenRepositorySystemUtils
 import org.eclipse.aether.RepositorySystem
 import org.eclipse.aether.artifact.DefaultArtifact
 import org.eclipse.aether.collection.CollectRequest
+import org.eclipse.aether.connector.basic.BasicRepositoryConnectorFactory
 import org.eclipse.aether.graph.Dependency
+import org.eclipse.aether.impl.DefaultServiceLocator
 import org.eclipse.aether.repository.LocalRepository
 import org.eclipse.aether.repository.RemoteRepository
 import org.eclipse.aether.resolution.DependencyRequest
+import org.eclipse.aether.spi.connector.RepositoryConnectorFactory
+import org.eclipse.aether.spi.connector.transport.TransporterFactory
+import org.eclipse.aether.transport.http.HttpTransporterFactory
 import org.eclipse.aether.util.filter.DependencyFilterUtils
+import org.slf4j.LoggerFactory
 import java.io.File
 
 
@@ -35,6 +41,8 @@ class DependencyResolver(
     private val cacheDir: File
 ) : BuildStep {
 
+    private val logger = LoggerFactory.getLogger(DependencyResolver::class.java)
+
     val resolvedClasspath: String
         get() = cacheDir.walkTopDown()
             .filter { it.isFile && it.extension == "jar" }
@@ -43,6 +51,13 @@ class DependencyResolver(
 
     private fun newRepositorySystem(): RepositorySystem {
         val locator = MavenRepositorySystemUtils.newServiceLocator()
+        locator.addService(RepositoryConnectorFactory::class.java, BasicRepositoryConnectorFactory::class.java)
+        locator.addService(TransporterFactory::class.java, HttpTransporterFactory::class.java)
+        locator.setErrorHandler(object : DefaultServiceLocator.ErrorHandler() {
+            override fun serviceCreationFailed(type: Class<*>, impl: Class<*>, exception: Throwable) {
+                logger.error("Failed to create Aether service implementation. type={}, impl={}", type.name, impl.name, exception)
+            }
+        })
         return locator.getService(RepositorySystem::class.java)
     }
 
