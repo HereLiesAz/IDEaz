@@ -51,6 +51,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
+import org.json.JSONArray
 import com.hereliesaz.ideaz.utils.GithubIssueReporter
 import java.net.HttpURLConnection
 import java.net.URL
@@ -1275,7 +1276,9 @@ class MainViewModel(
         val user = settingsViewModel.getGithubUser() ?: return null
         val appName = settingsViewModel.getAppName() ?: return null
         val token = settingsViewModel.getGithubToken()
-        val urlStr = "https://api.github.com/repos/$user/$appName/releases/tags/latest-debug"
+
+        // Scan all releases, not just 'latest-debug'
+        val urlStr = "https://api.github.com/repos/$user/$appName/releases"
 
         return withContext(Dispatchers.IO) {
             try {
@@ -1288,25 +1291,27 @@ class MainViewModel(
 
                 if (conn.responseCode == 200) {
                     val response = conn.inputStream.bufferedReader().readText()
-                    val json = JSONObject(response)
-                    val body = json.optString("body", "")
+                    val releases = JSONArray(response)
 
-                    // Case-insensitive check for SHA in release body
-                    if (body.contains(sha, ignoreCase = true)) {
-                        val assets = json.getJSONArray("assets")
-                        if (assets.length() > 0) {
-                            val asset = assets.getJSONObject(0)
-                            val downloadUrl = if (!token.isNullOrBlank()) asset.getString("url") else asset.getString("browser_download_url")
-                            _buildLog.value += "[REMOTE] Found matching artifact for SHA $sha\n"
-                            return@withContext downloadUrl
-                        } else {
-                            _buildLog.value += "[REMOTE] Release found for SHA $sha but no assets attached.\n"
+                    for (i in 0 until releases.length()) {
+                        val release = releases.getJSONObject(i)
+                        val body = release.optString("body", "")
+                        val tagName = release.optString("tag_name", "")
+
+                        // Check body (common) or tag name for SHA presence
+                        if (body.contains(sha, ignoreCase = true) || tagName.contains(sha, ignoreCase = true)) {
+                            val assets = release.getJSONArray("assets")
+                            if (assets.length() > 0) {
+                                val asset = assets.getJSONObject(0)
+                                val downloadUrl = if (!token.isNullOrBlank()) asset.getString("url") else asset.getString("browser_download_url")
+                                _buildLog.value += "[REMOTE] Found matching artifact in release '$tagName'\n"
+                                return@withContext downloadUrl
+                            }
                         }
-                    } else {
-                        // _buildLog.value += "[REMOTE] Release 'latest-debug' body does not contain SHA $sha\n"
                     }
+                    _buildLog.value += "[REMOTE] No artifact found matching SHA $sha in ${releases.length()} releases.\n"
                 } else {
-                    // _buildLog.value += "[REMOTE] Failed to check artifacts: ${conn.responseCode} ${conn.responseMessage}\n"
+                     _buildLog.value += "[REMOTE] Failed to list releases: ${conn.responseCode} ${conn.responseMessage}\n"
                 }
                 conn.disconnect()
             } catch (e: Exception) {
