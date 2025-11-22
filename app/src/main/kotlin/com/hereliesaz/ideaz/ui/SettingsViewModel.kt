@@ -1,7 +1,10 @@
 package com.hereliesaz.ideaz.ui
 
 import android.app.Application
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.saveable.Saver
@@ -9,6 +12,8 @@ import androidx.preference.PreferenceManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import com.hereliesaz.ideaz.api.AuthInterceptor
+import java.io.File
+import java.io.FileOutputStream
 
 // Define AI models and their requirements
 data class AiModel(val id: String, val displayName: String, val requiredKey: String)
@@ -57,26 +62,28 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         // New key for cancel warning
         const val KEY_SHOW_CANCEL_WARNING = "show_cancel_warning"
 
-        // --- NEW: Auto report bugs key ---
+        // Auto report bugs key
         const val KEY_AUTO_REPORT_BUGS = "auto_report_bugs"
-        // --- END NEW ---
 
-        // --- NEW: Theme Keys ---
+        // Theme Keys
         const val KEY_THEME_MODE = "theme_mode"
         const val THEME_AUTO = "auto"
         const val THEME_DARK = "dark"
         const val THEME_LIGHT = "light"
         const val THEME_SYSTEM = "system"
-        // --- END NEW ---
-
-        // New key for log verbosity
-        const val KEY_LOG_LEVEL = "log_level"
 
         // Log verbosity levels
+        const val KEY_LOG_LEVEL = "log_level"
         const val LOG_LEVEL_INFO = "info"
         const val LOG_LEVEL_DEBUG = "debug"
         const val LOG_LEVEL_VERBOSE = "verbose"
 
+        // --- NEW: Signing Config Keys ---
+        const val KEY_KEYSTORE_PATH = "keystore_path"
+        const val KEY_KEYSTORE_PASS = "keystore_pass"
+        const val KEY_KEY_ALIAS = "key_alias"
+        const val KEY_KEY_PASS = "key_pass"
+        // --- END NEW ---
 
         val aiTasks = mapOf(
             KEY_AI_ASSIGNMENT_DEFAULT to "Default",
@@ -123,7 +130,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         sharedPreferences.edit().putBoolean(KEY_SHOW_CANCEL_WARNING, show).apply()
     }
 
-    // --- NEW: Auto Report Bugs ---
+    // --- Auto Report Bugs ---
     fun getAutoReportBugs(): Boolean {
         return sharedPreferences.getBoolean(KEY_AUTO_REPORT_BUGS, true) // Default to true
     }
@@ -131,7 +138,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setAutoReportBugs(enabled: Boolean) {
         sharedPreferences.edit().putBoolean(KEY_AUTO_REPORT_BUGS, enabled).apply()
     }
-    // --- END NEW ---
 
     // --- Theme ---
 
@@ -204,6 +210,48 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         // Fallback logic: Use specific, or if null, use default
         return sharedPreferences.getString(taskKey, defaultModelId)
     }
+
+    // --- NEW: Signing Config ---
+
+    fun importKeystore(context: Context, uri: Uri): String? {
+        return try {
+            val destFile = File(context.filesDir, "user_release.keystore")
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(destFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            val path = destFile.absolutePath
+            sharedPreferences.edit().putString(KEY_KEYSTORE_PATH, path).apply()
+            path
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to import keystore", e)
+            null
+        }
+    }
+
+    fun saveSigningCredentials(storePass: String, alias: String, keyPass: String) {
+        sharedPreferences.edit()
+            .putString(KEY_KEYSTORE_PASS, storePass)
+            .putString(KEY_KEY_ALIAS, alias)
+            .putString(KEY_KEY_PASS, keyPass)
+            .apply()
+    }
+
+    fun getKeystorePath(): String? = sharedPreferences.getString(KEY_KEYSTORE_PATH, null)
+    fun getKeystorePass(): String = sharedPreferences.getString(KEY_KEYSTORE_PASS, "android") ?: "android"
+    fun getKeyAlias(): String = sharedPreferences.getString(KEY_KEY_ALIAS, "androiddebugkey") ?: "androiddebugkey"
+    fun getKeyPass(): String = sharedPreferences.getString(KEY_KEY_PASS, "android") ?: "android"
+
+    fun clearSigningConfig() {
+        sharedPreferences.edit()
+            .remove(KEY_KEYSTORE_PATH)
+            .remove(KEY_KEYSTORE_PASS)
+            .remove(KEY_KEY_ALIAS)
+            .remove(KEY_KEY_PASS)
+            .apply()
+    }
+    // --- END NEW ---
 
     // --- Target Package Name ---
 
