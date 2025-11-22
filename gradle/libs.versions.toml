@@ -1,6 +1,6 @@
 [versions]
 agp = "8.13.1"
-aznavrail = "4.11"
+aznavrail = "4.12"
 coreKtx = "1.17.0"
 googleGenai = "1.28.0"
 preferenceKtx = "1.2.1"
