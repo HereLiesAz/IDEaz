@@ -188,6 +188,19 @@ class MainViewModel(
             viewModelScope.launch {
                 _buildLog.value += "\n[IDE] Build successful: $apkPath\n"
                 _buildLog.value += "[IDE] Status: Build Successful\n"
+
+                val appName = settingsViewModel.getAppName()
+                val pkgName = settingsViewModel.getTargetPackageName()
+                if (!appName.isNullOrBlank() && pkgName != null) {
+                    val projectDir = getApplication<Application>().filesDir.resolve(appName)
+                    val headSha = withContext(Dispatchers.IO) {
+                        try { GitManager(projectDir).getHeadSha() } catch (e: Exception) { null }
+                    }
+                    if (headSha != null) {
+                        settingsViewModel.setInstalledSha(pkgName, headSha)
+                    }
+                }
+
                 contextualTaskJob = null
                 logToOverlay("Build successful. Updating...")
                 sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP"))
@@ -284,6 +297,7 @@ class MainViewModel(
     }
 
     fun cloneOrPullProject(owner: String, repo: String, branch: String) {
+        clearLog()
         val appName = repo
         settingsViewModel.saveProjectConfig(appName, owner, branch)
         settingsViewModel.addProject("$owner/$appName")
@@ -344,8 +358,9 @@ class MainViewModel(
                     val currentType = ProjectType.fromString(settingsViewModel.getProjectType())
                     val workflowAdded = ProjectConfigManager.ensureWorkflow(getApplication(), projectDir, currentType)
                     val scriptAdded = if (currentType == ProjectType.ANDROID) ProjectConfigManager.ensureSetupScript(projectDir) else false
+                    val agentsMdAdded = if (currentType == ProjectType.ANDROID) ProjectConfigManager.ensureAgentsSetupMd(projectDir) else false
 
-                    if (workflowAdded || scriptAdded) {
+                    if (workflowAdded || scriptAdded || agentsMdAdded) {
                         _buildLog.value += "[INFO] Committing initialization files...\n"
                         withContext(Dispatchers.IO) {
                             val git = GitManager(projectDir)
@@ -487,8 +502,9 @@ class MainViewModel(
 
                     val workflowAdded = ProjectConfigManager.ensureWorkflow(getApplication(), projectDir, type)
                     val scriptAdded = if (type == ProjectType.ANDROID) ProjectConfigManager.ensureSetupScript(projectDir) else false
+                    val agentsMdAdded = if (type == ProjectType.ANDROID) ProjectConfigManager.ensureAgentsSetupMd(projectDir) else false
 
-                    if (workflowAdded || scriptAdded) {
+                    if (workflowAdded || scriptAdded || agentsMdAdded) {
                         _buildLog.value += "[INFO] Committing initialization files...\n"
                         withContext(Dispatchers.IO) {
                             val git = GitManager(projectDir)
@@ -527,6 +543,7 @@ class MainViewModel(
     }
 
     fun loadProject(projectName: String) {
+        clearLog()
         viewModelScope.launch {
             _buildLog.value += "[INFO] Loading project '$projectName'...\n"
             try {
@@ -689,7 +706,11 @@ class MainViewModel(
 
                         val branchName = settingsViewModel.getBranchName()
                         val sourceString = "sources/github/$githubUser/$appName"
-                        val promptText = prompt ?: ""
+
+                        var promptText = prompt ?: ""
+                        if (isInitialization && settingsViewModel.getProjectType() == ProjectType.ANDROID.name) {
+                            promptText = "Please run ./setup_env.sh to set up the environment.\n\n$promptText"
+                        }
 
                         val activeId = _activeSessionId.value
                         if (activeId != null) {
@@ -916,30 +937,84 @@ class MainViewModel(
         if (isBuildServiceBound) {
             viewModelScope.launch {
                 val targetDir = projectDir ?: getOrCreateProject(context)
-                val headSha = withContext(Dispatchers.IO) { GitManager(targetDir).getHeadSha() }
+                val pkgName = settingsViewModel.getTargetPackageName() ?: "com.example.helloworld"
 
-                // Check Remote First
+                val headSha = withContext(Dispatchers.IO) { GitManager(targetDir).getHeadSha() }
+                val hasChanges = withContext(Dispatchers.IO) { GitManager(targetDir).hasChanges() }
+
+                val installedSha = settingsViewModel.getInstalledSha(pkgName)
+                val isInstalled = try {
+                    context.packageManager.getPackageInfo(pkgName, 0)
+                    true
+                } catch (e: Exception) { false }
+
+                var remoteUrl: String? = null
                 if (headSha != null) {
-                    _buildLog.value += "[INFO] Checking remote artifact for $headSha...\n"
-                    val remoteUrl = checkForArtifact(headSha)
+                    remoteUrl = checkForArtifact(headSha)
+                }
+
+                var shouldRunInstalled = false
+                var shouldInstallRemote = false
+                var shouldBuild = false
+
+                if (isInstalled && installedSha == headSha && !hasChanges) {
+                    shouldRunInstalled = true
+                    _buildLog.value += "[INFO] Installed app matches repository HEAD. Launching...\n"
+                } else if (remoteUrl != null && !hasChanges) {
+                    shouldInstallRemote = true
+                    _buildLog.value += "[INFO] Remote artifact matches repository HEAD. Installing...\n"
+                } else if (isInstalled) {
+                    shouldRunInstalled = true
+                    shouldBuild = true
+                    _buildLog.value += "[INFO] Launching installed app while building update (local changes or outdated)...\n"
+                } else if (remoteUrl != null) {
+                    shouldInstallRemote = true
+                    shouldBuild = true
+                    _buildLog.value += "[INFO] Installing remote artifact while building update (local changes)...\n"
+                } else {
+                    shouldBuild = true
+                    _buildLog.value += "[INFO] No usable build found. Starting fresh build...\n"
+                }
+
+                if (shouldRunInstalled) {
+                    launchApp(pkgName)
+                }
+
+                if (shouldInstallRemote) {
                     if (remoteUrl != null) {
-                        _buildLog.value += "[INFO] Found remote artifact. Installing...\n"
-                        downloadAndInstallRemoteApk(remoteUrl, settingsViewModel.getGithubToken(), _buildLog)
-                        return@launch
+                        downloadAndInstallRemoteApk(remoteUrl, settingsViewModel.getGithubToken(), _buildLog, pkgName, headSha)
                     }
                 }
 
-                _buildLog.value += "[INFO] Status: Building locally...\n"
-                buildService?.startBuild(targetDir.absolutePath, buildCallback)
+                if (shouldBuild) {
+                    _buildLog.value += "[INFO] Status: Building locally...\n"
+                    buildService?.startBuild(targetDir.absolutePath, buildCallback)
 
-                // Race: Start Polling
-                if (headSha != null) {
-                    remotePollJob?.cancel()
-                    remotePollJob = launch { pollRemoteBuild(targetDir, headSha, _buildLog) }
+                    if (headSha != null) {
+                        remotePollJob?.cancel()
+                        remotePollJob = launch { pollRemoteBuild(targetDir, headSha, _buildLog, pkgName) }
+                    }
                 }
             }
         } else {
             _buildLog.value += "[INFO] Status: Service not bound\n"
+        }
+    }
+
+    private fun launchApp(packageName: String): Boolean {
+        return try {
+            val intent = getApplication<Application>().packageManager.getLaunchIntentForPackage(packageName)
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                getApplication<Application>().startActivity(intent)
+                true
+            } else {
+                _buildLog.value += "[INFO] App installed but not launchable.\n"
+                false
+            }
+        } catch (e: Exception) {
+            _buildLog.value += "[INFO] Failed to launch app: ${e.message}\n"
+            false
         }
     }
 
@@ -1186,21 +1261,21 @@ class MainViewModel(
         }
     }
 
-    private suspend fun pollRemoteBuild(projectDir: File, sha: String, logTarget: Any) {
+    private suspend fun pollRemoteBuild(projectDir: File, sha: String, logTarget: Any, pkgName: String?) {
         logTo(logTarget, "[REMOTE] Polling GitHub for build...")
         for (i in 1..60) { // 5 minutes
             delay(5000)
             val url = checkForArtifact(sha)
             if (url != null) {
                 logTo(logTarget, "[REMOTE] Build ready! Downloading...")
-                downloadAndInstallRemoteApk(url, settingsViewModel.getGithubToken(), logTarget)
+                downloadAndInstallRemoteApk(url, settingsViewModel.getGithubToken(), logTarget, pkgName, sha)
                 return
             }
         }
         logTo(logTarget, "[REMOTE] Polling timed out.")
     }
 
-    private suspend fun downloadAndInstallRemoteApk(urlStr: String, token: String?, logTarget: Any) {
+    private suspend fun downloadAndInstallRemoteApk(urlStr: String, token: String?, logTarget: Any, pkgName: String?, sha: String?) {
         withContext(Dispatchers.IO) {
             try {
                 val destFile = File(getApplication<Application>().externalCacheDir, "remote_app.apk")
@@ -1223,6 +1298,10 @@ class MainViewModel(
 
                 com.hereliesaz.ideaz.utils.ApkInstaller.installApk(getApplication(), destFile.absolutePath)
                 logTo(logTarget, "[REMOTE] Installation triggered.")
+
+                if (pkgName != null && sha != null) {
+                    settingsViewModel.setInstalledSha(pkgName, sha)
+                }
 
             } catch (e: Exception) {
                 logTo(logTarget, "[REMOTE] Install failed: ${e.message}")
