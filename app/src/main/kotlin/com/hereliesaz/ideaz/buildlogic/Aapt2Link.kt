@@ -12,7 +12,8 @@ class Aapt2Link(
     private val outputApkPath: String,
     private val outputJavaPath: String,
     private val minSdk: Int,
-    private val targetSdk: Int
+    private val targetSdk: Int,
+    private val dependencyResources: List<String> = emptyList()
 ) : BuildStep {
 
     override fun execute(callback: IBuildCallback?): BuildResult {
@@ -49,6 +50,7 @@ class Aapt2Link(
             "--target-sdk-version", targetSdk.toString()
         )
         command.addAll(compiledFiles)
+        command.addAll(dependencyResources)
 
         val processResult = ProcessExecutor.execute(command)
         return BuildResult(processResult.exitCode == 0, processResult.output)
