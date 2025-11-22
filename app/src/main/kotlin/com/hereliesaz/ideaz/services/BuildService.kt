@@ -207,7 +207,7 @@ class BuildService : Service() {
             updateNotification("Starting build...")
 
             val projectDir = File(projectPath)
-            val buildDir = File(filesDir, "build").apply { mkdirs() }
+            val buildDir = File(projectDir, "build").apply { mkdirs() }
             val cacheDir = File(filesDir, "cache").apply { mkdirs() }
             val localRepoDir = File(filesDir, "local-repo").apply { mkdirs() }
 
