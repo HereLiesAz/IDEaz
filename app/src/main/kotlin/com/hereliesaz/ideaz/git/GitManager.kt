@@ -43,6 +43,16 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    fun hasChanges(): Boolean {
+        return try {
+            Git.open(projectDir).use { git ->
+                !git.status().call().isClean
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     fun addAll() {
         Git.open(projectDir).use { git ->
             git.add().addFilepattern(".").call()
