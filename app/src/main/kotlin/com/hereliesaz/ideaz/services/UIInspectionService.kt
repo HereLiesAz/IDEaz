@@ -50,6 +50,7 @@ class UIInspectionService : AccessibilityService() {
     private lateinit var settingsViewModel: SettingsViewModel
     private var mainHandler: Handler? = null
     private var debugTextView: TextView? = null
+    private var shouldInspect = false
 
     // Dedicated view for reliable drawing
     private inner class SelectionView(context: Context) : View(context) {
@@ -189,10 +190,21 @@ class UIInspectionService : AccessibilityService() {
                     rect?.let { mainHandler?.post { showLogUI(it) } }
                 }
                 "com.hereliesaz.ideaz.START_INSPECTION" -> {
-                    mainHandler?.post { showTouchInterceptor() }
+                    mainHandler?.post {
+                        shouldInspect = true
+                        // We can't know for sure if we are in the app right now,
+                        // but checking the last event or just showing it if we think so might work.
+                        // For now, we wait for the next event or assume we are there if called from context.
+                        // Actually, usually startInspection is called when IDE is open.
+                        // The user then switches to the app.
+                        // So we enable the flag, but don't necessarily show immediately until we detect the app?
+                        // Or we show it, and let onAccessibilityEvent hide it if we are not in the app.
+                        showTouchInterceptor()
+                    }
                 }
                 "com.hereliesaz.ideaz.STOP_INSPECTION" -> {
                     mainHandler?.post {
+                        shouldInspect = false
                         hideTouchInterceptor()
                         hideOverlayUI()
                     }
@@ -201,7 +213,28 @@ class UIInspectionService : AccessibilityService() {
         }
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event == null) return
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val targetPackage = settingsViewModel.getTargetPackageName() ?: return
+            val eventPackage = event.packageName?.toString()
+
+            // Check if we should show or hide the overlay based on current app
+            if (shouldInspect) {
+                if (eventPackage == targetPackage) {
+                    // User is in the target app, ensure overlay is visible
+                    if (touchInterceptor == null || touchInterceptor?.visibility != View.VISIBLE) {
+                        showTouchInterceptor()
+                    }
+                } else if (eventPackage != packageName && eventPackage != "com.android.systemui") {
+                    // User is not in target app and not in the IDE itself.
+                    // We hide the overlay to avoid blocking other apps.
+                    // (Allow SystemUI for notifications/recents)
+                    touchInterceptor?.visibility = View.GONE
+                }
+            }
+        }
+    }
     override fun onInterrupt() {}
 
     override fun onServiceConnected() {
