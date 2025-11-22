@@ -15,6 +15,13 @@ class Aapt2Compile(
 
     override fun execute(callback: IBuildCallback?): BuildResult {
         val compiledResDirFile = File(compiledResDir)
+        val resFiles = File(resDir).walk().filter { it.isFile }.toList()
+
+        if (BuildCacheManager.shouldSkip("aapt2", resFiles, compiledResDirFile)) {
+            callback?.onLog("Skipping Aapt2Compile: Up-to-date.")
+            return BuildResult(true, "Up-to-date")
+        }
+
         if (!compiledResDirFile.exists()) {
             compiledResDirFile.mkdirs()
         }
@@ -29,6 +36,9 @@ class Aapt2Compile(
         // --- END FIX ---
 
         val processResult = ProcessExecutor.execute(command)
+        if (processResult.exitCode == 0) {
+            BuildCacheManager.updateSnapshot("aapt2", resFiles, compiledResDirFile)
+        }
         return BuildResult(processResult.exitCode == 0, processResult.output)
     }
 }
