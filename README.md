@@ -1,3 +1,4 @@
+#  [oo]
 # IDEaz 
 
 This isn't no-code. This isn't vibe coding. And this sure as hell ain't straight-up coding.      
