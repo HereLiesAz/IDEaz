@@ -61,18 +61,21 @@ class GitManager(private val projectDir: File) {
         }
     }
 
-    fun push(username: String? = null, token: String? = null) {
+    fun push(username: String? = null, token: String? = null, onProgress: ((Int, String) -> Unit)? = null) {
         Git.open(projectDir).use { git ->
             val cmd = git.push()
             if (!token.isNullOrBlank()) {
                 val user = if (!username.isNullOrBlank()) username else token
                 cmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(user, token))
             }
+            if (onProgress != null) {
+                cmd.setProgressMonitor(SimpleProgressMonitor(onProgress))
+            }
             cmd.call()
         }
     }
 
-    fun fetchPr(prId: String, localBranch: String, username: String? = null, token: String? = null) {
+    fun fetchPr(prId: String, localBranch: String, username: String? = null, token: String? = null, onProgress: ((Int, String) -> Unit)? = null) {
         Git.open(projectDir).use { git ->
             val cmd = git.fetch()
                 .setRemote("origin")
@@ -81,6 +84,9 @@ class GitManager(private val projectDir: File) {
             if (!token.isNullOrBlank()) {
                 val user = if (!username.isNullOrBlank()) username else token
                 cmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(user, token))
+            }
+            if (onProgress != null) {
+                cmd.setProgressMonitor(SimpleProgressMonitor(onProgress))
             }
             cmd.call()
         }

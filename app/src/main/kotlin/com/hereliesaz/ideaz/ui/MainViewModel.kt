@@ -68,6 +68,15 @@ class MainViewModel(
     val loadingProgress = _loadingProgress.asStateFlow()
 
     private val gitMutex = Mutex()
+    private var lastGitTask = ""
+
+    private fun onGitProgress(percent: Int, task: String) {
+        _loadingProgress.value = percent
+        if (task != lastGitTask) {
+            _buildLog.value += "[GIT] $task\n"
+            lastGitTask = task
+        }
+    }
 
     private val _buildLog = MutableStateFlow("")
     val buildLog = _buildLog.asStateFlow()
@@ -285,9 +294,7 @@ class MainViewModel(
                     if (projectDir.exists() && File(projectDir, ".git").exists()) {
                         _buildLog.value += "[INFO] Project exists. Pulling latest changes...\n"
                         withContext(Dispatchers.IO) {
-                            GitManager(projectDir).pull(authUser, token) { percent, task ->
-                                _loadingProgress.value = percent
-                            }
+                            GitManager(projectDir).pull(authUser, token, ::onGitProgress)
                         }
                         _buildLog.value += "[INFO] Pull complete.\n"
                     } else {
@@ -299,9 +306,7 @@ class MainViewModel(
 
                         _buildLog.value += "[INFO] Cloning $owner/$repo...\n"
                         withContext(Dispatchers.IO) {
-                            GitManager(projectDir).clone(owner, repo, authUser, token) { percent, task ->
-                                _loadingProgress.value = percent
-                            }
+                            GitManager(projectDir).clone(owner, repo, authUser, token, ::onGitProgress)
                         }
                         _buildLog.value += "[INFO] Clone complete.\n"
                     }
@@ -426,7 +431,7 @@ class MainViewModel(
                         val git = GitManager(projectDir)
                         git.addAll()
                         git.commit("Initial commit via IDEaz")
-                        git.push(settingsViewModel.getGithubUser(), token)
+                        git.push(settingsViewModel.getGithubUser(), token, ::onGitProgress)
                     }
 
                     _buildLog.value += "[INFO] Initialization complete. Proceed to Setup to build.\n"
@@ -476,9 +481,7 @@ class MainViewModel(
                         _buildLog.value += "[INFO] Project directory exists. Updating...\n"
                         withContext(Dispatchers.IO) {
                             val git = GitManager(projectDir)
-                            git.pull(user, token) { percent, task ->
-                                _loadingProgress.value = percent
-                            }
+                            git.pull(user, token, ::onGitProgress)
                         }
                         _loadingProgress.value = null
                         _buildLog.value += "[INFO] Update complete.\n"
@@ -600,7 +603,7 @@ class MainViewModel(
                     _buildLog.value += "[INFO] Fetching PR #$prId...\n"
                     withContext(Dispatchers.IO) {
                         val gitManager = GitManager(projectDir)
-                        gitManager.fetchPr(prId, branchName, user, token)
+                        gitManager.fetchPr(prId, branchName, user, token, ::onGitProgress)
                         gitManager.checkout(branchName)
                     }
                     _buildLog.value += "[INFO] Checked out PR branch. Building...\n"
@@ -628,7 +631,7 @@ class MainViewModel(
                     withContext(Dispatchers.IO) {
                         val gitManager = GitManager(projectDir)
                         gitManager.checkout(mainBranch)
-                        gitManager.pull(user, token)
+                        gitManager.pull(user, token, ::onGitProgress)
                         gitManager.merge(branchName)
                     }
                     _buildLog.value += "[INFO] Merged PR #$prId. Building...\n"
@@ -1145,7 +1148,7 @@ class MainViewModel(
                             val git = GitManager(projectDir)
                             git.addAll()
                             git.commit("Sync before delete")
-                            git.push(settingsViewModel.getGithubUser(), settingsViewModel.getGithubToken())
+                            git.push(settingsViewModel.getGithubUser(), settingsViewModel.getGithubToken(), ::onGitProgress)
                         }
                         _buildLog.value += "[INFO] Sync complete.\n"
                     } catch (e: Exception) {
