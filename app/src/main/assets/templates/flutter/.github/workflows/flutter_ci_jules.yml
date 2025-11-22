@@ -1,0 +1,80 @@
+name: Flutter CI with Jules
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        channel: 'stable'
+        cache: true
+
+    - name: Get dependencies
+      run: flutter pub get
+
+    - name: Build APK
+      id: build-apk
+      run: |
+        set +e
+        flutter build apk --debug > build.log 2>&1
+        EXIT_CODE=$?
+        echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+        cat build.log
+        exit $EXIT_CODE
+      continue-on-error: true
+
+    - name: Upload APK
+      if: steps.build-apk.outcome == 'success'
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-debug
+        path: build/app/outputs/flutter-apk/app-debug.apk
+
+    - name: Report Failure to Jules
+      if: steps.build-apk.outcome == 'failure'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          let logTail = 'Log file not found.';
+          try {
+            const log = fs.readFileSync('build.log', 'utf8');
+            logTail = log.slice(-4000);
+          } catch (e) {}
+
+          const body = `Build failed on ${context.eventName === 'pull_request' ? 'PR #' + context.issue.number : context.ref}.\n\n**Log Output:**\n\`\`\`\n${logTail}\n\`\`\`\n\nJules, @google-labs-jules, please debug and fix this build failure.`;
+
+          if (context.eventName === 'pull_request') {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+          } else {
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Build Failure on ${context.ref}`,
+              body: body
+            });
+          }
+
+    - name: Fail Job
+      if: steps.build-apk.outcome == 'failure'
+      run: exit 1
