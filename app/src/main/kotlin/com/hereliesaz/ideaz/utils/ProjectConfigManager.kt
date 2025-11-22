@@ -67,14 +67,15 @@ object ProjectConfigManager {
         }
     }
 
-    fun ensureWorkflow(context: Context, projectDir: File, type: ProjectType) {
+    fun ensureWorkflow(context: Context, projectDir: File, type: ProjectType): Boolean {
         val (assetPath, destName) = when (type) {
             ProjectType.ANDROID -> "project/.github/workflows/android_ci_jules.yml" to "android_ci_jules.yml"
             ProjectType.REACT_NATIVE -> "templates/react_native/.github/workflows/react_native_ci_jules.yml" to "react_native_ci_jules.yml"
             ProjectType.FLUTTER -> "templates/flutter/.github/workflows/flutter_ci_jules.yml" to "flutter_ci_jules.yml"
-            else -> return
+            else -> return false
         }
 
+        var modified = false
         try {
             val workflowsDir = File(projectDir, ".github/workflows")
             if (!workflowsDir.exists()) {
@@ -88,10 +89,27 @@ object ProjectConfigManager {
                         input.copyTo(output)
                     }
                 }
+                modified = true
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
+        return modified
+    }
+
+    fun ensureSetupScript(projectDir: File): Boolean {
+        var modified = false
+        try {
+            val setupFile = File(projectDir, "setup_env.sh")
+            if (!setupFile.exists()) {
+                setupFile.writeText(EnvironmentSetup.ANDROID_SETUP_SCRIPT)
+                setupFile.setExecutable(true)
+                modified = true
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return modified
     }
 
     fun appendPromptToHistory(projectDir: File, promptText: String, screenshotBase64: String? = null) {
