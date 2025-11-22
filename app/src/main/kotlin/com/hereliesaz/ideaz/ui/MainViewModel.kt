@@ -131,7 +131,7 @@ class MainViewModel(
             _buildLog.value += "[IDE] Reporting internal error to GitHub...\n"
             viewModelScope.launch(Dispatchers.IO) {
                 val logcat = try {
-                    Runtime.getRuntime().exec("logcat -d").inputStream.bufferedReader().readText()
+                    Runtime.getRuntime().exec("logcat -d -t 200").inputStream.bufferedReader().readText()
                 } catch (ex: Exception) { "Failed to capture logcat: ${ex.message}" }
 
                 val token = settingsViewModel.getGithubToken()
