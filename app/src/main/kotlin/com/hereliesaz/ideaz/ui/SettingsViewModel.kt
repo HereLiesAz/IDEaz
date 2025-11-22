@@ -275,6 +275,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         return sharedPreferences.getString(KEY_TARGET_PACKAGE_NAME, "com.example.helloworld")
     }
 
+    fun getInstalledSha(packageName: String): String? {
+        return sharedPreferences.getString("installed_sha_$packageName", null)
+    }
+
+    fun setInstalledSha(packageName: String, sha: String) {
+        sharedPreferences.edit().putString("installed_sha_$packageName", sha).apply()
+    }
+
 
     // --- Project Config ---
 

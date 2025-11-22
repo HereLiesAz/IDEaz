@@ -97,6 +97,28 @@ object ProjectConfigManager {
         return modified
     }
 
+    fun ensureAgentsSetupMd(projectDir: File): Boolean {
+        var modified = false
+        try {
+            val agentsFile = File(projectDir, "AGENTS_SETUP.md")
+            val instruction = "\n\n# Environment Setup\nPlease run `./setup_env.sh` to set up the build environment."
+
+            if (!agentsFile.exists()) {
+                agentsFile.writeText("# Project Instructions$instruction")
+                modified = true
+            } else {
+                val content = agentsFile.readText()
+                if (!content.contains("setup_env.sh")) {
+                    agentsFile.appendText(instruction)
+                    modified = true
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return modified
+    }
+
     fun ensureSetupScript(projectDir: File): Boolean {
         var modified = false
         try {
