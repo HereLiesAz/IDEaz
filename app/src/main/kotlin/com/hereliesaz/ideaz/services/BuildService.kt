@@ -147,8 +147,10 @@ class BuildService : Service() {
                 val user = prefs.getString(SettingsViewModel.KEY_GITHUB_USER, null)
 
                 val git = GitManager(File(path))
-                git.addAll()
-                git.commit("Sync and Exit")
+                if (git.hasChanges()) {
+                    git.addAll()
+                    git.commit("Sync and Exit")
+                }
                 if (token != null) {
                     git.push(user, token)
                 }
