@@ -341,6 +341,9 @@ class MainViewModel(
                         saveProjectConfigToFile(projectDir, type.name, pkg ?: "com.example", branch)
                     }
 
+                    val currentType = ProjectType.fromString(settingsViewModel.getProjectType())
+                    ProjectConfigManager.ensureWorkflow(getApplication(), projectDir, currentType)
+
                     fetchSessions()
                     startBuild(getApplication())
 
@@ -471,6 +474,8 @@ class MainViewModel(
                     ProjectConfigManager.ensureGitIgnore(projectDir)
                     saveProjectConfigToFile(projectDir, type.name, pkg, branch)
 
+                    ProjectConfigManager.ensureWorkflow(getApplication(), projectDir, type)
+
                     if (!initialPrompt.isNullOrBlank()) {
                         _buildLog.value += "[INFO] Saving initial prompt and sending to AI...\n"
                         logPromptToHistory(initialPrompt, null)
@@ -529,6 +534,9 @@ class MainViewModel(
                     }
                     saveProjectConfigToFile(projectDir, type.name, pkg ?: "com.example", "main")
                 }
+
+                val currentType = ProjectType.fromString(settingsViewModel.getProjectType())
+                ProjectConfigManager.ensureWorkflow(getApplication(), projectDir, currentType)
 
                 fetchSessions()
 
