@@ -79,6 +79,7 @@ fun ProjectScreen(
     var tabIndex by remember { mutableStateOf(0) }
 
     val currentAppNameState by settingsViewModel.currentAppName.collectAsState()
+    val currentPackageName by settingsViewModel.targetPackageName.collectAsState()
     val loadingProgress by viewModel.loadingProgress.collectAsState()
 
     var appName by remember { mutableStateOf("") }
@@ -91,11 +92,11 @@ fun ProjectScreen(
     var repoDescription by remember { mutableStateOf("Created with IDEaz") }
     var isPrivateRepo by remember { mutableStateOf(false) }
 
-    LaunchedEffect(currentAppNameState) {
+    LaunchedEffect(currentAppNameState, currentPackageName) {
         appName = settingsViewModel.getAppName() ?: "IDEazProject"
         githubUser = settingsViewModel.getGithubUser() ?: ""
         branchName = settingsViewModel.getBranchName()
-        packageName = settingsViewModel.getTargetPackageName() ?: "com.example.helloworld"
+        packageName = currentPackageName ?: "com.example.helloworld"
         selectedType = ProjectType.fromString(settingsViewModel.getProjectType())
     }
 
