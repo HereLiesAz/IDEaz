@@ -46,6 +46,19 @@ jobs:
         name: app-debug
         path: app/build/outputs/apk/debug/app-debug.apk
 
+    - name: Create Release for Race-to-Build
+      if: steps.gradle-build.outcome == 'success' && github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: latest-debug
+        name: Latest Debug Build
+        body: ${{ github.sha }}
+        files: app/build/outputs/apk/debug/app-debug.apk
+        draft: false
+        prerelease: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Report Failure to Jules
       if: steps.gradle-build.outcome == 'failure'
       uses: actions/github-script@v7
