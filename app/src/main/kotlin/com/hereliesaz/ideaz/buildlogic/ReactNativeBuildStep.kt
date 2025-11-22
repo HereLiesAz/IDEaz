@@ -77,8 +77,8 @@ class ReactNativeBuildStep(
         val steps = listOf(
             Aapt2Compile(aapt2Path, shellResDir.absolutePath, compiledResDir.absolutePath, MIN_SDK, TARGET_SDK),
             Aapt2Link(aapt2Path, compiledResDir.absolutePath, androidJarPath, shellManifest.absolutePath, File(buildDir, "app.apk").absolutePath, shellGenDir.absolutePath, MIN_SDK, TARGET_SDK),
-            KotlincCompile(kotlincJarPath, androidJarPath, shellJavaDir.absolutePath, shellClassesDir, resolverResult.output, javaBinaryPath),
-            D8Compile(d8Path, javaBinaryPath, androidJarPath, shellClassesDir.absolutePath, shellClassesDir.absolutePath, resolverResult.output),
+            KotlincCompile(kotlincJarPath, androidJarPath, shellJavaDir.absolutePath, shellClassesDir, resolver.resolvedClasspath, javaBinaryPath),
+            D8Compile(d8Path, javaBinaryPath, androidJarPath, shellClassesDir.absolutePath, shellClassesDir.absolutePath, resolver.resolvedClasspath),
             ApkBuild(File(buildDir, "app-signed.apk").absolutePath, File(buildDir, "app.apk").absolutePath, shellClassesDir.absolutePath),
             ApkSign(apkSignerPath, javaBinaryPath, keystorePath, "android", "androiddebugkey", File(buildDir, "app-signed.apk").absolutePath)
         )
