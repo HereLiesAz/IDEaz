@@ -280,12 +280,29 @@ class BuildService : Service() {
         }
         // ---------------------------
 
+        // Process AARs (Extract and Compile Resources)
+        val processAars = ProcessAars(resolver.resolvedArtifacts, buildDir, aapt2Path!!)
+        val aarResult = processAars.execute(callback)
+        if (!aarResult.success) {
+            callback.onFailure(aarResult.output)
+            return
+        }
+
+        // Construct Classpath
+        val aarJars = processAars.jars.joinToString(File.pathSeparator)
+        val resolvedJars = resolver.resolvedClasspath
+        val fullClasspath = if (aarJars.isNotEmpty()) {
+            "$resolvedJars${File.pathSeparator}$aarJars"
+        } else {
+            resolvedJars
+        }
+
         val buildOrchestrator = BuildOrchestrator(
             listOf(
-                Aapt2Compile(aapt2Path!!, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK),
-                Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK),
-                KotlincCompile(kotlincJarPath!!, androidJarPath, File(projectDir, "app/src/main/java").absolutePath, File(buildDir, "classes"), resolverResult.output, javaBinaryPath!!),
-                D8Compile(d8Path!!, javaBinaryPath, androidJarPath, File(buildDir, "classes").absolutePath, File(buildDir, "classes").absolutePath, resolverResult.output),
+                Aapt2Compile(aapt2Path, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK),
+                Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK, processAars.compiledAars),
+                KotlincCompile(kotlincJarPath!!, androidJarPath, File(projectDir, "app/src/main/java").absolutePath, File(buildDir, "classes"), fullClasspath, javaBinaryPath!!),
+                D8Compile(d8Path!!, javaBinaryPath, androidJarPath, File(buildDir, "classes").absolutePath, File(buildDir, "classes").absolutePath, fullClasspath),
                 ApkBuild(File(buildDir, "app-signed.apk").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "classes").absolutePath),
                 ApkSign(apkSignerPath!!, javaBinaryPath, keystorePath!!, ksPass, keyAlias, File(buildDir, "app-signed.apk").absolutePath),
                 GenerateSourceMap(File(projectDir, "app/src/main/res"), buildDir, cacheDir)
