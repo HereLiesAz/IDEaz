@@ -13,7 +13,8 @@ class Aapt2Link(
     private val outputJavaPath: String,
     private val minSdk: Int,
     private val targetSdk: Int,
-    private val dependencyResources: List<String> = emptyList()
+    private val dependencyResources: List<String> = emptyList(),
+    private val packageName: String? = null
 ) : BuildStep {
 
     override fun execute(callback: IBuildCallback?): BuildResult {
@@ -49,6 +50,12 @@ class Aapt2Link(
             "--min-sdk-version", minSdk.toString(),
             "--target-sdk-version", targetSdk.toString()
         )
+
+        if (!packageName.isNullOrBlank()) {
+            command.add("--rename-manifest-package")
+            command.add(packageName)
+        }
+
         command.addAll(compiledFiles)
         command.addAll(dependencyResources)
 

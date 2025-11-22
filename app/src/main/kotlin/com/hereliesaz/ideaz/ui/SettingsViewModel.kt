@@ -108,6 +108,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _currentAppName = MutableStateFlow(getAppName())
     val currentAppName = _currentAppName.asStateFlow()
 
+    private val _targetPackageName = MutableStateFlow(getTargetPackageName())
+    val targetPackageName = _targetPackageName.asStateFlow()
+
     init {
         // Initialize AuthInterceptor with saved API key
         val savedKey = getApiKey()
@@ -257,6 +260,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun saveTargetPackageName(packageName: String) {
         sharedPreferences.edit().putString(KEY_TARGET_PACKAGE_NAME, packageName).apply()
+        _targetPackageName.value = packageName
 
         // Send a broadcast to notify the running service of the change
         val intent = Intent(ACTION_TARGET_PACKAGE_CHANGED).apply {

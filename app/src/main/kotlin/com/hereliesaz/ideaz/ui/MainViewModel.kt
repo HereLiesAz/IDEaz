@@ -342,7 +342,18 @@ class MainViewModel(
                     }
 
                     val currentType = ProjectType.fromString(settingsViewModel.getProjectType())
-                    ProjectConfigManager.ensureWorkflow(getApplication(), projectDir, currentType)
+                    val workflowAdded = ProjectConfigManager.ensureWorkflow(getApplication(), projectDir, currentType)
+                    val scriptAdded = if (currentType == ProjectType.ANDROID) ProjectConfigManager.ensureSetupScript(projectDir) else false
+
+                    if (workflowAdded || scriptAdded) {
+                        _buildLog.value += "[INFO] Committing initialization files...\n"
+                        withContext(Dispatchers.IO) {
+                            val git = GitManager(projectDir)
+                            git.addAll()
+                            git.commit("Initialize project with IDEaz workflows")
+                            git.push(authUser, token, ::onGitProgress)
+                        }
+                    }
 
                     fetchSessions()
                     startBuild(getApplication())
@@ -474,7 +485,18 @@ class MainViewModel(
                     ProjectConfigManager.ensureGitIgnore(projectDir)
                     saveProjectConfigToFile(projectDir, type.name, pkg, branch)
 
-                    ProjectConfigManager.ensureWorkflow(getApplication(), projectDir, type)
+                    val workflowAdded = ProjectConfigManager.ensureWorkflow(getApplication(), projectDir, type)
+                    val scriptAdded = if (type == ProjectType.ANDROID) ProjectConfigManager.ensureSetupScript(projectDir) else false
+
+                    if (workflowAdded || scriptAdded) {
+                        _buildLog.value += "[INFO] Committing initialization files...\n"
+                        withContext(Dispatchers.IO) {
+                            val git = GitManager(projectDir)
+                            git.addAll()
+                            git.commit("Initialize project with IDEaz workflows")
+                            git.push(user, token, ::onGitProgress)
+                        }
+                    }
 
                     if (!initialPrompt.isNullOrBlank()) {
                         _buildLog.value += "[INFO] Saving initial prompt and sending to AI...\n"
