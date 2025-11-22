@@ -45,6 +45,7 @@ class UIInspectionService : AccessibilityService() {
     private var overlayView: View? = null
     private var logContainer: View? = null
     private var promptContainer: View? = null
+    private var updatePopupView: View? = null
 
     private var windowManager: WindowManager? = null
     private lateinit var settingsViewModel: SettingsViewModel
@@ -209,6 +210,9 @@ class UIInspectionService : AccessibilityService() {
                         hideOverlayUI()
                     }
                 }
+                "com.hereliesaz.ideaz.SHOW_UPDATE_POPUP" -> {
+                    mainHandler?.post { showUpdatePopup() }
+                }
             }
         }
     }
@@ -249,6 +253,7 @@ class UIInspectionService : AccessibilityService() {
             addAction("com.hereliesaz.ideaz.SHOW_LOG_UI")
             addAction("com.hereliesaz.ideaz.START_INSPECTION")
             addAction("com.hereliesaz.ideaz.STOP_INSPECTION")
+            addAction("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(commandReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -265,6 +270,7 @@ class UIInspectionService : AccessibilityService() {
     override fun onDestroy() {
         hideTouchInterceptor()
         hideOverlayUI()
+        hideUpdatePopup()
         try {
             unregisterReceiver(commandReceiver)
         } catch (e: IllegalArgumentException) {
@@ -274,6 +280,7 @@ class UIInspectionService : AccessibilityService() {
     }
 
     private fun showTouchInterceptor() {
+        hideUpdatePopup()
         if (touchInterceptor != null) return
         touchInterceptor = SelectionView(this)
         val lp = WindowManager.LayoutParams().apply {
@@ -389,6 +396,46 @@ class UIInspectionService : AccessibilityService() {
         logContainer = null
         promptContainer = null
         touchInterceptor?.visibility = View.VISIBLE
+    }
+
+    private fun hideUpdatePopup() {
+        updatePopupView?.let { windowManager?.removeView(it) }
+        updatePopupView = null
+    }
+
+    private fun showUpdatePopup() {
+        // Copy text if prompt is active
+        val promptInput = overlayView?.findViewById<EditText>(R.id.prompt_input)
+        if (promptInput != null && promptInput.visibility == View.VISIBLE) {
+            val text = promptInput.text.toString()
+            if (text.isNotEmpty()) {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                val clip = android.content.ClipData.newPlainText("IDEaz Prompt", text)
+                clipboard.setPrimaryClip(clip)
+            }
+        }
+
+        hideOverlayUI()
+        hideUpdatePopup()
+
+        val tv = TextView(ContextThemeWrapper(this, R.style.Theme_IDEaz))
+        tv.text = "Updating, gimme a sec."
+        tv.setBackgroundColor(Color.BLACK)
+        tv.setTextColor(Color.WHITE)
+        tv.setPadding(32, 16, 32, 16)
+        tv.gravity = Gravity.CENTER
+
+        val lp = WindowManager.LayoutParams().apply {
+            type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+            format = PixelFormat.TRANSLUCENT
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+            width = WindowManager.LayoutParams.WRAP_CONTENT
+            height = WindowManager.LayoutParams.WRAP_CONTENT
+            gravity = Gravity.CENTER
+        }
+
+        updatePopupView = tv
+        windowManager?.addView(tv, lp)
     }
 
     private fun findNodeAt(root: AccessibilityNodeInfo?, x: Int, y: Int): AccessibilityNodeInfo? {

@@ -199,6 +199,7 @@ class BuildService : Service() {
     private fun startBuild(projectPath: String, callback: IBuildCallback) {
         cancelBuild()
         buildJob = serviceScope.launch(Dispatchers.IO) {
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
             currentProjectPath = projectPath
             synchronized(logBuffer) {
                 logBuffer.clear()
