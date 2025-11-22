@@ -160,15 +160,20 @@ fun MainScreen(
                     scope = scope
                 )
 
-                AnimatedVisibility(visible = isIdeVisible) {
+                // --- FIX: Apply weight to AnimatedVisibility, not IdeNavHost ---
+                AnimatedVisibility(
+                    visible = isIdeVisible,
+                    modifier = Modifier.weight(1f)
+                ) {
                     IdeNavHost(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.fillMaxSize(), // Fill the weighted container
                         navController = navController,
                         viewModel = viewModel,
                         settingsViewModel = viewModel.settingsViewModel,
                         onThemeToggle = onThemeToggle
                     )
                 }
+                // --- END FIX ---
             }
 
             if (isBottomSheetVisible) {
