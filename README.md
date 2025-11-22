@@ -1,4 +1,4 @@
-#  [oo] \n IDEaz 
+#  [oo] /n IDEaz 
 
 This isn't no-code. This isn't vibe coding. And this sure as hell ain't straight-up coding.      
 This is what every emulator, visual preview, drag and drop WYSIWYG environment was leading up to.
