@@ -50,6 +50,9 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
 import com.hereliesaz.ideaz.utils.GithubIssueReporter
+import java.net.HttpURLConnection
+import java.net.URL
+import java.io.BufferedInputStream
 
 data class ProjectMetadata(
     val name: String,
@@ -67,6 +70,15 @@ class MainViewModel(
     val loadingProgress = _loadingProgress.asStateFlow()
 
     private val gitMutex = Mutex()
+    private var lastGitTask = ""
+
+    private fun onGitProgress(percent: Int, task: String) {
+        _loadingProgress.value = percent
+        if (task != lastGitTask) {
+            _buildLog.value += "[GIT] $task\n"
+            lastGitTask = task
+        }
+    }
 
     private val _buildLog = MutableStateFlow("")
     val buildLog = _buildLog.asStateFlow()
@@ -97,6 +109,7 @@ class MainViewModel(
     private val _showCancelDialog = MutableStateFlow(false)
     val showCancelDialog = _showCancelDialog.asStateFlow()
     private var contextualTaskJob: Job? = null
+    private var remotePollJob: Job? = null
 
     private val _requestScreenCapture = MutableStateFlow(false)
     val requestScreenCapture = _requestScreenCapture.asStateFlow()
@@ -171,12 +184,13 @@ class MainViewModel(
 
         override fun onSuccess(apkPath: String) {
             Log.d(TAG, "onSuccess: Build successful, APK at $apkPath")
+            remotePollJob?.cancel() // Cancel remote polling since local won
             viewModelScope.launch {
                 _buildLog.value += "\n[IDE] Build successful: $apkPath\n"
                 _buildLog.value += "[IDE] Status: Build Successful\n"
                 contextualTaskJob = null
-                logToOverlay("Build successful. Task finished.")
-                sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
+                logToOverlay("Build successful. Updating...")
+                sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP"))
 
                 val buildDir = File(apkPath).parentFile
                 if (buildDir != null) {
@@ -284,9 +298,7 @@ class MainViewModel(
                     if (projectDir.exists() && File(projectDir, ".git").exists()) {
                         _buildLog.value += "[INFO] Project exists. Pulling latest changes...\n"
                         withContext(Dispatchers.IO) {
-                            GitManager(projectDir).pull(authUser, token) { percent, task ->
-                                _loadingProgress.value = percent
-                            }
+                            GitManager(projectDir).pull(authUser, token, ::onGitProgress)
                         }
                         _buildLog.value += "[INFO] Pull complete.\n"
                     } else {
@@ -298,9 +310,7 @@ class MainViewModel(
 
                         _buildLog.value += "[INFO] Cloning $owner/$repo...\n"
                         withContext(Dispatchers.IO) {
-                            GitManager(projectDir).clone(owner, repo, authUser, token) { percent, task ->
-                                _loadingProgress.value = percent
-                            }
+                            GitManager(projectDir).clone(owner, repo, authUser, token, ::onGitProgress)
                         }
                         _buildLog.value += "[INFO] Clone complete.\n"
                     }
@@ -395,7 +405,7 @@ class MainViewModel(
                         val git = GitManager(projectDir)
                         git.addAll()
                         git.commit("Initial commit via IDEaz")
-                        git.push(settingsViewModel.getGithubUser(), token)
+                        git.push(settingsViewModel.getGithubUser(), token, ::onGitProgress)
                     }
 
                     _buildLog.value += "[INFO] Initialization complete. Proceed to Setup to build.\n"
@@ -445,9 +455,7 @@ class MainViewModel(
                         _buildLog.value += "[INFO] Project directory exists. Updating...\n"
                         withContext(Dispatchers.IO) {
                             val git = GitManager(projectDir)
-                            git.pull(user, token) { percent, task ->
-                                _loadingProgress.value = percent
-                            }
+                            git.pull(user, token, ::onGitProgress)
                         }
                         _loadingProgress.value = null
                         _buildLog.value += "[INFO] Update complete.\n"
@@ -565,7 +573,7 @@ class MainViewModel(
                     _buildLog.value += "[INFO] Fetching PR #$prId...\n"
                     withContext(Dispatchers.IO) {
                         val gitManager = GitManager(projectDir)
-                        gitManager.fetchPr(prId, branchName, user, token)
+                        gitManager.fetchPr(prId, branchName, user, token, ::onGitProgress)
                         gitManager.checkout(branchName)
                     }
                     _buildLog.value += "[INFO] Checked out PR branch. Building...\n"
@@ -593,7 +601,7 @@ class MainViewModel(
                     withContext(Dispatchers.IO) {
                         val gitManager = GitManager(projectDir)
                         gitManager.checkout(mainBranch)
-                        gitManager.pull(user, token)
+                        gitManager.pull(user, token, ::onGitProgress)
                         gitManager.merge(branchName)
                     }
                     _buildLog.value += "[INFO] Merged PR #$prId. Building...\n"
@@ -873,9 +881,28 @@ class MainViewModel(
     fun startBuild(context: Context, projectDir: File? = null) {
         if (isBuildServiceBound) {
             viewModelScope.launch {
-                _buildLog.value = "[INFO] Status: Building...\n"
                 val targetDir = projectDir ?: getOrCreateProject(context)
+                val headSha = withContext(Dispatchers.IO) { GitManager(targetDir).getHeadSha() }
+
+                // Check Remote First
+                if (headSha != null) {
+                    _buildLog.value += "[INFO] Checking remote artifact for $headSha...\n"
+                    val remoteUrl = checkForArtifact(headSha)
+                    if (remoteUrl != null) {
+                        _buildLog.value += "[INFO] Found remote artifact. Installing...\n"
+                        downloadAndInstallRemoteApk(remoteUrl, settingsViewModel.getGithubToken(), _buildLog)
+                        return@launch
+                    }
+                }
+
+                _buildLog.value += "[INFO] Status: Building locally...\n"
                 buildService?.startBuild(targetDir.absolutePath, buildCallback)
+
+                // Race: Start Polling
+                if (headSha != null) {
+                    remotePollJob?.cancel()
+                    remotePollJob = launch { pollRemoteBuild(targetDir, headSha, _buildLog) }
+                }
             }
         } else {
             _buildLog.value += "[INFO] Status: Service not bound\n"
@@ -1066,6 +1093,20 @@ class MainViewModel(
                     val projectDir = context.filesDir.resolve(appName ?: "project")
                     val gitManager = GitManager(projectDir)
                     gitManager.applyPatch(patchContent)
+
+                    logTo(logTarget, "[GIT] Committing patch...")
+                    gitManager.addAll()
+                    gitManager.commit("Applied AI Patch")
+
+                    logTo(logTarget, "[GIT] Pushing to remote...")
+                    withContext(Dispatchers.IO) {
+                        GitManager(projectDir).push(
+                            settingsViewModel.getGithubUser(),
+                            settingsViewModel.getGithubToken(),
+                            ::onGitProgress
+                        )
+                    }
+
                     logTo(logTarget, "[INFO] AI Status: Patch applied. Rebuilding...")
                     startBuild(context, projectDir)
                 } catch (e: Exception) {
@@ -1074,6 +1115,82 @@ class MainViewModel(
                     handleIdeError(e, "Error applying patch")
                 }
             }
+        }
+    }
+
+    private suspend fun checkForArtifact(sha: String): String? {
+        val user = settingsViewModel.getGithubUser() ?: return null
+        val appName = settingsViewModel.getAppName() ?: return null
+        val token = settingsViewModel.getGithubToken()
+        val urlStr = "https://api.github.com/repos/$user/$appName/releases/tags/latest-debug"
+
+        return withContext(Dispatchers.IO) {
+            try {
+                val url = URL(urlStr)
+                val conn = url.openConnection() as HttpURLConnection
+                if (!token.isNullOrBlank()) {
+                    conn.setRequestProperty("Authorization", "token $token")
+                }
+                conn.requestMethod = "GET"
+
+                if (conn.responseCode == 200) {
+                    val response = conn.inputStream.bufferedReader().readText()
+                    val json = JSONObject(response)
+                    val body = json.optString("body", "")
+
+                    if (body.contains(sha)) {
+                        val assets = json.getJSONArray("assets")
+                        if (assets.length() > 0) {
+                            val asset = assets.getJSONObject(0)
+                            return@withContext if (!token.isNullOrBlank()) asset.getString("url") else asset.getString("browser_download_url")
+                        }
+                    }
+                }
+                conn.disconnect()
+            } catch (e: Exception) { }
+            null
+        }
+    }
+
+    private suspend fun pollRemoteBuild(projectDir: File, sha: String, logTarget: Any) {
+        logTo(logTarget, "[REMOTE] Polling GitHub for build...")
+        for (i in 1..60) { // 5 minutes
+            delay(5000)
+            val url = checkForArtifact(sha)
+            if (url != null) {
+                logTo(logTarget, "[REMOTE] Build ready! Downloading...")
+                downloadAndInstallRemoteApk(url, settingsViewModel.getGithubToken(), logTarget)
+                return
+            }
+        }
+        logTo(logTarget, "[REMOTE] Polling timed out.")
+    }
+
+    private suspend fun downloadAndInstallRemoteApk(urlStr: String, token: String?, logTarget: Any) {
+        try {
+            val destFile = File(getApplication<Application>().externalCacheDir, "remote_app.apk")
+            val url = URL(urlStr)
+            val conn = url.openConnection() as HttpURLConnection
+            if (!token.isNullOrBlank()) {
+                conn.setRequestProperty("Authorization", "token $token")
+                conn.setRequestProperty("Accept", "application/octet-stream")
+            }
+            conn.inputStream.use { input ->
+                FileOutputStream(destFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+
+            logTo(logTarget, "[REMOTE] Download complete. Installing...")
+            buildService?.cancelBuild()
+
+            getApplication<Application>().sendBroadcast(Intent("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP"))
+
+            com.hereliesaz.ideaz.utils.ApkInstaller.installApk(getApplication(), destFile.absolutePath)
+            logTo(logTarget, "[REMOTE] Installation triggered.")
+
+        } catch (e: Exception) {
+            logTo(logTarget, "[REMOTE] Install failed: ${e.message}")
         }
     }
 
@@ -1106,7 +1223,7 @@ class MainViewModel(
                             val git = GitManager(projectDir)
                             git.addAll()
                             git.commit("Sync before delete")
-                            git.push(settingsViewModel.getGithubUser(), settingsViewModel.getGithubToken())
+                            git.push(settingsViewModel.getGithubUser(), settingsViewModel.getGithubToken(), ::onGitProgress)
                         }
                         _buildLog.value += "[INFO] Sync complete.\n"
                     } catch (e: Exception) {

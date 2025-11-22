@@ -3,15 +3,18 @@ name: Android CI with Jules AI Debugging
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
       issues: write
 
@@ -23,7 +26,11 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+      with:
+        cache-read-only: false
 
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
@@ -33,7 +40,7 @@ jobs:
       # capture output while still failing if build fails (but continue-on-error handles the workflow flow)
       run: |
         set +e
-        ./gradlew assembleDebug > build.log 2>&1
+        ./gradlew assembleDebug --build-cache > build.log 2>&1
         EXIT_CODE=$?
         echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
         cat build.log
@@ -46,6 +53,17 @@ jobs:
       with:
         name: app-debug
         path: app/build/outputs/apk/debug/app-debug.apk
+
+    - name: Release APK
+      if: steps.gradle-build.outcome == 'success' && github.event_name == 'push'
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: latest-debug
+        name: Latest Debug Build
+        body: "Automatic build from commit ${{ github.sha }}"
+        files: app/build/outputs/apk/debug/app-debug.apk
+        prerelease: true
+        make_latest: true
 
     - name: Report Failure to Jules
       if: steps.gradle-build.outcome == 'failure'
@@ -64,21 +82,13 @@ jobs:
 
           const body = `Build failed on ${context.eventName === 'pull_request' ? 'PR #' + context.issue.number : context.ref}.\n\n**Log Output:**\n\`\`\`\n${logTail}\n\`\`\`\n\nJules, @google-labs-jules, please debug and fix this build failure.`;
 
-          if (context.eventName === 'pull_request') {
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: body
-            });
-          } else {
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `Build Failure on ${context.ref}`,
-              body: body
-            });
-          }
+          await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: `Build Failure on ${context.eventName === 'pull_request' ? 'PR #' + context.issue.number : context.ref}`,
+            body: body,
+            labels: ['jules']
+          });
 
     - name: Fail Job if Build Failed
       if: steps.gradle-build.outcome == 'failure'

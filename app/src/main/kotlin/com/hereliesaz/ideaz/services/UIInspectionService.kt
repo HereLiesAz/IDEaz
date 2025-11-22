@@ -45,11 +45,13 @@ class UIInspectionService : AccessibilityService() {
     private var overlayView: View? = null
     private var logContainer: View? = null
     private var promptContainer: View? = null
+    private var updatePopupView: View? = null
 
     private var windowManager: WindowManager? = null
     private lateinit var settingsViewModel: SettingsViewModel
     private var mainHandler: Handler? = null
     private var debugTextView: TextView? = null
+    private var shouldInspect = false
 
     // Dedicated view for reliable drawing
     private inner class SelectionView(context: Context) : View(context) {
@@ -189,19 +191,54 @@ class UIInspectionService : AccessibilityService() {
                     rect?.let { mainHandler?.post { showLogUI(it) } }
                 }
                 "com.hereliesaz.ideaz.START_INSPECTION" -> {
-                    mainHandler?.post { showTouchInterceptor() }
+                    mainHandler?.post {
+                        shouldInspect = true
+                        // We can't know for sure if we are in the app right now,
+                        // but checking the last event or just showing it if we think so might work.
+                        // For now, we wait for the next event or assume we are there if called from context.
+                        // Actually, usually startInspection is called when IDE is open.
+                        // The user then switches to the app.
+                        // So we enable the flag, but don't necessarily show immediately until we detect the app?
+                        // Or we show it, and let onAccessibilityEvent hide it if we are not in the app.
+                        showTouchInterceptor()
+                    }
                 }
                 "com.hereliesaz.ideaz.STOP_INSPECTION" -> {
                     mainHandler?.post {
+                        shouldInspect = false
                         hideTouchInterceptor()
                         hideOverlayUI()
                     }
+                }
+                "com.hereliesaz.ideaz.SHOW_UPDATE_POPUP" -> {
+                    mainHandler?.post { showUpdatePopup() }
                 }
             }
         }
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event == null) return
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val targetPackage = settingsViewModel.getTargetPackageName() ?: return
+            val eventPackage = event.packageName?.toString()
+
+            // Check if we should show or hide the overlay based on current app
+            if (shouldInspect) {
+                if (eventPackage == targetPackage) {
+                    // User is in the target app, ensure overlay is visible
+                    if (touchInterceptor == null || touchInterceptor?.visibility != View.VISIBLE) {
+                        showTouchInterceptor()
+                    }
+                } else if (eventPackage != packageName && eventPackage != "com.android.systemui") {
+                    // User is not in target app and not in the IDE itself.
+                    // We hide the overlay to avoid blocking other apps.
+                    // (Allow SystemUI for notifications/recents)
+                    touchInterceptor?.visibility = View.GONE
+                }
+            }
+        }
+    }
     override fun onInterrupt() {}
 
     override fun onServiceConnected() {
@@ -216,6 +253,7 @@ class UIInspectionService : AccessibilityService() {
             addAction("com.hereliesaz.ideaz.SHOW_LOG_UI")
             addAction("com.hereliesaz.ideaz.START_INSPECTION")
             addAction("com.hereliesaz.ideaz.STOP_INSPECTION")
+            addAction("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(commandReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -232,6 +270,7 @@ class UIInspectionService : AccessibilityService() {
     override fun onDestroy() {
         hideTouchInterceptor()
         hideOverlayUI()
+        hideUpdatePopup()
         try {
             unregisterReceiver(commandReceiver)
         } catch (e: IllegalArgumentException) {
@@ -241,6 +280,7 @@ class UIInspectionService : AccessibilityService() {
     }
 
     private fun showTouchInterceptor() {
+        hideUpdatePopup()
         if (touchInterceptor != null) return
         touchInterceptor = SelectionView(this)
         val lp = WindowManager.LayoutParams().apply {
@@ -356,6 +396,46 @@ class UIInspectionService : AccessibilityService() {
         logContainer = null
         promptContainer = null
         touchInterceptor?.visibility = View.VISIBLE
+    }
+
+    private fun hideUpdatePopup() {
+        updatePopupView?.let { windowManager?.removeView(it) }
+        updatePopupView = null
+    }
+
+    private fun showUpdatePopup() {
+        // Copy text if prompt is active
+        val promptInput = overlayView?.findViewById<EditText>(R.id.prompt_input)
+        if (promptInput != null && promptInput.visibility == View.VISIBLE) {
+            val text = promptInput.text.toString()
+            if (text.isNotEmpty()) {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                val clip = android.content.ClipData.newPlainText("IDEaz Prompt", text)
+                clipboard.setPrimaryClip(clip)
+            }
+        }
+
+        hideOverlayUI()
+        hideUpdatePopup()
+
+        val tv = TextView(ContextThemeWrapper(this, R.style.Theme_IDEaz))
+        tv.text = "Updating, gimme a sec."
+        tv.setBackgroundColor(Color.BLACK)
+        tv.setTextColor(Color.WHITE)
+        tv.setPadding(32, 16, 32, 16)
+        tv.gravity = Gravity.CENTER
+
+        val lp = WindowManager.LayoutParams().apply {
+            type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+            format = PixelFormat.TRANSLUCENT
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+            width = WindowManager.LayoutParams.WRAP_CONTENT
+            height = WindowManager.LayoutParams.WRAP_CONTENT
+            gravity = Gravity.CENTER
+        }
+
+        updatePopupView = tv
+        windowManager?.addView(tv, lp)
     }
 
     private fun findNodeAt(root: AccessibilityNodeInfo?, x: Int, y: Int): AccessibilityNodeInfo? {
