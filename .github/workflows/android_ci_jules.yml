@@ -26,7 +26,11 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+      with:
+        cache-read-only: false
 
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
@@ -36,7 +40,7 @@ jobs:
       # capture output while still failing if build fails (but continue-on-error handles the workflow flow)
       run: |
         set +e
-        ./gradlew assembleDebug > build.log 2>&1
+        ./gradlew assembleDebug --build-cache > build.log 2>&1
         EXIT_CODE=$?
         echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
         cat build.log

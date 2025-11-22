@@ -15,6 +15,16 @@ class D8Compile(
 
     override fun execute(callback: IBuildCallback?): BuildResult {
         val outputDirFile = File(outputDir)
+
+        val classFiles = File(classesDir).walk().filter { it.isFile }.toList()
+        val classpathFiles = classpath.split(File.pathSeparator).filter { it.isNotEmpty() }.map { File(it) }
+        val allInputs = classFiles + classpathFiles + File(androidJarPath)
+
+        if (BuildCacheManager.shouldSkip("d8", allInputs, outputDirFile)) {
+            callback?.onLog("Skipping D8Compile: Up-to-date.")
+            return BuildResult(true, "Up-to-date")
+        }
+
         if (!outputDirFile.exists()) {
             outputDirFile.mkdirs()
         }
@@ -39,6 +49,9 @@ class D8Compile(
         command.add(classesDir)
 
         val processResult = ProcessExecutor.execute(command)
+        if (processResult.exitCode == 0) {
+            BuildCacheManager.updateSnapshot("d8", allInputs, outputDirFile)
+        }
         return BuildResult(processResult.exitCode == 0, processResult.output)
     }
 }
