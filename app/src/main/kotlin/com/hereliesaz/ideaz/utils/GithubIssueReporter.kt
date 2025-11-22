@@ -62,7 +62,11 @@ object GithubIssueReporter {
                 val response = api.createIssue(
                     owner = REPO_OWNER,
                     repo = REPO_NAME,
-                    request = CreateIssueRequest(title = titleContent, body = bodyContent)
+                    request = CreateIssueRequest(
+                        title = titleContent,
+                        body = bodyContent,
+                        labels = listOf("jules", "bug")
+                    )
                 )
                 Log.d(TAG, "Issue created successfully: #${response.number}")
                 withContext(Dispatchers.Main) {

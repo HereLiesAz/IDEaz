@@ -216,9 +216,13 @@ class MainViewModel(
                 // Otherwise, assume user code error and use AI Debugger.
                 val isIdeError = log.contains("[IDE] Failed", ignoreCase = true) ||
                         log.contains("tools not found", ignoreCase = true) ||
-                        log.contains("Could not initialize RepositorySystem", ignoreCase = true)
+                        log.contains("Could not initialize RepositorySystem", ignoreCase = true) ||
+                        log.contains("java.io.IOException", ignoreCase = true) ||
+                        log.contains("java.lang.NullPointerException", ignoreCase = true) ||
+                        log.contains("com.hereliesaz.ideaz", ignoreCase = true)
 
                 if (isIdeError) {
+                    // Strictly report to GitHub, NO AI Debugging
                     handleIdeError(Exception("Build Infrastructure Failure:\n$log"), "IDE Build Error")
                 } else {
                     _buildLog.value += "[IDE] AI Status: Build failed, asking AI to debug...\n"
@@ -1167,30 +1171,32 @@ class MainViewModel(
     }
 
     private suspend fun downloadAndInstallRemoteApk(urlStr: String, token: String?, logTarget: Any) {
-        try {
-            val destFile = File(getApplication<Application>().externalCacheDir, "remote_app.apk")
-            val url = URL(urlStr)
-            val conn = url.openConnection() as HttpURLConnection
-            if (!token.isNullOrBlank()) {
-                conn.setRequestProperty("Authorization", "token $token")
-                conn.setRequestProperty("Accept", "application/octet-stream")
-            }
-            conn.inputStream.use { input ->
-                FileOutputStream(destFile).use { output ->
-                    input.copyTo(output)
+        withContext(Dispatchers.IO) {
+            try {
+                val destFile = File(getApplication<Application>().externalCacheDir, "remote_app.apk")
+                val url = URL(urlStr)
+                val conn = url.openConnection() as HttpURLConnection
+                if (!token.isNullOrBlank()) {
+                    conn.setRequestProperty("Authorization", "token $token")
+                    conn.setRequestProperty("Accept", "application/octet-stream")
                 }
+                conn.inputStream.use { input ->
+                    FileOutputStream(destFile).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+
+                logTo(logTarget, "[REMOTE] Download complete. Installing...")
+                buildService?.cancelBuild()
+
+                getApplication<Application>().sendBroadcast(Intent("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP"))
+
+                com.hereliesaz.ideaz.utils.ApkInstaller.installApk(getApplication(), destFile.absolutePath)
+                logTo(logTarget, "[REMOTE] Installation triggered.")
+
+            } catch (e: Exception) {
+                logTo(logTarget, "[REMOTE] Install failed: ${e.message}")
             }
-
-            logTo(logTarget, "[REMOTE] Download complete. Installing...")
-            buildService?.cancelBuild()
-
-            getApplication<Application>().sendBroadcast(Intent("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP"))
-
-            com.hereliesaz.ideaz.utils.ApkInstaller.installApk(getApplication(), destFile.absolutePath)
-            logTo(logTarget, "[REMOTE] Installation triggered.")
-
-        } catch (e: Exception) {
-            logTo(logTarget, "[REMOTE] Install failed: ${e.message}")
         }
     }
 
