@@ -14,8 +14,17 @@ class KotlincCompile(
 ) : BuildStep {
 
     override fun execute(callback: IBuildCallback?): BuildResult {
+        val sourceFilesList = File(srcDir).walk().filter { it.isFile && it.extension == "kt" }.toList()
+        val classpathFiles = classpath.split(File.pathSeparator).filter { it.isNotEmpty() }.map { File(it) }
+        val allInputs = sourceFilesList + classpathFiles + File(androidJarPath)
+
+        if (BuildCacheManager.shouldSkip("kotlinc", allInputs, outputDir)) {
+            callback?.onLog("Skipping KotlincCompile: Up-to-date.")
+            return BuildResult(true, "Up-to-date")
+        }
+
         if (!outputDir.exists()) outputDir.mkdirs()
-        val sourceFiles = File(srcDir).walk().filter { it.isFile && it.extension == "kt" }.map { it.absolutePath }.toList()
+        val sourceFiles = sourceFilesList.map { it.absolutePath }.toList()
         val fullClasspath = "$androidJarPath${File.pathSeparator}$classpath".trim(File.pathSeparatorChar)
 
         val command = mutableListOf(
@@ -34,6 +43,9 @@ class KotlincCompile(
         command.addAll(sourceFiles)
 
         val processResult = ProcessExecutor.execute(command)
+        if (processResult.exitCode == 0) {
+            BuildCacheManager.updateSnapshot("kotlinc", allInputs, outputDir)
+        }
         return BuildResult(processResult.exitCode == 0, processResult.output)
     }
 }
