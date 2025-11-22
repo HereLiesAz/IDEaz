@@ -69,7 +69,7 @@ class BuildService : Service() {
                 "Peridium Build Service",
                 NotificationManager.IMPORTANCE_DEFAULT
             )
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
         }
     }
