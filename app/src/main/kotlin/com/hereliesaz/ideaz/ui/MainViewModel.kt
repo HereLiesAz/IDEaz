@@ -219,7 +219,7 @@ class MainViewModel(
                         log.contains("Could not initialize RepositorySystem", ignoreCase = true) ||
                         log.contains("java.io.IOException", ignoreCase = true) ||
                         log.contains("java.lang.NullPointerException", ignoreCase = true) ||
-                        log.contains("com.hereliesaz.ideaz", ignoreCase = true)
+                        log.contains("at com.hereliesaz.ideaz", ignoreCase = true)
 
                 if (isIdeError) {
                     // Strictly report to GitHub, NO AI Debugging
