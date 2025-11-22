@@ -49,7 +49,7 @@ object GithubIssueReporter {
             ```
             $logSection
 
-            @google-labs-jules please look into this.
+            Please debug this, Jules. Make sure you get both a correct code review and a passing build with tests before submitting your solution. 
         """.trimIndent()
 
         val titleContent = "IDE Error: ${error::class.simpleName} - ${error.message?.take(50) ?: "Unknown"}"
