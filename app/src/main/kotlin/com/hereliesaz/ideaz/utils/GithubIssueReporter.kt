@@ -48,6 +48,8 @@ object GithubIssueReporter {
             ${stackTrace.take(3000)}
             ```
             $logSection
+
+            @google-labs-jules please look into this.
         """.trimIndent()
 
         val titleContent = "IDE Error: ${error::class.simpleName} - ${error.message?.take(50) ?: "Unknown"}"
