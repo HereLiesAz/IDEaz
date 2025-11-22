@@ -50,6 +50,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
 import com.hereliesaz.ideaz.utils.GithubIssueReporter
+import com.hereliesaz.ideaz.utils.EnvironmentSetup
 
 data class ProjectMetadata(
     val name: String,
@@ -327,6 +328,10 @@ class MainViewModel(
                         saveProjectConfigToFile(projectDir, type.name, pkg ?: "com.example", branch)
                     }
 
+                    if (settingsViewModel.getProjectType() == ProjectType.ANDROID.name) {
+                        ensureEnvironmentSetupScript(projectDir)
+                    }
+
                     fetchSessions()
                     startBuild(getApplication())
 
@@ -334,6 +339,28 @@ class MainViewModel(
                     handleIdeError(e, "Failed to clone/pull project")
                 }
             }
+        }
+    }
+
+    private fun ensureEnvironmentSetupScript(projectDir: File) {
+        val scriptFile = File(projectDir, "setup_env.sh")
+        val setupScript = EnvironmentSetup.ANDROID_SETUP_SCRIPT
+        try {
+            if (scriptFile.exists()) {
+                val content = scriptFile.readText()
+                if (!content.contains("Automated Android Environment Setup Script")) {
+                    scriptFile.appendText("\n\n$setupScript")
+                    scriptFile.setExecutable(true)
+                    _buildLog.value += "[INFO] Appended Android environment setup to setup_env.sh.\n"
+                }
+            } else {
+                scriptFile.writeText(setupScript)
+                scriptFile.setExecutable(true)
+                _buildLog.value += "[INFO] Created setup_env.sh for automated environment setup.\n"
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to ensure setup_env.sh", e)
+            _buildLog.value += "[WARN] Failed to ensure setup_env.sh: ${e.message}\n"
         }
     }
 
@@ -386,6 +413,10 @@ class MainViewModel(
 
                     _buildLog.value += "[INFO] Applying ${projectType.displayName} template...\n"
                     createProjectFromTemplateInternal(context, projectType, projectDir)
+
+                    if (projectType == ProjectType.ANDROID) {
+                        ensureEnvironmentSetupScript(projectDir)
+                    }
 
                     ProjectConfigManager.ensureGitIgnore(projectDir)
                     saveProjectConfigToFile(projectDir, projectType.name, packageName, response.defaultBranch ?: "main")
@@ -454,6 +485,10 @@ class MainViewModel(
                     } else {
                         _buildLog.value += "[INFO] Project directory not found. Creating from template...\n"
                         createProjectFromTemplateInternal(context, type, projectDir)
+                    }
+
+                    if (type == ProjectType.ANDROID) {
+                        ensureEnvironmentSetupScript(projectDir)
                     }
 
                     ProjectConfigManager.ensureGitIgnore(projectDir)
@@ -647,7 +682,7 @@ class MainViewModel(
 
                         val branchName = settingsViewModel.getBranchName()
                         val sourceString = "sources/github/$githubUser/$appName"
-                        val promptText = prompt ?: ""
+                        var promptText = prompt ?: ""
 
                         val activeId = _activeSessionId.value
                         if (activeId != null) {
@@ -655,6 +690,10 @@ class MainViewModel(
                             JulesApiClient.sendMessage(activeId, promptText)
                             pollForPatch(activeId, _buildLog)
                             return@launch
+                        }
+
+                        if (settingsViewModel.getProjectType() == ProjectType.ANDROID.name) {
+                             promptText = "Please run ./setup_env.sh to set up the environment.\n$promptText"
                         }
 
                         val request = CreateSessionRequest(
