@@ -189,8 +189,8 @@ class MainViewModel(
                 _buildLog.value += "\n[IDE] Build successful: $apkPath\n"
                 _buildLog.value += "[IDE] Status: Build Successful\n"
                 contextualTaskJob = null
-                logToOverlay("Build successful. Task finished.")
-                sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
+                logToOverlay("Build successful. Updating...")
+                sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP"))
 
                 val buildDir = File(apkPath).parentFile
                 if (buildDir != null) {
@@ -1183,9 +1183,11 @@ class MainViewModel(
 
             logTo(logTarget, "[REMOTE] Download complete. Installing...")
             buildService?.cancelBuild()
+
+            getApplication<Application>().sendBroadcast(Intent("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP"))
+
             com.hereliesaz.ideaz.utils.ApkInstaller.installApk(getApplication(), destFile.absolutePath)
             logTo(logTarget, "[REMOTE] Installation triggered.")
-            if (logTarget == "OVERLAY") sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.TASK_FINISHED"))
 
         } catch (e: Exception) {
             logTo(logTarget, "[REMOTE] Install failed: ${e.message}")
