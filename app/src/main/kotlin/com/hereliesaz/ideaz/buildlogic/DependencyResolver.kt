@@ -57,12 +57,31 @@ class DependencyResolver(
         locator.addService(RepositoryConnectorFactory::class.java, BasicRepositoryConnectorFactory::class.java)
         locator.addService(TransporterFactory::class.java, HttpTransporterFactory::class.java)
         locator.addService(RepositorySystem::class.java, DefaultRepositorySystem::class.java)
+
+        // Robustly register SyncContextFactory (location varies by version)
+        val syncFactoryCandidates = listOf(
+            "org.eclipse.aether.internal.impl.synccontext.DefaultSyncContextFactory",
+            "org.eclipse.aether.internal.impl.DefaultSyncContextFactory"
+        )
+        for (className in syncFactoryCandidates) {
+            try {
+                val clazz = Class.forName(className)
+                @Suppress("UNCHECKED_CAST")
+                locator.addService(org.eclipse.aether.impl.SyncContextFactory::class.java, clazz as Class<out org.eclipse.aether.impl.SyncContextFactory>)
+                break
+            } catch (e: Throwable) {
+                // Try next candidate
+            }
+        }
+
         locator.setErrorHandler(object : DefaultServiceLocator.ErrorHandler() {
             override fun serviceCreationFailed(type: Class<*>, impl: Class<*>, exception: Throwable) {
                 logger.error("Failed to create Aether service implementation. type={}, impl={}", type.name, impl.name, exception)
             }
         })
+
         return locator.getService(RepositorySystem::class.java)
+            ?: throw IllegalStateException("Failed to initialize RepositorySystem (getService returned null). Check logs for missing transitive dependencies.")
     }
 
     private fun newSession(system: RepositorySystem): org.eclipse.aether.RepositorySystemSession {
