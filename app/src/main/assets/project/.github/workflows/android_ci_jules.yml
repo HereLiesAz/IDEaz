@@ -61,7 +61,7 @@ jobs:
             console.log('Error reading build.log', e);
           }
 
-          const body = `Build failed on ${context.eventName === 'pull_request' ? 'PR #' + context.issue.number : context.ref}.\n\n**Log Output:**\n\`\`\`\n${logTail}\n\`\`\`\n\nJules, please debug and fix this build failure.`;
+          const body = `Build failed on ${context.eventName === 'pull_request' ? 'PR #' + context.issue.number : context.ref}.\n\n**Log Output:**\n\`\`\`\n${logTail}\n\`\`\`\n\nJules, @google-labs-jules, please debug and fix this build failure.`;
 
           if (context.eventName === 'pull_request') {
             await github.rest.issues.createComment({
