@@ -34,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,6 +60,7 @@ import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
+import java.io.File
 
 private const val TAG = "SettingsScreen"
 
@@ -81,9 +83,26 @@ fun SettingsScreen(
         mutableStateOf(settingsViewModel.getShowCancelWarning())
     }
 
-    // --- NEW: Auto Report State ---
     var autoReportBugs by remember {
         mutableStateOf(settingsViewModel.getAutoReportBugs())
+    }
+
+    // --- NEW: Signing State ---
+    var keystorePath by remember { mutableStateOf(settingsViewModel.getKeystorePath() ?: "Default (debug.keystore)") }
+    var keystorePass by remember { mutableStateOf(settingsViewModel.getKeystorePass()) }
+    var keyAlias by remember { mutableStateOf(settingsViewModel.getKeyAlias()) }
+    var keyPass by remember { mutableStateOf(settingsViewModel.getKeyPass()) }
+
+    val keystorePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val newPath = settingsViewModel.importKeystore(context, uri)
+            if (newPath != null) {
+                keystorePath = newPath
+                Toast.makeText(context, "Keystore imported", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
     // --- END NEW ---
 
@@ -260,10 +279,65 @@ fun SettingsScreen(
                     }, text = "Get Key", shape = AzButtonShape.NONE)
                 }
 
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-                }
+                // --- NEW: Signing Config Section ---
+                Text("Signing Configuration", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text("Current Keystore: ${File(keystorePath).name}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                AzButton(
+                    onClick = { keystorePickerLauncher.launch("*/*") },
+                    text = "Select Custom Keystore",
+                    shape = AzButtonShape.RECTANGLE,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+                AzTextBox(
+                    value = keystorePass,
+                    onValueChange = { keystorePass = it },
+                    hint = "Keystore Password",
+                    secret = true,
+                    onSubmit = { settingsViewModel.saveSigningCredentials(keystorePass, keyAlias, keyPass) }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                AzTextBox(
+                    value = keyAlias,
+                    onValueChange = { keyAlias = it },
+                    hint = "Key Alias",
+                    onSubmit = { settingsViewModel.saveSigningCredentials(keystorePass, keyAlias, keyPass) }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                AzTextBox(
+                    value = keyPass,
+                    onValueChange = { keyPass = it },
+                    hint = "Key Password",
+                    secret = true,
+                    onSubmit = {
+                        settingsViewModel.saveSigningCredentials(keystorePass, keyAlias, keyPass)
+                        Toast.makeText(context, "Signing config saved", Toast.LENGTH_SHORT).show()
+                    },
+                    submitButtonContent = { Text("Save") }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                AzButton(
+                    onClick = {
+                        settingsViewModel.clearSigningConfig()
+                        keystorePath = "Default (debug.keystore)"
+                        keystorePass = "android"
+                        keyAlias = "androiddebugkey"
+                        keyPass = "android"
+                        Toast.makeText(context, "Reset to default debug keystore", Toast.LENGTH_SHORT).show()
+                    },
+                    text = "Reset to Default",
+                    shape = AzButtonShape.NONE,
+                    modifier = Modifier.align(Alignment.End)
+                )
+                // --- END NEW ---
+
                 Spacer(modifier = Modifier.height(24.dp))
                 Text("AI Assignments", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
 
@@ -379,7 +453,6 @@ fun SettingsScreen(
                     Text("Show warning when cancelling AI task", color = MaterialTheme.colorScheme.onBackground)
                 }
 
-                // --- NEW: Auto Report Checkbox ---
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -393,7 +466,6 @@ fun SettingsScreen(
                     )
                     Text("Auto-report IDE internal errors to GitHub", color = MaterialTheme.colorScheme.onBackground)
                 }
-                // --- END NEW ---
 
                 Spacer(modifier = Modifier.height(16.dp))
 
