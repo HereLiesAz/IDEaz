@@ -178,6 +178,17 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    fun getHeadSha(): String? {
+        return try {
+            Git.open(projectDir).use { git ->
+                val head = git.repository.resolve("HEAD")
+                head?.name
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private class SimpleProgressMonitor(private val callback: (Int, String) -> Unit) : ProgressMonitor {
         private var totalWork = 0
         private var currentWork = 0
