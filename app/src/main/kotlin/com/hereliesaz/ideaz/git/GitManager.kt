@@ -44,12 +44,8 @@ class GitManager(private val projectDir: File) {
     }
 
     fun hasChanges(): Boolean {
-        return try {
-            Git.open(projectDir).use { git ->
-                !git.status().call().isClean
-            }
-        } catch (e: Exception) {
-            false
+        Git.open(projectDir).use { git ->
+            return !git.status().call().isClean
         }
     }
 
