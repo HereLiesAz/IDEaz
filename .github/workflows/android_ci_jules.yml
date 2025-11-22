@@ -54,7 +54,15 @@ jobs:
         name: app-debug
         path: app/build/outputs/apk/debug/app-debug.apk
 
-    # Post the APK as the latest debug release as soon as it's finished compiling
+    # Delete the old release/tag so we can move it to the current commit
+    - name: Delete Old Release
+      if: steps.gradle-build.outcome == 'success' && github.event_name == 'push'
+      run: |
+        gh release delete latest-debug --cleanup-tag -y || true
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # Post the APK as the latest debug release
     - name: Release APK
       if: steps.gradle-build.outcome == 'success' && github.event_name == 'push'
       uses: softprops/action-gh-release@v2
