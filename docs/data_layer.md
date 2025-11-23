@@ -1,13 +1,13 @@
-# Peridium IDE: Data Layer & Source of Truth
+# IDEaz IDE: Data Layer & Source of Truth
 
-This document describes the dual data layer architecture of the Peridium IDE project. It's crucial to distinguish between the data layer for the **user's application** and the internal data storage for the **Peridium IDE app itself**.
+This document describes the dual data layer architecture of the IDEaz IDE project. It's crucial to distinguish between the data layer for the **user's application** and the internal data storage for the **IDEaz IDE app itself**.
 
 ---
 
 ## 1. The User's Application: The "Invisible Repository"
 **The ultimate source of truth for the application a user builds is a dedicated, private Git repository.**
 
-In the Peridium IDE paradigm, the user does not directly interact with a database or data models. They express intent in natural language (e.g., "I need to track customers with a name and email"), and the Jules AI agent is responsible for generating all the necessary code to represent and manage that data.
+In the IDEaz IDE paradigm, the user does not directly interact with a database or data models. They express intent in natural language (e.g., "I need to track customers with a name and email"), and the Jules AI agent is responsible for generating all the necessary code to represent and manage that data.
 
 This code, including database schemas, migrations, and API logic, is committed to the "Invisible Repository." This Git-native approach means the user's application benefits from a robust data management strategy by default:
 
@@ -17,23 +17,34 @@ This code, including database schemas, migrations, and API logic, is committed t
 
 ---
 
-## 2. The Peridium IDE App: Internal Data Storage
-**The Peridium IDE app itself uses local, on-device storage for its own operational data.**
+## 2. The IDEaz IDE App: Internal Data Storage
+**The IDEaz IDE app itself uses local, on-device storage for its own operational data.**
 
 The IDE needs to store settings and sensitive information to function correctly. This data is stored locally on the user's Android device.
 
 -   **Primary Use Cases:**
-    -   Storing the user's personal Jules API key.
+    -   Storing the user's personal API keys for **Jules** and **Gemini**.
     -   Saving user preferences and app settings.
     -   Caching metadata about the user's project.
 
 -   **Technologies:**
-    -   **`EncryptedSharedPreferences`:** This is the **mandatory** technology for storing the user's Jules API key. It encrypts the key at rest, providing a critical layer of security.
-    -   **Room Persistence Library:** For other structured data like user preferences and project metadata, the standard Room library (an abstraction over SQLite) will be used.
+    -   **`SharedPreferences`:** Currently used for storing user settings and API keys. (Note: `EncryptedSharedPreferences` is planned for future security hardening).
+    -   **Room Persistence Library:** (Planned) Currently, structured data is managed in `SettingsViewModel` and `MainViewModel` state flows, backed by SharedPreferences or transient state.
+
+### API Data Models
+The IDE defines Kotlin data classes in `api/models.kt` to mirror the Jules API schema. These models (`Source`, `Session`, `Activity`) are used for communication with the Jules AI agent and are handled by `JulesApiClient`.
 
 ---
 
-## 3. Build Process
+## 3. On-Device Git Repository
+
+To facilitate the "post-code" workflow, the IDEaz IDE app manages a local Git repository for the user's project directly on the device. This is handled by the `GitManager` class, which uses the JGit library to perform Git operations.
+
+-   **`GitManager.kt`**: This class encapsulates all the JGit operations, starting with initializing a new repository in the project's directory.
+
+---
+
+## 4. Build Process
 
 The build process is managed by the `BuildService` and is orchestrated by the `BuildOrchestrator`. The `BuildOrchestrator` executes a series of build steps, each of which is a class that implements the `BuildStep` interface.
 
