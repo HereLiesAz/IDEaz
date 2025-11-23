@@ -70,10 +70,10 @@ class DependencyResolver(
         locator.addService(RepositoryConnectorFactory::class.java, BasicRepositoryConnectorFactory::class.java)
         locator.addService(TransporterFactory::class.java, HttpTransporterFactory::class.java)
 
-        // Explicitly register ALL dependencies for DefaultRepositorySystem
-        @Suppress("UNCHECKED_CAST")
-        locator.addService(org.eclipse.aether.impl.SyncContextFactory::class.java, DefaultSyncContextFactory::class.java as Class<out org.eclipse.aether.impl.SyncContextFactory>)
+        // Use No-Op SyncContextFactory to avoid missing locking dependencies
+        locator.addService(org.eclipse.aether.impl.SyncContextFactory::class.java, NoopSyncContextFactory::class.java)
 
+        // Explicitly register dependencies for DefaultRepositorySystem
         locator.addService(org.eclipse.aether.impl.ArtifactResolver::class.java, DefaultArtifactResolver::class.java)
         locator.addService(org.eclipse.aether.impl.MetadataResolver::class.java, DefaultMetadataResolver::class.java)
         locator.addService(org.eclipse.aether.impl.DependencyCollector::class.java, DefaultDependencyCollector::class.java)
@@ -99,6 +99,15 @@ class DependencyResolver(
 
         return locator.getService(RepositorySystem::class.java)
             ?: throw IllegalStateException("Failed to initialize RepositorySystem (getService returned null). Check logs for missing transitive dependencies.")
+    }
+
+    class NoopSyncContextFactory : org.eclipse.aether.impl.SyncContextFactory {
+        override fun newInstance(session: org.eclipse.aether.RepositorySystemSession, shared: Boolean): org.eclipse.aether.SyncContext {
+            return object : org.eclipse.aether.SyncContext {
+                override fun acquire(artifacts: Collection<org.eclipse.aether.artifact.Artifact>?, metadata: Collection<org.eclipse.aether.metadata.Metadata>?) {}
+                override fun close() {}
+            }
+        }
     }
 
     private fun newSession(system: RepositorySystem): org.eclipse.aether.RepositorySystemSession {
