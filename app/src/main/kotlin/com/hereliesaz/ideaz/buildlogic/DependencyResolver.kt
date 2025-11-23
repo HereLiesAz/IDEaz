@@ -11,6 +11,10 @@ import org.eclipse.aether.impl.DefaultServiceLocator
 import org.eclipse.aether.internal.impl.DefaultRepositorySystem
 import org.eclipse.aether.repository.LocalRepository
 import org.eclipse.aether.repository.RemoteRepository
+import org.eclipse.aether.internal.impl.synccontext.DefaultSyncContextFactory
+import org.eclipse.aether.internal.impl.DefaultArtifactResolver
+import org.eclipse.aether.internal.impl.DefaultMetadataResolver
+import org.eclipse.aether.internal.impl.collect.DefaultDependencyCollector
 import org.eclipse.aether.resolution.DependencyRequest
 import org.eclipse.aether.spi.connector.RepositoryConnectorFactory
 import org.eclipse.aether.spi.connector.transport.TransporterFactory
@@ -56,23 +60,15 @@ class DependencyResolver(
         val locator = MavenRepositorySystemUtils.newServiceLocator()
         locator.addService(RepositoryConnectorFactory::class.java, BasicRepositoryConnectorFactory::class.java)
         locator.addService(TransporterFactory::class.java, HttpTransporterFactory::class.java)
-        locator.addService(RepositorySystem::class.java, DefaultRepositorySystem::class.java)
 
-        // Robustly register SyncContextFactory (location varies by version)
-        val syncFactoryCandidates = listOf(
-            "org.eclipse.aether.internal.impl.synccontext.DefaultSyncContextFactory",
-            "org.eclipse.aether.internal.impl.DefaultSyncContextFactory"
-        )
-        for (className in syncFactoryCandidates) {
-            try {
-                val clazz = Class.forName(className)
-                @Suppress("UNCHECKED_CAST")
-                locator.addService(org.eclipse.aether.impl.SyncContextFactory::class.java, clazz as Class<out org.eclipse.aether.impl.SyncContextFactory>)
-                break
-            } catch (e: Throwable) {
-                // Try next candidate
-            }
-        }
+        // Explicitly register critical services
+        @Suppress("UNCHECKED_CAST")
+        locator.addService(org.eclipse.aether.impl.SyncContextFactory::class.java, DefaultSyncContextFactory::class.java as Class<out org.eclipse.aether.impl.SyncContextFactory>)
+        locator.addService(org.eclipse.aether.impl.ArtifactResolver::class.java, DefaultArtifactResolver::class.java)
+        locator.addService(org.eclipse.aether.impl.MetadataResolver::class.java, DefaultMetadataResolver::class.java)
+        locator.addService(org.eclipse.aether.impl.DependencyCollector::class.java, DefaultDependencyCollector::class.java)
+
+        locator.addService(RepositorySystem::class.java, DefaultRepositorySystem::class.java)
 
         locator.setErrorHandler(object : DefaultServiceLocator.ErrorHandler() {
             override fun serviceCreationFailed(type: Class<*>, impl: Class<*>, exception: Throwable) {
