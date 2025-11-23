@@ -135,7 +135,6 @@ class UIInspectionService : AccessibilityService() {
                                     val desc = targetNode.contentDescription?.toString()
                                     if (desc != null && desc.startsWith("__source:")) {
                                         resourceId = desc
-                                        if (targetNode != node) targetNode.recycle()
                                         targetNode = null // Signal that we handled it
                                         break
                                     }
@@ -144,15 +143,8 @@ class UIInspectionService : AccessibilityService() {
                                     }
 
                                     val parent = targetNode.parent
-                                    if (targetNode != node) {
-                                        targetNode.recycle()
-                                    }
                                     targetNode = parent
                                     depth++
-                                }
-
-                                if (targetNode != null && targetNode != node) {
-                                    targetNode.recycle()
                                 }
 
                                 if (resourceId == null) {
