@@ -101,4 +101,57 @@ object GithubIssueReporter {
 
         return "Opened in browser for manual reporting."
     }
+
+    /**
+     * Specialized method for reporting crashes.
+     * Does NOT interact with UI (Toasts, Activity starts) to avoid deadlocks or crashes during exception handling.
+     */
+    suspend fun reportCrash(token: String, error: Throwable, contextMessage: String, logContent: String?): Boolean {
+        val stackTrace = error.stackTraceToString()
+
+        val logSection = if (logContent != null) {
+            """
+
+            **Log Output:**
+            ```
+            ${logContent.takeLast(2000)}
+            ```
+            """.trimIndent()
+        } else ""
+
+        val bodyContent = """
+            **Context:** $contextMessage
+            **Device:** ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})
+            **App Version:** 1.0 (Development)
+
+            **Stack Trace:**
+            ```
+            ${stackTrace.take(3000)}
+            ```
+            $logSection
+
+            Please debug this, Jules. Make sure you get both a correct code review and a passing build with tests before submitting your solution.
+        """.trimIndent()
+
+        val titleContent = "Crash: ${error::class.simpleName} - ${error.message?.take(50) ?: "Unknown"}"
+
+        try {
+            Log.d(TAG, "Attempting to post crash report via API...")
+            val api = GitHubApiClient.createService(token)
+            val response = api.createIssue(
+                owner = REPO_OWNER,
+                repo = REPO_NAME,
+                request = CreateIssueRequest(
+                    title = titleContent,
+                    body = bodyContent,
+                    labels = listOf("jules", "bug")
+                )
+            )
+            Log.d(TAG, "Crash report sent successfully: #${response.number}")
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to post crash report via API.", e)
+            return false
+        }
+    }
 }
