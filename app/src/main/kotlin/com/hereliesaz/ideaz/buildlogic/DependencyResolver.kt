@@ -15,6 +15,15 @@ import org.eclipse.aether.internal.impl.synccontext.DefaultSyncContextFactory
 import org.eclipse.aether.internal.impl.DefaultArtifactResolver
 import org.eclipse.aether.internal.impl.DefaultMetadataResolver
 import org.eclipse.aether.internal.impl.collect.DefaultDependencyCollector
+import org.eclipse.aether.internal.impl.DefaultUpdateCheckManager
+import org.eclipse.aether.internal.impl.DefaultRepositoryEventDispatcher
+import org.eclipse.aether.internal.impl.DefaultLocalRepositoryProvider
+import org.eclipse.aether.internal.impl.DefaultRemoteRepositoryManager
+import org.eclipse.aether.internal.impl.DefaultInstaller
+import org.eclipse.aether.internal.impl.DefaultDeployer
+import org.apache.maven.repository.internal.DefaultVersionResolver
+import org.apache.maven.repository.internal.DefaultVersionRangeResolver
+import org.apache.maven.repository.internal.DefaultArtifactDescriptorReader
 import org.eclipse.aether.resolution.DependencyRequest
 import org.eclipse.aether.spi.connector.RepositoryConnectorFactory
 import org.eclipse.aether.spi.connector.transport.TransporterFactory
@@ -61,12 +70,24 @@ class DependencyResolver(
         locator.addService(RepositoryConnectorFactory::class.java, BasicRepositoryConnectorFactory::class.java)
         locator.addService(TransporterFactory::class.java, HttpTransporterFactory::class.java)
 
-        // Explicitly register critical services
+        // Explicitly register ALL dependencies for DefaultRepositorySystem
         @Suppress("UNCHECKED_CAST")
         locator.addService(org.eclipse.aether.impl.SyncContextFactory::class.java, DefaultSyncContextFactory::class.java as Class<out org.eclipse.aether.impl.SyncContextFactory>)
+
         locator.addService(org.eclipse.aether.impl.ArtifactResolver::class.java, DefaultArtifactResolver::class.java)
         locator.addService(org.eclipse.aether.impl.MetadataResolver::class.java, DefaultMetadataResolver::class.java)
         locator.addService(org.eclipse.aether.impl.DependencyCollector::class.java, DefaultDependencyCollector::class.java)
+        locator.addService(org.eclipse.aether.impl.UpdateCheckManager::class.java, DefaultUpdateCheckManager::class.java)
+        locator.addService(org.eclipse.aether.impl.RepositoryEventDispatcher::class.java, DefaultRepositoryEventDispatcher::class.java)
+        locator.addService(org.eclipse.aether.impl.LocalRepositoryProvider::class.java, DefaultLocalRepositoryProvider::class.java)
+        locator.addService(org.eclipse.aether.impl.RemoteRepositoryManager::class.java, DefaultRemoteRepositoryManager::class.java)
+        locator.addService(org.eclipse.aether.impl.Installer::class.java, DefaultInstaller::class.java)
+        locator.addService(org.eclipse.aether.impl.Deployer::class.java, DefaultDeployer::class.java)
+
+        // Maven Provider Implementations
+        locator.addService(org.eclipse.aether.impl.VersionResolver::class.java, DefaultVersionResolver::class.java)
+        locator.addService(org.eclipse.aether.impl.VersionRangeResolver::class.java, DefaultVersionRangeResolver::class.java)
+        locator.addService(org.eclipse.aether.impl.ArtifactDescriptorReader::class.java, DefaultArtifactDescriptorReader::class.java)
 
         locator.addService(RepositorySystem::class.java, DefaultRepositorySystem::class.java)
 
