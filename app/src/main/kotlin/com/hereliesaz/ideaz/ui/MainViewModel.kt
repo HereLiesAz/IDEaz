@@ -177,11 +177,21 @@ class MainViewModel(
         }
     }
 
+    private var buildErrorCount = 0
+    private var buildWarningCount = 0
+
     private val buildCallback = object : IBuildCallback.Stub() {
         override fun onLog(message: String) {
             Log.d(TAG, "onLog: $message")
             viewModelScope.launch {
                 _buildLog.value += "$message\n"
+
+                if (message.contains("error:", ignoreCase = true) || message.startsWith("e: ")) {
+                    buildErrorCount++
+                } else if (message.contains("warning:", ignoreCase = true) || message.startsWith("w: ")) {
+                    buildWarningCount++
+                }
+
                 buildService?.updateNotification(message)
             }
         }
@@ -191,7 +201,8 @@ class MainViewModel(
             remotePollJob?.cancel() // Cancel remote polling since local won
             viewModelScope.launch {
                 _buildLog.value += "\n[IDE] Build successful: $apkPath\n"
-                _buildLog.value += "[IDE] Status: Build Successful\n"
+                val summary = if (buildWarningCount > 0) " ($buildWarningCount Warnings)" else ""
+                _buildLog.value += "[IDE] Status: Build Successful$summary\n"
 
                 val appName = settingsViewModel.getAppName()
                 val pkgName = settingsViewModel.getTargetPackageName()
@@ -221,10 +232,9 @@ class MainViewModel(
         }
 
         override fun onFailure(log: String) {
-            Log.e(TAG, "onFailure: Build failed with log:\n$log")
+            Log.e(TAG, "onFailure: Build failed")
             viewModelScope.launch {
-                _buildLog.value += "\n[IDE] Build failed:\n$log\n"
-                _buildLog.value += "[IDE] Status: Build Failed\n"
+                _buildLog.value += "\n[IDE] Status: Build Failed ($buildErrorCount Errors, $buildWarningCount Warnings)\n"
                 contextualTaskJob = null
                 logToOverlay("Build failed. See global log to debug.")
 
@@ -983,6 +993,8 @@ class MainViewModel(
 
                 if (shouldBuild) {
                     _buildLog.value += "[INFO] Status: Building locally...\n"
+                    buildErrorCount = 0
+                    buildWarningCount = 0
                     buildService?.startBuild(targetDir.absolutePath, buildCallback)
 
                     if (headSha != null) {

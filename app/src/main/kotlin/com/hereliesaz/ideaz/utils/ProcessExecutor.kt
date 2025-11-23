@@ -8,16 +8,7 @@ data class ProcessResult(val exitCode: Int, val output: String)
 object ProcessExecutor {
     fun execute(command: List<String>): ProcessResult {
         try {
-            val finalCommand: List<String>
-
-            if (command.firstOrNull() != "java") {
-                // Use "sh" directly which is available in PATH on Android and Linux
-                finalCommand = listOf("sh", "-c", command.joinToString(" "))
-            } else {
-                finalCommand = command
-            }
-
-            val process = ProcessBuilder(finalCommand)
+            val process = ProcessBuilder(command)
                 .redirectErrorStream(true)
                 .start()
 
@@ -43,14 +34,7 @@ object ProcessExecutor {
         onCompletion: (Int) -> Unit
     ) {
         try {
-            val finalCommand: List<String>
-            if (command.firstOrNull() != "java") {
-                finalCommand = listOf("sh", "-c", command.joinToString(" "))
-            } else {
-                finalCommand = command
-            }
-
-            val process = ProcessBuilder(finalCommand)
+            val process = ProcessBuilder(command)
                 .redirectErrorStream(true)
                 .start()
 
@@ -68,6 +52,37 @@ object ProcessExecutor {
             e.printStackTrace()
             onOutputLine("Error: ${e.message ?: "Unknown error"}")
             onCompletion(-1)
+        }
+    }
+
+    fun executeAndStreamSync(
+        command: List<String>,
+        onOutputLine: (String) -> Unit
+    ): ProcessResult {
+        try {
+            val process = ProcessBuilder(command)
+                .redirectErrorStream(true)
+                .start()
+
+            val reader = BufferedReader(InputStreamReader(process.inputStream))
+            val fullOutput = StringBuilder()
+            var line: String?
+
+            while (reader.readLine().also { line = it } != null) {
+                line?.let {
+                    onOutputLine(it)
+                    fullOutput.append(it).append(System.lineSeparator())
+                }
+            }
+
+            val exitCode = process.waitFor()
+            return ProcessResult(exitCode, fullOutput.toString())
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+            val msg = e.message ?: "Unknown error"
+            onOutputLine("Error: $msg")
+            return ProcessResult(-1, msg)
         }
     }
 }

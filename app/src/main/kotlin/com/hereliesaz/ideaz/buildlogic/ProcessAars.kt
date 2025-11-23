@@ -68,7 +68,9 @@ class ProcessAars(
                     "-o", outputFlata.absolutePath
                 )
 
-                val result = ProcessExecutor.execute(command)
+                val result = ProcessExecutor.executeAndStreamSync(command) { line ->
+                    callback?.onLog(line)
+                }
                 if (result.exitCode != 0) {
                      return BuildResult(false, "Failed to compile resources for ${aar.name}: ${result.output}")
                 }

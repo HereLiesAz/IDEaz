@@ -48,7 +48,9 @@ class D8Compile(
 
         command.add(classesDir)
 
-        val processResult = ProcessExecutor.execute(command)
+        val processResult = ProcessExecutor.executeAndStreamSync(command) { line ->
+            callback?.onLog(line)
+        }
         if (processResult.exitCode == 0) {
             BuildCacheManager.updateSnapshot("d8", allInputs, outputDirFile)
         }

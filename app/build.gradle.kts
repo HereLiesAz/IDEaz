@@ -70,6 +70,11 @@ android {
             excludes.add("META-INF/plexus/components.xml")
             excludes.add("plugin.properties")
             pickFirsts += "META-INF/sisu/javax.inject.Named"
+        }
+    }
+    packaging {
+        resources {
+            excludes.add("META-INF/DEPENDENCIES")
             excludes.add("META-INF/sisu/javax.inject.Named")
         }
     }
