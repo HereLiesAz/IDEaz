@@ -55,6 +55,7 @@ import org.json.JSONArray
 import com.hereliesaz.ideaz.utils.GithubIssueReporter
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import java.io.BufferedInputStream
 
 data class ProjectMetadata(
@@ -539,7 +540,7 @@ class MainViewModel(
         }
     }
 
-    fun loadProject(projectName: String) {
+    fun loadProject(projectName: String, onSuccess: () -> Unit = {}) {
         clearLog()
         viewModelScope.launch {
             _buildLog.value += "[INFO] Loading project '$projectName'...\n"
@@ -577,16 +578,13 @@ class MainViewModel(
                 fetchSessions()
 
                 _buildLog.value += "[INFO] Project '$projectName' loaded successfully.\n"
+                withContext(Dispatchers.Main) {
+                    onSuccess()
+                }
             } catch (e: Exception) {
                 handleIdeError(e, "Failed to load project")
             }
         }
-    }
-
-    fun loadProjectAndBuild(context: Context, projectName: String) {
-        loadProject(projectName)
-        val projectDir = getApplication<Application>().filesDir.resolve(projectName)
-        startBuild(context, projectDir)
     }
 
     fun deleteSession(session: com.hereliesaz.ideaz.api.Session) {
@@ -1271,11 +1269,12 @@ class MainViewModel(
         val appName = settingsViewModel.getAppName() ?: return null
         val token = settingsViewModel.getGithubToken()
 
-        // Scan all releases, not just 'latest-debug'
-        val urlStr = "https://api.github.com/repos/$user/$appName/releases"
-
         return withContext(Dispatchers.IO) {
             try {
+                val encodedUser = URLEncoder.encode(user, "UTF-8")
+                val encodedRepo = URLEncoder.encode(appName, "UTF-8")
+                val urlStr = "https://api.github.com/repos/$encodedUser/$encodedRepo/releases"
+
                 val url = URL(urlStr)
                 val conn = url.openConnection() as HttpURLConnection
                 if (!token.isNullOrBlank()) {
