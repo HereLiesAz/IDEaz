@@ -446,7 +446,8 @@ class MainViewModel(
         val config = IdeazProjectConfig(
             projectType = type,
             packageName = pkg,
-            branch = branch
+            branch = branch,
+            owner = settingsViewModel.getGithubUser()
         )
         ProjectConfigManager.saveConfig(projectDir, config)
     }
@@ -557,7 +558,10 @@ class MainViewModel(
                     if (loadedConfig.packageName != null) {
                         settingsViewModel.saveTargetPackageName(loadedConfig.packageName)
                     }
-                    _buildLog.value += "[INFO] Project config loaded from .ideaz (Type: ${loadedConfig.projectType})\n"
+                    if (!loadedConfig.owner.isNullOrBlank()) {
+                        settingsViewModel.setGithubUser(loadedConfig.owner)
+                    }
+                    _buildLog.value += "[INFO] Project config loaded from .ideaz (Type: ${loadedConfig.projectType}, Owner: ${loadedConfig.owner})\n"
                 } else {
                     val type = ProjectAnalyzer.detectProjectType(projectDir)
                     settingsViewModel.setProjectType(type.name)
