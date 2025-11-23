@@ -46,18 +46,37 @@ jobs:
         name: app-debug
         path: app/build/outputs/apk/debug/app-debug.apk
 
-    - name: Create Release for Race-to-Build
+    - name: Update Release
       if: steps.gradle-build.outcome == 'success' && github.ref == 'refs/heads/main'
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: latest-debug
-        name: Latest Debug Build
-        body: ${{ github.sha }}
-        files: app/build/outputs/apk/debug/app-debug.apk
-        draft: false
-        prerelease: true
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        TAG_NAME: latest-debug
+        APK_FILE: app/build/outputs/apk/debug/app-debug.apk
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+        # Update the tag to point to the new commit
+        git tag -fa $TAG_NAME -m "Update debug release"
+        git push origin $TAG_NAME --force
+
+        if gh release view $TAG_NAME > /dev/null 2>&1; then
+          echo "Updating existing release..."
+          gh release edit $TAG_NAME \
+            --prerelease \
+            --title "Latest Debug Build" \
+            --body "Automatic build from commit $GITHUB_SHA" \
+            --target $GITHUB_SHA
+
+          gh release upload $TAG_NAME $APK_FILE --clobber
+        else
+          echo "Creating new release..."
+          gh release create $TAG_NAME $APK_FILE \
+            --prerelease \
+            --title "Latest Debug Build" \
+            --body "Automatic build from commit $GITHUB_SHA" \
+            --target $GITHUB_SHA
+        fi
 
     - name: Report Failure to Jules
       if: steps.gradle-build.outcome == 'failure'
