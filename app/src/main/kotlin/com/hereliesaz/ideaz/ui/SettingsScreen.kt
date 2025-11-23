@@ -172,8 +172,8 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(
-                    top = screenHeight * 0.1f,
-                    bottom = screenHeight * 0.1f
+                    top = 32.dp,
+                    bottom = 32.dp
                 )
         ) {
             Column(

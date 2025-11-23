@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.hereliesaz.aznavrail.AzButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -189,7 +191,7 @@ fun ProjectScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Spacer(modifier = Modifier.height(screenHeight * 0.1f))
+        Spacer(modifier = Modifier.height(32.dp))
 
         Column(
             modifier = Modifier
@@ -241,6 +243,7 @@ fun ProjectScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
                         .padding(16.dp)
                 ) {
                     Text("Create New Repository", style = MaterialTheme.typography.headlineSmall)
@@ -338,6 +341,7 @@ fun ProjectScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
                         .padding(16.dp)
                 ) {
                     Text(
