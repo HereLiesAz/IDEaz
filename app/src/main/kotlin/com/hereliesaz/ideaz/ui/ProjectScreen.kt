@@ -698,9 +698,12 @@ fun ProjectScreen(
                                     .padding(bottom = 8.dp)
                                     .fillMaxWidth()
                                     .clickable {
-                                        viewModel.loadProjectAndBuild(context, project.name)
-                                        Toast.makeText(context, "Loading and building project...", Toast.LENGTH_SHORT).show()
-                                        onBuildTriggered()
+                                        viewModel.loadProject(project.name) {
+                                            // After loading, go to Setup tab
+                                            val setupIndex = tabs.indexOf("Setup")
+                                            if (setupIndex != -1) tabIndex = setupIndex
+                                        }
+                                        Toast.makeText(context, "Project loaded.", Toast.LENGTH_SHORT).show()
                                     },
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surface,
