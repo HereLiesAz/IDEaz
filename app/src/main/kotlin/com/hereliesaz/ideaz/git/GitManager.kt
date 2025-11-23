@@ -189,6 +189,16 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    fun getCurrentBranch(): String? {
+        return try {
+            Git.open(projectDir).use { git ->
+                git.repository.branch
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private class SimpleProgressMonitor(private val callback: (Int, String) -> Unit) : ProgressMonitor {
         private var totalWork = 0
         private var currentWork = 0

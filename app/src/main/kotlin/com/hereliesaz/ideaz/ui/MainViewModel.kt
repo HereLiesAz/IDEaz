@@ -358,29 +358,8 @@ class MainViewModel(
                         saveProjectConfigToFile(projectDir, type.name, pkg ?: "com.example", branch)
                     }
 
-                    val currentType = ProjectType.fromString(settingsViewModel.getProjectType())
-
-                    // Force update of initialization files
-                    ProjectConfigManager.ensureWorkflow(getApplication(), projectDir, currentType)
-                    if (currentType == ProjectType.ANDROID) {
-                        ProjectConfigManager.ensureSetupScript(projectDir)
-                        ProjectConfigManager.ensureAgentsSetupMd(projectDir)
-                    }
-
-                    _buildLog.value += "[INFO] Enforcing workflow synchronization...\n"
-                    withContext(Dispatchers.IO) {
-                        val git = GitManager(projectDir)
-                        // Commit if any changes (e.g. rewritten workflows)
-                        if (git.hasChanges()) {
-                            git.addAll()
-                            git.commit("Force update of IDEaz workflows and setup")
-                        }
-                        // Always push to ensure remote has the latest state
-                        git.push(authUser, token, ::onGitProgress)
-                    }
-
                     fetchSessions()
-                    startBuild(getApplication())
+                    _buildLog.value += "[INFO] Project loaded. Please go to Setup to initialize.\n"
 
                 } catch (e: Exception) {
                     handleIdeError(e, "Failed to clone/pull project")
@@ -519,11 +498,15 @@ class MainViewModel(
                     _buildLog.value += "[INFO] Enforcing workflow synchronization...\n"
                     withContext(Dispatchers.IO) {
                         val git = GitManager(projectDir)
+                        val currentBranch = git.getCurrentBranch() ?: "unknown"
+                        _buildLog.value += "[GIT] Current branch: $currentBranch\n"
+
                         if (git.hasChanges()) {
                             git.addAll()
                             git.commit("Force update of IDEaz workflows and setup")
                         }
                         // Always push
+                        _buildLog.value += "[GIT] Pushing to $currentBranch...\n"
                         git.push(user, token, ::onGitProgress)
                     }
 
@@ -586,9 +569,6 @@ class MainViewModel(
                     }
                     saveProjectConfigToFile(projectDir, type.name, pkg ?: "com.example", "main")
                 }
-
-                val currentType = ProjectType.fromString(settingsViewModel.getProjectType())
-                ProjectConfigManager.ensureWorkflow(getApplication(), projectDir, currentType)
 
                 fetchSessions()
 
