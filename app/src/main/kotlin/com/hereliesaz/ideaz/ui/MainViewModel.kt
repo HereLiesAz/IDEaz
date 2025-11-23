@@ -130,8 +130,14 @@ class MainViewModel(
     }
 
     init {
-        fetchOwnedSources()
-        fetchSessions()
+        viewModelScope.launch {
+            settingsViewModel.apiKey.collect { key ->
+                if (!key.isNullOrBlank()) {
+                    fetchOwnedSources()
+                    fetchSessions()
+                }
+            }
+        }
     }
 
     override fun onCleared() {
@@ -261,6 +267,7 @@ class MainViewModel(
     }
 
     fun fetchOwnedSources() {
+        if (settingsViewModel.getApiKey().isNullOrBlank()) return
         viewModelScope.launch {
             _isLoadingSources.value = true
             Log.d(TAG, "fetchOwnedSources: Fetching sources...")
@@ -278,6 +285,7 @@ class MainViewModel(
     }
 
     fun fetchSessions() {
+        if (settingsViewModel.getApiKey().isNullOrBlank()) return
         viewModelScope.launch {
             try {
                 val response = JulesApiClient.listSessions()

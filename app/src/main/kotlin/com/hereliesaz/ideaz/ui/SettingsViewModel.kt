@@ -111,6 +111,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _targetPackageName = MutableStateFlow(getTargetPackageName())
     val targetPackageName = _targetPackageName.asStateFlow()
 
+    private val _apiKey = MutableStateFlow(getApiKey())
+    val apiKey = _apiKey.asStateFlow()
+
     init {
         // Initialize AuthInterceptor with saved API key
         val savedKey = getApiKey()
@@ -187,6 +190,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
         // Also update the interceptor immediately
         AuthInterceptor.apiKey = apiKey
+        _apiKey.value = apiKey
     }
 
     fun getApiKey(): String? {
