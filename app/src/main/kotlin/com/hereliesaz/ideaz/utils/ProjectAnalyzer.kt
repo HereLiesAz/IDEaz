@@ -71,18 +71,19 @@ object ProjectAnalyzer {
             val file = File(projectDir, path)
             if (file.exists()) {
                 val content = file.readText()
-                // namespace = "com.example" (Kotlin DSL) or namespace 'com.example' (Groovy)
-                val namespaceRegex = """namespace\s*[=]?\s*["']([^"']+)["']""".toRegex()
-                val match = namespaceRegex.find(content)
-                if (match != null) {
-                    return match.groupValues[1]
-                }
 
-                // applicationId "com.example"
+                // Check applicationId first (Install ID)
                 val appIdRegex = """applicationId\s*[=]?\s*["']([^"']+)["']""".toRegex()
                 val appIdMatch = appIdRegex.find(content)
                 if (appIdMatch != null) {
                     return appIdMatch.groupValues[1]
+                }
+
+                // Fallback to namespace (R class package)
+                val namespaceRegex = """namespace\s*[=]?\s*["']([^"']+)["']""".toRegex()
+                val match = namespaceRegex.find(content)
+                if (match != null) {
+                    return match.groupValues[1]
                 }
             }
         }
