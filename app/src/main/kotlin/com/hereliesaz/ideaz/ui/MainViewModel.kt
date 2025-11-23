@@ -1297,14 +1297,18 @@ class MainViewModel(
                         val release = releases.getJSONObject(i)
                         val body = release.optString("body", "")
                         val tagName = release.optString("tag_name", "")
+                        val targetCommitish = release.optString("target_commitish", "")
 
-                        // Check body (common) or tag name for SHA presence
-                        if (body.contains(sha, ignoreCase = true) || tagName.contains(sha, ignoreCase = true)) {
+                        // Check body, tag name, or target_commitish for SHA presence
+                        if (body.contains(sha, ignoreCase = true) ||
+                            tagName.contains(sha, ignoreCase = true) ||
+                            targetCommitish.equals(sha, ignoreCase = true)) {
+
                             val assets = release.getJSONArray("assets")
                             if (assets.length() > 0) {
                                 val asset = assets.getJSONObject(0)
                                 val downloadUrl = if (!token.isNullOrBlank()) asset.getString("url") else asset.getString("browser_download_url")
-                                _buildLog.value += "[REMOTE] Found matching artifact in release '$tagName'\n"
+                                _buildLog.value += "[REMOTE] Found matching artifact in release '$tagName' (Target: $targetCommitish)\n"
                                 return@withContext downloadUrl
                             }
                         }
