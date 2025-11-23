@@ -70,11 +70,6 @@ android {
             excludes.add("META-INF/plexus/components.xml")
             excludes.add("plugin.properties")
             pickFirsts += "META-INF/sisu/javax.inject.Named"
-        }
-    }
-    packaging {
-        resources {
-            excludes.add("META-INF/DEPENDENCIES")
             excludes.add("META-INF/sisu/javax.inject.Named")
         }
     }
@@ -92,14 +87,22 @@ configurations.all {
     }
 }
 
+dependencies {
     // Maven Resolver for dependency resolution
-    val resolverVersion = "1.9.18"
-    implementation("org.apache.maven.resolver:maven-resolver-api:$resolverVersion")
-    implementation("org.apache.maven.resolver:maven-resolver-spi:$resolverVersion")
-    implementation("org.apache.maven.resolver:maven-resolver-impl:$resolverVersion")
-    implementation("org.apache.maven.resolver:maven-resolver-util:$resolverVersion")
-    implementation("org.apache.maven.resolver:maven-resolver-connector-basic:$resolverVersion")
-    implementation("org.apache.maven.resolver:maven-resolver-transport-http:$resolverVersion")
+    implementation(libs.maven.resolver.api)
+    implementation(libs.maven.resolver.spi)
+    implementation(libs.maven.resolver.impl)
+    implementation(libs.maven.resolver.util)
+    implementation(libs.maven.resolver.connector.basic)
+    implementation(libs.maven.resolver.transport.http)
+    implementation(libs.aether.transport.file)
+    implementation(libs.maven.resolver.provider)
+    implementation(libs.maven.core)
+    implementation(libs.maven.settings.builder)
+    implementation(libs.wagon.http.lightweight)
+    implementation(libs.wagon.provider.api)
+    implementation(libs.wagon.file)
+    implementation(libs.maven.repository.metadata)
 
 
     implementation(libs.jaxb.api)

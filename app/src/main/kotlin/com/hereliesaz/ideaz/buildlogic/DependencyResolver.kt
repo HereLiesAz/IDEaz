@@ -8,25 +8,12 @@ import org.eclipse.aether.collection.CollectRequest
 import org.eclipse.aether.connector.basic.BasicRepositoryConnectorFactory
 import org.eclipse.aether.graph.Dependency
 import org.eclipse.aether.impl.DefaultServiceLocator
-import org.eclipse.aether.internal.impl.DefaultRepositorySystem
 import org.eclipse.aether.repository.LocalRepository
 import org.eclipse.aether.repository.RemoteRepository
-import org.eclipse.aether.internal.impl.synccontext.DefaultSyncContextFactory
-import org.eclipse.aether.internal.impl.DefaultArtifactResolver
-import org.eclipse.aether.internal.impl.DefaultMetadataResolver
-import org.eclipse.aether.internal.impl.collect.DefaultDependencyCollector
-import org.eclipse.aether.internal.impl.DefaultUpdateCheckManager
-import org.eclipse.aether.internal.impl.DefaultRepositoryEventDispatcher
-import org.eclipse.aether.internal.impl.DefaultLocalRepositoryProvider
-import org.eclipse.aether.internal.impl.DefaultRemoteRepositoryManager
-import org.eclipse.aether.internal.impl.DefaultInstaller
-import org.eclipse.aether.internal.impl.DefaultDeployer
-import org.apache.maven.repository.internal.DefaultVersionResolver
-import org.apache.maven.repository.internal.DefaultVersionRangeResolver
-import org.apache.maven.repository.internal.DefaultArtifactDescriptorReader
 import org.eclipse.aether.resolution.DependencyRequest
 import org.eclipse.aether.spi.connector.RepositoryConnectorFactory
 import org.eclipse.aether.spi.connector.transport.TransporterFactory
+import org.eclipse.aether.transport.file.FileTransporterFactory
 import org.eclipse.aether.transport.http.HttpTransporterFactory
 import org.eclipse.aether.util.filter.DependencyFilterUtils
 import org.slf4j.LoggerFactory
@@ -49,6 +36,7 @@ internal fun cleanDependencyLine(line: String): String {
     return cleaned
 }
 
+@Suppress("DEPRECATION")
 class DependencyResolver(
     private val projectDir: File,
     private val dependenciesFile: File,
@@ -65,31 +53,12 @@ class DependencyResolver(
             .joinToString(File.pathSeparator) { it.absolutePath }
 
 
+    @Suppress("DEPRECATION")
     private fun newRepositorySystem(): RepositorySystem {
         val locator = MavenRepositorySystemUtils.newServiceLocator()
         locator.addService(RepositoryConnectorFactory::class.java, BasicRepositoryConnectorFactory::class.java)
+        locator.addService(TransporterFactory::class.java, FileTransporterFactory::class.java)
         locator.addService(TransporterFactory::class.java, HttpTransporterFactory::class.java)
-
-        // Use No-Op SyncContextFactory to avoid missing locking dependencies
-        locator.addService(org.eclipse.aether.impl.SyncContextFactory::class.java, NoopSyncContextFactory::class.java)
-
-        // Explicitly register dependencies for DefaultRepositorySystem
-        locator.addService(org.eclipse.aether.impl.ArtifactResolver::class.java, DefaultArtifactResolver::class.java)
-        locator.addService(org.eclipse.aether.impl.MetadataResolver::class.java, DefaultMetadataResolver::class.java)
-        locator.addService(org.eclipse.aether.impl.DependencyCollector::class.java, DefaultDependencyCollector::class.java)
-        locator.addService(org.eclipse.aether.impl.UpdateCheckManager::class.java, DefaultUpdateCheckManager::class.java)
-        locator.addService(org.eclipse.aether.impl.RepositoryEventDispatcher::class.java, DefaultRepositoryEventDispatcher::class.java)
-        locator.addService(org.eclipse.aether.impl.LocalRepositoryProvider::class.java, DefaultLocalRepositoryProvider::class.java)
-        locator.addService(org.eclipse.aether.impl.RemoteRepositoryManager::class.java, DefaultRemoteRepositoryManager::class.java)
-        locator.addService(org.eclipse.aether.impl.Installer::class.java, DefaultInstaller::class.java)
-        locator.addService(org.eclipse.aether.impl.Deployer::class.java, DefaultDeployer::class.java)
-
-        // Maven Provider Implementations
-        locator.addService(org.eclipse.aether.impl.VersionResolver::class.java, DefaultVersionResolver::class.java)
-        locator.addService(org.eclipse.aether.impl.VersionRangeResolver::class.java, DefaultVersionRangeResolver::class.java)
-        locator.addService(org.eclipse.aether.impl.ArtifactDescriptorReader::class.java, DefaultArtifactDescriptorReader::class.java)
-
-        locator.addService(RepositorySystem::class.java, DefaultRepositorySystem::class.java)
 
         locator.setErrorHandler(object : DefaultServiceLocator.ErrorHandler() {
             override fun serviceCreationFailed(type: Class<*>, impl: Class<*>, exception: Throwable) {
@@ -99,15 +68,6 @@ class DependencyResolver(
 
         return locator.getService(RepositorySystem::class.java)
             ?: throw IllegalStateException("Failed to initialize RepositorySystem (getService returned null). Check logs for missing transitive dependencies.")
-    }
-
-    class NoopSyncContextFactory : org.eclipse.aether.impl.SyncContextFactory {
-        override fun newInstance(session: org.eclipse.aether.RepositorySystemSession, shared: Boolean): org.eclipse.aether.SyncContext {
-            return object : org.eclipse.aether.SyncContext {
-                override fun acquire(artifacts: Collection<org.eclipse.aether.artifact.Artifact>?, metadata: Collection<org.eclipse.aether.metadata.Metadata>?) {}
-                override fun close() {}
-            }
-        }
     }
 
     private fun newSession(system: RepositorySystem): org.eclipse.aether.RepositorySystemSession {
@@ -230,7 +190,7 @@ class DependencyResolver(
         if (line.contains("=") && !line.contains("{")) {
             val parts = line.split("=", limit = 2)
             if (parts.size == 2) {
-                var coord = parts[1].trim().replace("\"", "").replace("'", "")
+                val coord = parts[1].trim().replace("\"", "").replace("'", "")
                 return coord
             }
         }

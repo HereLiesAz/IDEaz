@@ -18,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.composables.core.BottomSheet
 import com.composables.core.BottomSheetState
 import com.composables.core.SheetDetent
+import kotlinx.coroutines.launch
 
 @Composable
 fun IdeBottomSheet(
@@ -40,6 +42,7 @@ fun IdeBottomSheet(
     val isHalfwayExpanded = sheetState.currentDetent == halfwayDetent
     val logMessages by viewModel.filteredLog.collectAsState(initial = "")
     val clipboardManager = LocalClipboardManager.current
+    val coroutineScope = rememberCoroutineScope()
 
     // Calculate height based on detent
     // We use the passed screenHeight to match the detent definitions
@@ -91,7 +94,9 @@ fun IdeBottomSheet(
                         .padding(top = 16.dp, end = 16.dp)
                 ) {
                     IconButton(onClick = {
-                        clipboardManager.setText(AnnotatedString(logMessages))
+                        coroutineScope.launch {
+                            clipboardManager.setText(AnnotatedString(logMessages))
+                        }
                     }) {
                         Icon(
                             imageVector = Icons.Default.ContentCopy,

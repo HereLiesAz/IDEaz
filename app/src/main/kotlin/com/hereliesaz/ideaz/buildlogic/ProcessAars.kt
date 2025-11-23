@@ -90,7 +90,7 @@ class ProcessAars(
                 if (entry.isDirectory) {
                     file.mkdirs()
                 } else {
-                    file.parentFile.mkdirs()
+                    file.parentFile?.mkdirs()
                     zip.getInputStream(entry).use { input ->
                         file.outputStream().use { output ->
                             input.copyTo(output)
