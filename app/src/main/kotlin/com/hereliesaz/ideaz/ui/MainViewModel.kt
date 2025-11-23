@@ -1299,10 +1299,15 @@ class MainViewModel(
                         val tagName = release.optString("tag_name", "")
                         val targetCommitish = release.optString("target_commitish", "")
 
-                        // Check body, tag name, or target_commitish for SHA presence
+                        // Check body, tag name, or target_commitish for SHA presence (full or short)
+                        val shortSha = if (sha.length >= 7) sha.substring(0, 7) else sha
+
                         if (body.contains(sha, ignoreCase = true) ||
                             tagName.contains(sha, ignoreCase = true) ||
-                            targetCommitish.equals(sha, ignoreCase = true)) {
+                            targetCommitish.equals(sha, ignoreCase = true) ||
+                            body.contains(shortSha, ignoreCase = true) ||
+                            tagName.contains(shortSha, ignoreCase = true) ||
+                            targetCommitish.contains(shortSha, ignoreCase = true)) {
 
                             val assets = release.getJSONArray("assets")
                             if (assets.length() > 0) {
