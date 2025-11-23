@@ -35,7 +35,9 @@ class Aapt2Compile(
         )
         // --- END FIX ---
 
-        val processResult = ProcessExecutor.execute(command)
+        val processResult = ProcessExecutor.executeAndStreamSync(command) { line ->
+            callback?.onLog(line)
+        }
         if (processResult.exitCode == 0) {
             BuildCacheManager.updateSnapshot("aapt2", resFiles, compiledResDirFile)
         }
