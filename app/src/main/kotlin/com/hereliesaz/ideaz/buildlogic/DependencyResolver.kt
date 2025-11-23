@@ -11,6 +11,10 @@ import org.eclipse.aether.impl.DefaultServiceLocator
 import org.eclipse.aether.internal.impl.DefaultRepositorySystem
 import org.eclipse.aether.repository.LocalRepository
 import org.eclipse.aether.repository.RemoteRepository
+import org.eclipse.aether.internal.impl.synccontext.DefaultSyncContextFactory
+import org.eclipse.aether.internal.impl.DefaultArtifactResolver
+import org.eclipse.aether.internal.impl.DefaultMetadataResolver
+import org.eclipse.aether.internal.impl.collect.DefaultDependencyCollector
 import org.eclipse.aether.resolution.DependencyRequest
 import org.eclipse.aether.spi.connector.RepositoryConnectorFactory
 import org.eclipse.aether.spi.connector.transport.TransporterFactory
@@ -56,13 +60,24 @@ class DependencyResolver(
         val locator = MavenRepositorySystemUtils.newServiceLocator()
         locator.addService(RepositoryConnectorFactory::class.java, BasicRepositoryConnectorFactory::class.java)
         locator.addService(TransporterFactory::class.java, HttpTransporterFactory::class.java)
+
+        // Explicitly register critical services
+        @Suppress("UNCHECKED_CAST")
+        locator.addService(org.eclipse.aether.impl.SyncContextFactory::class.java, DefaultSyncContextFactory::class.java as Class<out org.eclipse.aether.impl.SyncContextFactory>)
+        locator.addService(org.eclipse.aether.impl.ArtifactResolver::class.java, DefaultArtifactResolver::class.java)
+        locator.addService(org.eclipse.aether.impl.MetadataResolver::class.java, DefaultMetadataResolver::class.java)
+        locator.addService(org.eclipse.aether.impl.DependencyCollector::class.java, DefaultDependencyCollector::class.java)
+
         locator.addService(RepositorySystem::class.java, DefaultRepositorySystem::class.java)
+
         locator.setErrorHandler(object : DefaultServiceLocator.ErrorHandler() {
             override fun serviceCreationFailed(type: Class<*>, impl: Class<*>, exception: Throwable) {
                 logger.error("Failed to create Aether service implementation. type={}, impl={}", type.name, impl.name, exception)
             }
         })
+
         return locator.getService(RepositorySystem::class.java)
+            ?: throw IllegalStateException("Failed to initialize RepositorySystem (getService returned null). Check logs for missing transitive dependencies.")
     }
 
     private fun newSession(system: RepositorySystem): org.eclipse.aether.RepositorySystemSession {
@@ -77,8 +92,12 @@ class DependencyResolver(
             cacheDir.mkdirs()
         }
 
-        if (!dependenciesFile.exists()) {
-            return BuildResult(true, "No dependencies file found. Skipping resolution.")
+        val tomlFile = File(projectDir, "gradle/libs.versions.toml")
+        val hasToml = tomlFile.exists()
+        val hasDepFile = dependenciesFile.exists()
+
+        if (!hasDepFile && !hasToml) {
+            return BuildResult(true, "No dependencies file found (checked dependencies.toml and gradle/libs.versions.toml). Skipping resolution.")
         }
 
         callback?.onLog("[IDE] Resolving dependencies...")
@@ -91,19 +110,38 @@ class DependencyResolver(
             val central = RemoteRepository.Builder("central", "default", "https://repo.maven.apache.org/maven2/").build()
             val jitpack = RemoteRepository.Builder("jitpack", "default", "https://jitpack.io").build()
 
-            dependenciesFile.readLines().forEach { line ->
-                if (line.isNotBlank()) {
-                    val cleanedLine = cleanDependencyLine(line)
-                    callback?.onLog("  [IDE] - $cleanedLine")
+            val repositories = listOf(google, central, jitpack)
+            val dependenciesToResolve = mutableListOf<String>()
 
-                    val artifact = DefaultArtifact(cleanedLine)
-                    val dependency = Dependency(artifact, "runtime")
+            // 1. Process legacy dependencies.toml
+            if (hasDepFile) {
+                dependenciesFile.readLines().forEach { line ->
+                    if (line.isNotBlank() && !line.startsWith("#")) {
+                        dependenciesToResolve.add(cleanDependencyLine(line))
+                    }
+                }
+            }
+
+            // 2. Process libs.versions.toml
+            if (hasToml) {
+                callback?.onLog("[IDE] Found gradle/libs.versions.toml")
+                try {
+                    val tomlDeps = parseVersionCatalog(tomlFile)
+                    dependenciesToResolve.addAll(tomlDeps)
+                } catch (e: Exception) {
+                    callback?.onLog("[IDE] Warning: Failed to parse libs.versions.toml: ${e.message}")
+                }
+            }
+
+            dependenciesToResolve.forEach { depString ->
+                callback?.onLog("  [IDE] - $depString")
+                try {
+                    val artifact = DefaultArtifact(depString)
+                    val dependency = Dependency(artifact, "compile") // Use compile scope to get transitive deps
 
                     val collectRequest = CollectRequest()
                     collectRequest.root = dependency
-                    collectRequest.addRepository(google)
-                    collectRequest.addRepository(central)
-                    collectRequest.addRepository(jitpack)
+                    repositories.forEach { collectRequest.addRepository(it) }
 
                     val dependencyRequest = DependencyRequest(collectRequest, DependencyFilterUtils.classpathFilter("runtime"))
 
@@ -111,6 +149,8 @@ class DependencyResolver(
                     result.artifactResults.forEach { artifactResult ->
                         artifactResult.artifact?.file?.let { resolvedArtifacts.add(it) }
                     }
+                } catch (e: Exception) {
+                    callback?.onLog("  [IDE] Failed to resolve $depString: ${e.message}")
                 }
             }
 
@@ -119,12 +159,77 @@ class DependencyResolver(
             resolvedArtifacts.clear()
             resolvedArtifacts.addAll(distinctArtifacts)
 
-            callback?.onLog("[IDE] Dependencies resolved successfully.")
+            callback?.onLog("[IDE] Dependencies resolved successfully. Total artifacts: ${resolvedArtifacts.size}")
             BuildResult(true, "[IDE] Dependencies resolved successfully.")
         } catch (e: Throwable) {
             callback?.onLog("[IDE] Failed to resolve dependencies: ${e.message}")
             callback?.onLog("[IDE] Stack trace: ${e.stackTraceToString()}")
             BuildResult(false, "[IDE] Failed to resolve dependencies: ${e.message}")
         }
+    }
+
+    private fun parseVersionCatalog(tomlFile: File): List<String> {
+        val versions = mutableMapOf<String, String>()
+        val libraries = mutableListOf<String>()
+
+        var currentSection = ""
+        tomlFile.readLines().forEach { rawLine ->
+            val line = rawLine.trim()
+            if (line.startsWith("[") && line.endsWith("]")) {
+                currentSection = line
+            } else if (line.isNotEmpty() && !line.startsWith("#")) {
+                if (currentSection == "[versions]") {
+                    // key = "value"
+                    val parts = line.split("=", limit = 2)
+                    if (parts.size == 2) {
+                        val key = parts[0].trim()
+                        val value = parts[1].trim().replace("\"", "").replace("'", "")
+                        versions[key] = value
+                    }
+                } else if (currentSection == "[libraries]") {
+                    // Parse library entry
+                    parseLibraryEntry(line, versions)?.let { libraries.add(it) }
+                }
+            }
+        }
+        return libraries
+    }
+
+    private fun parseLibraryEntry(line: String, versions: Map<String, String>): String? {
+        // Handle: alias = "group:artifact:version"
+        if (line.contains("=") && !line.contains("{")) {
+            val parts = line.split("=", limit = 2)
+            if (parts.size == 2) {
+                var coord = parts[1].trim().replace("\"", "").replace("'", "")
+                return coord
+            }
+        }
+
+        // Handle: alias = { ... }
+        if (line.contains("=") && line.contains("{") && line.endsWith("}")) {
+            val content = line.substringAfter("{").substringBefore("}").trim()
+            val map = content.split(",").associate {
+                val p = it.split("=", limit = 2)
+                p[0].trim() to p.getOrElse(1) { "" }.trim().replace("\"", "").replace("'", "")
+            }
+
+            val group = map["group"]
+            val name = map["name"]
+            val module = map["module"]
+            var version = map["version"]
+            val versionRef = map["version.ref"]
+
+            if (versionRef != null && versions.containsKey(versionRef)) {
+                version = versions[versionRef]
+            }
+
+            if (module != null && version != null) {
+                return "$module:$version"
+            }
+            if (group != null && name != null && version != null) {
+                return "$group:$name:$version"
+            }
+        }
+        return null
     }
 }
