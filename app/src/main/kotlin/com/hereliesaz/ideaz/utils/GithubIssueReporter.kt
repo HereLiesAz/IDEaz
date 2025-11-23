@@ -11,6 +11,7 @@ import com.hereliesaz.ideaz.api.GitHubApiClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.URLEncoder
+import androidx.core.net.toUri
 
 object GithubIssueReporter {
 
@@ -90,7 +91,7 @@ object GithubIssueReporter {
 
                 val fullUrl = "$ISSUE_URL_BASE?title=$encodedTitle&body=$encodedBody"
 
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(fullUrl))
+                val intent = Intent(Intent.ACTION_VIEW, fullUrl.toUri())
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 context.startActivity(intent)
             } catch (e: Exception) {
