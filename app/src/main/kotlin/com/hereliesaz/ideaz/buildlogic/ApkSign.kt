@@ -24,7 +24,9 @@ class ApkSign(
             "--ks-key-alias", keyAlias,
             apkPath
         )
-        val processResult = ProcessExecutor.execute(command)
+        val processResult = ProcessExecutor.executeAndStreamSync(command) { line ->
+            callback?.onLog(line)
+        }
         return BuildResult(processResult.exitCode == 0, processResult.output)
     }
 }

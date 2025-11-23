@@ -92,6 +92,7 @@ configurations.all {
     }
 }
 
+dependencies {
     // Maven Resolver for dependency resolution
     val resolverVersion = "1.9.18"
     implementation("org.apache.maven.resolver:maven-resolver-api:$resolverVersion")
@@ -100,6 +101,7 @@ configurations.all {
     implementation("org.apache.maven.resolver:maven-resolver-util:$resolverVersion")
     implementation("org.apache.maven.resolver:maven-resolver-connector-basic:$resolverVersion")
     implementation("org.apache.maven.resolver:maven-resolver-transport-http:$resolverVersion")
+    implementation("org.apache.maven:maven-resolver-provider:3.9.6")
 
 
     implementation(libs.jaxb.api)
