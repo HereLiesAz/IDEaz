@@ -42,7 +42,9 @@ class KotlincCompile(
         }
         command.addAll(sourceFiles)
 
-        val processResult = ProcessExecutor.execute(command)
+        val processResult = ProcessExecutor.executeAndStreamSync(command) { line ->
+            callback?.onLog(line)
+        }
         if (processResult.exitCode == 0) {
             BuildCacheManager.updateSnapshot("kotlinc", allInputs, outputDir)
         }

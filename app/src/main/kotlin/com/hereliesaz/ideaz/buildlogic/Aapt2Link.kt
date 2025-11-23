@@ -59,7 +59,9 @@ class Aapt2Link(
         command.addAll(compiledFiles)
         command.addAll(dependencyResources)
 
-        val processResult = ProcessExecutor.execute(command)
+        val processResult = ProcessExecutor.executeAndStreamSync(command) { line ->
+            callback?.onLog(line)
+        }
         return BuildResult(processResult.exitCode == 0, processResult.output)
     }
 }
