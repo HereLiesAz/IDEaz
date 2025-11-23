@@ -39,34 +39,30 @@ fun LiveOutputBottomCard(
         }
     }
 
-    Column(
-        modifier = modifier
-            .background(MaterialTheme.colorScheme.surface)
+    LazyColumn(
+        state = listState, // Pass the state to the LazyColumn
+        modifier = modifier.background(MaterialTheme.colorScheme.surface),
+        reverseLayout = true, // Anchor content to the bottom
+        contentPadding = contentPadding
     ) {
-        // Add the drag handle
-        DragIndication(
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .padding(top = 8.dp, bottom = 8.dp)
-        )
-
-        LazyColumn(
-            state = listState, // Pass the state to the LazyColumn
-            modifier = Modifier.weight(1f),
-            reverseLayout = true, // Anchor content to the bottom
-            contentPadding = contentPadding
-        ) {
-
-            items(logLines) { line ->
-                if (line.isNotBlank()) {
-                    Text(
-                        text = line,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+        // Add items in reverse order because of reverseLayout
+        items(logLines) { line ->
+            if (line.isNotBlank()) {
+                Text(
+                    text = line,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
+        }
+
+        item {
+            DragIndication(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp, bottom = 8.dp)
+            )
         }
     }
 }
