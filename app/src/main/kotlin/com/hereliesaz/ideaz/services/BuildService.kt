@@ -29,6 +29,16 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
+import com.hereliesaz.ideaz.MainActivity
+import com.hereliesaz.ideaz.buildlogic.Aapt2Link
+import com.hereliesaz.ideaz.buildlogic.ApkBuild
+import com.hereliesaz.ideaz.buildlogic.ApkSign
+import com.hereliesaz.ideaz.buildlogic.BuildOrchestrator
+import com.hereliesaz.ideaz.buildlogic.D8Compile
+import com.hereliesaz.ideaz.buildlogic.KotlincCompile
+import com.hereliesaz.ideaz.buildlogic.DependencyResolver
+import android.content.pm.PackageInstaller
+import android.app.PendingIntent
 import java.util.ArrayDeque
 
 class BuildService : Service() {
@@ -87,6 +97,52 @@ class BuildService : Service() {
         }
     }
 
+    private fun startBuild(projectPath: String, callback: IBuildCallback) {
+        println("PeridiumBuildService: Received request to build project at $projectPath")
+
+        val aapt2Path = ToolManager.getToolPath(this, "aapt2")
+        val kotlincPath = ToolManager.getToolPath(this, "kotlinc")
+        val d8Path = ToolManager.getToolPath(this, "d8")
+        val apkSignerPath = ToolManager.getToolPath(this, "apksigner")
+        val keystorePath = ToolManager.getToolPath(this, "debug.keystore")
+        val keystorePass = "android"
+        val keyAlias = "androiddebugkey"
+        val androidJarPath = ToolManager.getToolPath(this, "android.jar")
+
+        val buildDir = File(filesDir, "build")
+        buildDir.deleteRecursively()
+        buildDir.mkdirs()
+
+        val compiledResDir = File(buildDir, "compiled_res").absolutePath
+        val outputApkPath = File(buildDir, "app.apk").absolutePath
+        val outputJavaPath = File(buildDir, "gen").absolutePath
+        val classesDir = File(buildDir, "classes").absolutePath
+        val finalApkPath = File(buildDir, "app-signed.apk").absolutePath
+
+        val projectDir = File(projectPath)
+        val resDir = File(projectDir, "app/src/main/res").absolutePath
+        val manifestPath = File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath
+        val javaDir = File(projectDir, "app/src/main/java").absolutePath
+
+        val buildOrchestrator = BuildOrchestrator(
+            listOf(
+                DependencyResolver(projectDir) { message ->
+                    callback.onLog(message)
+                },
+                Aapt2Compile(aapt2Path, resDir, compiledResDir),
+                Aapt2Link(
+                    aapt2Path,
+                    compiledResDir,
+                    androidJarPath,
+                    manifestPath,
+                    outputApkPath,
+                    outputJavaPath
+                ),
+                KotlincCompile(kotlincPath, androidJarPath, javaDir, classesDir),
+                D8Compile(d8Path, androidJarPath, classesDir, classesDir),
+                ApkBuild(finalApkPath, outputApkPath, classesDir),
+                ApkSign(apkSignerPath, keystorePath, keystorePass, keyAlias, finalApkPath)
+            )
     private fun updateNotification(message: String) {
         synchronized(logBuffer) {
             message.lines().forEach { line ->
