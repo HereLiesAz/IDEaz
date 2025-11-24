@@ -155,6 +155,28 @@ fun SettingsScreen(
         }
     )
 
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri ->
+        if (uri != null) {
+            Toast.makeText(context, "Exporting...", Toast.LENGTH_SHORT).show()
+            settingsViewModel.exportData(context, uri) { success ->
+                Toast.makeText(context, if (success) "Export successful" else "Export failed", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            Toast.makeText(context, "Importing...", Toast.LENGTH_SHORT).show()
+            settingsViewModel.importData(context, uri) { success ->
+                Toast.makeText(context, if (success) "Import successful" else "Import failed", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     val hazeState = rememberHazeState()
 
     Box(
@@ -480,6 +502,26 @@ fun SettingsScreen(
                 Text("Log Level", color = MaterialTheme.colorScheme.onBackground)
                 LogLevelDropdown(
                     settingsViewModel = settingsViewModel
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+                Text("Backup & Restore", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                AzButton(
+                    onClick = { exportLauncher.launch("ideaz_backup.zip") },
+                    text = "Export Data to Zip",
+                    shape = AzButtonShape.RECTANGLE,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                AzButton(
+                    onClick = { importLauncher.launch(arrayOf("application/zip")) },
+                    text = "Import Data from Zip",
+                    shape = AzButtonShape.RECTANGLE,
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
