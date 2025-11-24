@@ -59,6 +59,18 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1")
 
+    // Maven Dependency Resolution
+    implementation("org.apache.maven:maven-resolver-provider:3.8.6")
+    implementation("org.eclipse.aether:aether-impl:1.1.0")
+    implementation("org.eclipse.aether:aether-api:1.1.0")
+    implementation("org.eclipse.aether:aether-spi:1.1.0")
+    implementation("org.eclipse.aether:aether-util:1.1.0")
+    implementation("org.eclipse.aether:aether-connector-basic:1.1.0")
+    implementation("org.eclipse.aether:aether-transport-file:1.1.0")
+    implementation("org.eclipse.aether:aether-transport-http:1.1.0")
+    implementation("org.apache.maven:maven-model-builder:3.8.6")
+    implementation("org.apache.maven:maven-model:3.8.6")
+
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
