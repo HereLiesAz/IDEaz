@@ -21,6 +21,7 @@ import com.hereliesaz.ideaz.buildlogic.ApkSign
 import com.hereliesaz.ideaz.buildlogic.BuildOrchestrator
 import com.hereliesaz.ideaz.buildlogic.D8Compile
 import com.hereliesaz.ideaz.buildlogic.KotlincCompile
+import com.hereliesaz.ideaz.buildlogic.DependencyResolver
 import android.content.pm.PackageInstaller
 import android.app.PendingIntent
 
@@ -103,6 +104,9 @@ class BuildService : Service() {
 
         val buildOrchestrator = BuildOrchestrator(
             listOf(
+                DependencyResolver(projectDir) { message ->
+                    callback.onLog(message)
+                },
                 Aapt2Compile(aapt2Path, resDir, compiledResDir),
                 Aapt2Link(
                     aapt2Path,
