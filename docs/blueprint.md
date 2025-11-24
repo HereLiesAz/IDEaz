@@ -4,7 +4,7 @@
 
 IDEaz represents a fundamental leap forward in mobile application development, engineered to drastically compress the iteration cycle. The core thesis is the seamless integration of a visual, on-device UI inspection mechanism with the transformative power of generative artificial intelligence. This approach moves beyond the traditional, text-centric coding paradigm, introducing a more intuitive, interactive, and conversational model of software creation.
 
-The user does not write code; they visually select an element in their running application and describe the desired change in natural language. An AI agent, powered by the Jules API, handles the entire development lifecycle—code generation, compilation, and debugging—directly on the device.
+The user does not write code; they visually select an element in their running application. This action presents a **contextual AI prompt and log overlay**. The user describes the desired change, and an AI agent, powered by a **user-selected API (e.g., Jules Tools CLI or Gemini)**, handles the entire development lifecycle—code generation, compilation, and debugging—directly on the device.
 
 ---
 
@@ -18,46 +18,28 @@ A monolithic architecture, where the IDE, build tools, and target application al
 
 ### **2.2 The Four Core Components**
 
-1.  **IDEaz Host Application:** The primary, user-facing application providing the UI for project management, code editing, and AI interaction. It is the central orchestrator of the entire system.
-2.  **On-Device Build Service:** A background `Service` running in a separate process (`:build_process`). It manages the entire on-device build toolchain, receiving build requests from the Host App and reporting back status and logs. This ensures the IDE's UI remains responsive during intensive compilations.
-3.  **UI Inspection Service:** A privileged `AccessibilityService` running in its own dedicated process. It is responsible for drawing the visual overlay on the target application, capturing user input, and querying the view hierarchy to identify selected components.
+1.  **IDEaz Host Application:** The primary, user-facing application providing the UI for project management, code editing, and AI interaction. It is the central orchestrator of the entire system. It also provides a **global build/compile log** and a **contextless AI chat prompt**.
+2.  **On-Device Build Service:** A background `Service` running in a separate process (`:build_process`). It manages the entire on-device build toolchain (for Android, React Native, Flutter, and Web), receiving build requests from the Host App and reporting back status and logs.
+3.  **UI Inspection Service:** A privileged `AccessibilityService` running in its own dedicated process. It is responsible for drawing the visual overlay on the target application, capturing **user taps (for element selection) and drags (for area selection)**, and **rendering the contextual AI prompt and log UI** for a selected element.
 4.  **Target Application Process:** The user's application being developed. It runs in its own standard Android sandbox, completely isolated from the IDEaz components, ensuring an accurate representation of its real-world behavior.
 
 ### **2.3 Inter-Process Communication (IPC) Strategy**
 
-Communication between the isolated processes will be handled using the **Android Interface Definition Language (AIDL)**. This provides a robust framework for strongly-typed, thread-safe, and high-performance method calls across process boundaries, using the underlying Binder IPC mechanism.
+Communication between the isolated processes will be handled using the **Android Interface Definition Language (AIDL)** for the `BuildService` and **system Broadcasts** for the `UIInspectionService`. This provides a robust framework for managing state and streaming data (logs, commands) across process boundaries.
 
 ---
 
 ## **3. The "No-Gradle" On-Device Build Pipeline**
 
-To achieve the necessary speed and low resource footprint for on-device compilation, IDEaz will eschew a full Gradle system in favor of a direct, scripted orchestration of core command-line build tools.
+The IDE eschews a full Gradle system in favor of a direct, scripted orchestration of core command-line build tools. This "No-Gradle" approach prioritizes speed, simplicity, and a minimal resource footprint.
 
-### **3.1 Bundled Toolchain**
+The build pipeline is designed to be extensible for multiple platforms:
+*   **Android:** Uses `aapt2`, `d8`, and `kotlinc`.
+*   **React Native:** (Planned) Will utilize a custom Metro-like bundler or optimized JS packaging for on-device execution.
+*   **Flutter:** (Planned) Will leverage the `flutter` tool or a dart compilation step compatible with the on-device environment.
+*   **Web:** (Planned) A lightweight build process handling HTML/CSS/JS minification and asset linking.
 
-The IDE will bundle its own native binaries for the essential Android build tools, which will be extracted to the app's private storage on first launch:
-
-*   **aapt2:** For compiling and linking Android resources.
-*   **kotlinc-embeddable:** For compiling Kotlin source code to JVM bytecode.
-*   **d8:** For converting JVM bytecode into Android's .dex format.
-*   **apksigner:** For signing the final APK with a debug certificate.
-
-### **3.2 The Build Sequence**
-
-The On-Device Build Service will execute a precise sequence of command-line invocations:
-
-1.  **Resource Compilation (aapt2 compile):** Compiles all XML resources into an intermediate `.flat` format.
-2.  **Resource Linking (aapt2 link):** Links the compiled resources and the `AndroidManifest.xml` to produce a preliminary `resources.apk` and, critically, the `R.java` file.
-3.  **Source Code Compilation (kotlinc):** Compiles the user's source code and the generated `R.java` into `.class` files.
-4.  **Dexing (d8):** Converts all `.class` files into one or more `classes.dex` files.
-5.  **Final APK Packaging:** Creates a final APK by combining the `resources.apk` and the `classes.dex` file(s).
-6.  **Signing (apksigner):** Signs the APK with a bundled debug keystore.
-7.  **Installation:** Triggers the system's package installer to install the newly built APK.
-
-### **3.3 Dependency Resolution & Incremental Builds**
-
-*   **Dependency Management:** Dependencies will be declared in a simple `dependencies.toml` file. The Build Service will include a lightweight Maven artifact resolver to download and cache libraries from Maven Central.
-*   **Incremental Builds:** To achieve near-instant rebuilds, the Build Service will implement a robust incremental build system by storing and comparing file checksums (SHA-256 hashes), intelligently skipping unchanged steps in the build sequence.
+For a complete breakdown of this system, see **`docs/build_pipeline.md`**.
 
 ---
 
@@ -65,27 +47,61 @@ The On-Device Build Service will execute a precise sequence of command-line invo
 
 The cornerstone of the IDE is the ability to visually select a UI element and have the AI instantly modify its source code.
 
-### **4.1 Core Technology: Accessibility Service**
+### **4.1 Core Technology: The Android Accessibility Service**
 
-The **Android AccessibilityService** is the core technology that enables the IDE to inspect the UI of the target application securely and without requiring root access.
+The **Android AccessibilityService** is the core technology that enables the IDE to inspect the UI of the target application securely and without requiring root access. An AccessibilityService runs with elevated privileges that allow it to traverse the "accessibility node tree" (a representation of the on-screen UI elements) of the currently active window. This is the only non-root method available for this purpose.
 
-### **4.2 Element Selection and Source Mapping**
+### **4.2 Hybrid Selection: Tap vs. Drag**
 
-1.  **Invisible Overlay:** The UI Inspection Service will draw a transparent overlay to intercept touch events.
-2.  **Node Identification:** When the user taps the screen, the service will use the event coordinates to find the specific `AccessibilityNodeInfo` object corresponding to the UI element at that location.
-3.  **Build-Time Source Map:** To map this runtime view to its source code definition, the Build Service will generate a `source_map.json` file during compilation. This map will contain a direct link between a resource ID (e.g., `"login_button"`) and its exact location (file path and line number) in the XML layout file.
-4.  **Lookup and AI Prompt:** The Host App uses this map to find the precise code snippet to include in the prompt sent to the Jules API, ensuring maximum accuracy for the AI's modification.
+The `UIInspectionService`'s overlay supports two distinct selection methods:
+
+1.  **Tap-to-Select (Element):** If the user performs a simple tap, the service uses `findNodeAt()` to identify the deepest `AccessibilityNodeInfo` at that coordinate. It retrieves the element's `resourceId` and its on-screen `Rect` bounds.
+2.  **Drag-to-Select (Area):** If the user drags their finger, the service draws a real-time selection box. On release, it captures the final `Rect` of the drawn area.
+
+In both cases, the service creates a log overlay matching the `Rect` of the selection and a prompt overlay below it.
+
+### **4.3 Build-Time Source Map**
+
+To map a tapped element to its source code, the Build Service generates a `source_map.json` file during compilation, linking `resourceId` strings to their exact file path and line number. This map is *only* used for the Tap-to-Select flow.
+
+### **4.4 Contextual Prompt Prefixing**
+
+When the user submits a prompt, the `MainViewModel` constructs a "rich prompt" by *prefixing* the user's text with the context it received from the service:
+* **On Tap:** `Context (for element [resourceId]): File: [path], Line: [num], Snippet: [code]... User Request: "[prompt]"`
+* **On Drag:** `Context: Screen area Rect([coords])... User Request: "[prompt]"`
 
 ---
 
-## **5. AI Integration via the Jules API**
+## **5. AI Integration and Abstraction**
 
-The IDE will use an embedded **JGit** library to manage every project as a local Git repository. This is a prerequisite for interacting with the Jules API, which operates on changesets.
+The IDE will use an embedded **JGit** library to manage every project as a local Git repository. This is a prerequisite for AI models that operate on changesets.
 
-### **5.1 The AI Workflow**
+### **5.0 Multi-Platform "Post-Code" Vision**
 
-1.  **Commit Current State:** Before any AI interaction, the IDE automatically commits the current state of the project to establish a clean baseline.
-2.  **Construct Rich Prompt:** The IDE constructs a detailed prompt containing the user's natural language instruction, the relevant code snippet (retrieved via the source map), the file path, and any other useful context (e.g., `colors.xml`).
-3.  **Call Jules API:** The IDE creates a session with the Jules API, sending the rich prompt.
-4.  **Receive and Apply Patch:** The AI's final output is a `gitPatch`. The IDE uses JGit to apply this patch to the local repository, modifying the source files.
-5.  **Trigger Rebuild:** The IDE immediately sends an IPC message to the On-Device Build Service to trigger an incremental rebuild, completing the loop.
+The core "post-code" philosophy—interacting with the running app rather than text files—must be preserved across all supported platforms:
+*   **Android:** (Current) Visual inspection via AccessibilityService.
+*   **React Native:** Visual inspection via AccessibilityService or a custom bridge to the JS runtime.
+*   **Web:** Visual inspection via DOM injection or a custom Chrome/WebView client.
+*   **Flutter:** Visual inspection via the Flutter Inspector protocol or AccessibilityService.
+
+Regardless of the underlying technology, the user experience remains constant: Select Element -> Describe Change -> AI Implements -> Rebuild/Reload.
+
+### **5.1 AI Abstraction Layer**
+
+The IDE is not tied to a single AI. The `SettingsViewModel` stores user preferences for which AI model (e.g., "Jules", "Gemini Flash") to use for specific tasks:
+* Project Initialization
+* Contextual (Overlay) Chat
+* Contextless (Global) Chat
+
+The `MainViewModel` reads these preferences and routes all AI requests to the appropriate client (e.g., `JulesCliClient` for Jules, or `GeminiApiClient` for Gemini).
+
+### **5.2 The AI Workflow (Contextual)**
+
+1.  **Commit Current State:** The IDE automatically commits the current state of the project.
+2.  **Construct Rich Prompt:** The `MainViewModel` constructs the detailed, prefixed prompt as described in 4.4.
+3.  **Route and Call AI:** The `MainViewModel` checks the user's settings for the **"Overlay Chat"** task and selects the assigned AI.
+    * **If Jules:** It calls the `JulesCliClient`, which executes the `libjules.so` native binary with the prompt.
+    * **If Gemini:** It calls the `GeminiApiClient`, which makes an HTTP request.
+4.  **Stream Logs to Overlay:** As the AI works, all chat and activity logs are streamed *only* to the `UIInspectionService`'s floating log box. The log box contains a **Cancel (X) button** to terminate the task.
+5.  **Receive and Apply Patch:** The AI's final output (a `gitPatch`) is received.
+6.  **Trigger Rebuild:** The Host App sends an IPC message to the On-Device Build Service. All **build and compile logs** are streamed *only* to the Host App's main bottom sheet.
