@@ -6,15 +6,12 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.viewModelScope
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.saveable.Saver
 import androidx.preference.PreferenceManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import com.hereliesaz.ideaz.api.AuthInterceptor
-import com.hereliesaz.ideaz.utils.BackupManager
 import java.io.File
 import java.io.FileOutputStream
 
@@ -356,24 +353,5 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setProjectType(type: String) {
         sharedPreferences.edit().putString(KEY_PROJECT_TYPE, type).apply()
-    }
-
-    // --- Backup & Restore ---
-
-    fun exportData(context: Context, uri: Uri, onComplete: (Boolean) -> Unit) {
-        viewModelScope.launch {
-            val success = BackupManager.exportData(context, uri)
-            onComplete(success)
-        }
-    }
-
-    fun importData(context: Context, uri: Uri, onComplete: (Boolean) -> Unit) {
-        viewModelScope.launch {
-            val success = BackupManager.importData(context, uri)
-            if (success) {
-                loadLocalProjects() // Refresh project list
-            }
-            onComplete(success)
-        }
     }
 }

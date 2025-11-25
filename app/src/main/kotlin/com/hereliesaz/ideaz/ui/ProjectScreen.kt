@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import com.hereliesaz.aznavrail.AzButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -240,287 +238,291 @@ fun ProjectScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             if (isCreateTab) {
-                Column(
+                LazyColumn(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(16.dp)
+                        .weight(1f)
+                        .padding(horizontal = 16.dp)
                 ) {
-                    Text("Create New Repository", style = MaterialTheme.typography.headlineSmall)
-                    Spacer(modifier = Modifier.height(16.dp))
+                    item {
+                        Text("Create New Repository", style = MaterialTheme.typography.headlineSmall)
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                    AzTextBox(
-                        value = appName,
-                        onValueChange = { appName = it },
-                        hint = "Repository Name (App Name)",
-                        onSubmit = {}
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    AzTextBox(
-                        value = repoDescription,
-                        onValueChange = { repoDescription = it },
-                        hint = "Description",
-                        onSubmit = {}
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    var expanded by remember { mutableStateOf(false) }
-                    val projectTypes = ProjectType.values().toList()
-                    ExposedDropdownMenuBox(
-                        expanded = expanded,
-                        onExpandedChange = { expanded = !expanded },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        TextField(
-                            modifier = Modifier.menuAnchor().fillMaxWidth(),
-                            readOnly = true,
-                            value = selectedType.displayName,
-                            onValueChange = {},
-                            label = { Text("Project Type") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                            colors = ExposedDropdownMenuDefaults.textFieldColors()
-                        )
-                        ExposedDropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false }
-                        ) {
-                            projectTypes.forEach { type ->
-                                DropdownMenuItem(
-                                    text = { Text(type.displayName) },
-                                    onClick = {
-                                        selectedType = type
-                                        expanded = false
-                                    },
-                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
-                                )
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    AzTextBox(
-                        value = packageName,
-                        onValueChange = { packageName = it },
-                        hint = "Package Name",
-                        onSubmit = {}
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Private Repository")
-                        Spacer(modifier = Modifier.weight(1f))
-                        Switch(checked = isPrivateRepo, onCheckedChange = { isPrivateRepo = it })
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    AzButton(
-                        onClick = {
-                            viewModel.createGitHubRepository(
-                                appName,
-                                repoDescription,
-                                isPrivateRepo,
-                                selectedType,
-                                packageName,
-                                context
-                            ) {
-                                isCreateTabEnabled = false
-                                isNewProjectFlow = true
-                                tabIndex = 0
-                            }
-                            Toast.makeText(context, "Creating repository...", Toast.LENGTH_SHORT).show()
-                        },
-                        text = "Create & Continue",
-                        shape = AzButtonShape.RECTANGLE,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            } else if (isSetupTab) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(16.dp)
-                ) {
-                    Text(
-                        "Project Repository",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        AzButton(
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                if (hasToken) {
-                                    isCreateTabEnabled = true
-                                    tabIndex = 0
-                                } else {
-                                    Toast.makeText(context, "Please add GitHub Token in Settings", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            text = "Create",
-                            shape = AzButtonShape.RECTANGLE
-                        )
-                        AzButton(
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                isNewProjectFlow = false
-                                val cloneIndex = tabs.indexOf("Clone")
-                                if (cloneIndex != -1) tabIndex = cloneIndex
-                            },
-                            text = "Clone",
-                            shape = AzButtonShape.RECTANGLE
-                        )
-                        AzButton(
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                isNewProjectFlow = false
-                                val loadIndex = tabs.indexOf("Load")
-                                if (loadIndex != -1) tabIndex = loadIndex
-                            },
-                            text = "Load",
-                            shape = AzButtonShape.RECTANGLE
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    Text(
-                        "Project Configuration",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    AzTextBox(
-                        value = appName,
-                        onValueChange = {
-                            appName = it
-                            settingsViewModel.setAppName(it)
-                        },
-                        hint = "App Name",
-                        onSubmit = {}
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    AzTextBox(
-                        value = githubUser,
-                        onValueChange = {
-                            githubUser = it
-                            settingsViewModel.setGithubUser(it)
-                        },
-                        hint = "GitHub User",
-                        onSubmit = {}
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    AzTextBox(
-                        value = branchName,
-                        onValueChange = {
-                            branchName = it
-                            settingsViewModel.saveProjectConfig(appName, githubUser, it)
-                        },
-                        hint = "Branch (e.g., main)",
-                        onSubmit = {}
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    AzTextBox(
-                        value = packageName,
-                        onValueChange = {
-                            packageName = it
-                            settingsViewModel.saveTargetPackageName(it)
-                        },
-                        hint = "Package Name",
-                        onSubmit = {}
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    var expanded by remember { mutableStateOf(false) }
-                    val projectTypes = ProjectType.values().toList()
-
-                    ExposedDropdownMenuBox(
-                        expanded = expanded,
-                        onExpandedChange = { expanded = !expanded },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        TextField(
-                            modifier = Modifier.menuAnchor().fillMaxWidth(),
-                            readOnly = true,
-                            value = selectedType.displayName,
-                            onValueChange = {},
-                            label = { Text("Project Type") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                            colors = ExposedDropdownMenuDefaults.textFieldColors()
-                        )
-                        ExposedDropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false }
-                        ) {
-                            projectTypes.forEach { type ->
-                                DropdownMenuItem(
-                                    text = { Text(type.displayName) },
-                                    onClick = {
-                                        selectedType = type
-                                        settingsViewModel.setProjectType(type.name)
-                                        expanded = false
-                                    },
-                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    if (isNewProjectFlow) {
                         AzTextBox(
-                            value = initialPrompt,
-                            onValueChange = { initialPrompt = it },
-                            hint = "Initial Prompt / Instruction (Optional)",
-                            onSubmit = {},
-                            modifier = Modifier.fillMaxWidth()
+                            value = appName,
+                            onValueChange = { appName = it },
+                            hint = "Repository Name (App Name)",
+                            onSubmit = {}
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                    }
 
-                    AzButton(
-                        onClick = {
-                            viewModel.saveAndInitialize(
-                                appName,
-                                githubUser,
-                                branchName,
-                                packageName,
-                                selectedType,
-                                context,
-                                if (isNewProjectFlow) initialPrompt else null
+                        AzTextBox(
+                            value = repoDescription,
+                            onValueChange = { repoDescription = it },
+                            hint = "Description",
+                            onSubmit = {}
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        var expanded by remember { mutableStateOf(false) }
+                        val projectTypes = ProjectType.values().toList()
+                        ExposedDropdownMenuBox(
+                            expanded = expanded,
+                            onExpandedChange = { expanded = !expanded },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            TextField(
+                                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                readOnly = true,
+                                value = selectedType.displayName,
+                                onValueChange = {},
+                                label = { Text("Project Type") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                                colors = ExposedDropdownMenuDefaults.textFieldColors()
                             )
-                            isNewProjectFlow = false
-                            onBuildTriggered()
-                            Toast.makeText(context, "Saving & Initializing...", Toast.LENGTH_SHORT).show()
-                        },
-                        text = "Save & Initialize",
-                        shape = AzButtonShape.RECTANGLE,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                            ExposedDropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false }
+                            ) {
+                                projectTypes.forEach { type ->
+                                    DropdownMenuItem(
+                                        text = { Text(type.displayName) },
+                                        onClick = {
+                                            selectedType = type
+                                            expanded = false
+                                        },
+                                        contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                        AzTextBox(
+                            value = packageName,
+                            onValueChange = { packageName = it },
+                            hint = "Package Name",
+                            onSubmit = {}
+                        )
 
-                    if (availableSessions.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Private Repository")
+                            Spacer(modifier = Modifier.weight(1f))
+                            Switch(checked = isPrivateRepo, onCheckedChange = { isPrivateRepo = it })
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        AzButton(
+                            onClick = {
+                                viewModel.createGitHubRepository(
+                                    appName,
+                                    repoDescription,
+                                    isPrivateRepo,
+                                    selectedType,
+                                    packageName,
+                                    context
+                                ) {
+                                    isCreateTabEnabled = false
+                                    isNewProjectFlow = true
+                                    tabIndex = 0
+                                }
+                                Toast.makeText(context, "Creating repository...", Toast.LENGTH_SHORT).show()
+                            },
+                            text = "Create & Continue",
+                            shape = AzButtonShape.RECTANGLE,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            } else if (isSetupTab) {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp)
+                ) {
+                    item {
                         Text(
-                            "Active Sessions",
+                            "Project Repository",
                             style = MaterialTheme.typography.headlineSmall,
                             color = MaterialTheme.colorScheme.onBackground
                         )
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        availableSessions.forEach { session ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            AzButton(
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    if (hasToken) {
+                                        isCreateTabEnabled = true
+                                        tabIndex = 0
+                                    } else {
+                                        Toast.makeText(context, "Please add GitHub Token in Settings", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                text = "Create",
+                                shape = AzButtonShape.RECTANGLE
+                            )
+                            AzButton(
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    isNewProjectFlow = false
+                                    val cloneIndex = tabs.indexOf("Clone")
+                                    if (cloneIndex != -1) tabIndex = cloneIndex
+                                },
+                                text = "Clone",
+                                shape = AzButtonShape.RECTANGLE
+                            )
+                            AzButton(
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    isNewProjectFlow = false
+                                    val loadIndex = tabs.indexOf("Load")
+                                    if (loadIndex != -1) tabIndex = loadIndex
+                                },
+                                text = "Load",
+                                shape = AzButtonShape.RECTANGLE
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        Text(
+                            "Project Configuration",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        AzTextBox(
+                            value = appName,
+                            onValueChange = {
+                                appName = it
+                                settingsViewModel.setAppName(it)
+                            },
+                            hint = "App Name",
+                            onSubmit = {}
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        AzTextBox(
+                            value = githubUser,
+                            onValueChange = {
+                                githubUser = it
+                                settingsViewModel.setGithubUser(it)
+                            },
+                            hint = "GitHub User",
+                            onSubmit = {}
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        AzTextBox(
+                            value = branchName,
+                            onValueChange = {
+                                branchName = it
+                                settingsViewModel.saveProjectConfig(appName, githubUser, it)
+                            },
+                            hint = "Branch (e.g., main)",
+                            onSubmit = {}
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        AzTextBox(
+                            value = packageName,
+                            onValueChange = {
+                                packageName = it
+                                settingsViewModel.saveTargetPackageName(it)
+                            },
+                            hint = "Package Name",
+                            onSubmit = {}
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        var expanded by remember { mutableStateOf(false) }
+                        val projectTypes = ProjectType.values().toList()
+
+                        ExposedDropdownMenuBox(
+                            expanded = expanded,
+                            onExpandedChange = { expanded = !expanded },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            TextField(
+                                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                readOnly = true,
+                                value = selectedType.displayName,
+                                onValueChange = {},
+                                label = { Text("Project Type") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                                colors = ExposedDropdownMenuDefaults.textFieldColors()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false }
+                            ) {
+                                projectTypes.forEach { type ->
+                                    DropdownMenuItem(
+                                        text = { Text(type.displayName) },
+                                        onClick = {
+                                            selectedType = type
+                                            settingsViewModel.setProjectType(type.name)
+                                            expanded = false
+                                        },
+                                        contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        if (isNewProjectFlow) {
+                            AzTextBox(
+                                value = initialPrompt,
+                                onValueChange = { initialPrompt = it },
+                                hint = "Initial Prompt / Instruction (Optional)",
+                                onSubmit = {},
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+
+                        AzButton(
+                            onClick = {
+                                viewModel.saveAndInitialize(
+                                    appName,
+                                    githubUser,
+                                    branchName,
+                                    packageName,
+                                    selectedType,
+                                    context,
+                                    if (isNewProjectFlow) initialPrompt else null
+                                )
+                                isNewProjectFlow = false
+                                onBuildTriggered()
+                                Toast.makeText(context, "Saving & Initializing...", Toast.LENGTH_SHORT).show()
+                            },
+                            text = "Save & Initialize",
+                            shape = AzButtonShape.RECTANGLE,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+
+                    if (availableSessions.isNotEmpty()) {
+                        item {
+                            Text(
+                                "Active Sessions",
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+
+                        items(availableSessions) { session ->
                             val sessionId = session.name.substringAfterLast("/")
                             Card(
                                 modifier = Modifier
@@ -583,7 +585,7 @@ fun ProjectScreen(
             } else if (isCloneTab) {
                 // --- CLONE TAB ---
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.weight(1f)
                 ) {
                     item {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -689,7 +691,7 @@ fun ProjectScreen(
                 }
             } else if (isLoadTab) {
                 // --- LOAD TAB ---
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(modifier = Modifier.weight(1f)) {
                     if (projectMetadataList.isEmpty()) {
                         item {
                             Spacer(modifier = Modifier.height(16.dp))
