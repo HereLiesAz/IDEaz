@@ -133,6 +133,12 @@ dependencies {
     implementation("org.apache.maven:maven-model-builder:3.8.6")
     implementation("org.apache.maven:maven-model:3.8.6")
 
+    // Coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    // ViewModel Compose
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+
 
     implementation(libs.jaxb.api)
     implementation(libs.javax.annotation.api)
