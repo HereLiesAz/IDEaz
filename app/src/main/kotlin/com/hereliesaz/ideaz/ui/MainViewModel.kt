@@ -379,6 +379,7 @@ class MainViewModel(
 
                     fetchSessions()
                     _buildLog.value += "[INFO] Project loaded. Please go to Setup to initialize.\n"
+                    launchInstalledAppIfPresent()
 
                 } catch (e: Exception) {
                     handleIdeError(e, "Failed to clone/pull project")
@@ -596,6 +597,7 @@ class MainViewModel(
                 fetchSessions()
 
                 _buildLog.value += "[INFO] Project '$projectName' loaded successfully.\n"
+                launchInstalledAppIfPresent()
                 withContext(Dispatchers.Main) {
                     onSuccess()
                 }
@@ -945,6 +947,24 @@ class MainViewModel(
 
     fun showRectPrompt(rect: Rect) { _promptForRect.value = rect }
     fun dismissRectPrompt() { _promptForRect.value = null }
+
+    private fun launchInstalledAppIfPresent() {
+        viewModelScope.launch {
+            val pkgName = settingsViewModel.getTargetPackageName()
+            if (pkgName.isNullOrBlank()) {
+                _buildLog.value += "[INFO] No package name configured, cannot launch app.\n"
+                return@launch
+            }
+
+            _buildLog.value += "[INFO] Checking for installed version of '$pkgName'...\n"
+            val launched = launchApp(pkgName)
+            if (launched) {
+                _buildLog.value += "[INFO] Launched installed version of the app.\n"
+            } else {
+                _buildLog.value += "[INFO] No installed version of the app was found.\n"
+            }
+        }
+    }
 
     fun startBuild(context: Context, projectDir: File? = null) {
         if (isBuildServiceBound) {
