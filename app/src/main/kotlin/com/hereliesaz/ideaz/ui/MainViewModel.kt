@@ -538,18 +538,21 @@ class MainViewModel(
                     _buildLog.value += "[INFO] Enforcing workflow synchronization...\n"
                     withContext(Dispatchers.IO) {
                         val git = GitManager(projectDir)
-                        val mainBranch = settingsViewModel.getBranchName() ?: "main"
-                        _buildLog.value += "[GIT] Targeting main branch: $mainBranch\n"
+                        // --- FIX: Dynamically determine the default branch ---
+                        val defaultBranch = git.getDefaultBranch() ?: "main"
+                        settingsViewModel.saveBranchName(defaultBranch)
+                        _buildLog.value += "[GIT] Targeting default branch: $defaultBranch\n"
+                        // --- END FIX ---
 
                         // Make sure we are on the main branch before committing
-                        git.checkout(mainBranch)
+                        git.checkout(defaultBranch)
 
                         if (git.hasChanges()) {
                             git.addAll()
                             git.commit("Force update of IDEaz workflows and setup")
                         }
                         // Always push
-                        _buildLog.value += "[GIT] Pushing to $mainBranch...\n"
+                        _buildLog.value += "[GIT] Pushing to $defaultBranch...\n"
                         git.push(user, token, ::onGitProgress)
                     }
 
