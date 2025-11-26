@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.Context.RECEIVER_NOT_EXPORTED
 import android.graphics.Rect
 import android.media.projection.MediaProjectionManager
 import android.os.Build
@@ -205,7 +206,7 @@ class MainActivity : ComponentActivity() {
             addAction("com.hereliesaz.ideaz.SCREENSHOT_TAKEN") // Add new action
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(inspectionReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            registerReceiver(inspectionReceiver, filter, RECEIVER_NOT_EXPORTED)
         } else {
             registerReceiver(inspectionReceiver, filter)
         }
@@ -216,7 +217,11 @@ class MainActivity : ComponentActivity() {
             addAction(Intent.ACTION_PACKAGE_REPLACED)
             addDataScheme("package")
         }
-        registerReceiver(packageInstallReceiver, packageFilter)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(packageInstallReceiver, packageFilter, RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(packageInstallReceiver, packageFilter)
+        }
         // --- END NEW ---
 
         Log.d(TAG, "onStart: BroadcastReceiver registered")
