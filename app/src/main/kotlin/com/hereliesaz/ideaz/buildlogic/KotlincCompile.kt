@@ -13,7 +13,7 @@ class KotlincCompile(
     private val javaBinaryPath: String
 ) : BuildStep {
 
-    override fun execute(callback: IBuildCallback?): BuildResult {
+    override suspend fun execute(callback: IBuildCallback?): BuildResult {
         val sourceFilesList = File(srcDir).walk().filter { it.isFile && it.extension == "kt" }.toList()
         val classpathFiles = classpath.split(File.pathSeparator).filter { it.isNotEmpty() }.map { File(it) }
         val allInputs = sourceFilesList + classpathFiles + File(androidJarPath)

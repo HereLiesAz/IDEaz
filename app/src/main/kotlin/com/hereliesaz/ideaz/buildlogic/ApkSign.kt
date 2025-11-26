@@ -12,7 +12,7 @@ class ApkSign(
     private val apkPath: String
 ) : BuildStep {
 
-    override fun execute(callback: IBuildCallback?): BuildResult {
+    override suspend fun execute(callback: IBuildCallback?): BuildResult {
         val command = listOf(
             javaPath,
             "-jar",

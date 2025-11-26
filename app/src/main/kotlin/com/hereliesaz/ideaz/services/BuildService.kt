@@ -15,7 +15,9 @@ import com.hereliesaz.ideaz.IBuildService
 import com.hereliesaz.ideaz.MainActivity
 import com.hereliesaz.ideaz.buildlogic.*
 import com.hereliesaz.ideaz.git.GitManager
+import kotlinx.coroutines.runBlocking
 import com.hereliesaz.ideaz.utils.ApkInstaller
+import com.hereliesaz.ideaz.utils.ArtifactUtils
 import com.hereliesaz.ideaz.utils.ToolManager
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.models.ProjectType
@@ -246,13 +248,14 @@ class BuildService : Service() {
                 return@launch
             }
 
-            val resolver = HttpDependencyResolver(projectDir, File(projectDir, "dependencies.toml"), localRepoDir, callback)
-            val resolverResult = resolver.execute()
-            if (!resolverResult.success && isActive) {
-                callback.onFailure("Dependency resolution failed: ${resolverResult.output}")
+            val resolvedArtifacts: List<org.cosmic.ide.dependency.resolver.api.Artifact>
+            try {
+                resolvedArtifacts = org.cosmic.ide.dependency.resolver.resolveDependencies(projectDir)
+                org.cosmic.ide.dependency.resolver.downloadArtifacts(localRepoDir, resolvedArtifacts)
+            } catch (e: Exception) {
+                callback.onFailure("Dependency resolution failed: ${e.message}")
                 return@launch
             }
-
             if (!isActive) return@launch
 
             // --- VERBOSE TOOL CHECK ---
@@ -300,7 +303,10 @@ class BuildService : Service() {
             if (!isActive) return@launch
 
             // Process AARs (Extract and Compile Resources)
-            val processAars = ProcessAars(resolver.resolvedArtifacts, buildDir, aapt2Path!!)
+            val processAars = ProcessAars(
+                resolvedArtifacts.map { ArtifactUtils.getLocalPath(localRepoDir, it) },
+                buildDir, aapt2Path!!
+            )
             val aarResult = processAars.execute(callback)
             if (!aarResult.success && isActive) {
                 callback.onFailure(aarResult.output)
@@ -309,7 +315,9 @@ class BuildService : Service() {
 
             // Construct Classpath
             val aarJars = processAars.jars.joinToString(File.pathSeparator)
-            val resolvedJars = resolver.resolvedClasspath
+            val resolvedJars = resolvedArtifacts.joinToString(File.pathSeparator) {
+                ArtifactUtils.getLocalPath(localRepoDir, it).absolutePath
+            }
             val fullClasspath = if (aarJars.isNotEmpty()) {
                 "$resolvedJars${File.pathSeparator}$aarJars"
             } else {

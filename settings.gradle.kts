@@ -16,6 +16,7 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven { url = uri("https://repo.gradle.org/gradle/libs-releases") }
         maven { url = uri("https://jitpack.io") }
     }
 }
