@@ -17,7 +17,7 @@ class Aapt2Link(
     private val packageName: String? = null
 ) : BuildStep {
 
-    override fun execute(callback: IBuildCallback?): BuildResult {
+    override suspend fun execute(callback: IBuildCallback?): BuildResult {
         // --- Validation Logic ---
         val androidJar = File(androidJarPath)
         if (!androidJar.exists() || androidJar.length() == 0L) {

@@ -4,7 +4,7 @@ import com.hereliesaz.ideaz.IBuildCallback
 
 class BuildOrchestrator(private val steps: List<BuildStep>) {
 
-    fun execute(callback: IBuildCallback): BuildResult {
+    suspend fun execute(callback: IBuildCallback): BuildResult {
         val overallOutput = StringBuilder()
         for (step in steps) {
             callback.onLog("Executing build step: ${step.javaClass.simpleName}")
