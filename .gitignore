@@ -16,3 +16,4 @@ local.properties
 /backup.ps1
 /.kotlin/errors/errors-1763681705690.log
 kotlin-compiler-*.salive
+/.idea/
