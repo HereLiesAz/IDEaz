@@ -1,0 +1,9 @@
+# Default ignored files
+/shelf/
+/workspace.xml
+
+# User-specific files
+/deploymentTargetSelector.xml
+/dbnavigator.xml
+/appInsightsSettings.xml
+/material_theme_project_new.xml
