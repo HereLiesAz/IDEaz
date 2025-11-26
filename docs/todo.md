@@ -39,3 +39,13 @@ This phase will broaden the IDE's appeal and capabilities.
 ---
 
 ### **Phase 8: Build System Overhaul Investigation**
+
+---
+
+### **Phase 9: Enhanced Developer Tooling**
+This phase introduces more traditional IDE features, inspired by CodeOps-Studio, to provide developers with more control and insight into their projects.
+
+- [x] **9.1: Implement Read-Only File Explorer**
+- [x] **9.2: Implement Git Integration Screen**
+- [x] **9.3: Refactor Logging UI**
+- [x] **9.4: Implement Dependencies Screen**

@@ -1,20 +1,16 @@
 package com.hereliesaz.ideaz.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -40,19 +36,16 @@ fun IdeBottomSheet(
     onSendPrompt: (String) -> Unit
 ) {
     val isHalfwayExpanded = sheetState.currentDetent == halfwayDetent
-    val logMessages by viewModel.filteredLog.collectAsState(initial = "")
+    val logMessages by viewModel.filteredLog.collectAsState(initial = emptyList())
     val clipboardManager = LocalClipboardManager.current
     val coroutineScope = rememberCoroutineScope()
 
-    // Calculate height based on detent
-    // We use the passed screenHeight to match the detent definitions
     val contentHeight = when (sheetState.currentDetent) {
         halfwayDetent -> screenHeight * 0.5f
-        peekDetent -> screenHeight * 0.25f // Matches the updated Peek definition
+        peekDetent -> screenHeight * 0.25f
         else -> 0.dp
     }
 
-    // The requested 10% buffer
     val bottomBufferHeight = screenHeight * 0.075f
 
     BottomSheet(
@@ -66,27 +59,26 @@ fun IdeBottomSheet(
             if (contentHeight > 0.dp) {
                 Column(modifier = Modifier.height(contentHeight)) {
 
-                    // 1. Log Stream (Fills remaining space)
-                    LiveOutputBottomCard(
-                        logStream = viewModel.filteredLog,
+                    LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
-                    )
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        items(logMessages) { message ->
+                            Text(text = message, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
 
-                    // 2. Input (Fixed height)
                     ContextlessChatInput(
                         modifier = Modifier.fillMaxWidth(),
                         onSend = onSendPrompt
                     )
 
-                    // 3. The 10% Buffer (Fixed height)
-                    // This pushes the input up so its bottom edge is at 10% screen height.
                     Spacer(modifier = Modifier.height(bottomBufferHeight))
                 }
             }
 
-            // Copy and Clear buttons (Top Right) - Visible only when expanded
             if (isHalfwayExpanded) {
                 Row(
                     modifier = Modifier
@@ -95,7 +87,7 @@ fun IdeBottomSheet(
                 ) {
                     IconButton(onClick = {
                         coroutineScope.launch {
-                            clipboardManager.setText(AnnotatedString(logMessages))
+                            clipboardManager.setText(AnnotatedString(logMessages.joinToString("\n")))
                         }
                     }) {
                         Icon(

@@ -44,6 +44,23 @@ fun IdeNavHost(
                 onBuildTriggered = { navController.navigate("build") }
             )
         }
+        composable("file_explorer") {
+            FileExplorerScreen(
+                settingsViewModel = settingsViewModel
+            )
+        }
+        composable("git") {
+            GitScreen(
+                viewModel = viewModel,
+                settingsViewModel = settingsViewModel
+            )
+        }
+        composable("dependencies") {
+            DependenciesScreen(
+                viewModel = viewModel,
+                settingsViewModel = settingsViewModel
+            )
+        }
         composable("build") {
             Box(modifier = Modifier.fillMaxSize().background(Color.Transparent))
         }
