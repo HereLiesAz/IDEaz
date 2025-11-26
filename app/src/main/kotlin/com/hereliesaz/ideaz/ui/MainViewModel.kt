@@ -91,7 +91,7 @@ class MainViewModel(
     private val _aiLog = MutableStateFlow("")
     private val aiLog = _aiLog.asStateFlow()
 
-    lateinit var filteredLog: StateFlow<String>
+    lateinit var filteredLog: StateFlow<List<String>>
 
     private var buildService: IBuildService? = null
     private var isBuildServiceBound = false
@@ -125,6 +125,15 @@ class MainViewModel(
 
     private val _promptForRect = MutableStateFlow<Rect?>(null)
     val promptForRect = _promptForRect.asStateFlow()
+
+    private val _commitHistory = MutableStateFlow<List<String>>(emptyList())
+    val commitHistory = _commitHistory.asStateFlow()
+
+    private val _branches = MutableStateFlow<List<String>>(emptyList())
+    val branches = _branches.asStateFlow()
+
+    private val _gitStatus = MutableStateFlow<List<String>>(emptyList())
+    val gitStatus = _gitStatus.asStateFlow()
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -388,6 +397,7 @@ class MainViewModel(
 
                     fetchSessions()
                     _buildLog.value += "[INFO] Project loaded. Please go to Setup to initialize.\n"
+                    refreshGitData()
                     launchInstalledAppIfPresent()
 
                 } catch (e: Exception) {
@@ -611,6 +621,7 @@ class MainViewModel(
                 }
 
                 fetchSessions()
+                refreshGitData()
 
                 _buildLog.value += "[INFO] Project '$projectName' loaded successfully.\n"
                 launchInstalledAppIfPresent()
@@ -1475,9 +1486,9 @@ class MainViewModel(
     }
 
     fun bindBuildService(context: Context) {
-        filteredLog = combine(buildLog, aiLog, settingsViewModel.logLevel) { build, ai, level ->
-            "$build\n$ai"
-        }.stateIn(viewModelScope, SharingStarted.Lazily, "")
+        filteredLog = combine(buildLog, aiLog) { build, ai ->
+            (build.split("\n") + ai.split("\n")).filter { it.isNotBlank() }
+        }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
         val app = getApplication<Application>()
         Intent(app, BuildService::class.java).also { intent ->
             isServiceRegistered = app.bindService(intent, buildServiceConnection, Context.BIND_AUTO_CREATE)
@@ -1491,6 +1502,117 @@ class MainViewModel(
         }
         isBuildServiceBound = false
         buildService = null
+    }
+
+    fun getDependencies(): List<String> {
+        val appName = settingsViewModel.getAppName() ?: return emptyList()
+        val projectDir = getApplication<Application>().filesDir.resolve(appName)
+        val dependenciesFile = File(projectDir, "dependencies.txt")
+        return if (dependenciesFile.exists()) dependenciesFile.readLines() else emptyList()
+    }
+
+    fun refreshGitData() {
+        viewModelScope.launch {
+            val appName = settingsViewModel.getAppName() ?: return@launch
+            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            if (projectDir.exists()) {
+                withContext(Dispatchers.IO) {
+                    try {
+                        val gitManager = GitManager(projectDir)
+                        _commitHistory.value = gitManager.getCommitHistory()
+                        _branches.value = gitManager.getBranches()
+                        _gitStatus.value = gitManager.getStatus()
+                    } catch (e: Exception) {
+                        _buildLog.value += "[ERROR] Failed to refresh Git data: ${e.message}\n"
+                    }
+                }
+            }
+        }
+    }
+
+    fun saveDependencies(dependencies: List<String>) {
+        val appName = settingsViewModel.getAppName() ?: return
+        val projectDir = getApplication<Application>().filesDir.resolve(appName)
+        val dependenciesFile = File(projectDir, "dependencies.txt")
+        dependenciesFile.writeText(dependencies.joinToString("\n"))
+    }
+
+    suspend fun checkForUpdates(dependency: Dependency): Dependency {
+        return withContext(Dispatchers.IO) {
+            try {
+                val groupPath = dependency.group.replace('.', '/')
+                val urlString = "https://repo.maven.apache.org/maven2/$groupPath/${dependency.artifact}/maven-metadata.xml"
+                val url = URL(urlString)
+                val connection = url.openConnection() as HttpURLConnection
+                if (connection.responseCode == 200) {
+                    val inputStream = connection.inputStream
+                    val parser = android.util.Xml.newPullParser()
+                    parser.setFeature(org.xmlpull.v1.XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
+                    parser.setInput(inputStream, null)
+
+                    var eventType = parser.eventType
+                    var latestVersion: String? = null
+                    while (eventType != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+                        if (eventType == org.xmlpull.v1.XmlPullParser.START_TAG && parser.name == "latest") {
+                            parser.next()
+                            latestVersion = parser.text
+                            break
+                        }
+                        eventType = parser.next()
+                    }
+                    connection.disconnect()
+
+                    if (latestVersion != null && latestVersion.isNotBlank() && latestVersion != dependency.version) {
+                        return@withContext dependency.copy(availableUpdate = latestVersion, error = null)
+                    } else {
+                        return@withContext dependency.copy(availableUpdate = null, error = null) // No update found
+                    }
+                } else {
+                    return@withContext dependency.copy(error = "Failed: ${connection.responseCode}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to check for updates for $dependency", e)
+                return@withContext dependency.copy(error = "Failed: ${e.message}")
+            }
+        }
+    }
+
+    fun downloadDependencies() {
+        viewModelScope.launch {
+            val appName = settingsViewModel.getAppName() ?: return@launch
+            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            val dependenciesFile = File(projectDir, "dependencies.txt")
+            val localRepoDir = getApplication<Application>().filesDir.resolve("local-repo")
+
+            if (!dependenciesFile.exists()) {
+                _buildLog.value += "[ERROR] No dependencies file found.\n"
+                return@launch
+            }
+
+            val resolver = com.hereliesaz.ideaz.buildlogic.HttpDependencyResolver(
+                projectDir,
+                dependenciesFile,
+                localRepoDir,
+                buildCallback
+            )
+            withContext(Dispatchers.IO) {
+                resolver.execute(buildCallback)
+            }
+        }
+    }
+
+    fun switchBranch(branch: String) {
+        viewModelScope.launch {
+            val appName = settingsViewModel.getAppName() ?: return@launch
+            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            if (projectDir.exists()) {
+                withContext(Dispatchers.IO) {
+                    GitManager(projectDir).checkout(branch)
+                }
+                _buildLog.value += "[INFO] Switched to branch '$branch'.\n"
+                refreshGitData()
+            }
+        }
     }
 
     fun clearLog() { _buildLog.value = ""; _aiLog.value = "" }
