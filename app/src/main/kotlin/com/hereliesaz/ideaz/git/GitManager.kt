@@ -199,6 +199,22 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    fun getDefaultBranch(): String? {
+        return try {
+            Git.open(projectDir).use { git ->
+                val remoteHead = git.repository.findRef("refs/remotes/origin/HEAD")
+                if (remoteHead != null && remoteHead.isSymbolic) {
+                    // The target is refs/remotes/origin/main, we want the last part
+                    remoteHead.target.name.substringAfterLast('/')
+                } else {
+                    null // Fallback if not found or not symbolic
+                }
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private class SimpleProgressMonitor(private val callback: (Int, String) -> Unit) : ProgressMonitor {
         private var totalWork = 0
         private var currentWork = 0

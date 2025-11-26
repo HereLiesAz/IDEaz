@@ -357,6 +357,14 @@ class MainViewModel(
                     }
                     _loadingProgress.value = null
 
+                    // --- NEW: Determine and save the default branch ---
+                    val defaultBranch = withContext(Dispatchers.IO) {
+                        GitManager(projectDir).getDefaultBranch()
+                    } ?: "main" // Fallback to main
+                    settingsViewModel.saveBranchName(defaultBranch)
+                    _buildLog.value += "[INFO] Detected default branch: $defaultBranch\n"
+                    // --- END NEW ---
+
                     val loadedConfig = ProjectConfigManager.loadConfig(projectDir)
                     if (loadedConfig != null) {
                         _buildLog.value += "[INFO] Loaded project config from .ideaz\n"
@@ -520,15 +528,18 @@ class MainViewModel(
                     _buildLog.value += "[INFO] Enforcing workflow synchronization...\n"
                     withContext(Dispatchers.IO) {
                         val git = GitManager(projectDir)
-                        val currentBranch = git.getCurrentBranch() ?: "unknown"
-                        _buildLog.value += "[GIT] Current branch: $currentBranch\n"
+                        val mainBranch = settingsViewModel.getBranchName() ?: "main"
+                        _buildLog.value += "[GIT] Targeting main branch: $mainBranch\n"
+
+                        // Make sure we are on the main branch before committing
+                        git.checkout(mainBranch)
 
                         if (git.hasChanges()) {
                             git.addAll()
                             git.commit("Force update of IDEaz workflows and setup")
                         }
                         // Always push
-                        _buildLog.value += "[GIT] Pushing to $currentBranch...\n"
+                        _buildLog.value += "[GIT] Pushing to $mainBranch...\n"
                         git.push(user, token, ::onGitProgress)
                     }
 
@@ -581,6 +592,10 @@ class MainViewModel(
                     }
                     if (!loadedConfig.owner.isNullOrBlank()) {
                         settingsViewModel.setGithubUser(loadedConfig.owner)
+                    }
+                    // Also load the branch from config if it exists
+                    if (!loadedConfig.branch.isNullOrBlank()) {
+                        settingsViewModel.saveBranchName(loadedConfig.branch)
                     }
                     _buildLog.value += "[INFO] Project config loaded from .ideaz (Type: ${loadedConfig.projectType}, Owner: ${loadedConfig.owner})\n"
                 } else {
