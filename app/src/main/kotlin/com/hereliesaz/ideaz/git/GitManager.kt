@@ -55,9 +55,9 @@ class GitManager(private val projectDir: File) {
         }
     }
 
-    fun commit(message: String) {
+    fun commit(message: String, allowEmpty: Boolean = false) {
         Git.open(projectDir).use { git ->
-            git.commit().setMessage(message).call()
+            git.commit().setMessage(message).setAllowEmpty(allowEmpty).call()
         }
     }
 
