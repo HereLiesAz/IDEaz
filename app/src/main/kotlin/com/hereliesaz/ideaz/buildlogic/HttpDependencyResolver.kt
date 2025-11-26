@@ -8,15 +8,15 @@ import org.eclipse.aether.artifact.DefaultArtifact
 import org.eclipse.aether.collection.CollectRequest
 import org.eclipse.aether.connector.basic.BasicRepositoryConnectorFactory
 import org.eclipse.aether.graph.Dependency
-import org.eclipse.aether.impl.DefaultServiceLocator
 import org.eclipse.aether.repository.LocalRepository
 import org.eclipse.aether.repository.RemoteRepository
 import org.eclipse.aether.spi.connector.RepositoryConnectorFactory
 import org.eclipse.aether.spi.connector.transport.TransporterFactory
-import org.eclipse.aether.transport.file.FileTransporterFactory
-import org.eclipse.aether.transport.http.HttpTransporterFactory
+import org.eclipse.aether.supplier.RepositorySystemSupplier
 import org.eclipse.aether.transfer.AbstractTransferListener
 import org.eclipse.aether.transfer.TransferEvent
+import org.eclipse.aether.transport.file.FileTransporterFactory
+import org.eclipse.aether.transport.http.HttpTransporterFactory
 import java.io.File
 
 class HttpDependencyResolver(
@@ -89,16 +89,16 @@ class HttpDependencyResolver(
     }
 
     private fun newRepositorySystem(): RepositorySystem {
-        val locator = DefaultServiceLocator()
-        locator.addService(RepositoryConnectorFactory::class.java, BasicRepositoryConnectorFactory::class.java)
-        locator.addService(TransporterFactory::class.java, FileTransporterFactory::class.java)
-        locator.addService(TransporterFactory::class.java, HttpTransporterFactory::class.java)
-        locator.setErrorHandler(object : DefaultServiceLocator.ErrorHandler() {
-            override fun serviceCreationFailed(type: Class<*>, impl: Class<*>, e: Throwable) {
-                e.printStackTrace()
-            }
-        })
-        return locator.getService(RepositorySystem::class.java)
+        // RepositorySystemSupplier automatically wires up necessary services
+        // (connectors, transporters, etc.) with default implementations.
+        val supplier = RepositorySystemSupplier()
+
+        // The supplier handles error handling internally by default, often throwing exceptions
+        // if a critical service cannot be created. The previous explicit error handler
+        // is generally no longer needed unless you want specific, custom error management
+        // within the supplier's logic itself, which is more complex.
+
+        return supplier.get()
     }
 
     private fun newRepositorySystemSession(system: RepositorySystem, localRepoPath: File): DefaultRepositorySystemSession {
