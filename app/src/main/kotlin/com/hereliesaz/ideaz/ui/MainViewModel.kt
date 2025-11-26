@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.pm.PackageManager
 import android.graphics.Rect
 import android.app.Application
 import android.os.IBinder
@@ -957,12 +958,8 @@ class MainViewModel(
             }
 
             _buildLog.value += "[INFO] Checking for installed version of '$pkgName'...\n"
-            val launched = launchApp(pkgName)
-            if (launched) {
-                _buildLog.value += "[INFO] Launched installed version of the app.\n"
-            } else {
-                _buildLog.value += "[INFO] No installed version of the app was found.\n"
-            }
+            // The result is now handled by the improved logging in launchApp
+            launchApp(pkgName)
         }
     }
 
@@ -1037,19 +1034,29 @@ class MainViewModel(
     }
 
     private fun launchApp(packageName: String): Boolean {
-        return try {
-            val intent = getApplication<Application>().packageManager.getLaunchIntentForPackage(packageName)
+        val pm = getApplication<Application>().packageManager
+        try {
+            // First, verify the package is installed and enabled.
+            pm.getPackageInfo(packageName, 0)
+
+            // If it is, then try to get the launch intent.
+            val intent = pm.getLaunchIntentForPackage(packageName)
             if (intent != null) {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 getApplication<Application>().startActivity(intent)
-                true
+                _buildLog.value += "[INFO] Launched installed version of the app.\n"
+                return true
             } else {
-                _buildLog.value += "[INFO] App installed but not launchable.\n"
-                false
+                _buildLog.value += "[INFO] App is installed but has no main launch activity.\n"
+                return false
             }
+        } catch (e: PackageManager.NameNotFoundException) {
+            _buildLog.value += "[INFO] No installed version of the app was found (package not found).\n"
+            return false
         } catch (e: Exception) {
-            _buildLog.value += "[INFO] Failed to launch app: ${e.message}\n"
-            false
+            // Catch other potential exceptions during launch.
+            _buildLog.value += "[INFO] Failed to launch app. Reason: ${e.message}\n"
+            return false
         }
     }
 
