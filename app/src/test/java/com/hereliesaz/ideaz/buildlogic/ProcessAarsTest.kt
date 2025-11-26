@@ -4,7 +4,6 @@ import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.utils.ProcessExecutor
 import org.junit.Assert.*
 import org.junit.Rule
-import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
@@ -41,7 +40,7 @@ class ProcessAarsTest {
         }
 
         // Execute
-        val result = runBlocking { processAars.execute(callback) }
+        val result = processAars.execute(callback)
 
         // Verify
         assertTrue("Build step should succeed", result.success)

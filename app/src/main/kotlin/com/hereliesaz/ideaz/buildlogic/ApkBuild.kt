@@ -13,7 +13,7 @@ class ApkBuild(
     private val classesDir: String
 ) : BuildStep {
 
-    override suspend fun execute(callback: IBuildCallback?): BuildResult {
+    override fun execute(callback: IBuildCallback?): BuildResult {
         try {
             val dexFile = File(classesDir, "classes.dex")
             if (!dexFile.exists()) {
