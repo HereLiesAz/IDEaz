@@ -1,0 +1,67 @@
+name: Android CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4.2.1
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Give permission to executable
+        run: chmod +x gradlew
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Clear build cache
+        uses: gradle/gradle-build-action@v3.1.0
+        with:
+          gradle-version: nightly
+          arguments: clean
+
+      - name: Build with gradle
+        uses: gradle/gradle-build-action@v3.1.0
+        with:
+          gradle-version: nightly
+          arguments: assembleDevDebug
+
+      - name: Upload debug apks
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-arm64-v8a
+          path: app/build/outputs/apk/dev/debug/app-dev-arm64-v8a-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-armeabi-v7a
+          path: app/build/outputs/apk/dev/debug/app-dev-armeabi-v7a-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-x86
+          path: app/build/outputs/apk/dev/debug/app-dev-x86-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-x86_64
+          path: app/build/outputs/apk/dev/debug/app-dev-x86_64-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-universal
+          path: app/build/outputs/apk/dev/debug/app-dev-universal-debug.apk
