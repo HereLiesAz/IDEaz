@@ -1,14 +1,16 @@
 [versions]
 agp = "8.13.1"
-aetherTransportFile = "1.9.22"
+aetherTransportFile = "2.0.13"
 aznavrail = "4.13"
 coreKtx = "1.17.0"
 dependencyresolver = "main-SNAPSHOT"
 googleGenai = "1.28.0"
+kotlinxCoroutinesCore = "1.10.2"
 kxml2 = "2.3.0"
 mockwebserver = "5.3.2"
 preferenceKtx = "1.2.1"
-mavenResolver = "1.9.22"
+mavenResolver = "2.0.13"
+mavenResolverHttp = "1.9.24"
 mavenCore = "3.9.11"
 mavenSettingsBuilder = "3.9.11"
 wagonHttp = "3.5.3"
@@ -42,15 +44,17 @@ haze = "1.7.0"
 
 [libraries]
 aether-transport-file = { group = "org.apache.maven.resolver", name = "maven-resolver-transport-file", version.ref = "aetherTransportFile" }
-dependencyresolver = { module = "com.github.Cosmic-Ide:DependencyResolver", version.ref = "dependencyresolver" }
+dependencyresolverr = { module = "com.github.Cosmic-Ide:DependencyResolver", version.ref = "dependencyresolver" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutinesCore" }
 kxml2 = { module = "net.sf.kxml:kxml2", version.ref = "kxml2" }
 maven-resolver-api = { group = "org.apache.maven.resolver", name = "maven-resolver-api", version.ref = "mavenResolver" }
 maven-resolver-spi = { group = "org.apache.maven.resolver", name = "maven-resolver-spi", version.ref = "mavenResolver" }
 maven-resolver-util = { group = "org.apache.maven.resolver", name = "maven-resolver-util", version.ref = "mavenResolver" }
 maven-resolver-impl = { group = "org.apache.maven.resolver", name = "maven-resolver-impl", version.ref = "mavenResolver" }
 maven-resolver-connector-basic = { group = "org.apache.maven.resolver", name = "maven-resolver-connector-basic", version.ref = "mavenResolver" }
-maven-resolver-transport-http = { group = "org.apache.maven.resolver", name = "maven-resolver-transport-http", version.ref = "mavenResolver" }
+maven-resolver-transport-http = { group = "org.apache.maven.resolver", name = "maven-resolver-transport-http", version.ref = "mavenResolverHttp" }
 maven-resolver-provider = { group = "org.apache.maven", name = "maven-resolver-provider", version.ref = "mavenCore" }
+maven-resolver-supplier = { group = "org.apache.maven", name = "maven-resolver-supplier", version.ref = "mavenCore" }
 maven-repository-metadata = { group = "org.apache.maven", name = "maven-repository-metadata", version.ref = "mavenCore" }
 
 androidx-compose-runtime-livedata = { module = "androidx.compose.runtime:runtime-livedata", version.ref = "runtimeLivedata" }

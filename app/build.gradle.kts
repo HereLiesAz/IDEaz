@@ -148,6 +148,10 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
-    implementation(libs.dependencyresolver)
+    implementation(libs.dependencyresolverr)
+    implementation(libs.maven.resolver.supplier)
+
+
+    implementation(libs.kotlinx.coroutines.core)
 
 }
