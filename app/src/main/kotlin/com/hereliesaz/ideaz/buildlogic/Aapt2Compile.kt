@@ -13,7 +13,7 @@ class Aapt2Compile(
     private val targetSdk: Int
 ) : BuildStep {
 
-    override suspend fun execute(callback: IBuildCallback?): BuildResult {
+    override fun execute(callback: IBuildCallback?): BuildResult {
         val compiledResDirFile = File(compiledResDir)
         val resFiles = File(resDir).walk().filter { it.isFile }.toList()
 

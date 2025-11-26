@@ -14,7 +14,7 @@ class ProcessAars(
     val compiledAars = mutableListOf<String>()
     val jars = mutableListOf<String>()
 
-    override suspend fun execute(callback: IBuildCallback?): BuildResult {
+    override fun execute(callback: IBuildCallback?): BuildResult {
         val explodedDir = File(buildDir, "exploded_aars")
         explodedDir.mkdirs()
         val compiledDir = File(buildDir, "compiled_aars")

@@ -11,7 +11,7 @@ class GenerateSourceMap(
     private val cacheDir: File
 ) : BuildStep {
 
-    override suspend fun execute(callback: IBuildCallback?): BuildResult {
+    override fun execute(callback: IBuildCallback?): BuildResult {
         try {
             callback?.onLog("Generating source map...")
             val sourceMap = mutableListOf<SourceMapEntry>()
