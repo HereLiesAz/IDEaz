@@ -75,12 +75,6 @@ android {
             pickFirsts += "META-INF/sisu/javax.inject.Named"
         }
     }
-    packaging {
-        resources {
-            excludes.add("META-INF/DEPENDENCIES")
-            excludes.add("META-INF/sisu/javax.inject.Named")
-        }
-    }
 }
 
 configurations.all {
@@ -114,6 +108,18 @@ dependencies {
     implementation(libs.okhttp)
     implementation("net.sf.kxml:kxml2:2.3.0")
     implementation(libs.kotlinx.serialization.json)
+
+    // Maven Dependency Resolver (Aether)
+    implementation(libs.maven.resolver.api)
+    implementation(libs.maven.resolver.spi)
+    implementation(libs.maven.resolver.util)
+    implementation(libs.maven.resolver.impl)
+    implementation(libs.maven.resolver.connector.basic)
+    implementation(libs.maven.resolver.transport.http)
+    implementation(libs.maven.core)
+    implementation(libs.aether.transport.file)
+    implementation(libs.maven.resolver.provider)
+    implementation(libs.wagon.http.lightweight)
     implementation(libs.generativeai)
     implementation(libs.google.genai)
     implementation(libs.androidx.localbroadcastmanager)
