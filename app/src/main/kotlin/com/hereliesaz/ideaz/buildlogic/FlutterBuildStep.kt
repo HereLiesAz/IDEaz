@@ -7,7 +7,7 @@ class FlutterBuildStep(
     private val projectDir: File
 ) : BuildStep {
 
-    override suspend fun execute(callback: IBuildCallback?): BuildResult {
+    override fun execute(callback: IBuildCallback?): BuildResult {
         callback?.onLog("[Flutter] Starting Flutter Build...")
 
         // Placeholder logic

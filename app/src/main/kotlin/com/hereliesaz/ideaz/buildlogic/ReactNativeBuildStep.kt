@@ -2,7 +2,6 @@ package com.hereliesaz.ideaz.buildlogic
 
 import android.content.Context
 import com.hereliesaz.ideaz.IBuildCallback
-import com.hereliesaz.ideaz.utils.ArtifactUtils
 import com.hereliesaz.ideaz.utils.ToolManager
 import java.io.File
 
@@ -14,7 +13,7 @@ class ReactNativeBuildStep(
     private val localRepoDir: File
 ) : BuildStep {
 
-    override suspend fun execute(callback: IBuildCallback?): BuildResult {
+    override fun execute(callback: IBuildCallback?): BuildResult {
         callback?.onLog("[RN] Starting React Native Build...")
 
         // 1. Setup Android Shell
@@ -45,13 +44,10 @@ class ReactNativeBuildStep(
             "com.facebook.react:hermes-android" = "0.72.6"
         """.trimIndent())
 
-        val resolvedArtifacts: List<org.cosmic.ide.dependency.resolver.api.Artifact>
-        try {
-            resolvedArtifacts = org.cosmic.ide.dependency.resolver.resolveDependencies(shellDir)
-            org.cosmic.ide.dependency.resolver.downloadArtifacts(localRepoDir, resolvedArtifacts)
-        } catch (e: Exception) {
-            callback?.onLog("Dependency resolution failed: ${e.message}")
-            return BuildResult(false, "Dependency resolution failed: ${e.message}")
+        val resolver = HttpDependencyResolver(shellDir, dependenciesFile, localRepoDir, callback)
+        val resolverResult = resolver.execute(callback)
+        if (!resolverResult.success) {
+            return resolverResult
         }
 
         // 4. Run Android Build on Shell
@@ -78,15 +74,11 @@ class ReactNativeBuildStep(
         val shellClassesDir = File(buildDir, "classes")
         val compiledResDir = File(buildDir, "compiled_res")
 
-        val resolvedClasspath = resolvedArtifacts.joinToString(File.pathSeparator) {
-            ArtifactUtils.getLocalPath(localRepoDir, it).absolutePath
-        }
-
         val steps = listOf(
             Aapt2Compile(aapt2Path, shellResDir.absolutePath, compiledResDir.absolutePath, MIN_SDK, TARGET_SDK),
             Aapt2Link(aapt2Path, compiledResDir.absolutePath, androidJarPath, shellManifest.absolutePath, File(buildDir, "app.apk").absolutePath, shellGenDir.absolutePath, MIN_SDK, TARGET_SDK),
-            KotlincCompile(kotlincJarPath, androidJarPath, shellJavaDir.absolutePath, shellClassesDir, resolvedClasspath, javaBinaryPath),
-            D8Compile(d8Path, javaBinaryPath, androidJarPath, shellClassesDir.absolutePath, shellClassesDir.absolutePath, resolvedClasspath),
+            KotlincCompile(kotlincJarPath, androidJarPath, shellJavaDir.absolutePath, shellClassesDir, resolver.resolvedClasspath, javaBinaryPath),
+            D8Compile(d8Path, javaBinaryPath, androidJarPath, shellClassesDir.absolutePath, shellClassesDir.absolutePath, resolver.resolvedClasspath),
             ApkBuild(File(buildDir, "app-signed.apk").absolutePath, File(buildDir, "app.apk").absolutePath, shellClassesDir.absolutePath),
             ApkSign(apkSignerPath, javaBinaryPath, keystorePath, "android", "androiddebugkey", File(buildDir, "app-signed.apk").absolutePath)
         )
