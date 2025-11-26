@@ -52,6 +52,8 @@ class HttpDependencyResolver(
                 RemoteRepository.Builder("central", "default", "https://repo.maven.apache.org/maven2/").build(),
                 RemoteRepository.Builder("jitpack", "default", "https://jitpack.io").build()
             )
+            callback?.onLog("[IDE] Repositories: ${remoteRepositories.joinToString { it.url }}")
+
 
             val initialDependencies = parseDependencies(dependenciesFile.readText())
             if (initialDependencies.isEmpty()) {
@@ -72,6 +74,7 @@ class HttpDependencyResolver(
             dependencyResult.artifactResults.forEach { artifactResult ->
                 artifactResult.artifact?.file?.let {
                     resolvedArtifacts.add(it)
+                    callback?.onLog("[IDE] Resolved artifact: ${it.absolutePath}")
                 }
             }
 
