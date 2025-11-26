@@ -54,7 +54,7 @@ maven-resolver-impl = { group = "org.apache.maven.resolver", name = "maven-resol
 maven-resolver-connector-basic = { group = "org.apache.maven.resolver", name = "maven-resolver-connector-basic", version.ref = "mavenResolver" }
 maven-resolver-transport-http = { group = "org.apache.maven.resolver", name = "maven-resolver-transport-http", version.ref = "mavenResolverHttp" }
 maven-resolver-provider = { group = "org.apache.maven", name = "maven-resolver-provider", version.ref = "mavenCore" }
-maven-resolver-supplier = { group = "org.apache.maven", name = "maven-resolver-supplier", version.ref = "mavenCore" }
+maven-resolver-supplier = { group = "org.apache.maven", name = "maven-resolver-supplier", version.ref = "mavenResolverHttp" }
 maven-repository-metadata = { group = "org.apache.maven", name = "maven-repository-metadata", version.ref = "mavenCore" }
 
 androidx-compose-runtime-livedata = { module = "androidx.compose.runtime:runtime-livedata", version.ref = "runtimeLivedata" }
@@ -68,6 +68,7 @@ google-genai = { module = "com.google.genai:google-genai", version.ref = "google
 maven-core = { module = "org.apache.maven:maven-core", version.ref = "mavenCore" }
 maven-settings-builder = { module = "org.apache.maven:maven-settings-builder", version.ref = "mavenSettingsBuilder" }
 mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "mockwebserver" }
+resolver-maven-resolver-supplier = { module = "org.apache.maven.resolver:maven-resolver-supplier", version.ref = "mavenResolverHttp" }
 wagon-http-lightweight = { module = "org.apache.maven.wagon:wagon-http-lightweight", version.ref = "wagonHttp" }
 wagon-provider-api = { module = "org.apache.maven.wagon:wagon-provider-api", version.ref = "wagonHttp" }
 wagon-file = { module = "org.apache.maven.wagon:wagon-file", version.ref = "wagonHttp" }

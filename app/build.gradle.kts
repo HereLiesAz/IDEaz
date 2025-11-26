@@ -149,9 +149,8 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     implementation(libs.dependencyresolverr)
-    implementation(libs.maven.resolver.supplier)
-
+    // https://mvnrepository.com/artifact/org.apache.maven.resolver/maven-resolver-supplier
+    implementation(libs.resolver.maven.resolver.supplier)
 
     implementation(libs.kotlinx.coroutines.core)
-
 }
