@@ -106,7 +106,7 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.retrofit2.kotlinx.serialization.converter)
     implementation(libs.okhttp)
-    implementation("net.sf.kxml:kxml2:2.3.0")
+    implementation(libs.kxml2)
     implementation(libs.kotlinx.serialization.json)
 
     // Maven Dependency Resolver (Aether)
@@ -140,11 +140,14 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.haze)
     testImplementation(libs.junit)
-    testImplementation("com.squareup.okhttp3:mockwebserver:5.3.2")
+    testImplementation(libs.mockwebserver)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    implementation(libs.dependencyresolver)
+
 }
