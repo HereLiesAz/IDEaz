@@ -241,6 +241,24 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    fun getStatus(): List<String> {
+        try {
+            Git.open(projectDir).use { git ->
+                val status = git.status().call()
+                val result = mutableListOf<String>()
+                result.addAll(status.added.map { "Added: $it" })
+                result.addAll(status.changed.map { "Changed: $it" })
+                result.addAll(status.removed.map { "Removed: $it" })
+                result.addAll(status.missing.map { "Missing: $it" })
+                result.addAll(status.modified.map { "Modified: $it" })
+                result.addAll(status.untracked.map { "Untracked: $it" })
+                return result
+            }
+        } catch (e: Exception) {
+            throw e
+        }
+    }
+
     private class SimpleProgressMonitor(private val callback: (Int, String) -> Unit) : ProgressMonitor {
         private var totalWork = 0
         private var currentWork = 0
