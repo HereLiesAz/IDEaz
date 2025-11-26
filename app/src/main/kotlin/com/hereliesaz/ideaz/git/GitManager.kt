@@ -215,6 +215,32 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    fun getCommitHistory(): List<String> {
+        try {
+            Git.open(projectDir).use { git ->
+                return git.log().call().map { commit ->
+                    val author = commit.authorIdent.name
+                    val message = commit.shortMessage
+                    "${commit.name.substring(0, 7)} - $message ($author)"
+                }
+            }
+        } catch (e: Exception) {
+            throw e
+        }
+    }
+
+    fun getBranches(): List<String> {
+        try {
+            Git.open(projectDir).use { git ->
+                return git.branchList().setListMode(org.eclipse.jgit.api.ListBranchCommand.ListMode.ALL).call().map {
+                    it.name.substringAfter("refs/heads/").substringAfter("refs/remotes/origin/")
+                }.distinct().sorted()
+            }
+        } catch (e: Exception) {
+            throw e
+        }
+    }
+
     private class SimpleProgressMonitor(private val callback: (Int, String) -> Unit) : ProgressMonitor {
         private var totalWork = 0
         private var currentWork = 0
