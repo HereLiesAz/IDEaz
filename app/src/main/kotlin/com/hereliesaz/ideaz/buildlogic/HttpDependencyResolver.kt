@@ -1,141 +1,131 @@
 package com.hereliesaz.ideaz.buildlogic
 
 import com.hereliesaz.ideaz.IBuildCallback
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import org.xmlpull.v1.XmlPullParser
-import org.xmlpull.v1.XmlPullParserFactory
+import org.apache.maven.repository.internal.MavenRepositorySystemUtils
+import org.eclipse.aether.DefaultRepositorySystemSession
+import org.eclipse.aether.RepositorySystem
+import org.eclipse.aether.artifact.DefaultArtifact
+import org.eclipse.aether.collection.CollectRequest
+import org.eclipse.aether.connector.basic.BasicRepositoryConnectorFactory
+import org.eclipse.aether.graph.Dependency
+import org.eclipse.aether.impl.DefaultServiceLocator
+import org.eclipse.aether.repository.LocalRepository
+import org.eclipse.aether.repository.RemoteRepository
+import org.eclipse.aether.spi.connector.RepositoryConnectorFactory
+import org.eclipse.aether.spi.connector.transport.TransporterFactory
+import org.eclipse.aether.transport.file.FileTransporterFactory
+import org.eclipse.aether.transport.http.HttpTransporterFactory
+import org.eclipse.aether.transfer.AbstractTransferListener
+import org.eclipse.aether.transfer.TransferEvent
 import java.io.File
-import java.io.StringReader
-
-data class Dependency(
-    val group: String,
-    val artifact: String,
-    val version: String
-) {
-    fun toPath() = "${group.replace('.', '/')}/$artifact/$version/$artifact-$version"
-}
 
 class HttpDependencyResolver(
     private val projectDir: File,
     private val dependenciesFile: File,
-    private val cacheDir: File,
-    private val repositories: List<String> = listOf("https://repo.maven.apache.org/maven2/", "https://maven.google.com/")
+    private val localRepoDir: File,
+    private val callback: IBuildCallback?
 ) : BuildStep {
 
-    private val client = OkHttpClient()
-    private val resolvedDependencies = mutableSetOf<Dependency>()
     val resolvedArtifacts = mutableListOf<File>()
+
     val resolvedClasspath: String
-        get() = cacheDir.walkTopDown()
-            .filter { it.isFile && it.extension == "jar" }
+        get() = resolvedArtifacts
+            .filter { it.extension.equals("jar", ignoreCase = true) }
             .joinToString(File.pathSeparator) { it.absolutePath }
 
+    companion object {
+        private const val TAG = "HttpDependencyResolver"
+    }
 
     override fun execute(callback: IBuildCallback?): BuildResult {
+        callback?.onLog("[IDE] Starting dependency resolution...")
         try {
-            if (!dependenciesFile.exists()) return BuildResult(true, "No dependencies file found.")
+            if (!dependenciesFile.exists()) {
+                callback?.onLog("[IDE] No dependencies file found. Skipping.")
+                return BuildResult(true, "No dependencies file found.")
+            }
+
+            val system = newRepositorySystem()
+            val session = newRepositorySystemSession(system, localRepoDir)
+            val remoteRepositories = listOf(
+                RemoteRepository.Builder("google", "default", "https://maven.google.com/").build(),
+                RemoteRepository.Builder("central", "default", "https://repo.maven.apache.org/maven2/").build(),
+                RemoteRepository.Builder("jitpack", "default", "https://jitpack.io").build()
+            )
+
             val initialDependencies = parseDependencies(dependenciesFile.readText())
-            resolve(initialDependencies, callback)
+            if (initialDependencies.isEmpty()) {
+                callback?.onLog("[IDE] No dependencies to resolve.")
+                return BuildResult(true, "No dependencies to resolve.")
+            }
+
+            callback?.onLog("[IDE] Resolving: ${initialDependencies.joinToString { it.artifact.toString() }}")
+
+            val collectRequest = CollectRequest()
+            collectRequest.repositories = remoteRepositories
+            initialDependencies.forEach { collectRequest.addDependency(it) }
+
+            // Using resolveDependencies with a DependencyRequest to get the full graph including .aar files
+            val dependencyRequest = org.eclipse.aether.resolution.DependencyRequest(collectRequest, null)
+            val dependencyResult = system.resolveDependencies(session, dependencyRequest)
+
+            dependencyResult.artifactResults.forEach { artifactResult ->
+                artifactResult.artifact?.file?.let {
+                    resolvedArtifacts.add(it)
+                }
+            }
+
+            callback?.onLog("[IDE] Dependency resolution finished successfully.")
             return BuildResult(true, "Dependencies resolved successfully.")
+
         } catch (e: Exception) {
-            callback?.onLog("[IDE] Error resolving dependencies: ${e.message}")
-            return BuildResult(false, "Failed to resolve dependencies: ${e.message}")
+            e.printStackTrace()
+            callback?.onLog("[IDE] ERROR: Dependency resolution failed: ${e.message}")
+            return BuildResult(false, e.stackTraceToString())
         }
+    }
+
+    private fun newRepositorySystem(): RepositorySystem {
+        val locator = DefaultServiceLocator()
+        locator.addService(RepositoryConnectorFactory::class.java, BasicRepositoryConnectorFactory::class.java)
+        locator.addService(TransporterFactory::class.java, FileTransporterFactory::class.java)
+        locator.addService(TransporterFactory::class.java, HttpTransporterFactory::class.java)
+        locator.setErrorHandler(object : DefaultServiceLocator.ErrorHandler() {
+            override fun serviceCreationFailed(type: Class<*>, impl: Class<*>, e: Throwable) {
+                e.printStackTrace()
+            }
+        })
+        return locator.getService(RepositorySystem::class.java)
+    }
+
+    private fun newRepositorySystemSession(system: RepositorySystem, localRepoPath: File): DefaultRepositorySystemSession {
+        val session = MavenRepositorySystemUtils.newSession()
+        val localRepo = LocalRepository(localRepoPath)
+        session.localRepositoryManager = system.newLocalRepositoryManager(session, localRepo)
+        session.transferListener = object : AbstractTransferListener() {
+            override fun transferSucceeded(event: TransferEvent) {
+                callback?.onLog("[IDE] Downloaded: ${event.resource.repositoryUrl}${event.resource.resourceName}")
+            }
+             override fun transferFailed(event: TransferEvent?) {
+                callback?.onLog("[IDE] FAILED Download: ${event?.resource?.repositoryUrl}${event?.resource?.resourceName} - ${event?.exception?.message}")
+             }
+        }
+        return session
     }
 
     private fun parseDependencies(content: String): List<Dependency> {
         return content.lines()
-            .map { it.trim() }
+            .map { it.trim().substringBefore("//").trim() } // Allow comments
             .filter { it.isNotEmpty() && !it.startsWith("#") }
-            .map {
-                val parts = it.split(":")
-                Dependency(parts[0], parts[1], parts[2])
-            }
-    }
-
-    private fun resolve(dependencies: List<Dependency>, callback: IBuildCallback?) {
-        for (dependency in dependencies) {
-            if (dependency in resolvedDependencies) continue
-            callback?.onLog("[IDE] Resolving ${dependency.group}:${dependency.artifact}:${dependency.version}")
-            resolvedDependencies.add(dependency)
-
-            val (pomUrl, pomContent) = fetchPom(dependency)
-            val transitiveDependencies = parsePom(pomContent)
-            resolve(transitiveDependencies, callback)
-
-            val jarUrl = pomUrl.replace(".pom", ".jar")
-            val jarContent = fetchBytes(jarUrl)
-            val jarFile = File(cacheDir, "${dependency.artifact}-${dependency.version}.jar")
-            jarFile.writeBytes(jarContent)
-            resolvedArtifacts.add(jarFile)
-        }
-    }
-
-    private fun fetchPom(dependency: Dependency): Pair<String, String> {
-        for (repo in repositories) {
-            val url = "${repo}${dependency.toPath()}.pom"
-            try {
-                val content = fetch(url)
-                return Pair(url, content)
-            } catch (e: Exception) {
-                // Try next repository
-            }
-        }
-        throw Exception("Could not find POM for $dependency in any repository.")
-    }
-
-
-    private fun fetch(url: String): String {
-        val request = Request.Builder().url(url).build()
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) throw Exception("Failed to fetch $url")
-        return response.body!!.string()
-    }
-
-    private fun fetchBytes(url: String): ByteArray {
-        val request = Request.Builder().url(url).build()
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) throw Exception("Failed to fetch $url")
-        return response.body!!.bytes()
-    }
-
-    private fun parsePom(pomContent: String): List<Dependency> {
-        val dependencies = mutableListOf<Dependency>()
-        val factory = XmlPullParserFactory.newInstance()
-        val parser = factory.newPullParser()
-        parser.setInput(StringReader(pomContent))
-
-        var eventType = parser.eventType
-        var group: String? = null
-        var artifact: String? = null
-        var version: String? = null
-        var inDependency = false
-
-        while (eventType != XmlPullParser.END_DOCUMENT) {
-            when (eventType) {
-                XmlPullParser.START_TAG -> {
-                    when (parser.name) {
-                        "dependency" -> inDependency = true
-                        "groupId" -> if (inDependency) group = parser.nextText()
-                        "artifactId" -> if (inDependency) artifact = parser.nextText()
-                        "version" -> if (inDependency) version = parser.nextText()
-                    }
-                }
-                XmlPullParser.END_TAG -> {
-                    if (parser.name == "dependency") {
-                        if (group != null && artifact != null && version != null) {
-                            dependencies.add(Dependency(group, artifact, version))
-                        }
-                        inDependency = false
-                        group = null
-                        artifact = null
-                        version = null
-                    }
+            .mapNotNull {
+                try {
+                    // Support both JAR and AAR packaging explicitly
+                    val artifact = DefaultArtifact(it)
+                    Dependency(artifact, "compile")
+                } catch (e: IllegalArgumentException) {
+                    callback?.onLog("[IDE] WARNING: Skipping invalid dependency line: '$it'")
+                    null
                 }
             }
-            eventType = parser.next()
-        }
-        return dependencies
     }
 }
