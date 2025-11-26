@@ -31,6 +31,9 @@ android {
             )
         }
     }
+    lint {
+        baseline = file("lint-baseline.xml")
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -93,23 +96,6 @@ configurations.all {
 }
 
 dependencies {
-    // Maven Resolver for dependency resolution
-    implementation(libs.maven.resolver.api)
-    implementation(libs.maven.resolver.spi)
-    implementation(libs.maven.resolver.impl)
-    implementation(libs.maven.resolver.util)
-    implementation(libs.maven.resolver.connector.basic)
-    implementation(libs.maven.resolver.transport.http)
-    implementation(libs.aether.transport.file)
-    implementation(libs.maven.resolver.provider)
-    implementation(libs.maven.core)
-    implementation(libs.maven.settings.builder)
-    implementation(libs.wagon.http.lightweight)
-    implementation(libs.wagon.provider.api)
-    implementation(libs.wagon.file)
-    implementation(libs.maven.repository.metadata)
-
-
     implementation(libs.jaxb.api)
     implementation(libs.javax.annotation.api)
     implementation(libs.validation.api)
@@ -126,6 +112,7 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.retrofit2.kotlinx.serialization.converter)
     implementation(libs.okhttp)
+    implementation("net.sf.kxml:kxml2:2.3.0")
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.generativeai)
     implementation(libs.google.genai)
@@ -147,6 +134,7 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.haze)
     testImplementation(libs.junit)
+    testImplementation("com.squareup.okhttp3:mockwebserver:5.3.2")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

@@ -44,7 +44,7 @@ class ReactNativeBuildStep(
             "com.facebook.react:hermes-android" = "0.72.6"
         """.trimIndent())
 
-        val resolver = DependencyResolver(shellDir, dependenciesFile, localRepoDir)
+        val resolver = HttpDependencyResolver(shellDir, dependenciesFile, localRepoDir)
         val resolverResult = resolver.execute(callback)
         if (!resolverResult.success) {
             return resolverResult
