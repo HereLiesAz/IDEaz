@@ -215,6 +215,50 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    fun getCommitHistory(): List<String> {
+        try {
+            Git.open(projectDir).use { git ->
+                return git.log().call().map { commit ->
+                    val author = commit.authorIdent.name
+                    val message = commit.shortMessage
+                    "${commit.name.substring(0, 7)} - $message ($author)"
+                }
+            }
+        } catch (e: Exception) {
+            throw e
+        }
+    }
+
+    fun getBranches(): List<String> {
+        try {
+            Git.open(projectDir).use { git ->
+                return git.branchList().setListMode(org.eclipse.jgit.api.ListBranchCommand.ListMode.ALL).call().map {
+                    it.name.substringAfter("refs/heads/").substringAfter("refs/remotes/origin/")
+                }.distinct().sorted()
+            }
+        } catch (e: Exception) {
+            throw e
+        }
+    }
+
+    fun getStatus(): List<String> {
+        try {
+            Git.open(projectDir).use { git ->
+                val status = git.status().call()
+                val result = mutableListOf<String>()
+                result.addAll(status.added.map { "Added: $it" })
+                result.addAll(status.changed.map { "Changed: $it" })
+                result.addAll(status.removed.map { "Removed: $it" })
+                result.addAll(status.missing.map { "Missing: $it" })
+                result.addAll(status.modified.map { "Modified: $it" })
+                result.addAll(status.untracked.map { "Untracked: $it" })
+                return result
+            }
+        } catch (e: Exception) {
+            throw e
+        }
+    }
+
     private class SimpleProgressMonitor(private val callback: (Int, String) -> Unit) : ProgressMonitor {
         private var totalWork = 0
         private var currentWork = 0
