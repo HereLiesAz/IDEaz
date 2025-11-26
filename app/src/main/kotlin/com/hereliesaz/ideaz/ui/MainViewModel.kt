@@ -1533,22 +1533,67 @@ class MainViewModel(
         dependenciesFile.writeText(dependencies.joinToString("\n"))
     }
 
-    fun checkForUpdates(dependency: Dependency): Dependency {
-        // Mock implementation
-        val currentVersion = dependency.version.split(".").mapNotNull { it.toIntOrNull() }
-        if (currentVersion.size == 3) {
-            val newVersion = "${currentVersion[0]}.${currentVersion[1]}.${currentVersion[2] + 1}"
-            return dependency.copy(availableUpdate = newVersion)
+    suspend fun checkForUpdates(dependency: Dependency): Dependency {
+        return withContext(Dispatchers.IO) {
+            try {
+                val groupPath = dependency.group.replace('.', '/')
+                val urlString = "https://repo.maven.apache.org/maven2/$groupPath/${dependency.artifact}/maven-metadata.xml"
+                val url = URL(urlString)
+                val connection = url.openConnection() as HttpURLConnection
+                if (connection.responseCode == 200) {
+                    val inputStream = connection.inputStream
+                    val parser = android.util.Xml.newPullParser()
+                    parser.setFeature(org.xmlpull.v1.XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
+                    parser.setInput(inputStream, null)
+
+                    var eventType = parser.eventType
+                    var latestVersion: String? = null
+                    while (eventType != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+                        if (eventType == org.xmlpull.v1.XmlPullParser.START_TAG && parser.name == "latest") {
+                            parser.next()
+                            latestVersion = parser.text
+                            break
+                        }
+                        eventType = parser.next()
+                    }
+                    connection.disconnect()
+
+                    if (latestVersion != null && latestVersion.isNotBlank() && latestVersion != dependency.version) {
+                        return@withContext dependency.copy(availableUpdate = latestVersion, error = null)
+                    } else {
+                        return@withContext dependency.copy(availableUpdate = null, error = null) // No update found
+                    }
+                } else {
+                    return@withContext dependency.copy(error = "Failed: ${connection.responseCode}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to check for updates for $dependency", e)
+                return@withContext dependency.copy(error = "Failed: ${e.message}")
+            }
         }
-        return dependency
     }
 
     fun downloadDependencies() {
-        // Mock implementation
         viewModelScope.launch {
-            _buildLog.value += "[INFO] Downloading dependencies...\n"
-            delay(2000)
-            _buildLog.value += "[INFO] Dependencies downloaded successfully.\n"
+            val appName = settingsViewModel.getAppName() ?: return@launch
+            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            val dependenciesFile = File(projectDir, "dependencies.txt")
+            val localRepoDir = getApplication<Application>().filesDir.resolve("local-repo")
+
+            if (!dependenciesFile.exists()) {
+                _buildLog.value += "[ERROR] No dependencies file found.\n"
+                return@launch
+            }
+
+            val resolver = com.hereliesaz.ideaz.buildlogic.HttpDependencyResolver(
+                projectDir,
+                dependenciesFile,
+                localRepoDir,
+                buildCallback
+            )
+            withContext(Dispatchers.IO) {
+                resolver.execute(buildCallback)
+            }
         }
     }
 

@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 
 @Composable
 fun DependenciesScreen(
@@ -16,6 +17,7 @@ fun DependenciesScreen(
 ) {
     val dependencies = remember { mutableStateListOf(*viewModel.getDependencies().map { Dependency.fromString(it) }.toTypedArray()) }
     var newDependency by remember { mutableStateOf("") }
+    val coroutineScope = rememberCoroutineScope()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Dependencies", style = MaterialTheme.typography.headlineMedium)
@@ -54,7 +56,9 @@ fun DependenciesScreen(
                     if (dependency.error != null) {
                         Text(dependency.error, color = Color.Red)
                     }
-                    if (dependency.availableUpdate != null) {
+                    if (dependency.isUpdating) {
+                        CircularProgressIndicator()
+                    } else if (dependency.availableUpdate != null) {
                         Button(onClick = {
                             val updatedDep = dependency.copy(version = dependency.availableUpdate, availableUpdate = null)
                             dependencies[index] = updatedDep
@@ -63,8 +67,11 @@ fun DependenciesScreen(
                         }
                     } else {
                         Button(onClick = {
-                            val updatedDep = viewModel.checkForUpdates(dependency)
-                            dependencies[index] = updatedDep
+                            coroutineScope.launch {
+                                dependencies[index] = dependency.copy(isUpdating = true)
+                                val updatedDep = viewModel.checkForUpdates(dependency)
+                                dependencies[index] = updatedDep
+                            }
                         }) {
                             Text("Check for updates")
                         }
