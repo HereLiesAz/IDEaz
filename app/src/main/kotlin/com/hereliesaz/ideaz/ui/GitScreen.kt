@@ -16,6 +16,7 @@ fun GitScreen(
 ) {
     val commitHistory by viewModel.commitHistory.collectAsState()
     val branches by viewModel.branches.collectAsState()
+    val gitStatus by viewModel.gitStatus.collectAsState()
     var expanded by remember { mutableStateOf(false) }
     var selectedBranch by remember { mutableStateOf(settingsViewModel.getBranchName()) }
 
@@ -61,6 +62,16 @@ fun GitScreen(
                         }
                     )
                 }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text("Status", style = MaterialTheme.typography.headlineSmall)
+
+        LazyColumn(modifier = Modifier.height(100.dp)) {
+            items(gitStatus) { status ->
+                Text(status)
             }
         }
 

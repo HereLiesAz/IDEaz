@@ -132,6 +132,9 @@ class MainViewModel(
     private val _branches = MutableStateFlow<List<String>>(emptyList())
     val branches = _branches.asStateFlow()
 
+    private val _gitStatus = MutableStateFlow<List<String>>(emptyList())
+    val gitStatus = _gitStatus.asStateFlow()
+
     private val json = Json {
         ignoreUnknownKeys = true
     }
@@ -1518,6 +1521,7 @@ class MainViewModel(
                         val gitManager = GitManager(projectDir)
                         _commitHistory.value = gitManager.getCommitHistory()
                         _branches.value = gitManager.getBranches()
+                        _gitStatus.value = gitManager.getStatus()
                     } catch (e: Exception) {
                         _buildLog.value += "[ERROR] Failed to refresh Git data: ${e.message}\n"
                     }

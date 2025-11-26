@@ -46,7 +46,8 @@ fun IdeNavHost(
         }
         composable("file_explorer") {
             FileExplorerScreen(
-                settingsViewModel = settingsViewModel
+                settingsViewModel = settingsViewModel,
+                navController = navController
             )
         }
         composable("git") {
@@ -60,6 +61,12 @@ fun IdeNavHost(
                 viewModel = viewModel,
                 settingsViewModel = settingsViewModel
             )
+        }
+        composable("file_content/{filePath}") { backStackEntry ->
+            val filePath = backStackEntry.arguments?.getString("filePath")
+            if (filePath != null) {
+                FileContentScreen(filePath = filePath)
+            }
         }
         composable("build") {
             Box(modifier = Modifier.fillMaxSize().background(Color.Transparent))
