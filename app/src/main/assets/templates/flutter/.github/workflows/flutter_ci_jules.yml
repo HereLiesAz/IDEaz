@@ -63,7 +63,7 @@ jobs:
           gh release edit $TAG_NAME \
             --prerelease \
             --title "Latest Debug Build" \
-            --body "Automatic build from commit $GITHUB_SHA" \
+            --notes "Automatic build from commit $GITHUB_SHA" \
             --target $GITHUB_SHA
 
           gh release upload $TAG_NAME $APK_FILE --clobber
@@ -72,7 +72,7 @@ jobs:
           gh release create $TAG_NAME $APK_FILE \
             --prerelease \
             --title "Latest Debug Build" \
-            --body "Automatic build from commit $GITHUB_SHA" \
+            --notes "Automatic build from commit $GITHUB_SHA" \
             --target $GITHUB_SHA
         fi
 

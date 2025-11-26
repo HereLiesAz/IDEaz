@@ -347,6 +347,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         return sharedPreferences.getString(KEY_BRANCH_NAME, "main")!!
     }
 
+    fun saveBranchName(branchName: String) {
+        sharedPreferences.edit().putString(KEY_BRANCH_NAME, branchName).apply()
+    }
+
     fun getProjectType(): String {
         return sharedPreferences.getString(KEY_PROJECT_TYPE, "UNKNOWN") ?: "UNKNOWN"
     }
