@@ -8,7 +8,7 @@ class WebBuildStep(
     private val outputDir: File
 ) : BuildStep {
 
-    override suspend fun execute(callback: IBuildCallback?): BuildResult {
+    override fun execute(callback: IBuildCallback?): BuildResult {
         callback?.onLog("[Web] Starting Web Build...")
 
         // Placeholder logic for Web build

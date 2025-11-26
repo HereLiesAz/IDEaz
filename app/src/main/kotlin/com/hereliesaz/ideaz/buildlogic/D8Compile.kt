@@ -13,7 +13,7 @@ class D8Compile(
     private val classpath: String
 ) : BuildStep {
 
-    override suspend fun execute(callback: IBuildCallback?): BuildResult {
+    override fun execute(callback: IBuildCallback?): BuildResult {
         val outputDirFile = File(outputDir)
 
         val classFiles = File(classesDir).walk().filter { it.isFile }.toList()

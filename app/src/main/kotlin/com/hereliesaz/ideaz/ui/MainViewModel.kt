@@ -1592,14 +1592,14 @@ class MainViewModel(
                 return@launch
             }
 
-            viewModelScope.launch {
-                try {
-                    val resolvedArtifacts = org.cosmic.ide.dependency.resolver.resolveDependencies(projectDir)
-                    org.cosmic.ide.dependency.resolver.downloadArtifacts(localRepoDir, resolvedArtifacts)
-                    _buildLog.value += "[INFO] Dependencies downloaded successfully.\n"
-                } catch (e: Exception) {
-                    _buildLog.value += "[ERROR] Dependency download failed: ${e.message}\n"
-                }
+            val resolver = com.hereliesaz.ideaz.buildlogic.HttpDependencyResolver(
+                projectDir,
+                dependenciesFile,
+                localRepoDir,
+                buildCallback
+            )
+            withContext(Dispatchers.IO) {
+                resolver.execute(buildCallback)
             }
         }
     }

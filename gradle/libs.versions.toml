@@ -3,7 +3,7 @@ agp = "8.13.1"
 aetherTransportFile = "1.9.22"
 aznavrail = "4.13"
 coreKtx = "1.17.0"
-dependencyresolver = "1.2.4"
+dependencyresolver = "main-SNAPSHOT"
 googleGenai = "1.28.0"
 kxml2 = "2.3.0"
 mockwebserver = "5.3.2"
@@ -42,7 +42,7 @@ haze = "1.7.0"
 
 [libraries]
 aether-transport-file = { group = "org.apache.maven.resolver", name = "maven-resolver-transport-file", version.ref = "aetherTransportFile" }
-dependencyresolver = { module = "com.github.HereLiesAz:DependencyResolverr", version.ref = "dependencyresolver" }
+dependencyresolver = { module = "com.github.Cosmic-Ide:DependencyResolver", version.ref = "dependencyresolver" }
 kxml2 = { module = "net.sf.kxml:kxml2", version.ref = "kxml2" }
 maven-resolver-api = { group = "org.apache.maven.resolver", name = "maven-resolver-api", version.ref = "mavenResolver" }
 maven-resolver-spi = { group = "org.apache.maven.resolver", name = "maven-resolver-spi", version.ref = "mavenResolver" }
