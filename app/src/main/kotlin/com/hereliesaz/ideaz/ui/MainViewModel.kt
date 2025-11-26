@@ -324,7 +324,15 @@ class MainViewModel(
         val lastApp = settingsViewModel.getAppName()
         if (!lastApp.isNullOrBlank()) {
             Log.d(TAG, "Auto-loading last project: $lastApp")
-            loadProject(lastApp)
+
+            val projectDir = getApplication<Application>().filesDir.resolve(lastApp)
+            val config = ProjectConfigManager.loadConfig(projectDir)
+            if (config != null && !config.owner.isNullOrBlank() && !config.branch.isNullOrBlank()) {
+                cloneOrPullProject(config.owner, lastApp, config.branch)
+            } else {
+                // Fallback for older projects or if config is missing
+                loadProject(lastApp)
+            }
         }
     }
 
@@ -547,14 +555,14 @@ class MainViewModel(
                         // Make sure we are on the main branch before committing
                         git.checkout(defaultBranch)
 
-                        if (git.hasChanges()) {
-                            git.addAll()
-                            git.commit("Force update of IDEaz workflows and setup")
-                        }
+                        git.addAll()
+                        git.commit("Force update of IDEaz workflows and setup", allowEmpty = true)
+
                         // Always push
                         _buildLog.value += "[GIT] Pushing to $defaultBranch...\n"
                         git.push(user, token, ::onGitProgress)
                     }
+                    _loadingProgress.value = null
 
                     if (!initialPrompt.isNullOrBlank()) {
                         _buildLog.value += "[INFO] Saving initial prompt and sending to AI...\n"
