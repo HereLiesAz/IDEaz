@@ -246,7 +246,7 @@ class BuildService : Service() {
                 return@launch
             }
 
-            val resolver = DependencyResolver(projectDir, File(projectDir, "dependencies.toml"), localRepoDir)
+            val resolver = HttpDependencyResolver(projectDir, File(projectDir, "dependencies.toml"), localRepoDir)
             val resolverResult = resolver.execute()
             if (!resolverResult.success && isActive) {
                 callback.onFailure("Dependency resolution failed: ${resolverResult.output}")
