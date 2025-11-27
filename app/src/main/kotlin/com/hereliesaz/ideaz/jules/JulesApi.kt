@@ -9,7 +9,7 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface JulesApi {
-    @GET("{parent}/sources")
+    @GET("v1alpha/{parent}/sources")
     suspend fun listSources(
         @Path("parent") parent: String,
         @Query("pageSize") pageSize: Int? = null,
@@ -17,46 +17,59 @@ interface JulesApi {
         @Query("filter") filter: String? = null
     ): ListSourcesResponse
 
-    @GET("sources/{sourceId}")
+    @GET("v1alpha/sources/{sourceId}")
     suspend fun getSource(@Path("sourceId") sourceId: String): Source
 
-    @POST("sessions")
-    suspend fun createSession(@Body request: CreateSessionRequest): Session
+    @POST("v1alpha/{parent}/sessions")
+    suspend fun createSession(
+        @Path("parent") parent: String,
+        @Body request: CreateSessionRequest
+    ): Session
 
-    @GET("{parent}/sessions")
+    @GET("v1alpha/{parent}/sessions")
     suspend fun listSessions(
         @Path("parent") parent: String,
         @Query("pageSize") pageSize: Int? = null,
         @Query("pageToken") pageToken: String? = null
     ): ListSessionsResponse
 
-    @GET("sessions/{sessionId}")
-    suspend fun getSession(@Path("sessionId") sessionId: String): Session
+    @GET("v1alpha/{parent}/sessions/{sessionId}")
+    suspend fun getSession(
+        @Path("parent") parent: String,
+        @Path("sessionId") sessionId: String
+    ): Session
 
-    @POST("sessions/{sessionId}:approvePlan")
-    suspend fun approvePlan(@Path("sessionId") sessionId: String)
+    @POST("v1alpha/{parent}/sessions/{sessionId}:approvePlan")
+    suspend fun approvePlan(
+        @Path("parent") parent: String,
+        @Path("sessionId") sessionId: String
+    )
 
-    // Reverted to explicit path structure.
-    // If this 404s, MainViewModel will fallback to CLI.
-    @GET("sessions/{sessionId}/activities")
+    @GET("v1alpha/{parent}/sessions/{sessionId}/activities")
     suspend fun listActivities(
+        @Path("parent") parent: String,
         @Path("sessionId") sessionId: String,
         @Query("pageSize") pageSize: Int? = null,
         @Query("pageToken") pageToken: String? = null
     ): ListActivitiesResponse
 
-    @GET("sessions/{sessionId}/activities/{activityId}")
+    @GET("v1alpha/{parent}/sessions/{sessionId}/activities/{activityId}")
     suspend fun getActivity(
+        @Path("parent") parent: String,
         @Path("sessionId") sessionId: String,
         @Path("activityId") activityId: String
     ): Activity
 
-    @POST("sessions/{sessionId}:sendMessage")
+    @POST("v1alpha/{parent}/sessions/{sessionId}:sendMessage")
     suspend fun sendMessage(
+        @Path("parent") parent: String,
         @Path("sessionId") sessionId: String,
         @Body request: SendMessageRequest
     )
 
-    @DELETE("sessions/{sessionId}")
-    suspend fun deleteSession(@Path("sessionId") sessionId: String)
+    @DELETE("v1alpha/{parent}/sessions/{sessionId}")
+    suspend fun deleteSession(
+        @Path("parent") parent: String,
+        @Path("sessionId") sessionId: String
+    )
 }

@@ -10,7 +10,7 @@ import retrofit2.Retrofit
 
 object JulesApiClient {
 
-    private const val BASE_URL = "https://jules.googleapis.com/v1alpha/"
+    private const val BASE_URL = "https://jules.googleapis.com/"
     private const val PARENT = "projects/ideaz-336316"
 
     private fun getClient(): JulesApi {
@@ -39,19 +39,19 @@ object JulesApiClient {
      * Creates a new Jules session.
      */
     suspend fun createSession(request: CreateSessionRequest): Session {
-        return getClient().createSession(request)
+        return getClient().createSession(PARENT, request)
     }
 
     /**
      * Lists activities for a given session.
      */
     suspend fun listActivities(sessionId: String): ListActivitiesResponse {
-        return getClient().listActivities(sessionId)
+        return getClient().listActivities(PARENT, sessionId)
     }
 
     suspend fun sendMessage(sessionId: String, prompt: String) {
         val request = SendMessageRequest(prompt = prompt)
-        getClient().sendMessage(sessionId, request)
+        getClient().sendMessage(PARENT, sessionId, request)
     }
 
     // Used by MainViewModel
@@ -64,10 +64,10 @@ object JulesApiClient {
     }
 
     suspend fun getSession(sessionId: String): Session {
-        return getClient().getSession(sessionId)
+        return getClient().getSession(PARENT, sessionId)
     }
 
     suspend fun deleteSession(sessionId: String) {
-        getClient().deleteSession(sessionId)
+        getClient().deleteSession(PARENT, sessionId)
     }
 }
