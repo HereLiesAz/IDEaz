@@ -75,6 +75,20 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    fun fetch(username: String? = null, token: String? = null, onProgress: ((Int, String) -> Unit)? = null) {
+        Git.open(projectDir).use { git ->
+            val cmd = git.fetch().setRemote("origin")
+            if (!token.isNullOrBlank()) {
+                val user = if (!username.isNullOrBlank()) username else token
+                cmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(user, token))
+            }
+            if (onProgress != null) {
+                cmd.setProgressMonitor(SimpleProgressMonitor(onProgress))
+            }
+            cmd.call()
+        }
+    }
+
     fun fetchPr(prId: String, localBranch: String, username: String? = null, token: String? = null, onProgress: ((Int, String) -> Unit)? = null) {
         Git.open(projectDir).use { git ->
             val cmd = git.fetch()
@@ -110,6 +124,13 @@ class GitManager(private val projectDir: File) {
             } else {
                 git.checkout().setCreateBranch(true).setName(branch).call()
             }
+        }
+    }
+
+    fun deleteBranch(branchName: String) {
+        Git.open(projectDir).use { git ->
+            // Delete local branch
+            git.branchDelete().setBranchNames(branchName).setForce(true).call()
         }
     }
 
