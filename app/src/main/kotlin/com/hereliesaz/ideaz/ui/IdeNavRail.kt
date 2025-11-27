@@ -8,9 +8,9 @@ import com.hereliesaz.aznavrail.AzNavRail
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.ideaz.api.Activity
 import com.hereliesaz.aznavrail.model.AzHeaderIconShape
+import com.hereliesaz.ideaz.ui.Halfway
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import com.composables.core.SheetDetent
 
 @Composable
 fun IdeNavRail(
@@ -61,7 +61,7 @@ fun IdeNavRail(
             handleActionClick {
                 navController.navigate("build")
                 scope.launch {
-                    sheetState.animateTo(SheetDetent.Halfway)
+                    sheetState.animateTo(Halfway)
                 }
             }
         })

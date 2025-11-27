@@ -121,6 +121,7 @@ fun MainScreen(
                 IdeNavRail(
                     navController = navController,
                     viewModel = viewModel,
+                    context = context,
                     onShowPromptPopup = { showPromptPopup = true },
                     handleActionClick = handleActionClick,
                     isIdeVisible = isDashboardVisible,
