@@ -33,7 +33,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 
 ## Phase 3: UI/UX & Interaction
 - [ ] **3.1: The Overlay**
-    - [ ] **3.1.1: Attachment:** Logic to show overlay *only* when target package is foreground.
+    - [x] **3.1.1: Attachment:** Implement Bubble Notification for persistent overlay.
     - [ ] **3.1.2: Transparency:** Ensure transparent background in IDE mode, Opaque in Settings.
     - [ ] **3.1.3: Selection:** Tap (Node) and Drag (Rect) selection logic.
 - [ ] **3.2: The Console**

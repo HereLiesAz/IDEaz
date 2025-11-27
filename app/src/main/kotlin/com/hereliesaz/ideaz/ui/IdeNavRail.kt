@@ -23,16 +23,22 @@ fun IdeNavRail(
     isIdeVisible: Boolean,
     onModeToggleClick: () -> Unit, // New click handler for the toggle
     sheetState: BottomSheetState,
-    scope: CoroutineScope
+    scope: CoroutineScope,
+    initiallyExpanded: Boolean = false,
+    onUndock: (() -> Unit)? = null,
+    enableRailDraggingOverride: Boolean? = null
 ) {
-    AzNavRail(navController = navController) {
+    AzNavRail(
+        navController = navController,
+        initiallyExpanded = initiallyExpanded
+    ) {
         azSettings(
             // displayAppNameInHeader = true, // Set to true to display the app name instead of the icon
             packRailButtons = true,
             defaultShape = AzButtonShape.RECTANGLE,
-            enableRailDragging = !isIdeVisible,
-            headerIconShape = AzHeaderIconShape.NONE
-
+            enableRailDragging = enableRailDraggingOverride ?: !isIdeVisible,
+            headerIconShape = AzHeaderIconShape.NONE,
+            onUndock = onUndock
         )
         azRailItem(id = "project_settings", text = "Project", onClick = { navController.navigate("project_settings") })
 
