@@ -43,6 +43,7 @@ fun MainScreen(
     val scope = rememberCoroutineScope()
 
     val showCancelDialog by viewModel.showCancelDialog.collectAsState()
+    val isTargetAppVisible by viewModel.isTargetAppVisible.collectAsState()
 
     // --- Bottom Sheet State ---
     val configuration = LocalConfiguration.current
@@ -142,7 +143,7 @@ fun MainScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = Color.Transparent,
+        containerColor = if (isTargetAppVisible) Color.Transparent else MaterialTheme.colorScheme.background,
     ) { innerPadding ->
 
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {

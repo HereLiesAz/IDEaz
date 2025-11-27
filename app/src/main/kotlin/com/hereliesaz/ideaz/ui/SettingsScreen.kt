@@ -55,11 +55,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.hereliesaz.aznavrail.AzButton
 import com.hereliesaz.aznavrail.AzTextBox
 import com.hereliesaz.aznavrail.model.AzButtonShape
-import dev.chrisbanes.haze.HazeStyle
-import dev.chrisbanes.haze.HazeTint
-import dev.chrisbanes.haze.hazeEffect
-import dev.chrisbanes.haze.hazeSource
-import dev.chrisbanes.haze.rememberHazeState
+import androidx.compose.foundation.background
 import java.io.File
 
 private const val TAG = "SettingsScreen"
@@ -156,19 +152,11 @@ fun SettingsScreen(
         }
     )
 
-    val hazeState = rememberHazeState()
-
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .hazeSource(
-                    state = hazeState,
-                )
-        )
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -181,13 +169,6 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(16.dp)
-                    .hazeEffect(
-                        state = hazeState,
-                        style = HazeStyle(
-                            backgroundColor = MaterialTheme.colorScheme.background.copy(alpha = 0.5f),
-                            tints = listOf(HazeTint(Color.Black.copy(alpha = 0.2f)))
-                        )
-                    )
                     .verticalScroll(rememberScrollState())
             ) {
                 Text(

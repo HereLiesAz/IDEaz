@@ -223,6 +223,12 @@ class UIInspectionService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
+
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+            event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
+            checkTargetAppVisibility()
+        }
+
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val targetPackage = settingsViewModel.getTargetPackageName() ?: return
             val eventPackage = event.packageName?.toString()
@@ -491,5 +497,29 @@ class UIInspectionService : AccessibilityService() {
         if (updatePopupView != null) {
             updatePopupView?.visibility = previousPopupVisibility
         }
+    }
+
+    private fun checkTargetAppVisibility() {
+        val targetPackage = settingsViewModel.getTargetPackageName() ?: return
+        var isVisible = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+             try {
+                if (windows != null) {
+                    for (window in windows) {
+                        if (window.root?.packageName == targetPackage) {
+                            isVisible = true
+                            break
+                        }
+                    }
+                }
+             } catch (e: Exception) {
+                 Log.w("UIInspectionService", "Error checking windows: ${e.message}")
+             }
+        }
+        val intent = Intent("com.hereliesaz.ideaz.TARGET_APP_VISIBILITY").apply {
+            putExtra("IS_VISIBLE", isVisible)
+            setPackage(packageName)
+        }
+        sendBroadcast(intent)
     }
 }
