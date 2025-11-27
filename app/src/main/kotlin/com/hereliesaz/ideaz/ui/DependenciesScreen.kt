@@ -15,7 +15,8 @@ fun LibrariesScreen(
     viewModel: MainViewModel,
     settingsViewModel: SettingsViewModel
 ) {
-    val dependencies = remember { mutableStateListOf(*viewModel.getDependencies().map { Dependency.fromString(it) }.toTypedArray()) }
+    // getDependencies now returns List<Dependency> which is compatible with mutableStateListOf
+    val dependencies = remember { mutableStateListOf(*viewModel.getDependencies().toTypedArray()) }
     var newDependency by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
 
