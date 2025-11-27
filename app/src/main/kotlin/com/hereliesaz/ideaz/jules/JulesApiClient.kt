@@ -11,6 +11,7 @@ import retrofit2.Retrofit
 object JulesApiClient {
 
     private const val BASE_URL = "https://jules.googleapis.com/v1alpha/"
+    private const val PARENT = "projects/ideaz-336316"
 
     private fun getClient(): JulesApi {
         val okHttpClient = OkHttpClient.Builder()
@@ -55,11 +56,11 @@ object JulesApiClient {
 
     // Used by MainViewModel
     suspend fun listSessions(): ListSessionsResponse {
-        return getClient().listSessions()
+        return getClient().listSessions(PARENT)
     }
 
     suspend fun listSources(): ListSourcesResponse {
-        return getClient().listSources()
+        return getClient().listSources(PARENT)
     }
 
     suspend fun getSession(sessionId: String): Session {
