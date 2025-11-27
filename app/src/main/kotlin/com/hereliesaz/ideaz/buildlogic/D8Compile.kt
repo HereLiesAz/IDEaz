@@ -23,7 +23,7 @@ class D8Compile(
         val classpathFiles = classpath.split(File.pathSeparator).filter { it.isNotEmpty() }.map { File(it) }
         val allInputs = classFiles + classpathFiles + File(androidJarPath)
 
-        if (BuildCacheManager.shouldSkip("d8", allInputs, outputDirFile)) {
+        if (BuildCacheManager.shouldSkip("d8", allInputs, outputDirFile, "classes.dex")) {
             callback?.onLog("Skipping D8Compile: Up-to-date.")
             return BuildResult(true, "Up-to-date")
         }
