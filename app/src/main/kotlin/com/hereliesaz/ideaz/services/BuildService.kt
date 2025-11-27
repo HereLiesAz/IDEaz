@@ -199,14 +199,15 @@ class BuildService : Service() {
     private fun startBuild(projectPath: String, callback: IBuildCallback) {
         cancelBuild()
         buildJob = serviceScope.launch(Dispatchers.IO) {
-            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
-            currentProjectPath = projectPath
-            synchronized(logBuffer) {
-                logBuffer.clear()
-            }
-            updateNotification("Starting build...")
+            try {
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+                currentProjectPath = projectPath
+                synchronized(logBuffer) {
+                    logBuffer.clear()
+                }
+                updateNotification("Starting build...")
 
-            val projectDir = File(projectPath)
+                val projectDir = File(projectPath)
             val buildDir = File(projectDir, "build").apply { mkdirs() }
             val cacheDir = File(filesDir, "cache").apply { mkdirs() }
             val localRepoDir = File(filesDir, "local-repo").apply { mkdirs() }
@@ -333,13 +334,19 @@ class BuildService : Service() {
                 )
             )
 
-            val result = buildOrchestrator.execute(callback)
-            if (result.success && isActive) {
-                callback.onSuccess(File(buildDir, "app-signed.apk").absolutePath)
-                // Install Trigger
-                ApkInstaller.installApk(this@BuildService, File(buildDir, "app-signed.apk").absolutePath)
-            } else if (isActive) {
-                callback.onFailure(result.output)
+                val result = buildOrchestrator.execute(callback)
+                if (result.success && isActive) {
+                    callback.onSuccess(File(buildDir, "app-signed.apk").absolutePath)
+                    // Install Trigger
+                    ApkInstaller.installApk(this@BuildService, File(buildDir, "app-signed.apk").absolutePath)
+                } else if (isActive) {
+                    callback.onFailure(result.output)
+                }
+            } catch (e: Throwable) {
+                Log.e(TAG, "Build service crashed", e)
+                if (isActive) {
+                    callback.onFailure("[IDE] Failed with internal error: ${e.message}\n${e.stackTraceToString()}")
+                }
             }
         }
     }
