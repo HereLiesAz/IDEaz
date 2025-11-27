@@ -16,11 +16,18 @@ class ProcessAars(
 
     override fun execute(callback: IBuildCallback?): BuildResult {
         val explodedDir = File(buildDir, "exploded_aars")
+        if (explodedDir.exists()) {
+            explodedDir.deleteRecursively()
+        }
         explodedDir.mkdirs()
+
         val compiledDir = File(buildDir, "compiled_aars")
+        if (compiledDir.exists()) {
+            compiledDir.deleteRecursively()
+        }
         compiledDir.mkdirs()
 
-        val aarFiles = artifacts.filter { it.isFile && it.extension == "aar" }
+        val aarFiles = artifacts.filter { it.isFile && it.extension.equals("aar", ignoreCase = true) }
 
         if (aarFiles.isEmpty()) {
             return BuildResult(true, "No AARs found to process.")
