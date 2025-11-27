@@ -14,7 +14,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.IBuildService
-import com.hereliesaz.ideaz.jules.JulesApiClient
+import com.hereliesaz.ideaz.api.ApiClient
 import com.hereliesaz.ideaz.api.JulesCliClient
 import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.services.BuildService
@@ -37,6 +37,7 @@ import com.hereliesaz.ideaz.api.ListSourcesResponse
 import com.hereliesaz.ideaz.api.Source
 import com.hereliesaz.ideaz.api.ListActivitiesResponse
 import com.hereliesaz.ideaz.api.Activity
+import com.hereliesaz.ideaz.api.SendMessageRequest
 import com.hereliesaz.ideaz.buildlogic.HttpDependencyResolver
 import java.io.FileOutputStream
 import java.io.IOException
@@ -284,7 +285,7 @@ class MainViewModel(
             Log.d(TAG, "fetchOwnedSources: Fetching sources...")
             try {
                 val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
-                val response = JulesApiClient.listSources(parent)
+                val response = ApiClient.julesApi.listSources(parent)
                 _ownedSources.value = response.sources ?: emptyList()
                 Log.d(TAG, "fetchOwnedSources: Success. Found ${response.sources?.size ?: 0} sources.")
             } catch (e: Exception) {
@@ -301,7 +302,7 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
-                val response = JulesApiClient.listSessions(parent)
+                val response = ApiClient.julesApi.listSessions(parent)
                 val appName = settingsViewModel.getAppName()
                 val githubUser = settingsViewModel.getGithubUser()
                 val currentSource = "sources/github/$githubUser/$appName"
@@ -673,7 +674,7 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
-                JulesApiClient.deleteSession(parent, session.id)
+                ApiClient.julesApi.deleteSession(parent, session.id)
                 fetchSessions()
                 _buildLog.value += "[INFO] Session ${session.id} deleted.\n"
             } catch (e: Exception) {
@@ -794,7 +795,7 @@ class MainViewModel(
                         val activeId = _activeSessionId.value
                         if (activeId != null) {
                             _buildLog.value += "[INFO] Sending message to existing session $activeId...\n"
-                            JulesApiClient.sendMessage(parent, activeId, promptText)
+                            ApiClient.julesApi.sendMessage(parent, activeId, SendMessageRequest(promptText))
                             pollForPatch(parent, activeId, _buildLog)
                             return@launch
                         }
@@ -807,7 +808,7 @@ class MainViewModel(
                             )
                         )
 
-                        val session = JulesApiClient.createSession(parent, request)
+                        val session = ApiClient.julesApi.createSession(parent, request)
                         val sessionId = session.name.substringAfterLast("/")
 
                         _buildLog.value += "[INFO] Jules session created. ID: $sessionId\n"
@@ -939,7 +940,7 @@ class MainViewModel(
                         )
 
                         val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
-                        val session = JulesApiClient.createSession(parent, request)
+                        val session = ApiClient.julesApi.createSession(parent, request)
                         logToOverlay("Session created. Waiting for patch...")
                         pollForPatch(parent, session.name, "OVERLAY")
 
@@ -1242,7 +1243,7 @@ class MainViewModel(
                             prompt = buildLog.value,
                             sourceContext = SourceContext(source = sourceString, githubRepoContext = GitHubRepoContext(startingBranch = branchName))
                         )
-                        val session = JulesApiClient.createSession(parent, request)
+                        val session = ApiClient.julesApi.createSession(parent, request)
                         _buildLog.value += "AI Status: Debug info sent. Waiting for patch...\n"
                         pollForPatch(parent, session.name.substringAfterLast("/"), _buildLog)
                     } catch (e: Exception) {
@@ -1287,7 +1288,7 @@ class MainViewModel(
             while (isActive && attempt < maxAttempts) {
                 attempt++
                 try {
-                    val response = JulesApiClient.listActivities(parent, sessionId)
+                    val response = ApiClient.julesApi.listActivities(parent, sessionId)
                     val activities = response.activities ?: emptyList()
 
                     // Log new activities
