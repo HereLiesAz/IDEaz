@@ -901,15 +901,25 @@ class MainViewModel(
             logToOverlay("Error: Missing screen capture permission.")
             return
         }
-        val intent = Intent(getApplication(), ScreenshotService::class.java).apply {
-            putExtra(ScreenshotService.EXTRA_RESULT_CODE, screenCaptureResultCode)
-            putExtra(ScreenshotService.EXTRA_DATA, screenCaptureData)
-            putExtra(ScreenshotService.EXTRA_RECT, rect)
+
+        viewModelScope.launch {
+            // HACK: Hide the overlay briefly to capture the underlying app
+            sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.HIDE_OVERLAYS_TEMPORARILY"))
+            delay(250)
+
+            val intent = Intent(getApplication(), ScreenshotService::class.java).apply {
+                putExtra(ScreenshotService.EXTRA_RESULT_CODE, screenCaptureResultCode)
+                putExtra(ScreenshotService.EXTRA_DATA, screenCaptureData)
+                putExtra(ScreenshotService.EXTRA_RECT, rect)
+            }
+            getApplication<Application>().startForegroundService(intent)
         }
-        getApplication<Application>().startForegroundService(intent)
     }
 
     fun onScreenshotTaken(base64: String) {
+        // Restore overlays immediately
+        sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.RESTORE_OVERLAYS"))
+
         val prompt = pendingRichPrompt ?: "Error: No pending prompt"
         pendingRichPrompt = null
         val finalRichPrompt = "$prompt\n\n[IMAGE: data:image/png;base64,$base64]"
