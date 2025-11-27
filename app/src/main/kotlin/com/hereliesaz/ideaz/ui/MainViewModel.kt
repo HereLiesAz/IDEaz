@@ -1380,6 +1380,10 @@ class MainViewModel(
         }
     }
 
+    private fun isValidSha(s: String): Boolean {
+        return s.matches(Regex("^[0-9a-fA-F]{40}$"))
+    }
+
     private suspend fun checkForArtifact(sha: String): RemoteArtifact? {
         val user = settingsViewModel.getGithubUser() ?: return null
         val appName = settingsViewModel.getAppName() ?: return null
@@ -1420,7 +1424,12 @@ class MainViewModel(
                         if (assets.length() > 0) {
                             val asset = assets.getJSONObject(0)
                             val downloadUrl = if (!token.isNullOrBlank()) asset.getString("url") else asset.getString("browser_download_url")
-                            val artifact = RemoteArtifact(downloadUrl, targetCommitish, tagName)
+
+                            // Fix: If target_commitish is a branch name (e.g. "main"), we can't use it as a version identifier
+                            // because it doesn't change when a new release is made from the same branch.
+                            // In that case, we use the Tag Name as the unique identifier.
+                            val identifier = if (isValidSha(targetCommitish)) targetCommitish else tagName
+                            val artifact = RemoteArtifact(downloadUrl, identifier, tagName)
 
                             if (latestRelease == null) {
                                 latestRelease = artifact // First one is latest
