@@ -382,6 +382,10 @@ class MainViewModel(
                     _buildLog.value += "[INFO] Detected default branch: $defaultBranch\n"
                     // --- END NEW ---
 
+                    // --- NEW: Check Permissions and Rules ---
+                    checkRepoRules(owner, appName, defaultBranch)
+                    // --- END NEW ---
+
                     val loadedConfig = ProjectConfigManager.loadConfig(projectDir)
                     if (loadedConfig != null) {
                         _buildLog.value += "[INFO] Loaded project config from .ideaz\n"
@@ -552,14 +556,31 @@ class MainViewModel(
                         _buildLog.value += "[GIT] Targeting default branch: $defaultBranch\n"
                         // --- END FIX ---
 
-                        // Make sure we are on the main branch before committing
-                        git.checkout(defaultBranch)
+                        // --- NEW: Check Rules for Branching Strategy ---
+                        val canPush = settingsViewModel.canPushToRepo()
+                        val isProtected = settingsViewModel.isBranchProtected()
+
+                        var targetBranch = defaultBranch
+                        if (!canPush) {
+                             _buildLog.value += "[WARN] No push permission to '$defaultBranch'. Action may fail.\n"
+                             // Try to proceed anyway; maybe they have limited push rights?
+                             git.checkout(defaultBranch)
+                        } else if (isProtected) {
+                             targetBranch = "ideaz-init-${System.currentTimeMillis()}"
+                             _buildLog.value += "[INFO] Branch '$defaultBranch' is protected. Creating initialization branch '$targetBranch'...\n"
+                             git.createAndCheckoutBranch(targetBranch)
+                             settingsViewModel.saveBranchName(targetBranch)
+                        } else {
+                             // Safe to push to main
+                             git.checkout(defaultBranch)
+                        }
+                        // --- END NEW ---
 
                         git.addAll()
                         git.commit("Force update of IDEaz workflows and setup", allowEmpty = true)
 
                         // Always push
-                        _buildLog.value += "[GIT] Pushing to $defaultBranch...\n"
+                        _buildLog.value += "[GIT] Pushing to $targetBranch...\n"
                         git.push(user, token, ::onGitProgress)
                     }
                     _loadingProgress.value = null
@@ -1631,5 +1652,47 @@ class MainViewModel(
     private fun getAssignedModelForTask(taskKey: String): AiModel? {
         val modelId = settingsViewModel.getAiAssignment(taskKey)
         return AiModels.findById(modelId)
+    }
+
+    private suspend fun checkRepoRules(owner: String, repo: String, branch: String) {
+        val token = settingsViewModel.getGithubToken() ?: return
+        try {
+            _buildLog.value += "[INFO] Checking repository permissions and rules...\n"
+            val api = GitHubApiClient.createService(token)
+
+            // 1. Get Repo Permissions
+            try {
+                val repoDetails = api.getRepo(owner, repo)
+                val perms = repoDetails.permissions
+                if (perms != null) {
+                    settingsViewModel.saveRepoPermissions(perms.push, perms.admin)
+                    _buildLog.value += "[INFO] Permissions: Push=${perms.push}, Admin=${perms.admin}\n"
+                }
+            } catch (e: Exception) {
+                _buildLog.value += "[WARN] Failed to fetch repo details: ${e.message}\n"
+            }
+
+            // 2. Get Branch Protection
+            try {
+                val protection = api.getBranchProtection(owner, repo, branch)
+                settingsViewModel.saveBranchProtection(isProtected = true, prRequired = true)
+                _buildLog.value += "[INFO] Branch '$branch' is PROTECTED. Enforcing safe workflow.\n"
+            } catch (e: retrofit2.HttpException) {
+                if (e.code() == 404) {
+                    // Branch not protected
+                    settingsViewModel.saveBranchProtection(isProtected = false, prRequired = false)
+                    _buildLog.value += "[INFO] Branch '$branch' is not protected.\n"
+                } else if (e.code() == 403) {
+                    _buildLog.value += "[INFO] Could not check protection (403). Assuming standard access.\n"
+                } else {
+                    _buildLog.value += "[WARN] Failed to check branch protection: ${e.code()}\n"
+                }
+            } catch (e: Exception) {
+                _buildLog.value += "[WARN] Failed to check branch protection: ${e.message}\n"
+            }
+
+        } catch (e: Exception) {
+            _buildLog.value += "[WARN] Error during rules check: ${e.message}\n"
+        }
     }
 }
