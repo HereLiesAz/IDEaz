@@ -77,6 +77,19 @@ class MainViewModel(
 
     private val gitMutex = Mutex()
     private var lastGitTask = ""
+    private var lastLogMarkerIndex = 0
+
+    private fun markLogStart() {
+        lastLogMarkerIndex = _buildLog.value.length
+    }
+
+    private fun getRelevantLogs(): String {
+        return if (lastLogMarkerIndex <= _buildLog.value.length) {
+            _buildLog.value.substring(lastLogMarkerIndex)
+        } else {
+            _buildLog.value // Fallback if index is out of sync
+        }
+    }
 
     private fun onGitProgress(percent: Int, task: String) {
         _loadingProgress.value = percent
@@ -157,19 +170,19 @@ class MainViewModel(
     }
 
     // --- NEW: Centralized Error Handling with API Support ---
-    private fun handleIdeError(e: Exception, contextMessage: String) {
+    private fun handleIdeError(e: Exception, contextMessage: String, logContent: String? = null) {
         Log.e(TAG, contextMessage, e)
         _buildLog.value += "[IDE ERROR] $contextMessage: ${e.message}\n"
 
         if (settingsViewModel.getAutoReportBugs()) {
             _buildLog.value += "[IDE] Reporting internal error to GitHub...\n"
             viewModelScope.launch(Dispatchers.IO) {
-                val logcat = try {
+                val finalLog = logContent ?: try {
                     Runtime.getRuntime().exec("logcat -d -t 200").inputStream.bufferedReader().readText()
                 } catch (ex: Exception) { "Failed to capture logcat: ${ex.message}" }
 
                 val token = settingsViewModel.getGithubToken()
-                val result = GithubIssueReporter.reportError(getApplication(), token, e, contextMessage, logcat)
+                val result = GithubIssueReporter.reportError(getApplication(), token, e, contextMessage, finalLog)
                 _buildLog.value += "[IDE] $result\n"
             }
         } else {
@@ -196,6 +209,17 @@ class MainViewModel(
 
     private var buildErrorCount = 0
     private var buildWarningCount = 0
+
+    private fun isIdeError(log: String): Boolean {
+        // Known IDE/Infrastructure failure patterns
+        return log.contains("[IDE] Failed", ignoreCase = true) ||
+                log.contains("tools not found", ignoreCase = true) ||
+                log.contains("Could not initialize RepositorySystem", ignoreCase = true) ||
+                log.contains("java.io.FileNotFoundException", ignoreCase = true) ||
+                (log.contains("java.io.IOException", ignoreCase = true) && !log.contains("kapt", ignoreCase = true)) || // Exclude KAPT user errors
+                (log.contains("java.lang.NullPointerException", ignoreCase = true) && log.contains("at com.hereliesaz.ideaz")) ||
+                (log.contains("java.lang.NoClassDefFoundError", ignoreCase = true) && log.contains("at com.hereliesaz.ideaz"))
+    }
 
     private val buildCallback = object : IBuildCallback.Stub() {
         override fun onLog(message: String) {
@@ -255,24 +279,16 @@ class MainViewModel(
                 contextualTaskJob = null
                 logToOverlay("Build failed. See global log to debug.")
 
-                // --- FIX: Distinguish System vs User Errors ---
-                // If the logs contain specific system failures, report to GitHub.
-                // Otherwise, assume user code error and use AI Debugger.
-                val isIdeError = log.contains("[IDE] Failed", ignoreCase = true) ||
-                        log.contains("tools not found", ignoreCase = true) ||
-                        log.contains("Could not initialize RepositorySystem", ignoreCase = true) ||
-                        log.contains("java.io.IOException", ignoreCase = true) ||
-                        log.contains("java.lang.NullPointerException", ignoreCase = true) ||
-                        log.contains("at com.hereliesaz.ideaz", ignoreCase = true)
+                val relevantLogs = getRelevantLogs()
 
-                if (isIdeError) {
+                // Check both the failure message and the collected logs
+                if (isIdeError(log) || isIdeError(relevantLogs)) {
                     // Strictly report to GitHub, NO AI Debugging
-                    handleIdeError(Exception("Build Infrastructure Failure:\n$log"), "IDE Build Error")
+                    handleIdeError(Exception("Build Infrastructure Failure:\n$log"), "IDE Build Error", relevantLogs)
                 } else {
                     _buildLog.value += "[IDE] AI Status: Build failed, asking AI to debug...\n"
                     debugBuild()
                 }
-                // --- END FIX ---
             }
         }
     }
@@ -1027,6 +1043,7 @@ class MainViewModel(
     fun startBuild(context: Context, projectDir: File? = null) {
         if (isBuildServiceBound) {
             viewModelScope.launch {
+                markLogStart()
                 val targetDir = projectDir ?: getOrCreateProject(context)
                 val pkgName = settingsViewModel.getTargetPackageName() ?: "com.example.helloworld"
 
@@ -1227,6 +1244,7 @@ class MainViewModel(
         }
         viewModelScope.launch {
             _buildLog.value += "AI Status: Debugging build failure...\n"
+            val relevantLog = getRelevantLogs()
             when (model.id) {
                 AiModels.JULES_DEFAULT -> {
                     try {
@@ -1235,7 +1253,7 @@ class MainViewModel(
                         val branchName = settingsViewModel.getBranchName()
                         val sourceString = "sources/github/$githubUser/$appName"
                         val request = CreateSessionRequest(
-                            prompt = buildLog.value,
+                            prompt = relevantLog,
                             sourceContext = SourceContext(source = sourceString, githubRepoContext = GitHubRepoContext(startingBranch = branchName))
                         )
                         val session = JulesApiClient.createSession(request)
@@ -1248,7 +1266,7 @@ class MainViewModel(
                 AiModels.GEMINI_FLASH -> {
                     val apiKey = settingsViewModel.getApiKey(model.requiredKey)
                     if (apiKey != null) {
-                        val response = GeminiApiClient.generateContent(buildLog.value, apiKey)
+                        val response = GeminiApiClient.generateContent(relevantLog, apiKey)
                         logToOverlay(response)
                     }
                 }
