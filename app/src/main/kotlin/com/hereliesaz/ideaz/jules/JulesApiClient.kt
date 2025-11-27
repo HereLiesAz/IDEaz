@@ -11,11 +11,6 @@ import retrofit2.Retrofit
 object JulesApiClient {
 
     private const val BASE_URL = "https://jules.googleapis.com/v1alpha/"
-    private const val PARENT = "projects/ideaz-336316"
-
-    private fun getProjectId(parent: String): String {
-        return parent.substringAfterLast("/")
-    }
 
     private fun getClient(): JulesApi {
         val okHttpClient = OkHttpClient.Builder()
@@ -43,47 +38,39 @@ object JulesApiClient {
      * Creates a new Jules session.
      */
     suspend fun createSession(parent: String, request: CreateSessionRequest): Session {
-        val projectId = getProjectId(parent)
-        return getClient().createSession(projectId, request)
+        return getClient().createSession(parent, request)
     }
 
     /**
      * Lists activities for a given session.
      */
     suspend fun listActivities(parent: String, sessionId: String): ListActivitiesResponse {
-        val projectId = getProjectId(parent)
-        return getClient().listActivities(projectId, sessionId)
+        return getClient().listActivities(parent, sessionId)
     }
 
-    suspend fun sendMessage(sessionId: String, prompt: String) {
+    suspend fun sendMessage(parent: String, sessionId: String, prompt: String) {
         val request = SendMessageRequest(prompt = prompt)
-        val projectId = getProjectId(PARENT)
-        getClient().sendMessage(projectId, sessionId, request)
+        getClient().sendMessage(parent, sessionId, request)
     }
 
     // Used by MainViewModel
     suspend fun listSessions(parent: String): ListSessionsResponse {
-        val projectId = getProjectId(parent)
-        return getClient().listSessions(projectId)
+        return getClient().listSessions(parent)
     }
 
     suspend fun listSources(parent: String): ListSourcesResponse {
-        val projectId = getProjectId(parent)
-        return getClient().listSources(projectId)
+        return getClient().listSources(parent)
     }
 
     suspend fun getSource(parent: String, sourceId: String): Source {
-        val projectId = getProjectId(parent)
-        return getClient().getSource(projectId, sourceId)
+        return getClient().getSource(parent, sourceId)
     }
 
     suspend fun getSession(parent: String, sessionId: String): Session {
-        val projectId = getProjectId(parent)
-        return getClient().getSession(projectId, sessionId)
+        return getClient().getSession(parent, sessionId)
     }
 
     suspend fun deleteSession(parent: String, sessionId: String) {
-        val projectId = getProjectId(parent)
-        getClient().deleteSession(projectId, sessionId)
+        getClient().deleteSession(parent, sessionId)
     }
 }
