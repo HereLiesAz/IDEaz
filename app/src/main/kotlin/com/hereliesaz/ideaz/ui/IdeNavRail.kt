@@ -72,7 +72,7 @@ fun IdeNavRail(
         azRailSubToggle(
             id = "mode_toggle",
             hostId = "main",
-            isChecked = true, // Force 'True' so it displays "Interact" (Current state)
+            isChecked = isIdeVisible,
             toggleOnText = "Interact",
             toggleOffText = "Select",
             shape = AzButtonShape.NONE,
