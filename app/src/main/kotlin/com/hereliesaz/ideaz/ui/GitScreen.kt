@@ -34,7 +34,7 @@ fun GitScreen(
         // Force Commit Button
         AzButton(
             onClick = { viewModel.forceUpdateInitFiles() },
-            text = "Force Update Init Files",
+            text = "Push Inits",
             shape = AzButtonShape.NONE
         )
 
@@ -42,13 +42,13 @@ fun GitScreen(
 
         // Git Commands
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AzButton(onClick = { viewModel.gitFetch() }, text = "Fetch", shape = AzButtonShape.NONE)
-            AzButton(onClick = { viewModel.gitPull() }, text = "Pull", shape = AzButtonShape.NONE)
-            AzButton(onClick = { viewModel.gitPush() }, text = "Push", shape = AzButtonShape.NONE)
+            AzButton(onClick = { viewModel.gitFetch() }, text = "Fetch", shape = AzButtonShape.RECTANGLE)
+            AzButton(onClick = { viewModel.gitPull() }, text = "Pull", shape = AzButtonShape.RECTANGLE)
+            AzButton(onClick = { viewModel.gitPush() }, text = "Push", shape = AzButtonShape.RECTANGLE)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-            AzButton(onClick = { viewModel.gitStash("Stash via UI") }, text = "Stash", shape = AzButtonShape.NONE)
-            AzButton(onClick = { viewModel.gitUnstash() }, text = "Unstash", shape = AzButtonShape.NONE)
+            AzButton(onClick = { viewModel.gitStash("Stash") }, text = "Stash", shape = AzButtonShape.RECTANGLE)
+            AzButton(onClick = { viewModel.gitUnstash() }, text = "Unstash", shape = AzButtonShape.RECTANGLE)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
