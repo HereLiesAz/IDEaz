@@ -12,6 +12,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import java.io.File
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 @Composable
 fun FileExplorerScreen(
@@ -41,7 +43,8 @@ fun FileExplorerScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("File Explorer", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium)
+        Spacer(modifier = Modifier.height(64.dp))
+
         Text(currentPath?.absolutePath?.removePrefix(projectDir.absolutePath) ?: "/", style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -64,7 +67,8 @@ fun FileExplorerScreen(
                         if (file.isDirectory) {
                             currentPath = file
                         } else {
-                            navController.navigate("file_content/${file.absolutePath}")
+                            val encodedPath = URLEncoder.encode(file.absolutePath, StandardCharsets.UTF_8.toString())
+                            navController.navigate("file_content/$encodedPath")
                         }
                     }
                 )

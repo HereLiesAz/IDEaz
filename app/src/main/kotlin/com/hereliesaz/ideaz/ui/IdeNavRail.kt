@@ -36,12 +36,11 @@ fun IdeNavRail(
         )
         azRailItem(id = "project_settings", text = "Project", onClick = { navController.navigate("project_settings") })
 
-        azMenuItem(id = "file_explorer",  text = "Files", onClick = { navController.navigate("file_explorer") })
         azMenuItem(id = "git",  text = "Git", onClick = { navController.navigate("git") })
-        azMenuItem(id = "libraries",  text = "Libraries", onClick = { navController.navigate("libraries") })
+        azMenuItem(id = "libraries",  text = "Libs", onClick = { navController.navigate("libraries") })
 
         // MODIFIED: Renamed "Status" to "IDE"
-        azRailHostItem(id = "main", text = "IDE", onClick = { handleActionClick { navController.navigate("main") } })
+        azRailHostItem(id = "main", text = "IDEaz", onClick = { handleActionClick { navController.navigate("main") } })
         azRailSubItem(id = "prompt", hostId = "main", text = "Prompt", onClick = { handleActionClick {onShowPromptPopup()} })
         azRailSubItem(id = "build", hostId = "main", text = "Build", onClick = {
             handleActionClick {
@@ -66,6 +65,7 @@ fun IdeNavRail(
                 }
             }
         )
+        azMenuItem(id = "file_explorer",  text = "Files", onClick = { navController.navigate("file_explorer") })
 
         azRailItem(id = "settings", text = "Settings", onClick = { navController.navigate("settings") })
     }
