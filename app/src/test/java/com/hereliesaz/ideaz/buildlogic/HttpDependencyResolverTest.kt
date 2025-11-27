@@ -7,6 +7,10 @@ import java.io.File
 class HttpDependencyResolverTest {
     @Test
     fun testParseDependencies() {
+        val resolver = HttpDependencyResolver(File("."), File("."), File("."), null)
+        val method = HttpDependencyResolver::class.java.getDeclaredMethod("parseDependencies", String::class.java)
+        method.isAccessible = true
+
         val input = """
             # TOML
             "com.google.code.gson:gson" = "2.8.8"
@@ -34,19 +38,20 @@ class HttpDependencyResolverTest {
             </dependency>
         """.trimIndent()
 
-        val dependencies = HttpDependencyResolver.parseDependencies(input, null)
+        val dependencies = method.invoke(resolver, input) as List<*>
 
         assertEquals(8, dependencies.size)
 
         fun checkArtifact(dep: Any?, artifactId: String, version: String, extension: String) {
             assertNotNull(dep)
-            // Dependencies are org.eclipse.aether.graph.Dependency
-            val dependency = dep as org.eclipse.aether.graph.Dependency
-            val artifact = dependency.artifact
+            val artifact = dep!!.javaClass.getMethod("getArtifact").invoke(dep)
+            val actualArtifactId = artifact.javaClass.getMethod("getArtifactId").invoke(artifact) as String
+            val actualVersion = artifact.javaClass.getMethod("getVersion").invoke(artifact) as String
+            val actualExtension = artifact.javaClass.getMethod("getExtension").invoke(artifact) as String
 
-            assertEquals("ArtifactId mismatch for $artifactId", artifactId, artifact.artifactId)
-            assertEquals("Version mismatch for $artifactId", version, artifact.version)
-            assertEquals("Extension mismatch for $artifactId", extension, artifact.extension)
+            assertEquals("ArtifactId mismatch for $artifactId", artifactId, actualArtifactId)
+            assertEquals("Version mismatch for $artifactId", version, actualVersion)
+            assertEquals("Extension mismatch for $artifactId", extension, actualExtension)
         }
 
         // Maven (Parsed first)
