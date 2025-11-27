@@ -795,7 +795,7 @@ class MainViewModel(
                         if (activeId != null) {
                             _buildLog.value += "[INFO] Sending message to existing session $activeId...\n"
                             JulesApiClient.sendMessage(parent, activeId, promptText)
-                            pollForPatch(activeId, _buildLog)
+                            pollForPatch(parent, activeId, _buildLog)
                             return@launch
                         }
 
@@ -813,7 +813,7 @@ class MainViewModel(
                         _buildLog.value += "[INFO] Jules session created. ID: $sessionId\n"
                         _activeSessionId.value = sessionId
                         _buildLog.value += "[INFO] AI Status: Session created. Waiting for patch...\n"
-                        pollForPatch(sessionId, _buildLog)
+                        pollForPatch(parent, sessionId, _buildLog)
 
                     } catch (e: Exception) {
                         handleIdeError(e, "Error creating Jules session")
@@ -930,7 +930,6 @@ class MainViewModel(
                         val branchName = settingsViewModel.getBranchName()
                         val sourceString = "sources/github/$githubUser/$appName"
 
-                        val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
                         val request = CreateSessionRequest(
                             prompt = richPrompt,
                             sourceContext = SourceContext(
@@ -939,9 +938,10 @@ class MainViewModel(
                             )
                         )
 
+                        val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
                         val session = JulesApiClient.createSession(parent, request)
                         logToOverlay("Session created. Waiting for patch...")
-                        pollForPatch(session.name, "OVERLAY")
+                        pollForPatch(parent, session.name, "OVERLAY")
 
                     } catch (e: Exception) {
                         logToOverlay("Error: ${e.message}")
@@ -1236,15 +1236,15 @@ class MainViewModel(
                         val appName = settingsViewModel.getAppName()
                         val githubUser = settingsViewModel.getGithubUser()
                         val branchName = settingsViewModel.getBranchName()
-                        val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
                         val sourceString = "sources/github/$githubUser/$appName"
+                        val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
                         val request = CreateSessionRequest(
                             prompt = buildLog.value,
                             sourceContext = SourceContext(source = sourceString, githubRepoContext = GitHubRepoContext(startingBranch = branchName))
                         )
                         val session = JulesApiClient.createSession(parent, request)
                         _buildLog.value += "AI Status: Debug info sent. Waiting for patch...\n"
-                        pollForPatch(session.name.substringAfterLast("/"), _buildLog)
+                        pollForPatch(parent, session.name.substringAfterLast("/"), _buildLog)
                     } catch (e: Exception) {
                         handleIdeError(e, "Error debugging build")
                     }
@@ -1276,7 +1276,7 @@ class MainViewModel(
         getApplication<Application>().sendBroadcast(intent)
     }
 
-    private fun pollForPatch(sessionId: String, logTarget: Any) {
+    private fun pollForPatch(parent: String, sessionId: String, logTarget: Any) {
         viewModelScope.launch {
             val seenActivityIds = mutableSetOf<String>()
             var attempt = 0
@@ -1287,7 +1287,6 @@ class MainViewModel(
             while (isActive && attempt < maxAttempts) {
                 attempt++
                 try {
-                    val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
                     val response = JulesApiClient.listActivities(parent, sessionId)
                     val activities = response.activities ?: emptyList()
 

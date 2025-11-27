@@ -11,7 +11,7 @@ import retrofit2.http.Query
 interface JulesApi {
     @GET("{parent}/sources")
     suspend fun listSources(
-        @Path("parent") parent: String,
+        @Path("parent", encoded = true) parent: String,
         @Query("pageSize") pageSize: Int? = null,
         @Query("pageToken") pageToken: String? = null,
         @Query("filter") filter: String? = null
@@ -19,32 +19,32 @@ interface JulesApi {
 
     @GET("{parent}/sources/{sourceId}")
     suspend fun getSource(
-        @Path("parent") parent: String,
+        @Path("parent", encoded = true) parent: String,
         @Path("sourceId") sourceId: String
     ): Source
 
     @POST("{parent}/sessions")
     suspend fun createSession(
-        @Path("parent") parent: String,
+        @Path("parent", encoded = true) parent: String,
         @Body request: CreateSessionRequest
     ): Session
 
     @GET("{parent}/sessions")
     suspend fun listSessions(
-        @Path("parent") parent: String,
+        @Path("parent", encoded = true) parent: String,
         @Query("pageSize") pageSize: Int? = null,
         @Query("pageToken") pageToken: String? = null
     ): ListSessionsResponse
 
     @GET("{parent}/sessions/{sessionId}")
     suspend fun getSession(
-        @Path("parent") parent: String,
+        @Path("parent", encoded = true) parent: String,
         @Path("sessionId") sessionId: String
     ): Session
 
     @POST("{parent}/sessions/{sessionId}:approvePlan")
     suspend fun approvePlan(
-        @Path("parent") parent: String,
+        @Path("parent", encoded = true) parent: String,
         @Path("sessionId") sessionId: String
     )
 
@@ -52,7 +52,7 @@ interface JulesApi {
     // If this 404s, MainViewModel will fallback to CLI.
     @GET("{parent}/sessions/{sessionId}/activities")
     suspend fun listActivities(
-        @Path("parent") parent: String,
+        @Path("parent", encoded = true) parent: String,
         @Path("sessionId") sessionId: String,
         @Query("pageSize") pageSize: Int? = null,
         @Query("pageToken") pageToken: String? = null
@@ -60,21 +60,21 @@ interface JulesApi {
 
     @GET("{parent}/sessions/{sessionId}/activities/{activityId}")
     suspend fun getActivity(
-        @Path("parent") parent: String,
+        @Path("parent", encoded = true) parent: String,
         @Path("sessionId") sessionId: String,
         @Path("activityId") activityId: String
     ): Activity
 
     @POST("{parent}/sessions/{sessionId}:sendMessage")
     suspend fun sendMessage(
-        @Path("parent") parent: String,
+        @Path("parent", encoded = true) parent: String,
         @Path("sessionId") sessionId: String,
         @Body request: SendMessageRequest
     )
 
     @DELETE("{parent}/sessions/{sessionId}")
     suspend fun deleteSession(
-        @Path("parent") parent: String,
+        @Path("parent", encoded = true) parent: String,
         @Path("sessionId") sessionId: String
     )
 }
