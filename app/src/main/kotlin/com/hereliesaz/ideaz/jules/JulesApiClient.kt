@@ -1,6 +1,5 @@
 package com.hereliesaz.ideaz.jules
 
-import android.provider.MediaStore.Files.FileColumns.PARENT
 import com.hereliesaz.ideaz.api.*
 import com.hereliesaz.ideaz.api.AuthInterceptor
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -11,6 +10,7 @@ import retrofit2.Retrofit
 
 object JulesApiClient {
 
+    const val FALLBACK_PROJECT_ID = "projects/ideaz-336316"
     private const val BASE_URL = "https://jules.googleapis.com/v1alpha/"
 
     private fun getClient(): JulesApi {
@@ -38,20 +38,20 @@ object JulesApiClient {
     /**
      * Creates a new Jules session.
      */
-    suspend fun createSession(request: CreateSessionRequest): Session {
-        return getClient().createSession(PARENT, request)
+    suspend fun createSession(parent: String, request: CreateSessionRequest): Session {
+        return getClient().createSession(parent, request)
     }
 
     /**
      * Lists activities for a given session.
      */
-    suspend fun listActivities(sessionId: String): ListActivitiesResponse {
-        return getClient().listActivities(PARENT, sessionId)
+    suspend fun listActivities(parent: String, sessionId: String): ListActivitiesResponse {
+        return getClient().listActivities(parent, sessionId)
     }
 
-    suspend fun sendMessage(sessionId: String, prompt: String) {
+    suspend fun sendMessage(parent: String, sessionId: String, prompt: String) {
         val request = SendMessageRequest(prompt = prompt)
-        getClient().sendMessage(PARENT, sessionId, request)
+        getClient().sendMessage(parent, sessionId, request)
     }
 
     // Used by MainViewModel
@@ -63,15 +63,15 @@ object JulesApiClient {
         return getClient().listSources(parent)
     }
 
-    suspend fun getSource(sourceId: String): Source {
-        return getClient().getSource(PARENT, sourceId)
+    suspend fun getSource(parent: String, sourceId: String): Source {
+        return getClient().getSource(parent, sourceId)
     }
 
-    suspend fun getSession(sessionId: String): Session {
-        return getClient().getSession(PARENT, sessionId)
+    suspend fun getSession(parent: String, sessionId: String): Session {
+        return getClient().getSession(parent, sessionId)
     }
 
-    suspend fun deleteSession(sessionId: String) {
-        getClient().deleteSession(PARENT, sessionId)
+    suspend fun deleteSession(parent: String, sessionId: String) {
+        getClient().deleteSession(parent, sessionId)
     }
 }
