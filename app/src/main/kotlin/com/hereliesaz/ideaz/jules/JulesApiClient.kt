@@ -45,12 +45,14 @@ object JulesApiClient {
      * Lists activities for a given session.
      */
     suspend fun listActivities(parent: String, sessionId: String): ListActivitiesResponse {
-        return getClient().listActivities(parent, sessionId)
+        val sessionName = "$parent/sessions/$sessionId"
+        return getClient().listActivities(sessionName)
     }
 
     suspend fun sendMessage(parent: String, sessionId: String, prompt: String) {
+        val sessionName = "$parent/sessions/$sessionId"
         val request = SendMessageRequest(prompt = prompt)
-        getClient().sendMessage(parent, sessionId, request)
+        getClient().sendMessage(sessionName, request)
     }
 
     // Used by MainViewModel
@@ -67,10 +69,12 @@ object JulesApiClient {
     }
 
     suspend fun getSession(parent: String, sessionId: String): Session {
-        return getClient().getSession(parent, sessionId)
+        val sessionName = "$parent/sessions/$sessionId"
+        return getClient().getSession(sessionName)
     }
 
     suspend fun deleteSession(parent: String, sessionId: String) {
-        getClient().deleteSession(parent, sessionId)
+        val sessionName = "$parent/sessions/$sessionId"
+        getClient().deleteSession(sessionName)
     }
 }
