@@ -1,1 +1,4 @@
 "com.google.code.gson:gson" = "2.8.8"
+"androidx.core:core-splashscreen:aar" = "1.0.1"
+"com.google.android.material:material:aar" = "1.11.0"
+"androidx.appcompat:appcompat:aar" = "1.6.1"
