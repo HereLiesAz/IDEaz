@@ -18,6 +18,8 @@ import org.eclipse.aether.transfer.TransferEvent
 import org.eclipse.aether.transport.file.FileTransporterFactory
 import org.eclipse.aether.transport.http.HttpTransporterFactory
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 
 class HttpDependencyResolver(
     private val projectDir: File,
@@ -35,6 +37,113 @@ class HttpDependencyResolver(
 
     companion object {
         private const val TAG = "HttpDependencyResolver"
+
+        fun parseDependencies(content: String, callback: IBuildCallback? = null): List<Dependency> {
+            val dependencies = mutableListOf<Dependency>()
+
+            // 1. Maven XML Parsing
+            val mavenRegex = "<dependency>(.*?)</dependency>".toRegex(RegexOption.DOT_MATCHES_ALL)
+            mavenRegex.findAll(content).forEach { matchResult ->
+                val block = matchResult.groupValues[1]
+                val extract = { tag: String -> "<$tag>(.*?)</$tag>".toRegex().find(block)?.groupValues?.get(1)?.trim() }
+
+                val groupId = extract("groupId")
+                val artifactId = extract("artifactId")
+                val version = extract("version")
+                val type = extract("type") ?: extract("packaging")
+
+                if (groupId != null && artifactId != null && version != null) {
+                    // DefaultArtifact format: [groupId]:[artifactId]:[extension]:[version]
+                    val coords = if (type != null) "$groupId:$artifactId:$type:$version" else "$groupId:$artifactId:$version"
+                    try {
+                        dependencies.add(Dependency(DefaultArtifact(coords), "compile"))
+                    } catch (e: Exception) {
+                        callback?.onLog("[IDE] WARNING: Failed to parse Maven dependency: $coords")
+                    }
+                }
+            }
+
+            // 2. Line-based parsing (TOML, Gradle, Raw)
+            content.lines().forEach { rawLine ->
+                val line = rawLine.trim().substringBefore("//").trim()
+                if (line.isEmpty() || line.startsWith("#") || line.startsWith("<")) return@forEach
+
+                try {
+                    var coords: String? = null
+
+                    if (line.contains("=")) {
+                        // TOML: "group:artifact" = "version"
+                        val parts = line.split("=")
+                        if (parts.size == 2) {
+                            val key = parts[0].trim().replace("\"", "").replace("'", "")
+                            val value = parts[1].trim().replace("\"", "").replace("'", "")
+                            coords = "$key:$value"
+                        }
+                    } else {
+                        // Gradle / Raw: Check for quotes first
+                        val quoteRegex = "[\"']([^\"']+)[\"']".toRegex()
+                        val match = quoteRegex.find(line)
+                        if (match != null) {
+                            val candidate = match.groupValues[1]
+                            if (candidate.contains(":")) {
+                                 coords = candidate
+                            }
+                        } else if (line.contains(":")) {
+                            // Raw: g:a:v
+                            coords = line
+                        }
+                    }
+
+                    if (coords != null) {
+                        dependencies.add(Dependency(DefaultArtifact(coords), "compile"))
+                    }
+                } catch (e: Exception) {
+                    callback?.onLog("[IDE] WARNING: Skipping invalid dependency line: '$line'")
+                }
+            }
+
+            return dependencies.distinctBy { it.artifact.toString() }
+        }
+
+        fun checkForUpdate(dependency: Dependency, callback: IBuildCallback? = null): String? {
+            try {
+                val artifact = dependency.artifact
+                val groupPath = artifact.groupId.replace('.', '/')
+                val urlString = "https://repo.maven.apache.org/maven2/$groupPath/${artifact.artifactId}/maven-metadata.xml"
+                val url = URL(urlString)
+                val connection = url.openConnection() as HttpURLConnection
+                if (connection.responseCode == 200) {
+                    val inputStream = connection.inputStream
+                    val parser = android.util.Xml.newPullParser()
+                    parser.setFeature(org.xmlpull.v1.XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
+                    parser.setInput(inputStream, null)
+
+                    var eventType = parser.eventType
+                    var latestVersion: String? = null
+                    while (eventType != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+                        if (eventType == org.xmlpull.v1.XmlPullParser.START_TAG && parser.name == "latest") {
+                            parser.next()
+                            latestVersion = parser.text
+                            break
+                        }
+                        eventType = parser.next()
+                    }
+                    connection.disconnect()
+
+                    if (latestVersion != null && latestVersion.isNotBlank() && latestVersion != artifact.version) {
+                        return latestVersion
+                    } else {
+                        return null
+                    }
+                } else {
+                    callback?.onLog("[IDE] Failed to check for updates: ${connection.responseCode}")
+                    return null
+                }
+            } catch (e: Exception) {
+                callback?.onLog("[IDE] Failed to check for updates for ${dependency.artifact}: ${e.message}")
+                return null
+            }
+        }
     }
 
     override fun execute(callback: IBuildCallback?): BuildResult {
@@ -55,7 +164,7 @@ class HttpDependencyResolver(
             callback?.onLog("[IDE] Repositories: ${remoteRepositories.joinToString { it.url }}")
 
 
-            val initialDependencies = parseDependencies(dependenciesFile.readText())
+            val initialDependencies = parseDependencies(dependenciesFile.readText(), callback)
             if (initialDependencies.isEmpty()) {
                 callback?.onLog("[IDE] No dependencies to resolve.")
                 return BuildResult(true, "No dependencies to resolve.")
@@ -92,12 +201,6 @@ class HttpDependencyResolver(
         // RepositorySystemSupplier automatically wires up necessary services
         // (connectors, transporters, etc.) with default implementations.
         val supplier = RepositorySystemSupplier()
-
-        // The supplier handles error handling internally by default, often throwing exceptions
-        // if a critical service cannot be created. The previous explicit error handler
-        // is generally no longer needed unless you want specific, custom error management
-        // within the supplier's logic itself, which is more complex.
-
         return supplier.get()
     }
 
@@ -114,72 +217,5 @@ class HttpDependencyResolver(
              }
         }
         return session
-    }
-
-    private fun parseDependencies(content: String): List<Dependency> {
-        val dependencies = mutableListOf<Dependency>()
-
-        // 1. Maven XML Parsing
-        val mavenRegex = "<dependency>(.*?)</dependency>".toRegex(RegexOption.DOT_MATCHES_ALL)
-        mavenRegex.findAll(content).forEach { matchResult ->
-            val block = matchResult.groupValues[1]
-            val extract = { tag: String -> "<$tag>(.*?)</$tag>".toRegex().find(block)?.groupValues?.get(1)?.trim() }
-
-            val groupId = extract("groupId")
-            val artifactId = extract("artifactId")
-            val version = extract("version")
-            val type = extract("type") ?: extract("packaging")
-
-            if (groupId != null && artifactId != null && version != null) {
-                // DefaultArtifact format: [groupId]:[artifactId]:[extension]:[version]
-                val coords = if (type != null) "$groupId:$artifactId:$type:$version" else "$groupId:$artifactId:$version"
-                try {
-                    dependencies.add(Dependency(DefaultArtifact(coords), "compile"))
-                } catch (e: Exception) {
-                    callback?.onLog("[IDE] WARNING: Failed to parse Maven dependency: $coords")
-                }
-            }
-        }
-
-        // 2. Line-based parsing (TOML, Gradle, Raw)
-        content.lines().forEach { rawLine ->
-            val line = rawLine.trim().substringBefore("//").trim()
-            if (line.isEmpty() || line.startsWith("#") || line.startsWith("<")) return@forEach
-
-            try {
-                var coords: String? = null
-
-                if (line.contains("=")) {
-                    // TOML: "group:artifact" = "version"
-                    val parts = line.split("=")
-                    if (parts.size == 2) {
-                        val key = parts[0].trim().replace("\"", "").replace("'", "")
-                        val value = parts[1].trim().replace("\"", "").replace("'", "")
-                        coords = "$key:$value"
-                    }
-                } else {
-                    // Gradle / Raw: Check for quotes first
-                    val quoteRegex = "[\"']([^\"']+)[\"']".toRegex()
-                    val match = quoteRegex.find(line)
-                    if (match != null) {
-                        val candidate = match.groupValues[1]
-                        if (candidate.contains(":")) {
-                             coords = candidate
-                        }
-                    } else if (line.contains(":")) {
-                        // Raw: g:a:v
-                        coords = line
-                    }
-                }
-
-                if (coords != null) {
-                    dependencies.add(Dependency(DefaultArtifact(coords), "compile"))
-                }
-            } catch (e: Exception) {
-                callback?.onLog("[IDE] WARNING: Skipping invalid dependency line: '$line'")
-            }
-        }
-
-        return dependencies.distinctBy { it.artifact.toString() }
     }
 }

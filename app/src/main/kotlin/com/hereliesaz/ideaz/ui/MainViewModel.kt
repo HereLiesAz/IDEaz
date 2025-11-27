@@ -37,6 +37,7 @@ import com.hereliesaz.ideaz.api.ListSourcesResponse
 import com.hereliesaz.ideaz.api.Source
 import com.hereliesaz.ideaz.api.ListActivitiesResponse
 import com.hereliesaz.ideaz.api.Activity
+import com.hereliesaz.ideaz.buildlogic.HttpDependencyResolver
 import java.io.FileOutputStream
 import java.io.IOException
 import com.hereliesaz.ideaz.utils.ToolManager
@@ -1536,11 +1537,17 @@ class MainViewModel(
         buildService = null
     }
 
-    fun getDependencies(): List<String> {
+    fun getDependencies(): List<Dependency> {
         val appName = settingsViewModel.getAppName() ?: return emptyList()
         val projectDir = getApplication<Application>().filesDir.resolve(appName)
         val dependenciesFile = File(projectDir, "dependencies.txt")
-        return if (dependenciesFile.exists()) dependenciesFile.readLines() else emptyList()
+        if (!dependenciesFile.exists()) return emptyList()
+
+        val aetherDeps = HttpDependencyResolver.parseDependencies(dependenciesFile.readText(), null)
+        return aetherDeps.map {
+            val artifact = it.artifact
+            Dependency(artifact.groupId, artifact.artifactId, artifact.version)
+        }
     }
 
     fun refreshGitData() {
@@ -1562,6 +1569,140 @@ class MainViewModel(
         }
     }
 
+    fun forceUpdateInitFiles() {
+        val appName = settingsViewModel.getAppName() ?: return
+        val projectDir = getApplication<Application>().filesDir.resolve(appName)
+        val typeStr = settingsViewModel.getProjectType()
+        val type = ProjectType.fromString(typeStr)
+        val user = settingsViewModel.getGithubUser()
+        val token = settingsViewModel.getGithubToken()
+
+        viewModelScope.launch {
+            gitMutex.withLock {
+                try {
+                    ProjectConfigManager.ensureWorkflow(getApplication(), projectDir, type)
+                    if (type == ProjectType.ANDROID) {
+                        ProjectConfigManager.ensureSetupScript(projectDir)
+                        ProjectConfigManager.ensureAgentsSetupMd(projectDir)
+                    }
+
+                    withContext(Dispatchers.IO) {
+                        val git = GitManager(projectDir)
+                        git.addAll()
+                        git.commit("Force update of IDEaz workflows and setup", allowEmpty = true)
+                        git.push(user, token, ::onGitProgress)
+                    }
+                    _buildLog.value += "[INFO] Init files forced updated and pushed.\n"
+                    refreshGitData()
+                } catch (e: Exception) {
+                    handleIdeError(e, "Force update init files failed")
+                }
+            }
+        }
+    }
+
+    fun gitFetch() {
+        viewModelScope.launch {
+            val appName = settingsViewModel.getAppName() ?: return@launch
+            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            val user = settingsViewModel.getGithubUser()
+            val token = settingsViewModel.getGithubToken()
+            withContext(Dispatchers.IO) {
+                try {
+                    GitManager(projectDir).fetch(user, token, ::onGitProgress)
+                    _buildLog.value += "[GIT] Fetch complete.\n"
+                } catch (e: Exception) {
+                    _buildLog.value += "[GIT] Fetch failed: ${e.message}\n"
+                }
+            }
+            refreshGitData()
+        }
+    }
+
+    fun gitPull() {
+        viewModelScope.launch {
+            val appName = settingsViewModel.getAppName() ?: return@launch
+            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            val user = settingsViewModel.getGithubUser()
+            val token = settingsViewModel.getGithubToken()
+            withContext(Dispatchers.IO) {
+                try {
+                    GitManager(projectDir).pull(user, token, ::onGitProgress)
+                    _buildLog.value += "[GIT] Pull complete.\n"
+                } catch (e: Exception) {
+                    _buildLog.value += "[GIT] Pull failed: ${e.message}\n"
+                }
+            }
+            refreshGitData()
+        }
+    }
+
+    fun gitPush() {
+        viewModelScope.launch {
+            val appName = settingsViewModel.getAppName() ?: return@launch
+            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            val user = settingsViewModel.getGithubUser()
+            val token = settingsViewModel.getGithubToken()
+            withContext(Dispatchers.IO) {
+                try {
+                    GitManager(projectDir).push(user, token, ::onGitProgress)
+                    _buildLog.value += "[GIT] Push complete.\n"
+                } catch (e: Exception) {
+                    _buildLog.value += "[GIT] Push failed: ${e.message}\n"
+                }
+            }
+            refreshGitData()
+        }
+    }
+
+    fun gitStash(message: String? = null) {
+        viewModelScope.launch {
+            val appName = settingsViewModel.getAppName() ?: return@launch
+            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            withContext(Dispatchers.IO) {
+                try {
+                    GitManager(projectDir).stash(message)
+                    _buildLog.value += "[GIT] Stash complete.\n"
+                } catch (e: Exception) {
+                    _buildLog.value += "[GIT] Stash failed: ${e.message}\n"
+                }
+            }
+            refreshGitData()
+        }
+    }
+
+    fun gitUnstash() {
+        viewModelScope.launch {
+            val appName = settingsViewModel.getAppName() ?: return@launch
+            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            withContext(Dispatchers.IO) {
+                try {
+                    GitManager(projectDir).unstash()
+                    _buildLog.value += "[GIT] Unstash complete.\n"
+                } catch (e: Exception) {
+                    _buildLog.value += "[GIT] Unstash failed: ${e.message}\n"
+                }
+            }
+            refreshGitData()
+        }
+    }
+
+    fun gitDeleteBranch(branchName: String) {
+        viewModelScope.launch {
+            val appName = settingsViewModel.getAppName() ?: return@launch
+            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            withContext(Dispatchers.IO) {
+                try {
+                    GitManager(projectDir).deleteBranch(branchName)
+                    _buildLog.value += "[GIT] Deleted branch $branchName.\n"
+                } catch (e: Exception) {
+                    _buildLog.value += "[GIT] Delete branch failed: ${e.message}\n"
+                }
+            }
+            refreshGitData()
+        }
+    }
+
     fun saveDependencies(dependencies: List<String>) {
         val appName = settingsViewModel.getAppName() ?: return
         val projectDir = getApplication<Application>().filesDir.resolve(appName)
@@ -1571,40 +1712,16 @@ class MainViewModel(
 
     suspend fun checkForUpdates(dependency: Dependency): Dependency {
         return withContext(Dispatchers.IO) {
-            try {
-                val groupPath = dependency.group.replace('.', '/')
-                val urlString = "https://repo.maven.apache.org/maven2/$groupPath/${dependency.artifact}/maven-metadata.xml"
-                val url = URL(urlString)
-                val connection = url.openConnection() as HttpURLConnection
-                if (connection.responseCode == 200) {
-                    val inputStream = connection.inputStream
-                    val parser = android.util.Xml.newPullParser()
-                    parser.setFeature(org.xmlpull.v1.XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
-                    parser.setInput(inputStream, null)
+            val aetherDep = org.eclipse.aether.graph.Dependency(
+                org.eclipse.aether.artifact.DefaultArtifact("${dependency.group}:${dependency.artifact}:${dependency.version}"),
+                "compile"
+            )
+            val update = HttpDependencyResolver.checkForUpdate(aetherDep, null)
 
-                    var eventType = parser.eventType
-                    var latestVersion: String? = null
-                    while (eventType != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
-                        if (eventType == org.xmlpull.v1.XmlPullParser.START_TAG && parser.name == "latest") {
-                            parser.next()
-                            latestVersion = parser.text
-                            break
-                        }
-                        eventType = parser.next()
-                    }
-                    connection.disconnect()
-
-                    if (latestVersion != null && latestVersion.isNotBlank() && latestVersion != dependency.version) {
-                        return@withContext dependency.copy(availableUpdate = latestVersion, error = null)
-                    } else {
-                        return@withContext dependency.copy(availableUpdate = null, error = null) // No update found
-                    }
-                } else {
-                    return@withContext dependency.copy(error = "Failed: ${connection.responseCode}")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to check for updates for $dependency", e)
-                return@withContext dependency.copy(error = "Failed: ${e.message}")
+            if (update != null) {
+                dependency.copy(availableUpdate = update)
+            } else {
+                dependency
             }
         }
     }
