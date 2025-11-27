@@ -26,6 +26,7 @@
 
 #### buildlogic/
 *   `BuildOrchestrator.kt`: Manages the execution of build steps.
+*   `BuildCacheManager.kt`: Manages caching of build outputs to skip redundant work.
 *   `BuildStep.kt`: Interface for individual build actions.
 *   `Aapt2Compile.kt` / `Aapt2Link.kt`: Android resource compilation.
 *   `KotlincCompile.kt`: Kotlin source compilation.

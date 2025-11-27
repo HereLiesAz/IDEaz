@@ -5,10 +5,20 @@ import java.security.MessageDigest
 
 object BuildCacheManager {
 
-    fun shouldSkip(taskName: String, inputFiles: List<File>, outputDir: File): Boolean {
+    fun shouldSkip(taskName: String, inputFiles: List<File>, outputDir: File, requiredArtifact: String? = null): Boolean {
         val snapshotFile = File(outputDir, "$taskName.snapshot")
         if (!snapshotFile.exists()) return false
-        if (!outputDir.exists() || (outputDir.isDirectory && outputDir.list().isNullOrEmpty())) return false
+
+        if (requiredArtifact != null) {
+            if (!File(outputDir, requiredArtifact).exists()) return false
+        } else {
+            if (!outputDir.exists()) return false
+            if (outputDir.isDirectory) {
+                val files = outputDir.list()
+                // If directory is empty, or only contains the snapshot file itself, consider it empty/invalid.
+                if (files.isNullOrEmpty() || (files.size == 1 && files[0] == snapshotFile.name)) return false
+            }
+        }
 
         val currentHash = computeHash(inputFiles)
         val savedHash = snapshotFile.readText()
