@@ -7,6 +7,15 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 
+/**
+ * Manages the installation and retrieval of external build tools and libraries.
+ *
+ * This singleton is responsible for:
+ * 1.  Extracting tools (like `aapt2`, `java`, `d8`) from the APK assets or native libraries.
+ * 2.  Installing them into the application's private storage (`filesDir`).
+ * 3.  Providing the absolute paths to these executables for the build system.
+ * 4.  Handling fallback mechanisms (e.g., embedded keystores).
+ */
 object ToolManager {
 
     private const val TAG = "ToolManager"
@@ -31,10 +40,13 @@ object ToolManager {
 
     // Fallback Keystore (Standard Android Debug Key: pass='android', alias='androiddebugkey')
     // This ensures the app can always build even if the asset is missing.
-    private const val DEBUG_KEYSTORE_B64 = "MIICpQIBAzCCAj8GCSqGSIb3DQEHAaCCAjAEggIsMIICKDCCAbACCQD0y6/Ki/4WVDANBgkqhkiG9w0BAQUFADBVMQswCQYDVQQGEwJVUzEQMA4GA1UECgwHQW5kcm9pZDEQMA4GA1UECwwHQW5kcm9pZDEiMCAGA1UEAwwZQW5kcm9pZCBEZWJ1ZyBDZXJ0aWZpY2F0ZTAeFw0yMzAxMDEwMDAwMDBaFw01MzAxMDEwMDAwMDBaMFUxCzAJBgNVBAYTAlVTMRAwDgYDVQQKDAdBbmRyb2lkMRAwDgYDVQQLDAdBbmRyb2lkMSIwIAYDVQQDDBlBbmRyb2lkIERlYnVnIENlcnRpZmljYXRlMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDBR0pZtY0yY/Xn5XyX9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9QIDAQABMA0GCSqGSIb3DQEBBQUAA4GBAEA2z+X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9"
+    private const val DEBUG_KEYSTORE_B64 = "MIICpQIBAzCCAj8GCSqGSIb3DQEHAaCCAjAEggIsMIICKDCCAbACCQD0y6/Ki/4WVDANBgkqhkiG9w0BAQUFADBVMQswCQYDVQQGEwJVUzEQMA4GA1UECgwHQW5kcm9pZDEQMA4GA1UECwwHQW5kcm9pZDEiMCAGA1UEAwwZQW5kcm9pZCBEZWJ1ZyBDZXJ0aWZpY2F0ZTAeFw0yMzAxMDEwMDAwMDBaFw01MzAxMDEwMDAwMDBaMFUxCzAJBgNVBAYTAlVTMRAwDgYDVQQKDAdBbmRyb2lkMRAwDgYDVQQLDAdBbmRyb2lkMSIwIAYDVQQDDBlBbmRyb2lkIERlYnVnIENlcnRpZmljYXRlMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDBR0pZtY0yY/Xn5XyX9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9QIDAQABMA0GCSqGSIb3DQEBBQUAA4GBAEA2z+X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9X9"
 
     /**
      * Installs or repairs all required tools and libraries.
+     * This checks if the tools exist in `filesDir` and copies them from assets/libs if missing.
+     *
+     * @param context The application context.
      */
     fun installTools(context: Context) {
         Log.d(TAG, "Starting tool installation/verification...")
@@ -167,6 +179,16 @@ object ToolManager {
         }
     }
 
+    /**
+     * Resolves the absolute path to a specific tool.
+     *
+     * It checks native libraries first (for executables like `aapt2`), then the `filesDir/tools`
+     * directory for assets (like `d8.jar`).
+     *
+     * @param context The application context.
+     * @param toolName The name of the tool (e.g., "aapt2", "d8.jar").
+     * @return The absolute path to the tool, or null if not found.
+     */
     fun getToolPath(context: Context, toolName: String): String? {
         if (NATIVE_TOOLS.containsKey(toolName)) {
             val libName = NATIVE_TOOLS[toolName]!!
@@ -205,6 +227,9 @@ object ToolManager {
         return null
     }
 
+    /**
+     * Returns the path to the directory containing JDK libraries.
+     */
     fun getJavaLibsPath(context: Context): String {
         return File(context.applicationInfo.nativeLibraryDir, "java_libs").absolutePath
     }

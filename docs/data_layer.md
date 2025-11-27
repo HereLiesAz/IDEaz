@@ -1,60 +1,45 @@
-# IDEaz IDE: Data Layer & Source of Truth
+# Data Layer Specification
 
-This document describes the dual data layer architecture of the IDEaz IDE project. It's crucial to distinguish between the data layer for the **user's application** and the internal data storage for the **IDEaz IDE app itself**.
+## Overview
+IDEaz uses a file-system-centric data layer combined with `SharedPreferences` for configuration. It does **not** currently use a relational database like Room, deviating from initial specifications to reduce complexity and dependency overhead.
 
----
+## 1. Project Storage (`filesDir`)
+Projects are stored in the application's internal private storage to ensure sandbox isolation.
+*   **Root:** `context.filesDir`
+*   **Project Path:** `context.filesDir/{projectName}`
+*   **Access:** Direct `java.io.File` access.
+*   **Backup:** The entire `filesDir` is subject to Android Auto Backup (configured in `backup_rules.xml`).
 
-## 1. The User's Application: The "Invisible Repository"
-**The ultimate source of truth for the application a user builds is a dedicated, private Git repository.**
+## 2. Configuration (`SharedPreferences`)
+User settings and lightweight state are stored in `SharedPreferences`.
+*   **File:** Default shared preferences.
+*   **Key Constants:** Defined in `SettingsViewModel`.
+    *   `KEY_GITHUB_USER` (String): GitHub username.
+    *   `KEY_GITHUB_TOKEN` (String): GitHub PAT.
+    *   `KEY_JULES_PROJECT_ID` (String): Project ID for Jules API.
+    *   `google_api_key` (String): Gemini API Key.
+    *   `project_type` (String/Enum): Current project type (ANDROID, WEB, etc.).
+    *   `last_opened_project` (String): Name of the last loaded project.
+    *   `KEY_THEME` (Boolean/Int): Theme preference.
+    *   `KEY_LOG_VERBOSITY` (String): Filter level for logs.
 
-In the IDEaz IDE paradigm, the user does not directly interact with a database or data models. They express intent in natural language (e.g., "I need to track customers with a name and email"), and the Jules AI agent is responsible for generating all the necessary code to represent and manage that data.
+## 3. Git Data (`JGit`)
+Version control data is managed by the JGit library, which interacts directly with the `.git` directory within each project folder.
+*   **Storage:** Standard Git object database (`.git/objects`, `.git/refs`).
+*   **Concurrency:** `MainViewModel` uses a `Mutex` (`gitMutex`) to serialize Git operations and prevent index locking issues.
 
-This code, including database schemas, migrations, and API logic, is committed to the "Invisible Repository." This Git-native approach means the user's application benefits from a robust data management strategy by default:
+## 4. Build Artifacts
+Build outputs are strictly isolated.
+*   **Location:** `{projectDir}/build/`
+*   **Clean:** This directory can be safely deleted to force a clean build.
+*   **Cache:** `{projectDir}/build/cache/` (Managed by `BuildCacheManager`).
 
--   **Versioned Schema:** Every change to the data model is a versioned commit, providing a complete history.
--   **Atomic Changes:** Data model changes are committed along with the UI and logic changes that depend on them, ensuring the application is always in a consistent state.
--   **Rollbacks:** Reverting to a previous data model is as simple as reverting a commit, a task handled by the AI.
+## 5. Reporting Deduplication
+`GithubIssueReporter` uses a dedicated `SharedPreferences` file or keys to track reported error hashes.
+*   **Mechanism:** Stores a hash of the stack trace + timestamp.
+*   **Policy:** Prevents duplicate reports for the same error within 24 hours.
 
----
-
-## 2. The IDEaz IDE App: Internal Data Storage
-**The IDEaz IDE app itself uses local, on-device storage for its own operational data.**
-
-The IDE needs to store settings and sensitive information to function correctly. This data is stored locally on the user's Android device.
-
--   **Primary Use Cases:**
-    -   Storing the user's personal API keys for **Jules** and **Gemini**.
-    -   Saving user preferences and app settings.
-    -   Caching metadata about the user's project.
-
--   **Technologies:**
-    -   **`SharedPreferences`:** Currently used for storing user settings and API keys. (Note: `EncryptedSharedPreferences` is planned for future security hardening).
-    -   **Room Persistence Library:** (Planned) Currently, structured data is managed in `SettingsViewModel` and `MainViewModel` state flows, backed by SharedPreferences or transient state.
-
-### API Data Models
-The IDE defines Kotlin data classes in `api/models.kt` to mirror the Jules API schema. These models (`Source`, `Session`, `Activity`) are used for communication with the Jules AI agent and are handled by `JulesApiClient`.
-
----
-
-## 3. On-Device Git Repository
-
-To facilitate the "post-code" workflow, the IDEaz IDE app manages a local Git repository for the user's project directly on the device. This is handled by the `GitManager` class, which uses the JGit library to perform Git operations.
-
--   **`GitManager.kt`**: This class encapsulates all the JGit operations, starting with initializing a new repository in the project's directory.
-
----
-
-## 4. Build Process
-
-The build process is managed by the `BuildService` and is orchestrated by the `BuildOrchestrator`. The `BuildOrchestrator` executes a series of build steps, each of which is a class that implements the `BuildStep` interface.
-
-The build steps are:
-
-1.  **Aapt2Compile**: Compiles the Android resources.
-2.  **Aapt2Link**: Links the compiled resources and the `AndroidManifest.xml`.
-3.  **KotlincCompile**: Compiles the Kotlin source code.
-4.  **D8Compile**: Converts the JVM bytecode to `.dex` format.
-5.  **ApkBuild**: Packages the final APK.
-6.  **ApkSign**: Signs the APK.
-
-The status of the build process is reported back to the Host App via an AIDL interface.
+## 6. Static Data (Assets)
+*   **Tools:** `assets/tools/` (Copied to `filesDir/tools` on launch).
+*   **Templates:** `assets/templates/` (Copied to new project directories).
+*   **Workflows:** `assets/workflows/` (Injected into `.github/workflows`).

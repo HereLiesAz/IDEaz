@@ -31,6 +31,15 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.util.ArrayDeque
 
+/**
+ * A foreground [Service] that orchestrates the build process in a separate process (`:build_process`).
+ *
+ * This service is responsible for:
+ * 1.  Running the build toolchain (AAPT2, D8, Kotlinc, etc.) off the main UI thread.
+ * 2.  Managing the "Sync and Exit" background operation.
+ * 3.  Providing a persistent notification to keep the process alive during long builds.
+ * 4.  Communicating progress back to the [MainActivity] via AIDL ([IBuildCallback]).
+ */
 class BuildService : Service() {
     companion object {
         private const val TAG = "BuildService"
@@ -53,6 +62,10 @@ class BuildService : Service() {
         override fun cancelBuild() = this@BuildService.cancelBuild()
     }
 
+    /**
+     * Called when the service is created.
+     * Ensures that all necessary build tools are installed or repaired using [ToolManager].
+     */
     override fun onCreate() {
         super.onCreate()
         // Ensure tools are installed/repaired on service creation
@@ -65,6 +78,10 @@ class BuildService : Service() {
         serviceScope.cancel()
     }
 
+    /**
+     * Called when the service is started via [startService] or [startForegroundService].
+     * Handles the [ACTION_SYNC_AND_EXIT] intent action.
+     */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_SYNC_AND_EXIT) {
             handleSyncAndExit()
@@ -87,6 +104,10 @@ class BuildService : Service() {
         }
     }
 
+    /**
+     * Updates the foreground notification with the latest log message.
+     * This keeps the user informed even if they leave the app.
+     */
     private fun updateNotification(message: String) {
         synchronized(logBuffer) {
             message.lines().forEach { line ->
@@ -134,6 +155,10 @@ class BuildService : Service() {
             .addAction(android.R.drawable.ic_menu_save, "Sync & Exit", syncPendingIntent)
     }
 
+    /**
+     * Commits all changes to Git, pushes to remote, and then stops the service.
+     * Triggered by the "Sync & Exit" notification action.
+     */
     private fun handleSyncAndExit() {
         val path = currentProjectPath
         if (path == null) {
@@ -196,6 +221,12 @@ class BuildService : Service() {
         }
     }
 
+    /**
+     * Starts the build process for the specified project.
+     *
+     * @param projectPath The absolute path to the project root.
+     * @param callback The callback interface for reporting progress and results.
+     */
     private fun startBuild(projectPath: String, callback: IBuildCallback) {
         cancelBuild()
         buildJob = serviceScope.launch(Dispatchers.IO) {
@@ -208,131 +239,136 @@ class BuildService : Service() {
                 updateNotification("Starting build...")
 
                 val projectDir = File(projectPath)
-            val buildDir = File(projectDir, "build").apply { mkdirs() }
-            val cacheDir = File(filesDir, "cache").apply { mkdirs() }
-            val localRepoDir = File(filesDir, "local-repo").apply { mkdirs() }
+                val buildDir = File(projectDir, "build").apply { mkdirs() }
+                val cacheDir = File(filesDir, "cache").apply { mkdirs() }
+                val localRepoDir = File(filesDir, "local-repo").apply { mkdirs() }
 
-            val type = ProjectAnalyzer.detectProjectType(projectDir)
-            val packageName = ProjectAnalyzer.detectPackageName(projectDir)
+                val type = ProjectAnalyzer.detectProjectType(projectDir)
+                val packageName = ProjectAnalyzer.detectPackageName(projectDir)
 
-            if (type == ProjectType.WEB) {
-                val outputDir = File(filesDir, "web_dist")
-                val step = WebBuildStep(projectDir, outputDir)
-                val result = step.execute(callback)
-                if (result.success && isActive) {
-                    val indexHtml = File(outputDir, "index.html")
-                    callback.onSuccess(indexHtml.absolutePath)
+                // --- WEB BUILD ---
+                if (type == ProjectType.WEB) {
+                    val outputDir = File(filesDir, "web_dist")
+                    val step = WebBuildStep(projectDir, outputDir)
+                    val result = step.execute(callback)
+                    if (result.success && isActive) {
+                        val indexHtml = File(outputDir, "index.html")
+                        callback.onSuccess(indexHtml.absolutePath)
 
-                    val intent = Intent(this@BuildService, WebRuntimeActivity::class.java).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        putExtra("URL", indexHtml.toURI().toString())
-                        putExtra("TIMESTAMP", System.currentTimeMillis())
+                        val intent = Intent(this@BuildService, WebRuntimeActivity::class.java).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            putExtra("URL", indexHtml.toURI().toString())
+                            putExtra("TIMESTAMP", System.currentTimeMillis())
+                        }
+                        startActivity(intent)
+                    } else if (isActive) {
+                        callback.onFailure(result.output)
                     }
-                    startActivity(intent)
-                } else if (isActive) {
-                    callback.onFailure(result.output)
+                    return@launch
                 }
-                return@launch
-            }
 
-            if (type == ProjectType.REACT_NATIVE) {
-                val step = ReactNativeBuildStep(this@BuildService, projectDir, buildDir, cacheDir, localRepoDir)
-                val result = step.execute(callback)
-                if (result.success && isActive) {
-                    callback.onSuccess(File(buildDir, "app-signed.apk").absolutePath)
-                    ApkInstaller.installApk(this@BuildService, File(buildDir, "app-signed.apk").absolutePath)
-                } else if (isActive) {
-                    callback.onFailure(result.output)
+                // --- REACT NATIVE BUILD ---
+                if (type == ProjectType.REACT_NATIVE) {
+                    val step = ReactNativeBuildStep(this@BuildService, projectDir, buildDir, cacheDir, localRepoDir)
+                    val result = step.execute(callback)
+                    if (result.success && isActive) {
+                        callback.onSuccess(File(buildDir, "app-signed.apk").absolutePath)
+                        ApkInstaller.installApk(this@BuildService, File(buildDir, "app-signed.apk").absolutePath)
+                    } else if (isActive) {
+                        callback.onFailure(result.output)
+                    }
+                    return@launch
                 }
-                return@launch
-            }
 
-            val resolver = HttpDependencyResolver(projectDir, File(projectDir, "dependencies.toml"), localRepoDir, callback)
-            val resolverResult = resolver.execute()
-            if (!resolverResult.success && isActive) {
-                callback.onFailure("Dependency resolution failed: ${resolverResult.output}")
-                return@launch
-            }
+                // --- ANDROID BUILD ---
+                val resolver = HttpDependencyResolver(projectDir, File(projectDir, "dependencies.toml"), localRepoDir, callback)
+                val resolverResult = resolver.execute()
+                if (!resolverResult.success && isActive) {
+                    callback.onFailure("Dependency resolution failed: ${resolverResult.output}")
+                    return@launch
+                }
 
-            if (!isActive) return@launch
+                if (!isActive) return@launch
 
-            // --- VERBOSE TOOL CHECK ---
-            callback.onLog("\n--- Toolchain Verification ---")
-            val aapt2Path = checkTool("aapt2", callback)
-            val kotlincJarPath = checkTool("kotlin-compiler.jar", callback)
-            val d8Path = checkTool("d8.jar", callback)
-            val apkSignerPath = checkTool("apksigner.jar", callback)
-            val androidJarPath = checkTool("android.jar", callback)
-            val javaBinaryPath = checkTool("java", callback)
+                // --- TOOL VERIFICATION ---
+                callback.onLog("\n--- Toolchain Verification ---")
+                val aapt2Path = checkTool("aapt2", callback)
+                val kotlincJarPath = checkTool("kotlin-compiler.jar", callback)
+                val d8Path = checkTool("d8.jar", callback)
+                val apkSignerPath = checkTool("apksigner.jar", callback)
+                val androidJarPath = checkTool("android.jar", callback)
+                val javaBinaryPath = checkTool("java", callback)
 
-            // Handle Keystore: Check for custom, fallback to default asset
-            val prefs = PreferenceManager.getDefaultSharedPreferences(this@BuildService)
-            val customKsPath = prefs.getString(SettingsViewModel.KEY_KEYSTORE_PATH, null)
-            var keystorePath = if (customKsPath != null && File(customKsPath).exists()) {
-                callback.onLog("Using Custom Keystore: $customKsPath")
-                customKsPath
-            } else {
-                checkTool("debug.keystore", callback)
-            }
+                // Handle Keystore: Check for custom, fallback to default asset
+                val prefs = PreferenceManager.getDefaultSharedPreferences(this@BuildService)
+                val customKsPath = prefs.getString(SettingsViewModel.KEY_KEYSTORE_PATH, null)
+                val keystorePath = if (customKsPath != null && File(customKsPath).exists()) {
+                    callback.onLog("Using Custom Keystore: $customKsPath")
+                    customKsPath
+                } else {
+                    checkTool("debug.keystore", callback)
+                }
 
-            // Read signing creds
-            val ksPass = prefs.getString(SettingsViewModel.KEY_KEYSTORE_PASS, "android") ?: "android"
-            val keyAlias = prefs.getString(SettingsViewModel.KEY_KEY_ALIAS, "androiddebugkey") ?: "androiddebugkey"
+                // Read signing creds
+                val ksPass = prefs.getString(SettingsViewModel.KEY_KEYSTORE_PASS, "android") ?: "android"
+                val keyAlias = prefs.getString(SettingsViewModel.KEY_KEY_ALIAS, "androiddebugkey") ?: "androiddebugkey"
 
-            callback.onLog("------------------------------\n")
+                callback.onLog("------------------------------\n")
 
-            val missingTools = mutableListOf<String>()
-            if (aapt2Path == null) missingTools.add("aapt2")
-            if (kotlincJarPath == null) missingTools.add("kotlin-compiler.jar")
-            if (d8Path == null) missingTools.add("d8.jar")
-            if (apkSignerPath == null) missingTools.add("apksigner.jar")
-            if (keystorePath == null) missingTools.add("keystore")
-            if (androidJarPath == null) missingTools.add("android.jar")
-            if (javaBinaryPath == null) missingTools.add("java")
+                val missingTools = mutableListOf<String>()
+                if (aapt2Path == null) missingTools.add("aapt2")
+                if (kotlincJarPath == null) missingTools.add("kotlin-compiler.jar")
+                if (d8Path == null) missingTools.add("d8.jar")
+                if (apkSignerPath == null) missingTools.add("apksigner.jar")
+                if (keystorePath == null) missingTools.add("keystore")
+                if (androidJarPath == null) missingTools.add("android.jar")
+                if (javaBinaryPath == null) missingTools.add("java")
 
-            if (missingTools.isNotEmpty() && isActive) {
-                val errorMsg = "Build failed: One or more tools not found: ${missingTools.joinToString(", ")}"
-                Log.e(TAG, errorMsg)
-                callback.onFailure(errorMsg)
-                return@launch
-            }
-            // ---------------------------
+                if (missingTools.isNotEmpty() && isActive) {
+                    val errorMsg = "Build failed: One or more tools not found: ${missingTools.joinToString(", ")}"
+                    Log.e(TAG, errorMsg)
+                    callback.onFailure(errorMsg)
+                    return@launch
+                }
+                // ---------------------------
 
-            if (!isActive) return@launch
+                if (!isActive) return@launch
 
-            // Process AARs (Extract and Compile Resources)
-            val processAars = ProcessAars(resolver.resolvedArtifacts, buildDir, aapt2Path!!)
-            val aarResult = processAars.execute(callback)
-            if (!aarResult.success && isActive) {
-                callback.onFailure(aarResult.output)
-                return@launch
-            }
+                // --- PRE-PROCESSING ---
+                // Process AARs (Extract and Compile Resources)
+                val processAars = ProcessAars(resolver.resolvedArtifacts, buildDir, aapt2Path!!)
+                val aarResult = processAars.execute(callback)
+                if (!aarResult.success && isActive) {
+                    callback.onFailure(aarResult.output)
+                    return@launch
+                }
 
-            // Construct Classpath
-            val aarJars = processAars.jars.joinToString(File.pathSeparator)
-            val resolvedJars = resolver.resolvedClasspath
-            val fullClasspath = if (aarJars.isNotEmpty()) {
-                "$resolvedJars${File.pathSeparator}$aarJars"
-            } else {
-                resolvedJars
-            }
+                // Construct Classpath
+                val aarJars = processAars.jars.joinToString(File.pathSeparator)
+                val resolvedJars = resolver.resolvedClasspath
+                val fullClasspath = if (aarJars.isNotEmpty()) {
+                    "$resolvedJars${File.pathSeparator}$aarJars"
+                } else {
+                    resolvedJars
+                }
 
-            if (!isActive) return@launch
+                if (!isActive) return@launch
 
-            val processedManifestPath = File(buildDir, "processed_manifest.xml").absolutePath
+                val processedManifestPath = File(buildDir, "processed_manifest.xml").absolutePath
 
-            val buildOrchestrator = BuildOrchestrator(
-                listOf(
-                    ProcessManifest(File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, processedManifestPath, packageName, MIN_SDK, TARGET_SDK),
-                    Aapt2Compile(aapt2Path, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK),
-                    Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, processedManifestPath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK, processAars.compiledAars, packageName),
-                    KotlincCompile(kotlincJarPath!!, androidJarPath, File(projectDir, "app/src/main/java").absolutePath, File(buildDir, "classes"), fullClasspath, javaBinaryPath!!),
-                    D8Compile(d8Path!!, javaBinaryPath, androidJarPath, File(buildDir, "classes").absolutePath, File(buildDir, "classes").absolutePath, fullClasspath),
-                    ApkBuild(File(buildDir, "app-signed.apk").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "classes").absolutePath),
-                    ApkSign(apkSignerPath!!, javaBinaryPath, keystorePath!!, ksPass, keyAlias, File(buildDir, "app-signed.apk").absolutePath),
-                    GenerateSourceMap(File(projectDir, "app/src/main/res"), buildDir, cacheDir)
+                // --- BUILD EXECUTION ---
+                val buildOrchestrator = BuildOrchestrator(
+                    listOf(
+                        ProcessManifest(File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, processedManifestPath, packageName, MIN_SDK, TARGET_SDK),
+                        Aapt2Compile(aapt2Path, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK),
+                        Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, processedManifestPath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK, processAars.compiledAars, packageName),
+                        KotlincCompile(kotlincJarPath!!, androidJarPath, File(projectDir, "app/src/main/java").absolutePath, File(buildDir, "classes"), fullClasspath, javaBinaryPath!!),
+                        D8Compile(d8Path!!, javaBinaryPath, androidJarPath, File(buildDir, "classes").absolutePath, File(buildDir, "classes").absolutePath, fullClasspath),
+                        ApkBuild(File(buildDir, "app-signed.apk").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "classes").absolutePath),
+                        ApkSign(apkSignerPath!!, javaBinaryPath, keystorePath!!, ksPass, keyAlias, File(buildDir, "app-signed.apk").absolutePath),
+                        GenerateSourceMap(File(projectDir, "app/src/main/res"), buildDir, cacheDir)
+                    )
                 )
-            )
 
                 val result = buildOrchestrator.execute(callback)
                 if (result.success && isActive) {
