@@ -11,7 +11,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
 @Composable
-fun DependenciesScreen(
+fun LibrariesScreen(
     viewModel: MainViewModel,
     settingsViewModel: SettingsViewModel
 ) {
@@ -20,7 +20,7 @@ fun DependenciesScreen(
     val coroutineScope = rememberCoroutineScope()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Dependencies", style = MaterialTheme.typography.headlineMedium)
+        Text("Libraries", style = MaterialTheme.typography.headlineMedium)
 
         Spacer(modifier = Modifier.height(16.dp))
 

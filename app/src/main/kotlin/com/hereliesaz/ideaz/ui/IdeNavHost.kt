@@ -56,8 +56,8 @@ fun IdeNavHost(
                 settingsViewModel = settingsViewModel
             )
         }
-        composable("dependencies") {
-            DependenciesScreen(
+        composable("libraries") {
+            LibrariesScreen(
                 viewModel = viewModel,
                 settingsViewModel = settingsViewModel
             )
