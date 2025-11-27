@@ -36,7 +36,8 @@ import kotlinx.coroutines.launch
 fun MainScreen(
     viewModel: MainViewModel,
     onRequestScreenCapture: () -> Unit,
-    onThemeToggle: (Boolean) -> Unit
+    onThemeToggle: (Boolean) -> Unit,
+    onLaunchOverlay: () -> Unit
 ) {
     val context = LocalContext.current
     var showPromptPopup by remember{ mutableStateOf(false) }
@@ -46,7 +47,7 @@ fun MainScreen(
     val showCancelDialog by viewModel.showCancelDialog.collectAsState()
     val isTargetAppVisible by viewModel.isTargetAppVisible.collectAsState()
 
-    // --- Bottom Sheet State ---
+    // --- Bottom Sheet State (Dashboard Console) ---
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
 
@@ -58,25 +59,15 @@ fun MainScreen(
     // --- Visibility Logic ---
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val isOnSettings = currentRoute == "settings"
-    val isOnProjectSettings = currentRoute == "project_settings"
 
-    val isIdeVisible = sheetState.currentDetent != AlmostHidden || isOnSettings || isOnProjectSettings
+    // Dashboard is visible unless we are hidden by target app
+    val isDashboardVisible = !isTargetAppVisible
     val isBottomSheetVisible = currentRoute == "main" || currentRoute == "build"
 
-    // Auto-expand sheet when navigating to Build screen
+    // Auto-expand sheet when navigating to Build screen (Dashboard view)
     LaunchedEffect(currentRoute) {
         if (currentRoute == "build") {
             sheetState.animateTo(Halfway)
-        }
-    }
-
-    // --- Tie Inspection State to Sheet State ---
-    LaunchedEffect(sheetState.currentDetent) {
-        if (sheetState.currentDetent == AlmostHidden) {
-            viewModel.stopInspection(context)
-        } else {
-            viewModel.startInspection(context)
         }
     }
 
@@ -89,33 +80,9 @@ fun MainScreen(
     }
 
     val handleActionClick = { action: () -> Unit ->
-        if (isOnSettings || isOnProjectSettings) {
-            navController.navigate("main")
-        }
+        // If we are deep in settings, navigate back to main first?
+        // Ideally we just run the action.
         action()
-    }
-
-    val onModeToggleClick: () -> Unit = {
-        scope.launch {
-            if (isIdeVisible) {
-                sheetState.animateTo(AlmostHidden)
-            } else {
-                if (!viewModel.hasScreenCapturePermission()) {
-                    viewModel.requestScreenCapturePermission()
-                } else {
-                    sheetState.animateTo(Peek)
-                }
-            }
-        }
-    }
-
-    // Auto-slide up when permission granted
-    LaunchedEffect(viewModel.hasScreenCapturePermission()) {
-        if (viewModel.hasScreenCapturePermission() && sheetState.currentDetent == AlmostHidden) {
-            scope.launch {
-                sheetState.animateTo(Peek)
-            }
-        }
     }
 
     if (showPromptPopup) {
@@ -154,18 +121,23 @@ fun MainScreen(
                 IdeNavRail(
                     navController = navController,
                     viewModel = viewModel,
-                    context = context,
                     onShowPromptPopup = { showPromptPopup = true },
                     handleActionClick = handleActionClick,
-                    isIdeVisible = isIdeVisible,
-                    onModeToggleClick = onModeToggleClick,
+                    isIdeVisible = isDashboardVisible,
+                    onLaunchOverlay = {
+                        if (!viewModel.hasScreenCapturePermission()) {
+                            viewModel.requestScreenCapturePermission()
+                        } else {
+                            onLaunchOverlay()
+                        }
+                    },
                     sheetState = sheetState,
                     scope = scope,
                     onUndock = { BubbleUtils.createBubbleNotification(context) }
                 )
 
                 AnimatedVisibility(
-                    visible = isIdeVisible,
+                    visible = isDashboardVisible,
                     modifier = Modifier.weight(1f)
                 ) {
                     IdeNavHost(
@@ -178,7 +150,8 @@ fun MainScreen(
                 }
             }
 
-            if (isBottomSheetVisible) {
+            // Dashboard Console (Separate from Overlay Console)
+            if (isBottomSheetVisible && isDashboardVisible) {
                 IdeBottomSheet(
                     sheetState = sheetState,
                     viewModel = viewModel,

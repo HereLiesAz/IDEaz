@@ -9,22 +9,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.rememberNavController
-import com.hereliesaz.ideaz.ui.IdeNavRail
+import com.composables.core.SheetDetent
+import com.composables.core.rememberBottomSheetState
 import com.hereliesaz.ideaz.ui.IdeNavHost
+import com.hereliesaz.ideaz.ui.IdeNavRail
 import com.hereliesaz.ideaz.ui.MainViewModel
 import com.hereliesaz.ideaz.ui.MainViewModelFactory
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.ui.theme.IDEazTheme
-import com.composables.core.rememberBottomSheetState
-import com.composables.core.SheetDetent
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 
 class BubbleActivity : ComponentActivity() {
 
@@ -69,7 +69,6 @@ fun BubbleScreen(
 
     // Minimal implementation of callbacks
     val handleActionClick = { action: () -> Unit -> action() }
-    val onModeToggleClick: () -> Unit = { }
 
     Row(modifier = Modifier.fillMaxSize()) {
         IdeNavRail(
@@ -79,7 +78,7 @@ fun BubbleScreen(
             onShowPromptPopup = { showPromptPopup = true },
             handleActionClick = handleActionClick,
             isIdeVisible = true,
-            onModeToggleClick = onModeToggleClick,
+            onLaunchOverlay = {},
             sheetState = sheetState,
             scope = scope,
             initiallyExpanded = true,
@@ -92,7 +91,7 @@ fun BubbleScreen(
             navController = navController,
             viewModel = viewModel,
             settingsViewModel = viewModel.settingsViewModel,
-            onThemeToggle = { }
+            onThemeToggle = { } 
         )
     }
 }
