@@ -50,11 +50,6 @@ android {
     sourceSets {
         getByName("main") {
             kotlin.srcDirs("src/main/kotlin")
-            java.srcDirs("src/main/java")
-            res.srcDirs("src/main/res")
-            aidl.srcDirs("src/main/aidl")
-            assets.srcDirs("src/main/assets")
-            jniLibs.srcDirs("src/main/jniLibs")
         }
     }
 
