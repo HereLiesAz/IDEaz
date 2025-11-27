@@ -1,40 +1,70 @@
-# IDEaz: UI/UX Design
+# IDEaz: UI/UX Design System
 
 ## Overview
-This document outlines the UI/UX design for the IDEaz, an intent-driven creation engine for Android. The user experience is designed to be entirely visual and conversational, completely abstracting the complexities of software development. The user is a **director**, not a developer.
+IDEaz is a **visual, post-code creation engine**. The user acts as a director, interacting with their live app, while the AI acts as the engineer.
 
 ## The Core Interaction Model
-The entire user experience is built around the user interacting with their live, running application while an AI agent works on it in the background, orchestrated by services on the user's device.
+The interaction model revolves around the **Live App** and the **IDE Overlay**.
 
-1.  **The Live App (The Target Application):** This is the user's primary and only interface. It is the running, compiled Android application they are building.
-2.  **The IDEaz Overlay (The UI Inspection Service):** A privileged `AccessibilityService` that is active during "Selection Mode." It draws a transparent overlay over the LiveApp to capture all touch events.
-3.  **The Global Console (The Host App):** A bottom sheet within the main IDEaz app that provides a **consolidated global log** for build status, AI status, compile output, and contextless AI chat.
+1.  **The Live App:** The user's running application.
+2.  **The IDE Overlay (`UIInspectionService`):** A transparent `AccessibilityService` overlay that intercepts touches for element selection.
+3.  **The Global Console (`IdeBottomSheet`):** A persistent bottom sheet in the host app for global logs and contextless chat.
 
-## The Two Modes: "Interact" vs. "Select"
+## Modes of Operation
 
-The app operates in two distinct, user-controlled modes, managed by both a toggle button in the **"IDE" NavRail group** and the bottom sheet gesture:
+### 1. Interaction Mode
+*   **Purpose:** Allow the user to use their app normally.
+*   **State:** `UIInspectionService` is **inactive** (or transparent/pass-through). Bottom sheet is hidden or minimized.
+*   **Visuals:** The user sees their app cleanly.
+*   **Trigger:** User taps "Interact" or swipes down the bottom sheet.
 
-1.  **Interaction Mode:**
-    * **State:** The bottom sheet is fully hidden (`AlmostHidden`).
-    * **Button:** The NavRail toggle shows **"Select"**.
-    * **Action:** The `UIInspectionService` is **stopped**. The user can fully interact with their live application (tap buttons, navigate, etc.).
-    * **Trigger:** User swipes the bottom sheet all the way down OR taps the "Interact" button.
+### 2. Selection Mode
+*   **Purpose:** Allow the user to select UI elements to modify.
+*   **State:** `UIInspectionService` is **active** and intercepting touches.
+*   **Visuals:**
+    *   **Tap-to-Select:** Tapping an element highlights it with a bounding box.
+    *   **Drag-to-Select:** Dragging draws a selection rectangle.
+    *   **Prompt:** A floating input box appears near the selection.
+*   **Trigger:** User taps "Select" or swipes up the bottom sheet.
 
-2.  **Selection Mode:**
-    * **State:** The bottom sheet is visible (`Peek` or `Halfway`).
-    * **Button:** The NavRail toggle shows **"Interact"**.
-    * **Action:** The `UIInspectionService` is **started**. All touches are intercepted by the `touchInterceptor` overlay.
-    * **Trigger:** User swipes the bottom sheet up OR taps the "Select" button.
+## Key Interface Elements
 
-## The User Journey: "Select and Instruct"
-The core workflow is a simple, powerful, and asynchronous loop:
+### 1. The Invisible Overlay
+*   **Concept:** The IDE is an "invisible layer" over the user's app.
+*   **Transparency Rules:**
+    *   **IDE Mode:** The background MUST be transparent. The user sees their app.
+    *   **Settings/Setup:** The background MUST be **Opaque** (Solid). Transparency here is a bug.
+*   **Attachment:** The overlay must "stick" to the target app. It should only be visible when the target package is in the foreground. If the app crashes or updates, the overlay waits.
 
-1.  **Enter Selection Mode:** The user taps the "Select" button (or swipes up the bottom sheet). The button text changes to "Interact," and the inspection overlay becomes active.
-2.  **Visual Selection (Hybrid):**
-    * **If the user taps:** The service identifies the UI element, and its bounds are highlighted.
-    * **If the user drags:** The service draws a red, semi-transparent rectangle. On release, this rectangle is highlighted.
-3.  **Contextual Instruction:** In both cases, a **floating UI window (the log overlay)** is created matching the selection's bounds, and a **prompt input box** appears just below it. The user types their instruction.
-4.  **Asynchronous Feedback:** Once submitted, the prompt box disappears, and the floating log overlay begins streaming the AI's chat output. A small **(X) button** is visible in the corner of the log overlay.
-5.  **Cancellation:** If the user presses the (X), a dialog asks for confirmation. If confirmed, the AI task is cancelled, and the overlay UI disappears, returning the user to Selection Mode.
-6.  **Build & Relaunch:** If successful, the AI provides a patch. The `BuildService` compiles the app, streaming all **build logs** to the **main app's bottom sheet**.
-7.  **Cycle Complete:** The build succeeds, the user's app restarts with the change, and the floating AI log UI disappears. The app remains in "Selection Mode."
+### 2. The Pull-Up Bottom Card (Console)
+A versatile bottom sheet that provides visibility into the background processes. It adapts its content based on the current context:
+*   **Git Operations:** Displays **Live Terminal Output** (Clone, Pull, Push status).
+*   **Building:** Displays **Live Build Logcat** (Compiler output, errors).
+*   **AI Task:** Displays **Jules' Live Output Log** (Reasoning, Activity updates).
+*   **Rule:** "Any time the user has to wait for something to be done, the live logcat of that process should be shown."
+
+### 3. The Update Popup
+*   **Trigger:** Appears when a background build (Local or Remote) completes successfully while the user is interacting.
+*   **Message:** "Updating, gimme a sec."
+*   **Behavior:**
+    *   **Clipboard:** Any text currently entered in a prompt input box **MUST** be automatically copied to the system clipboard.
+    *   **Dismissal:** Disappears automatically when the new version of the app loads.
+
+### 4. Persistent Notification
+*   **Purpose:** Keeps the IDE "alive" and informative when backgrounded.
+*   **Content:** Displays the **three most recent lines** of log output (from the Bottom Card context).
+*   **Reliability:** Ensures the `BuildService` is treated as a foreground service by the OS.
+
+## Theming (`ui/theme`)
+*   **Color Palette:** Defined in `Color.kt`. Primarily greys, blacks, and whites (Neutral).
+*   **Typography:** Standard Material 3 Expressive.
+*   **Dark/Light Mode:** User-toggleable. "Dark Mode" typically means light text on dark background.
+
+## Common UI Patterns
+*   **`AzButton`:** Standard button.
+*   **`AzTextBox`:** Standard input field.
+*   **`LiveOutputBottomCard`:** Floating status card above the bottom sheet.
+
+## Accessibility
+*   **Content Descriptions:** All icons and images must have content descriptions.
+*   **Touch Targets:** Minimum 48dp touch targets.

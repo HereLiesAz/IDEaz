@@ -1,45 +1,29 @@
-# IDEaz IDE: Common Faux Pas & Best Practices
+# Faux Pas: Anti-Patterns and Mistakes to Avoid
 
-This document outlines common pitfalls ("faux pas") that developers might encounter while working on the IDEaz IDE.
+## 1. Coding & Architecture
+*   **Magic Strings:** Do not use hardcoded strings (e.g., `"filesDir/project"`). Use constants or `ProjectAnalyzer`.
+*   **Main Thread Blocking:** Never perform disk I/O or network calls on the Main thread. Use `Dispatchers.IO`.
+*   **Receiver Type Mismatch:** In Compose, be careful with `this` scope inside `apply` or `with` blocks, especially within `content` lambdas.
+*   **Process Leaks:** Do not assume variables in `MainActivity` are available in `BuildService`. They are separate processes.
+*   **Singleton Abuse:** Be cautious with Singletons that hold state, as the process might die and restart.
 
-### 1. Blocking the Main Thread
-**The Faux Pas:** Performing any part of the `git pull -> compile -> relaunch` loop on Android's main thread.
+## 2. Build & Tools
+*   **Gradle Reliance:** Do not try to run `./gradlew` *inside* the Android app. It won't work. Use `BuildService`.
+*   **Exit commands:** Do not use `exit` in shell scripts intended for the `run_in_bash_session` tool if it blocks the session.
+*   **Asset Modification:** Do not try to modify assets at runtime. They are read-only.
+*   **Absolute Paths:** Do not hardcode `/data/user/0/...`. Use `context.filesDir`.
 
-**The Best Practice:**
--   The entire automated loop **must** be managed within a long-running background `Service`. Use Kotlin Coroutines on `Dispatchers.IO` for all file system and networking operations.
+## 3. UI/UX
+*   **Blocking UI:** Do not block the UI while waiting for a build. Show a progress indicator.
+*   **System Permissions:** Do not assume you have permissions. Always check and request.
+*   **Notification Channel:** Do not post notifications without creating a channel first (API 26+).
 
-### 2. Insecure API Key Storage
-**The Faux Pas:** Storing the user's provided Jules or Gemini API keys insecurely.
+## 4. Git & Data
+*   **Force Push:** Avoid `git push --force` on the main branch unless you are absolutely sure.
+*   **Secret Exposure:** Do not commit `local.properties` or files containing keys.
+*   **JGit Closing:** Always close `Git` instances to prevent file handle leaks (`Inflater has been closed` errors).
 
-**The Best Practice:**
--   The user's API keys **must** be stored using Android's `EncryptedSharedPreferences` to encrypt them at rest.
-
-### 3. Poor User Feedback During AI Tasks
-**The Faux Pas:** Leaving the user with no feedback during the multi-minute compilation and AI processing loop.
-
-**The Best Practice:**
--   Provide immediate and continuous feedback. The architecture now supports two distinct feedback channels:
-    -   **Contextual (Overlay):** For element-specific AI tasks, the `UIInspectionService` must show a floating log box.
-    -   **Global (Bottom Sheet):** For builds and contextless AI tasks, the main app's bottom sheet must show a live, consolidated log.
-
-### 4. Inaccurate AI Context
-**The Faux Pas:** Sending a weak or incomplete prompt to the AI. The AI's ability to map a visual element to code is entirely dependent on the quality of the context it receives.
-
-**The Best Practice:**
--   **Precise Source Mapping:** Ensure the `source_map.json` is generated correctly and that the `UIInspectionService` accurately identifies the `RESOURCE_ID`.
--   **Resilient Prompting:** Structure the prompt to the AI to be resilient. For example: "The user selected the element with ID `login_button` in `activity_main.xml`. Please find the corresponding component and apply the user's requested change."
-
-### 5. Mixing Log Streams
-**The Faux Pas:** Sending build/compile logs to the contextual (overlay) UI, or sending a contextual AI chat log to the global (bottom sheet) console.
-
-**The Best Practice:**
--   **Strict Separation:** The `MainViewModel` must strictly enforce the dual-log system:
-    -   `UIInspectionService` overlay *only* receives AI chat logs for the task it initiated.
-    -   `IdeBottomSheet` *only* receives global build/compile logs and contextless AI chat.
--   This separation prevents user confusion and keeps the UI clean.
-
-### 6. Ignoring AI Abstraction
-**The Faux Pas:** Hard-coding a call to `JulesCliClient` for a new feature.
-
-**The Best Practice:**
--   **Always Route:** All AI-driven tasks must be routed through the `MainViewModel`, which checks the `SettingsViewModel` for the user's preferred AI assignment (Jules, Gemini, etc.) for that specific task.
+## 5. Agent Behavior
+*   **Hallucination:** Do not invent file paths or library methods.
+*   **Unverified Changes:** Do not mark a task as done without verification.
+*   **Ignoring Errors:** Do not ignore "Command failed" messages. Investigate.
