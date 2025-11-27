@@ -4,12 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -28,6 +24,7 @@ fun IdeNavHost(
         modifier = modifier
     ) {
         composable("main") {
+            // Empty placeholder for "Home" state where bottom sheet takes focus
             Box(modifier = Modifier.fillMaxSize().background(Color.Transparent))
         }
         composable("settings") {
@@ -69,6 +66,7 @@ fun IdeNavHost(
             }
         }
         composable("build") {
+            // Empty placeholder for Build/Log state
             Box(modifier = Modifier.fillMaxSize().background(Color.Transparent))
         }
     }
