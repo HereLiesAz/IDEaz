@@ -8,7 +8,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.hereliesaz.aznavrail.AzButton
+import com.hereliesaz.aznavrail.AzForm
+import com.hereliesaz.aznavrail.AzTextBox
+import com.hereliesaz.aznavrail.model.AzButtonShape
 import kotlinx.coroutines.launch
+import java.util.Map.entry
 
 @Composable
 fun LibrariesScreen(
@@ -21,30 +26,29 @@ fun LibrariesScreen(
     val coroutineScope = rememberCoroutineScope()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Libraries", style = MaterialTheme.typography.headlineMedium)
+        Spacer(modifier = Modifier.height(64.dp))
 
-        Spacer(modifier = Modifier.height(16.dp))
 
         Row {
-            OutlinedTextField(
-                value = newDependency,
-                onValueChange = { newDependency = it },
-                label = { Text("New Dependency (e.g., group:artifact:version)") },
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = {
-                if (newDependency.isNotBlank()) {
-                    val dep = Dependency.fromString(newDependency)
-                    if (dep.group.isBlank() || dep.artifact.isBlank() || dep.version.isBlank()) {
-                        dependencies.add(dep.copy(error = "Invalid dependency format"))
-                    } else {
-                        dependencies.add(dep)
+            AzForm(
+                formName = "New Dependency",
+                submitButtonContent = { Text("Add") },
+                onSubmit = { formData ->
+                    val group = formData["group"].orEmpty()
+                    val artifact = formData["artifact"].orEmpty()
+                    val version = formData["version"].orEmpty()
+
+                    if (group.isNotBlank() && artifact.isNotBlank() && version.isNotBlank()) {
+                        val newDependency = "$group:$artifact:$version"
+                        dependencies.add(Dependency.fromString(newDependency))
                     }
-                    newDependency = ""
                 }
-            }) {
-                Text("Add")
+
+            )  {
+                entry(entryName = "group", hint = "Group")
+                entry(entryName = "artifact", hint = "Artifact")
+                entry(entryName = "version", hint = "Version")
+
             }
         }
 
@@ -84,19 +88,19 @@ fun LibrariesScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         Row {
-            Button(
+            AzButton(
                 onClick = { viewModel.downloadDependencies() },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Download Dependencies")
-            }
+                shape = AzButtonShape.NONE,
+                text = "Download"
+            )
+
+
             Spacer(modifier = Modifier.width(8.dp))
-            Button(
+            AzButton(
                 onClick = { viewModel.saveDependencies(dependencies.map { it.toString() }) },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Save Dependencies")
-            }
+                shape = AzButtonShape.NONE,
+                text = "Save"
+            )
         }
     }
 }
