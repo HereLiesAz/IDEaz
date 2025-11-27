@@ -1,7 +1,10 @@
 package com.hereliesaz.ideaz.buildlogic
 
+import com.android.tools.r8.CompilationMode
+import com.android.tools.r8.D8
+import com.android.tools.r8.D8Command
+import com.android.tools.r8.OutputMode
 import com.hereliesaz.ideaz.IBuildCallback
-import com.hereliesaz.ideaz.utils.ProcessExecutor
 import java.io.File
 
 class D8Compile(
@@ -15,8 +18,8 @@ class D8Compile(
 
     override fun execute(callback: IBuildCallback?): BuildResult {
         val outputDirFile = File(outputDir)
+        val classFiles = File(classesDir).walk().filter { it.isFile && it.extension == "class" }.toList()
 
-        val classFiles = File(classesDir).walk().filter { it.isFile }.toList()
         val classpathFiles = classpath.split(File.pathSeparator).filter { it.isNotEmpty() }.map { File(it) }
         val allInputs = classFiles + classpathFiles + File(androidJarPath)
 
@@ -29,31 +32,29 @@ class D8Compile(
             outputDirFile.mkdirs()
         }
 
-        val command = mutableListOf(
-            javaPath,
-            "-jar",
-            d8Path,
-            "--output",
-            outputDir
-        )
+        return try {
+            val commandBuilder = D8Command.builder()
+                .setMinApiLevel(26)
+                .setMode(CompilationMode.DEBUG)
+                .addLibraryFiles(File(androidJarPath).toPath())
+                .addProgramFiles(classFiles.map { it.toPath() })
+                .setOutput(outputDirFile.toPath(), OutputMode.DexIndexed)
 
-        command.add("--lib")
-        command.add(androidJarPath)
-        if (classpath.isNotEmpty()) {
-            classpath.split(File.pathSeparator).forEach {
-                command.add("--lib")
-                command.add(it)
+            if (classpath.isNotEmpty()) {
+                val libs = classpath.split(File.pathSeparator)
+                    .filter { it.isNotEmpty() }
+                    .map { File(it).toPath() }
+                commandBuilder.addClasspathFiles(libs)
             }
-        }
 
-        command.add(classesDir)
+            D8.run(commandBuilder.build())
 
-        val processResult = ProcessExecutor.executeAndStreamSync(command) { line ->
-            callback?.onLog(line)
-        }
-        if (processResult.exitCode == 0) {
             BuildCacheManager.updateSnapshot("d8", allInputs, outputDirFile)
+            BuildResult(true, "D8 compilation successful")
+        } catch (e: Throwable) {
+            callback?.onLog("D8 Error: ${e.message}")
+            e.printStackTrace()
+            BuildResult(false, e.stackTraceToString())
         }
-        return BuildResult(processResult.exitCode == 0, processResult.output)
     }
 }
