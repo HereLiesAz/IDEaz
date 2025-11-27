@@ -4,6 +4,8 @@ import android.app.Activity as AndroidActivity
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.content.BroadcastReceiver
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.graphics.Rect
@@ -74,6 +76,9 @@ class MainViewModel(
 
     private val _loadingProgress = MutableStateFlow<Int?>(null)
     val loadingProgress = _loadingProgress.asStateFlow()
+
+    private val _isTargetAppVisible = MutableStateFlow(false)
+    val isTargetAppVisible = _isTargetAppVisible.asStateFlow()
 
     private val gitMutex = Mutex()
     private var lastGitTask = ""
@@ -153,7 +158,23 @@ class MainViewModel(
         ignoreUnknownKeys = true
     }
 
+    private val visibilityReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "com.hereliesaz.ideaz.TARGET_APP_VISIBILITY") {
+                val visible = intent.getBooleanExtra("IS_VISIBLE", false)
+                _isTargetAppVisible.value = visible
+            }
+        }
+    }
+
     init {
+        val filter = IntentFilter("com.hereliesaz.ideaz.TARGET_APP_VISIBILITY")
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            getApplication<Application>().registerReceiver(visibilityReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            getApplication<Application>().registerReceiver(visibilityReceiver, filter)
+        }
+
         viewModelScope.launch {
             settingsViewModel.apiKey.collect { key ->
                 if (!key.isNullOrBlank()) {
@@ -167,6 +188,9 @@ class MainViewModel(
     override fun onCleared() {
         super.onCleared()
         unbindBuildService(getApplication())
+        try {
+            getApplication<Application>().unregisterReceiver(visibilityReceiver)
+        } catch (e: IllegalArgumentException) {}
     }
 
     // --- NEW: Centralized Error Handling with API Support ---

@@ -2,6 +2,7 @@ package com.hereliesaz.ideaz.ui
 
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -188,7 +189,7 @@ fun ProjectScreen(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Spacer(modifier = Modifier.height(32.dp))
 
         Column(
