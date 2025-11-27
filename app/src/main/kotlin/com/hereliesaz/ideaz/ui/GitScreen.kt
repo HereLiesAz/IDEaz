@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -7,6 +8,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.hereliesaz.aznavrail.AzButton
+import com.hereliesaz.aznavrail.model.AzButtonShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,40 +32,38 @@ fun GitScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = !expanded }
-        ) {
-            TextField(
-                readOnly = true,
-                value = selectedBranch,
-                onValueChange = { },
-                label = { Text("Current Branch") },
-                trailingIcon = {
-                    ExposedDropdownMenuDefaults.TrailingIcon(
-                        expanded = expanded
-                    )
-                },
-                colors = ExposedDropdownMenuDefaults.textFieldColors(),
-                modifier = Modifier.menuAnchor()
-            )
-            ExposedDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = {
-                    expanded = false
-                }
-            ) {
-                branches.forEach { selectionOption ->
-                    DropdownMenuItem(
-                        text = { Text(selectionOption) },
-                        onClick = {
-                            selectedBranch = selectionOption
-                            expanded = false
-                            viewModel.switchBranch(selectionOption)
-                        }
-                    )
-                }
-            }
+        // Force Commit Button
+        AzButton(
+            onClick = { viewModel.forceUpdateInitFiles() },
+            text = "Force Update Init Files",
+            shape = AzButtonShape.RECTANGLE
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Git Commands
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { viewModel.gitFetch() }) { Text("Fetch") }
+            Button(onClick = { viewModel.gitPull() }) { Text("Pull") }
+            Button(onClick = { viewModel.gitPush() }) { Text("Push") }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+            Button(onClick = { viewModel.gitStash("Stash via UI") }) { Text("Stash") }
+            Button(onClick = { viewModel.gitUnstash() }) { Text("Unstash") }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text("Branches", style = MaterialTheme.typography.headlineSmall)
+
+        // Branch Tree
+        LazyColumn(modifier = Modifier.height(200.dp)) {
+             item {
+                 BranchTree(branches) { branch ->
+                     selectedBranch = branch
+                     viewModel.switchBranch(branch)
+                 }
+             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -85,4 +86,54 @@ fun GitScreen(
             }
         }
     }
+}
+
+@Composable
+fun BranchTree(branches: List<String>, onBranchSelected: (String) -> Unit) {
+    val rootNodes = remember(branches) { buildTree(branches) }
+    Column {
+        rootNodes.forEach { node ->
+            BranchNodeView(node, 0, onBranchSelected)
+        }
+    }
+}
+
+@Composable
+fun BranchNodeView(node: BranchNode, depth: Int, onSelect: (String) -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth().padding(start = (depth * 16).dp, top = 4.dp, bottom = 4.dp)) {
+        val path = node.fullPath
+        if (path != null) {
+            Text(
+                text = node.name,
+                modifier = Modifier.clickable { onSelect(path) },
+                color = MaterialTheme.colorScheme.primary
+            )
+        } else {
+            Text(text = node.name + "/", style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+    node.children.values.sortedBy { it.name }.forEach {
+        BranchNodeView(it, depth + 1, onSelect)
+    }
+}
+
+data class BranchNode(val name: String, var fullPath: String? = null, val children: MutableMap<String, BranchNode> = mutableMapOf())
+
+fun buildTree(branches: List<String>): List<BranchNode> {
+    val root = BranchNode("root")
+    for (branch in branches) {
+        val parts = branch.split("/")
+        var current = root
+        for ((index, part) in parts.withIndex()) {
+            val isLeaf = index == parts.size - 1
+            val node = current.children.getOrPut(part) {
+                BranchNode(part, if (isLeaf) branch else null)
+            }
+            if (isLeaf && node.fullPath == null) {
+                node.fullPath = branch
+            }
+            current = node
+        }
+    }
+    return root.children.values.toList().sortedBy { it.name }
 }

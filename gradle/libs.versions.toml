@@ -41,8 +41,23 @@ slf4jSimple = "2.0.17"
 composeUnstyledCore = "1.49.2"
 generativeai = "0.9.0"
 haze = "1.7.0"
+kotlincAndroid = "fce2462f00"
+nbJavac = "17.0.0.3"
+guava = "33.4.8-android"
+r8 = "8.9.35"
+soraEditor = "0.23.5"
+scalaCompiler = "3.6.3"
+smali = "2.5.2"
 
 [libraries]
+smali = { module = "org.smali:smali", version.ref = "smali" }
+baksmali = { module = "org.smali:baksmali", version.ref = "smali" }
+sora-editor = { module = "io.github.Rosemoe.sora-editor:editor", version.ref = "soraEditor" }
+scala-compiler = { module = "org.scala-lang:scala3-compiler_3", version.ref = "scalaCompiler" }
+kotlinc-android = { module = "com.github.Cosmic-Ide.kotlinc-android:kotlinc-android", version.ref = "kotlincAndroid" }
+nb-javac-android = { module = "io.github.itsaky:nb-javac-android", version.ref = "nbJavac" }
+guava = { module = "com.google.guava:guava", version.ref = "guava" }
+r8 = { module = "com.android.tools:r8", version.ref = "r8" }
 aether-transport-file = { group = "org.apache.maven.resolver", name = "maven-resolver-transport-file", version.ref = "aetherTransportFile" }
 dependencyresolverr = { module = "com.github.Cosmic-Ide:DependencyResolver", version.ref = "dependencyresolver" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutinesCore" }
