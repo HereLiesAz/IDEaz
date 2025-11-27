@@ -54,3 +54,10 @@
 ## 7. Web Runtime (`WebRuntimeActivity.kt`)
 *   **Role:** Host for Web projects.
 *   **Component:** `WebView` loading the generated `index.html`.
+
+## 8. Bubble Overlay (`BubbleActivity.kt`)
+*   **Role:** Provides a persistent, system-managed overlay for quick access to IDE features while using other apps.
+*   **Implementation:** Android Bubbles API via `BubbleActivity`.
+*   **Components:**
+    *   `IdeNavRail`: Navigation bar.
+    *   `IdeNavHost`: Content area for IDE screens within the bubble.

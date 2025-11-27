@@ -12,6 +12,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import com.hereliesaz.aznavrail.AzButton
 import com.hereliesaz.aznavrail.model.AzButtonShape
+import com.hereliesaz.ideaz.utils.BubbleUtils
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -159,7 +160,8 @@ fun MainScreen(
                     isIdeVisible = isIdeVisible,
                     onModeToggleClick = onModeToggleClick,
                     sheetState = sheetState,
-                    scope = scope
+                    scope = scope,
+                    onUndock = { BubbleUtils.createBubbleNotification(context) }
                 )
 
                 AnimatedVisibility(
