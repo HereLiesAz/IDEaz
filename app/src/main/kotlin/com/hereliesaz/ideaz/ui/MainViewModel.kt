@@ -283,8 +283,7 @@ class MainViewModel(
             _isLoadingSources.value = true
             Log.d(TAG, "fetchOwnedSources: Fetching sources...")
             try {
-                val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
-                val response = JulesApiClient.listSources(parent)
+                val response = JulesApiClient.listSources()
                 _ownedSources.value = response.sources ?: emptyList()
                 Log.d(TAG, "fetchOwnedSources: Success. Found ${response.sources?.size ?: 0} sources.")
             } catch (e: Exception) {
@@ -300,8 +299,7 @@ class MainViewModel(
         if (settingsViewModel.getApiKey().isNullOrBlank()) return
         viewModelScope.launch {
             try {
-                val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
-                val response = JulesApiClient.listSessions(parent)
+                val response = JulesApiClient.listSessions()
                 val appName = settingsViewModel.getAppName()
                 val githubUser = settingsViewModel.getGithubUser()
                 val currentSource = "sources/github/$githubUser/$appName"
@@ -805,7 +803,8 @@ class MainViewModel(
                             )
                         )
 
-                        val session = JulesApiClient.createSession(request)
+                        val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
+                        val session = JulesApiClient.createSession(parent, request)
                         val sessionId = session.name.substringAfterLast("/")
 
                         _buildLog.value += "[INFO] Jules session created. ID: $sessionId\n"
@@ -935,8 +934,8 @@ class MainViewModel(
                                 githubRepoContext = GitHubRepoContext(startingBranch = branchName)
                             )
                         )
-
-                        val session = JulesApiClient.createSession(request)
+                        val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
+                        val session = JulesApiClient.createSession(parent, request)
                         logToOverlay("Session created. Waiting for patch...")
                         pollForPatch(session.name, "OVERLAY")
 
