@@ -88,6 +88,36 @@ object ProjectAnalyzer {
             }
         }
 
-        return null
+        // 3. Fallback: Infer from source directory structure
+        val sourceRoots = listOf(
+            "app/src/main/java",
+            "app/src/main/kotlin",
+            "src/main/java",
+            "src/main/kotlin"
+        )
+
+        for (rootPath in sourceRoots) {
+            val rootDir = File(projectDir, rootPath)
+            if (rootDir.exists()) {
+                val firstSourceFile = rootDir.walk()
+                    .filter { it.isFile && (it.extension == "java" || it.extension == "kt") }
+                    .firstOrNull()
+
+                if (firstSourceFile != null) {
+                    // path: .../app/src/main/java/com/example/MyClass.kt
+                    // relative: com/example/MyClass.kt
+                    // parent: com/example
+                    // package: com.example
+                    val relativePath = firstSourceFile.parentFile?.relativeTo(rootDir)?.path
+                    if (!relativePath.isNullOrBlank()) {
+                        return relativePath.replace(File.separatorChar, '.')
+                    }
+                }
+            }
+        }
+
+        // 4. Final Fallback: Generate based on project folder name
+        val sanitizedName = projectDir.name.filter { it.isLetterOrDigit() }.lowercase()
+        return "com.ideaz.generated.$sanitizedName"
     }
 }
