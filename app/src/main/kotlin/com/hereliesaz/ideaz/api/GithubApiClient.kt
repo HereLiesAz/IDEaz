@@ -27,7 +27,42 @@ data class GitHubRepoResponse(
     @SerialName("full_name") val fullName: String,
     @SerialName("html_url") val htmlUrl: String,
     @SerialName("clone_url") val cloneUrl: String,
-    @SerialName("default_branch") val defaultBranch: String? = "main"
+    @SerialName("default_branch") val defaultBranch: String? = "main",
+    val permissions: GitHubPermissions? = null
+)
+
+@Serializable
+data class GitHubPermissions(
+    val admin: Boolean,
+    val maintain: Boolean? = false,
+    val push: Boolean,
+    val triage: Boolean? = false,
+    val pull: Boolean
+)
+
+@Serializable
+data class GitHubBranchProtection(
+    @SerialName("required_status_checks") val requiredStatusChecks: RequiredStatusChecks? = null,
+    @SerialName("enforce_admins") val enforceAdmins: EnforceAdmins? = null,
+    @SerialName("required_pull_request_reviews") val requiredPullRequestReviews: RequiredPullRequestReviews? = null
+)
+
+@Serializable
+data class RequiredStatusChecks(
+    val strict: Boolean,
+    val contexts: List<String>
+)
+
+@Serializable
+data class EnforceAdmins(
+    val enabled: Boolean
+)
+
+@Serializable
+data class RequiredPullRequestReviews(
+    @SerialName("dismiss_stale_reviews") val dismissStaleReviews: Boolean? = false,
+    @SerialName("require_code_owner_reviews") val requireCodeOwnerReviews: Boolean? = false,
+    @SerialName("required_approving_review_count") val requiredApprovingReviewCount: Int? = 0
 )
 
 // --- NEW: Issue Data Classes ---
@@ -57,6 +92,19 @@ interface GitHubApi {
         @Body request: CreateIssueRequest
     ): GitHubIssueResponse
     // --- END NEW ---
+
+    @retrofit2.http.GET("repos/{owner}/{repo}")
+    suspend fun getRepo(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String
+    ): GitHubRepoResponse
+
+    @retrofit2.http.GET("repos/{owner}/{repo}/branches/{branch}/protection")
+    suspend fun getBranchProtection(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("branch") branch: String
+    ): GitHubBranchProtection
 }
 
 object GitHubApiClient {

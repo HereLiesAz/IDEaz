@@ -53,6 +53,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_TARGET_PACKAGE_NAME = "target_package_name"
         const val ACTION_TARGET_PACKAGE_CHANGED = "com.hereliesaz.ideaz.TARGET_PACKAGE_CHANGED"
 
+        // Repo Permissions & Rules
+        const val KEY_REPO_CAN_PUSH = "repo_can_push"
+        const val KEY_REPO_IS_ADMIN = "repo_is_admin"
+        const val KEY_BRANCH_PROTECTED = "branch_protected"
+        const val KEY_PR_REQUIRED = "pr_required"
+
         // New keys for AI assignments
         const val KEY_AI_ASSIGNMENT_DEFAULT = "ai_assignment_default"
         const val KEY_AI_ASSIGNMENT_INIT = "ai_assignment_init"
@@ -358,4 +364,25 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setProjectType(type: String) {
         sharedPreferences.edit().putString(KEY_PROJECT_TYPE, type).apply()
     }
+
+    // --- Repo Permissions & Rules ---
+
+    fun saveRepoPermissions(canPush: Boolean, isAdmin: Boolean) {
+        sharedPreferences.edit()
+            .putBoolean(KEY_REPO_CAN_PUSH, canPush)
+            .putBoolean(KEY_REPO_IS_ADMIN, isAdmin)
+            .apply()
+    }
+
+    fun saveBranchProtection(isProtected: Boolean, prRequired: Boolean) {
+        sharedPreferences.edit()
+            .putBoolean(KEY_BRANCH_PROTECTED, isProtected)
+            .putBoolean(KEY_PR_REQUIRED, prRequired)
+            .apply()
+    }
+
+    fun canPushToRepo(): Boolean = sharedPreferences.getBoolean(KEY_REPO_CAN_PUSH, true)
+    fun isRepoAdmin(): Boolean = sharedPreferences.getBoolean(KEY_REPO_IS_ADMIN, false)
+    fun isBranchProtected(): Boolean = sharedPreferences.getBoolean(KEY_BRANCH_PROTECTED, false)
+    fun isPrRequired(): Boolean = sharedPreferences.getBoolean(KEY_PR_REQUIRED, false)
 }
