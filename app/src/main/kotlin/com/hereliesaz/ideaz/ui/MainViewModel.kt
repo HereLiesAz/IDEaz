@@ -1028,51 +1028,55 @@ class MainViewModel(
                 val targetDir = projectDir ?: getOrCreateProject(context)
                 val pkgName = settingsViewModel.getTargetPackageName() ?: "com.example.helloworld"
 
-                val headSha = withContext(Dispatchers.IO) { GitManager(targetDir).getHeadSha() }
-                val hasChanges = withContext(Dispatchers.IO) { GitManager(targetDir).hasChanges() }
-
-                val installedSha = settingsViewModel.getInstalledSha(pkgName)
+                // 1. Always prioritize launching the installed app
                 val isInstalled = try {
                     context.packageManager.getPackageInfo(pkgName, 0)
                     true
                 } catch (e: Exception) { false }
 
-                var remoteUrl: String? = null
-                if (headSha != null) {
-                    remoteUrl = checkForArtifact(headSha)
+                if (isInstalled) {
+                    _buildLog.value += "[INFO] Found installed app ($pkgName). Launching...\n"
+                    launchApp(pkgName)
+                } else {
+                    _buildLog.value += "[INFO] App ($pkgName) not installed.\n"
                 }
 
-                var shouldRunInstalled = false
+                val headSha = withContext(Dispatchers.IO) { GitManager(targetDir).getHeadSha() }
+                val hasChanges = withContext(Dispatchers.IO) { GitManager(targetDir).hasChanges() }
+                val installedSha = settingsViewModel.getInstalledSha(pkgName)
+
+                // 2. Check for remote artifacts (Best Match or Latest)
+                var remoteArtifact: RemoteArtifact? = null
+                if (headSha != null) {
+                    remoteArtifact = checkForArtifact(headSha)
+                }
+
                 var shouldInstallRemote = false
                 var shouldBuild = false
 
-                if (isInstalled && installedSha == headSha && !hasChanges) {
-                    shouldRunInstalled = true
-                    _buildLog.value += "[INFO] Installed app matches repository HEAD. Launching...\n"
-                } else if (remoteUrl != null && !hasChanges) {
-                    shouldInstallRemote = true
-                    _buildLog.value += "[INFO] Remote artifact matches repository HEAD. Installing...\n"
-                } else if (isInstalled) {
-                    shouldRunInstalled = true
-                    shouldBuild = true
-                    _buildLog.value += "[INFO] Launching installed app while building update (local changes or outdated)...\n"
-                } else if (remoteUrl != null) {
-                    shouldInstallRemote = true
-                    shouldBuild = true
-                    _buildLog.value += "[INFO] Installing remote artifact while building update (local changes)...\n"
-                } else {
-                    shouldBuild = true
-                    _buildLog.value += "[INFO] No usable build found. Starting fresh build...\n"
-                }
-
-                if (shouldRunInstalled) {
-                    launchApp(pkgName)
-                }
-
-                if (shouldInstallRemote) {
-                    if (remoteUrl != null) {
-                        downloadAndInstallRemoteApk(remoteUrl, settingsViewModel.getGithubToken(), _buildLog, pkgName, headSha)
+                if (remoteArtifact != null) {
+                    // If not installed, OR installed version differs from found artifact
+                    if (!isInstalled || installedSha != remoteArtifact.sha) {
+                        shouldInstallRemote = true
+                        _buildLog.value += "[INFO] Remote artifact (${remoteArtifact.tag}) is different/newer than installed. Installing...\n"
+                    } else {
+                        _buildLog.value += "[INFO] Installed app matches remote artifact (${remoteArtifact.tag}). Skipping install.\n"
                     }
+                }
+
+                // 3. Determine if local build is needed
+                // If the remote artifact is NOT an exact match for HEAD, or if we have local changes, we must build to get up to date.
+                val remoteMatchesHead = remoteArtifact != null && (remoteArtifact.sha.equals(headSha, true) || (headSha != null && remoteArtifact.sha.startsWith(headSha.take(7))))
+
+                if (!remoteMatchesHead || hasChanges) {
+                    shouldBuild = true
+                    _buildLog.value += "[INFO] Local build required (Local changes: $hasChanges, Remote exact match: $remoteMatchesHead).\n"
+                } else {
+                    _buildLog.value += "[INFO] No local build required (Up to date).\n"
+                }
+
+                if (shouldInstallRemote && remoteArtifact != null) {
+                    downloadAndInstallRemoteApk(remoteArtifact.url, settingsViewModel.getGithubToken(), _buildLog, pkgName, remoteArtifact.sha)
                 }
 
                 if (shouldBuild) {
@@ -1370,7 +1374,7 @@ class MainViewModel(
         }
     }
 
-    private suspend fun checkForArtifact(sha: String): String? {
+    private suspend fun checkForArtifact(sha: String): RemoteArtifact? {
         val user = settingsViewModel.getGithubUser() ?: return null
         val appName = settingsViewModel.getAppName() ?: return null
         val token = settingsViewModel.getGithubToken()
@@ -1380,6 +1384,8 @@ class MainViewModel(
                 val encodedUser = URLEncoder.encode(user, "UTF-8")
                 val encodedRepo = URLEncoder.encode(appName, "UTF-8")
                 val urlStr = "https://api.github.com/repos/$encodedUser/$encodedRepo/releases"
+
+                _buildLog.value += "[REMOTE] Checking releases at: $urlStr\n"
 
                 val url = URL(urlStr)
                 val conn = url.openConnection() as HttpURLConnection
@@ -1391,33 +1397,55 @@ class MainViewModel(
                 if (conn.responseCode == 200) {
                     val response = conn.inputStream.bufferedReader().readText()
                     val releases = JSONArray(response)
+                    _buildLog.value += "[REMOTE] Found ${releases.length()} releases.\n"
+
+                    var bestMatch: RemoteArtifact? = null
+                    var latestRelease: RemoteArtifact? = null
 
                     for (i in 0 until releases.length()) {
                         val release = releases.getJSONObject(i)
                         val body = release.optString("body", "")
                         val tagName = release.optString("tag_name", "")
                         val targetCommitish = release.optString("target_commitish", "")
+                        val assets = release.getJSONArray("assets")
 
-                        // Check body, tag name, or target_commitish for SHA presence (full or short)
-                        val shortSha = if (sha.length >= 7) sha.substring(0, 7) else sha
+                        _buildLog.value += "[REMOTE] Release: $tagName ($targetCommitish), Assets: ${assets.length()}\n"
 
-                        if (body.contains(sha, ignoreCase = true) ||
-                            tagName.contains(sha, ignoreCase = true) ||
-                            targetCommitish.equals(sha, ignoreCase = true) ||
-                            body.contains(shortSha, ignoreCase = true) ||
-                            tagName.contains(shortSha, ignoreCase = true) ||
-                            targetCommitish.contains(shortSha, ignoreCase = true)) {
+                        if (assets.length() > 0) {
+                            val asset = assets.getJSONObject(0)
+                            val downloadUrl = if (!token.isNullOrBlank()) asset.getString("url") else asset.getString("browser_download_url")
+                            val artifact = RemoteArtifact(downloadUrl, targetCommitish, tagName)
 
-                            val assets = release.getJSONArray("assets")
-                            if (assets.length() > 0) {
-                                val asset = assets.getJSONObject(0)
-                                val downloadUrl = if (!token.isNullOrBlank()) asset.getString("url") else asset.getString("browser_download_url")
-                                _buildLog.value += "[REMOTE] Found matching artifact in release '$tagName' (Target: $targetCommitish)\n"
-                                return@withContext downloadUrl
+                            if (latestRelease == null) {
+                                latestRelease = artifact // First one is latest
+                            }
+
+                            // Check body, tag name, or target_commitish for SHA presence (full or short)
+                            val shortSha = if (sha.length >= 7) sha.substring(0, 7) else sha
+
+                            if (body.contains(sha, ignoreCase = true) ||
+                                tagName.contains(sha, ignoreCase = true) ||
+                                targetCommitish.equals(sha, ignoreCase = true) ||
+                                body.contains(shortSha, ignoreCase = true) ||
+                                tagName.contains(shortSha, ignoreCase = true) ||
+                                targetCommitish.contains(shortSha, ignoreCase = true)) {
+
+                                bestMatch = artifact
+                                _buildLog.value += "[REMOTE] Found EXACT MATCH in release '$tagName' (Target: $targetCommitish)\n"
+                                break // Stop looking if we found an exact match
                             }
                         }
                     }
-                    _buildLog.value += "[REMOTE] No artifact found matching SHA $sha in ${releases.length()} releases.\n"
+
+                    val selected = bestMatch ?: latestRelease
+                    if (selected != null) {
+                        if (bestMatch == null) {
+                            _buildLog.value += "[REMOTE] No exact match for SHA $sha. Falling back to latest release '${selected.tag}'.\n"
+                        }
+                        return@withContext selected
+                    } else {
+                        _buildLog.value += "[REMOTE] No artifacts found in any releases.\n"
+                    }
                 } else {
                      _buildLog.value += "[REMOTE] Failed to list releases: ${conn.responseCode} ${conn.responseMessage}\n"
                 }
@@ -1433,10 +1461,13 @@ class MainViewModel(
         logTo(logTarget, "[REMOTE] Polling GitHub for build (max 20m)...")
         for (i in 1..240) { // 20 minutes (240 * 5s)
             delay(5000)
-            val url = checkForArtifact(sha)
-            if (url != null) {
+            val artifact = checkForArtifact(sha)
+            // In polling mode, we strictly want the MATCHING artifact, not just the latest.
+            // But checkForArtifact returns 'bestMatch ?: latestRelease'.
+            // So we should check if the returned artifact matches the SHA we are looking for.
+            if (artifact != null && (artifact.sha.equals(sha, true) || artifact.sha.startsWith(if(sha.length > 7) sha.substring(0,7) else sha))) {
                 logTo(logTarget, "[REMOTE] Build ready! Downloading...")
-                downloadAndInstallRemoteApk(url, settingsViewModel.getGithubToken(), logTarget, pkgName, sha)
+                downloadAndInstallRemoteApk(artifact.url, settingsViewModel.getGithubToken(), logTarget, pkgName, sha)
                 return
             }
         }
@@ -1813,3 +1844,9 @@ class MainViewModel(
         }
     }
 }
+
+data class RemoteArtifact(
+    val url: String,
+    val sha: String,
+    val tag: String
+)
