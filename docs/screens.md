@@ -1,53 +1,56 @@
 # Screen Definitions
 
-## 1. Main Screen (`MainScreen.kt`)
-*   **Role:** The root container.
+## 1. The Overlay ("Invisible Screen")
+*   **Role:** The primary interface for "Post-Code" development.
+*   **Implementation:** `UIInspectionService` (Accessibility Service).
+*   **Context:** Visible *only* over the target application.
 *   **Components:**
-    *   `IdeNavRail`: Navigation bar.
-    *   `IdeNavHost`: Handles navigation between screens.
-    *   `IdeBottomSheet`: Persistent bottom sheet for logs/chat.
-    *   `LiveOutputBottomCard`: Floating status card.
-    *   `ContextlessChatInput`: Input for global chat.
+    *   **Selection Highlight:** Visual border around selected nodes or drawn rects.
+    *   **Prompt Input:** Floating text box anchored to the selection.
+    *   **Update Popup:** "Updating, gimme a sec" toast/dialog.
 
-## 2. Project Screen (`ProjectScreen.kt`)
-*   **Role:** Project management.
+## 2. Main Host Screen (`MainScreen.kt`)
+*   **Role:** The container for the IDE management UI.
+*   **Components:**
+    *   `IdeNavRail`: Navigation bar (Project, Git, Settings).
+    *   `IdeBottomSheet`: The Global Console.
+    *   `LiveOutputBottomCard`: Floating status indicator.
+
+## 3. The Global Console (`IdeBottomSheet`)
+*   **Role:** Visibility into background processes.
+*   **States:**
+    *   **Hidden:** User is interacting with the app.
+    *   **Peek:** Shows status summary.
+    *   **Expanded:** Shows full logs.
+*   **Content Modes:**
+    *   **Git Terminal:** Output from `GitManager` operations.
+    *   **Build Log:** Live stream from `BuildService`.
+    *   **AI Log:** Real-time activity stream from Jules/Gemini.
+    *   **Debug Chat:** Contextless AI prompt input.
+
+## 4. Project Screen (`ProjectScreen.kt`)
+*   **Role:** Entry point.
 *   **Tabs:**
-    *   **Load:** List local projects.
-    *   **Clone:** List/Search GitHub repositories.
-    *   **Create:** Create new projects from templates.
-    *   **Setup:** Configure the current project (Sessions, Environment).
-*   **State:** Controlled by `MainViewModel`.
+    *   **Load:** Select existing local project. -> **Transitions to Setup Tab.**
+    *   **Clone:** Search/Clone from GitHub.
+    *   **Create:** Generate from template.
+    *   **Setup:** **INITIALIZATION happens here.**
+        *   Displays Sessions.
+        *   "Save & Initialize" button triggers workflow injection and first build.
 
-## 3. Editor Screen (`FileExplorerScreen.kt`, `FileContentScreen.kt`)
-*   **Role:** Read-only file browsing.
-*   **Components:**
-    *   `FileExplorerScreen`: Tree view of files.
-    *   `FileContentScreen`: Uses `CodeEditor` (Rosemoe) to display content.
-
-## 4. Git Screen (`GitScreen.kt`)
-*   **Role:** Version control interface.
+## 5. Git Screen (`GitScreen.kt`)
+*   **Role:** Version control management.
 *   **Features:**
-    *   Branch list (tree view).
-    *   Commit history.
-    *   Status (changed files).
-    *   Actions: Commit, Push, Pull, Fetch, Stash, Checkout.
+    *   Branch Tree View.
+    *   Commit History.
+    *   Stash/Unstash controls.
+    *   Force Update Init Files (Menu option).
 
-## 5. Settings Screen (`SettingsScreen.kt`)
+## 6. Settings Screen (`SettingsScreen.kt`)
 *   **Role:** Configuration.
-*   **Sections:**
-    *   **AI:** API Keys, Model selection.
-    *   **GitHub:** User, Token.
-    *   **Appearance:** Theme, Log Verbosity.
-    *   **Tools:** Keystore management.
-    *   **System:** Permissions check.
-
-## 6. Dependency Screen (`LibrariesScreen.kt`)
-*   **Role:** Manage project dependencies.
-*   **Features:**
-    *   List declared dependencies.
-    *   Show resolve status (Success/Fail).
-    *   Add new dependency (Wizard).
+*   **Visuals:** **Opaque Background** (Transparency is not allowed here).
+*   **Sections:** AI Keys, GitHub Token, Theme, Tool Management.
 
 ## 7. Web Runtime (`WebRuntimeActivity.kt`)
-*   **Role:** Hosts the built Web project.
+*   **Role:** Host for Web projects.
 *   **Component:** `WebView` loading the generated `index.html`.

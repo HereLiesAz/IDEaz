@@ -1,13 +1,7 @@
 # IDEaz: UI/UX Design System
 
 ## Overview
-This document outlines the UI/UX design for IDEaz. The user experience is designed to be visual, conversational, and "post-code". The user acts as a **director**, interacting with a live app, while the AI acts as the **engineer**.
-
-## Design Philosophy
-*   **Material 3 Expressive:** The UI follows Material 3 guidelines using Jetpack Compose.
-*   **Immersive:** The IDE interface should be unobtrusive. The user's app is the star.
-*   **Reactive:** The UI must respond immediately to state changes (build progress, AI output).
-*   **Greyscale/Neutral:** The IDE theme is intentionally neutral (greyscale) to avoid clashing with the user's project colors.
+IDEaz is a **visual, post-code creation engine**. The user acts as a director, interacting with their live app, while the AI acts as the engineer.
 
 ## The Core Interaction Model
 The interaction model revolves around the **Live App** and the **IDE Overlay**.
@@ -33,46 +27,44 @@ The interaction model revolves around the **Live App** and the **IDE Overlay**.
     *   **Prompt:** A floating input box appears near the selection.
 *   **Trigger:** User taps "Select" or swipes up the bottom sheet.
 
-## Key Components
+## Key Interface Elements
 
-### Navigation (`AzNavRail`)
-*   **Location:** Left side of the screen (landscape/tablet) or bottom bar (phone).
-*   **Structure:**
-    *   **Project:** Manage projects (Load, Clone, Create).
-    *   **Editor:** (Read-only) View files.
-    *   **Git:** Manage version control.
-    *   **Settings:** Configure AI, tools, and theme.
-*   **Implementation:** Custom `AzNavRail` component.
+### 1. The Invisible Overlay
+*   **Concept:** The IDE is an "invisible layer" over the user's app.
+*   **Transparency Rules:**
+    *   **IDE Mode:** The background MUST be transparent. The user sees their app.
+    *   **Settings/Setup:** The background MUST be **Opaque** (Solid). Transparency here is a bug.
+*   **Attachment:** The overlay must "stick" to the target app. It should only be visible when the target package is in the foreground. If the app crashes or updates, the overlay waits.
 
-### Bottom Sheet (`IdeBottomSheet`)
-*   **Library:** `com.composables.core.BottomSheet`
-*   **Content:**
-    *   **Logs:** A streaming list of build/AI logs (`LazyColumn`).
-    *   **Chat:** Contextless AI chat input.
+### 2. The Pull-Up Bottom Card (Console)
+A versatile bottom sheet that provides visibility into the background processes. It adapts its content based on the current context:
+*   **Git Operations:** Displays **Live Terminal Output** (Clone, Pull, Push status).
+*   **Building:** Displays **Live Build Logcat** (Compiler output, errors).
+*   **AI Task:** Displays **Jules' Live Output Log** (Reasoning, Activity updates).
+*   **Rule:** "Any time the user has to wait for something to be done, the live logcat of that process should be shown."
+
+### 3. The Update Popup
+*   **Trigger:** Appears when a background build (Local or Remote) completes successfully while the user is interacting.
+*   **Message:** "Updating, gimme a sec."
 *   **Behavior:**
-    *   **Peek:** Shows status summary.
-    *   **Expanded:** Shows full logs and chat.
+    *   **Clipboard:** Any text currently entered in a prompt input box **MUST** be automatically copied to the system clipboard.
+    *   **Dismissal:** Disappears automatically when the new version of the app loads.
 
-### Floating Overlays (`UIInspectionService`)
-*   **Technology:** `WindowManager` via `AccessibilityService`.
-*   **Elements:**
-    *   **Selection Highlight:** A `View` drawing a border around the selected area.
-    *   **Prompt Box:** A small floating window with an `AzTextBox` for input.
-    *   **Log Overlay:** A floating window displaying real-time AI progress near the selected element.
+### 4. Persistent Notification
+*   **Purpose:** Keeps the IDE "alive" and informative when backgrounded.
+*   **Content:** Displays the **three most recent lines** of log output (from the Bottom Card context).
+*   **Reliability:** Ensures the `BuildService` is treated as a foreground service by the OS.
 
 ## Theming (`ui/theme`)
-*   **Color Palette:** Defined in `Color.kt`. Primarily greys, blacks, and whites.
-*   **Typography:** Standard Material 3 typography.
-*   **Dark/Light Mode:** User-toggleable in Settings. Note: "Dark Mode" in this app often means "Light Text on Dark Background", but the "Greyscale" theme might invert this.
-*   **Shape:** `AzButtonShape` defines button corners.
+*   **Color Palette:** Defined in `Color.kt`. Primarily greys, blacks, and whites (Neutral).
+*   **Typography:** Standard Material 3 Expressive.
+*   **Dark/Light Mode:** User-toggleable. "Dark Mode" typically means light text on dark background.
 
 ## Common UI Patterns
-*   **`AzButton`:** The standard button component.
-*   **`AzTextBox`:** The standard input field.
-*   **`AzNavRail`:** The main navigation structure.
-*   **`LiveOutputBottomCard`:** A specific card for showing live build output, floating above the bottom sheet.
+*   **`AzButton`:** Standard button.
+*   **`AzTextBox`:** Standard input field.
+*   **`LiveOutputBottomCard`:** Floating status card above the bottom sheet.
 
 ## Accessibility
-*   The IDE itself uses an Accessibility Service, but the IDE's UI (Host App) must also be accessible.
 *   **Content Descriptions:** All icons and images must have content descriptions.
 *   **Touch Targets:** Minimum 48dp touch targets.

@@ -1,60 +1,70 @@
-# IDEaz: Master TODO List
+# IDEaz: Granular Implementation Checklist
 
-This document is the central source of truth for the project's roadmap and current task status.
+This document is the step-by-step guide for taking IDEaz from concept to production.
 
-## Current Focus: Phase 7 - Multi-Platform Support & Phase 8 - Build System Overhaul
+## Phase 1: Foundation & Infrastructure
+- [ ] **1.1: Project Structure Setup**
+    - [x] Define multi-process architecture (`:app`, `:build_process`, `:inspection_service`).
+    - [x] Create `BuildService` (Foreground Service).
+    - [x] Create `UIInspectionService` (Accessibility Service).
+- [ ] **1.2: Data Layer**
+    - [x] Implement `GitManager` (JGit wrapper).
+    - [x] Implement `SettingsViewModel` (SharedPreferences).
+    - [x] Implement `ProjectAnalyzer` for project type detection.
+- [ ] **1.3: "Race to Build" Logic**
+    - [ ] **1.3.1: Artifact Detection:** Implement logic to compare Installed SHA vs Remote Release SHA vs Repo Head SHA.
+    - [ ] **1.3.2: Remote Polling:** Implement loop to check GitHub Releases for new builds.
+    - [ ] **1.3.3: Local Build:** Implement background build thread with lower priority.
+    - [ ] **1.3.4: Cancellation:** Implement logic to cancel local build if remote wins (and vice versa).
 
-### **Phase 7: Project Templates and Multi-Platform Support**
-- [x] **7.1: Lay Groundwork for Multi-Platform Support**
-    - [x] Abstract build steps into `BuildStep` interface.
-    - [x] Create `BuildOrchestrator`.
-- [x] **7.2: Implement Web Design Support**
-    - [x] Create `WebBuildStep`.
-    - [x] Implement `HtmlSourceInjector` for source mapping.
-    - [x] Create `WebRuntimeActivity`.
-- [ ] **7.3: Implement React Native Support**
-    - [ ] **7.3.1: JS Bundling:** Implement a robust JS bundler (Metro equivalent) for on-device execution. Currently `SimpleJsBundler` is a placeholder.
-    - [ ] **7.3.2: Source Mapping:** Ensure `__source` tags are correctly injected for `UIInspectionService`.
-    - [ ] **7.3.3: Native Modules:** Handle React Native AAR dependencies and native code linking.
-- [ ] **7.4: Implement Flutter Support**
-    - [ ] **7.4.1: Dart Compilation:** Investigate/implement on-device Dart compilation or a hot-reload compatible artifact runner.
-    - [ ] **7.4.2: Inspector Integration:** Integrate with Flutter DevTools protocol or similar for UI inspection.
+## Phase 2: The Build Pipeline ("No-Gradle" on Device)
+- [ ] **2.1: Toolchain Management**
+    - [x] `ToolManager` to extract `aapt2`, `d8`, `kotlinc`, `java`.
+- [ ] **2.2: Build Steps**
+    - [x] `ProcessManifest`
+    - [x] `ProcessAars` (Extract & Compile Resources)
+    - [x] `Aapt2Compile` & `Aapt2Link`
+    - [x] `KotlincCompile`
+    - [x] `D8Compile`
+    - [x] `ApkSign`
+- [ ] **2.3: Dependency Resolution**
+    - [x] `HttpDependencyResolver` (Maven/Aether integration).
+    - [ ] **Refinement:** Handle complex POMs and exclusions robustly.
 
-### **Phase 8: Build System Overhaul**
-- [ ] **8.1: Optimization**
-    - [ ] **8.1.1: Parallel Execution:** Run independent build steps in parallel where possible.
-    - [ ] **8.1.2: Caching:** Improve `BuildCacheManager` to be more granular (file-level hashing).
-- [ ] **8.2: Robustness**
-    - [ ] **8.2.1: Dependency Resolution:** Upgrade `HttpDependencyResolver` to handle more complex Maven POMs and exclusions.
-    - [ ] **8.2.2: Error Reporting:** Improve compiler error parsing to give user-friendly suggestions.
+## Phase 3: UI/UX & Interaction
+- [ ] **3.1: The Overlay**
+    - [ ] **3.1.1: Attachment:** Logic to show overlay *only* when target package is foreground.
+    - [ ] **3.1.2: Transparency:** Ensure transparent background in IDE mode, Opaque in Settings.
+    - [ ] **3.1.3: Selection:** Tap (Node) and Drag (Rect) selection logic.
+- [ ] **3.2: The Console**
+    - [x] Bottom Sheet implementation.
+    - [ ] **3.2.1: Live Logs:** Stream Logcat/Build logs to the sheet.
+    - [ ] **3.2.2: Persistent Notification:** Show last 3 log lines in notification.
+- [ ] **3.3: Feedback Loops**
+    - [ ] **3.3.1: Update Popup:** "Updating, gimme a sec" dialog.
+    - [ ] **3.3.2: Clipboard:** Auto-copy prompt text on update.
 
-### **Phase 9: Enhanced Developer Tooling**
-- [x] **9.1: Implement Read-Only File Explorer**
-    - [x] `FileExplorerScreen.kt` implemented.
-- [x] **9.2: Implement Git Integration Screen**
-    - [x] `GitScreen.kt` implemented with JGit.
-- [x] **9.3: Refactor Logging UI**
-    - [x] `IdeBottomSheet` log display.
-- [x] **9.4: Implement Dependencies Screen**
-    - [x] `LibrariesScreen.kt` (Dependency management UI).
+## Phase 4: AI Integration & Workflow
+- [ ] **4.1: Jules Integration**
+    - [x] `JulesApiClient`.
+    - [ ] **4.1.1: Session Management:** Create/Delete/Resume sessions.
+    - [ ] **4.1.2: Polling:** Implement infinite polling for *activities* (not just patch).
+- [ ] **4.2: Workflow Injection (Initialization)**
+    - [ ] **4.2.1: File Creation:** Generate `android_ci_jules.yml`, `codeql.yml`, `jules.yml`, `release.yml`.
+    - [ ] **4.2.2: Force Push:** Logic to commit and push these files on "Save & Initialize".
+- [ ] **4.3: Error Handling Loop**
+    - [ ] **4.3.1: User Error:** If build fails (compilation), send log to Jules.
+    - [ ] **4.3.2: IDE Error:** If build crashes (exception), report to `HereLiesAz/IDEaz` with label `jules`.
 
-## Backlog / Maintenance
+## Phase 5: Production Polish
+- [ ] **5.1: Multi-Platform Support**
+    - [ ] Web Support (Implemented).
+    - [ ] React Native Support (In Progress).
+    - [ ] Flutter Support (Planned).
+- [ ] **5.2: Testing**
+    - [ ] Unit Tests for all ViewModels.
+    - [ ] Integration Tests for Build Pipeline.
 
-- [ ] **Docs:** Keep `screens.md` and `file_descriptions.md` up to date.
-- [ ] **Tests:** Increase unit test coverage, especially for `MainViewModel` and `BuildService`.
-- [ ] **UI:** Polish Material 3 implementations. Fix any "receiver type mismatch" issues in Compose.
-- [ ] **Performance:** Profile memory usage of `UIInspectionService`.
-
-## Completed Phases (Archive)
-
-### **Phase 5: Refinement and Advanced Features**
-- [x] **5.1: Implement Incremental Builds**
-- [x] **5.2: Implement On-Device Dependency Resolution**
-- [x] **5.3: Implement the AI Debugger**
-- [x] **5.4: Implement Robust Error Handling**
-- [x] **5.5: Polish and Test**
-
-### **Phase 6: Advanced UI/UX**
-- [x] **6.1: Implement Live Output Bottom Card**
-- [x] **6.2: Implement Contextual AI Overlay UI**
-- [x] **6.3: Implement Persistent Status Notification**
+## Phase 6: Maintenance
+- [ ] Keep `docs/` up to date.
+- [ ] Monitor GitHub Issues reported by the IDE.

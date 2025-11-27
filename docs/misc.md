@@ -21,7 +21,8 @@
 *   **Composables Core:** Used for the Bottom Sheet.
 *   **Retrofit:** Used for API calls.
 
-## Known Issues
+## Constraints & Known Issues
+*   **Transparency:** The IDE overlay background MUST be transparent during "Interact/Select" modes, but **Settings and Setup screens must be Opaque**.
 *   **Timeout:** Large builds might time out. The `BuildService` has a supervisor job but can still be killed by the OS if memory is low.
 *   **Caching:** `BuildCacheManager` is basic. Sometimes a "Clean Build" (deleting `build/`) is required.
 *   **Symlinks:** `Files.createSymbolicLink` requires Android O (API 26).
