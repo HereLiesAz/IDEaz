@@ -1,36 +1,34 @@
-# IDEaz IDE: A Narrative User Journey
+# Task Flows
 
-This document describes the end-to-end user journey within the IDEaz IDE.
+## 1. Onboarding & Project Setup
+1.  **Launch App:** User grants permissions.
+2.  **Settings:** User enters API keys (GitHub, Google, Jules).
+3.  **Project Screen:**
+    *   **Clone:** User selects a repo from GitHub.
+    *   **Load:** Repository is cloned/pulled.
+    *   **Initialize:** App checks for `setup_env.sh` and workflows. If missing, injects and pushes them.
+4.  **First Build:** App automatically triggers a build (`startBuild`).
 
----
+## 2. The "Select & Edit" Loop (Core Loop)
+1.  **Interact:** User uses the app in "Interact Mode".
+2.  **Select:** User switches to "Select Mode" (Overlay active).
+3.  **Tap/Drag:** User selects an element.
+4.  **Prompt:** User describes change in the prompt box.
+5.  **Process:**
+    *   `UIInspectionService` sends prompt + context to `MainViewModel`.
+    *   `MainViewModel` calls AI (Jules/Gemini).
+    *   AI generates a Git patch.
+    *   `MainViewModel` applies patch.
+6.  **Rebuild:** `MainViewModel` triggers `BuildService`.
+7.  **Reload:** App reloads with changes.
 
-### **Scenario 1: A Successful Visual Change (Tap-to-Select)**
+## 3. The "Fix It" Loop (Bug Report)
+1.  **Crash:** App crashes or build fails.
+2.  **Report:** `MainViewModel` captures the error.
+3.  **Analyze:** If it's an internal IDE error, it's reported to GitHub.
+4.  **AI Fix:** If it's a user error, the "AI Debugger" kicks in (optional contextless chat) to suggest fixes.
 
-**Goal:** Change the color of a button in the live application.
-
-1.  **Activate Selection Mode:** The user taps the **"Select"** button.
-2.  **Visual Selection & Intent:** The user **taps** a login button. A **floating log overlay** appears.
-    > **User Input:** "Make this button red."
-3.  **Automated AI Workflow:** The user taps "Submit."
-    The `MainViewModel` coordinates the AI request, receives a patch, and triggers the build.
-4.  **Build & Relaunch:**
-    *   The **global log** in the bottom sheet streams the build output.
-    *   The build succeeds (`ApkSign` completes).
-    *   The `BuildService` installs the APK.
-    *   **Auto-Launch:** The `MainActivity` detects the package update and **automatically launches the user's app**.
-    *   The user sees the app restart with the red button.
-
----
-
-### **Scenario 2: Handling an IDE Internal Error**
-
-**Goal:** The IDE encounters a crash (e.g., Network Failure during `fetchSources`) that is NOT a user code error.
-
-1.  **Action:** The user attempts to refresh the repository list in Project Settings.
-2.  **Failure:** The `JulesApiClient` throws an exception.
-3.  **Auto-Report:**
-    *   `MainViewModel` catches the exception in `handleIdeError`.
-    *   It checks if "Auto-report" is enabled (default: true) and if a GitHub Token is saved.
-    *   It uses `GithubIssueReporter` to **POST a new issue** to `HereLiesAz/IDEaz` via the GitHub API. The issue contains the stack trace, device info, and context "Failed to fetch sources".
-    *   **Feedback:** The global log displays: `[IDE] Reported automatically: https://github.com/.../issues/123`.
-    *   **Fallback:** If the API call fails (no token/network), it opens a browser window with the issue details pre-filled for manual submission.
+## 4. Git Management
+1.  **Status:** User checks `GitScreen`.
+2.  **Commit:** User stages and commits changes.
+3.  **Push:** User pushes to remote.

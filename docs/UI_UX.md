@@ -1,40 +1,78 @@
-# IDEaz: UI/UX Design
+# IDEaz: UI/UX Design System
 
 ## Overview
-This document outlines the UI/UX design for the IDEaz, an intent-driven creation engine for Android. The user experience is designed to be entirely visual and conversational, completely abstracting the complexities of software development. The user is a **director**, not a developer.
+This document outlines the UI/UX design for IDEaz. The user experience is designed to be visual, conversational, and "post-code". The user acts as a **director**, interacting with a live app, while the AI acts as the **engineer**.
+
+## Design Philosophy
+*   **Material 3 Expressive:** The UI follows Material 3 guidelines using Jetpack Compose.
+*   **Immersive:** The IDE interface should be unobtrusive. The user's app is the star.
+*   **Reactive:** The UI must respond immediately to state changes (build progress, AI output).
+*   **Greyscale/Neutral:** The IDE theme is intentionally neutral (greyscale) to avoid clashing with the user's project colors.
 
 ## The Core Interaction Model
-The entire user experience is built around the user interacting with their live, running application while an AI agent works on it in the background, orchestrated by services on the user's device.
+The interaction model revolves around the **Live App** and the **IDE Overlay**.
 
-1.  **The Live App (The Target Application):** This is the user's primary and only interface. It is the running, compiled Android application they are building.
-2.  **The IDEaz Overlay (The UI Inspection Service):** A privileged `AccessibilityService` that is active during "Selection Mode." It draws a transparent overlay over the LiveApp to capture all touch events.
-3.  **The Global Console (The Host App):** A bottom sheet within the main IDEaz app that provides a **consolidated global log** for build status, AI status, compile output, and contextless AI chat.
+1.  **The Live App:** The user's running application.
+2.  **The IDE Overlay (`UIInspectionService`):** A transparent `AccessibilityService` overlay that intercepts touches for element selection.
+3.  **The Global Console (`IdeBottomSheet`):** A persistent bottom sheet in the host app for global logs and contextless chat.
 
-## The Two Modes: "Interact" vs. "Select"
+## Modes of Operation
 
-The app operates in two distinct, user-controlled modes, managed by both a toggle button in the **"IDE" NavRail group** and the bottom sheet gesture:
+### 1. Interaction Mode
+*   **Purpose:** Allow the user to use their app normally.
+*   **State:** `UIInspectionService` is **inactive** (or transparent/pass-through). Bottom sheet is hidden or minimized.
+*   **Visuals:** The user sees their app cleanly.
+*   **Trigger:** User taps "Interact" or swipes down the bottom sheet.
 
-1.  **Interaction Mode:**
-    * **State:** The bottom sheet is fully hidden (`AlmostHidden`).
-    * **Button:** The NavRail toggle shows **"Select"**.
-    * **Action:** The `UIInspectionService` is **stopped**. The user can fully interact with their live application (tap buttons, navigate, etc.).
-    * **Trigger:** User swipes the bottom sheet all the way down OR taps the "Interact" button.
+### 2. Selection Mode
+*   **Purpose:** Allow the user to select UI elements to modify.
+*   **State:** `UIInspectionService` is **active** and intercepting touches.
+*   **Visuals:**
+    *   **Tap-to-Select:** Tapping an element highlights it with a bounding box.
+    *   **Drag-to-Select:** Dragging draws a selection rectangle.
+    *   **Prompt:** A floating input box appears near the selection.
+*   **Trigger:** User taps "Select" or swipes up the bottom sheet.
 
-2.  **Selection Mode:**
-    * **State:** The bottom sheet is visible (`Peek` or `Halfway`).
-    * **Button:** The NavRail toggle shows **"Interact"**.
-    * **Action:** The `UIInspectionService` is **started**. All touches are intercepted by the `touchInterceptor` overlay.
-    * **Trigger:** User swipes the bottom sheet up OR taps the "Select" button.
+## Key Components
 
-## The User Journey: "Select and Instruct"
-The core workflow is a simple, powerful, and asynchronous loop:
+### Navigation (`AzNavRail`)
+*   **Location:** Left side of the screen (landscape/tablet) or bottom bar (phone).
+*   **Structure:**
+    *   **Project:** Manage projects (Load, Clone, Create).
+    *   **Editor:** (Read-only) View files.
+    *   **Git:** Manage version control.
+    *   **Settings:** Configure AI, tools, and theme.
+*   **Implementation:** Custom `AzNavRail` component.
 
-1.  **Enter Selection Mode:** The user taps the "Select" button (or swipes up the bottom sheet). The button text changes to "Interact," and the inspection overlay becomes active.
-2.  **Visual Selection (Hybrid):**
-    * **If the user taps:** The service identifies the UI element, and its bounds are highlighted.
-    * **If the user drags:** The service draws a red, semi-transparent rectangle. On release, this rectangle is highlighted.
-3.  **Contextual Instruction:** In both cases, a **floating UI window (the log overlay)** is created matching the selection's bounds, and a **prompt input box** appears just below it. The user types their instruction.
-4.  **Asynchronous Feedback:** Once submitted, the prompt box disappears, and the floating log overlay begins streaming the AI's chat output. A small **(X) button** is visible in the corner of the log overlay.
-5.  **Cancellation:** If the user presses the (X), a dialog asks for confirmation. If confirmed, the AI task is cancelled, and the overlay UI disappears, returning the user to Selection Mode.
-6.  **Build & Relaunch:** If successful, the AI provides a patch. The `BuildService` compiles the app, streaming all **build logs** to the **main app's bottom sheet**.
-7.  **Cycle Complete:** The build succeeds, the user's app restarts with the change, and the floating AI log UI disappears. The app remains in "Selection Mode."
+### Bottom Sheet (`IdeBottomSheet`)
+*   **Library:** `com.composables.core.BottomSheet`
+*   **Content:**
+    *   **Logs:** A streaming list of build/AI logs (`LazyColumn`).
+    *   **Chat:** Contextless AI chat input.
+*   **Behavior:**
+    *   **Peek:** Shows status summary.
+    *   **Expanded:** Shows full logs and chat.
+
+### Floating Overlays (`UIInspectionService`)
+*   **Technology:** `WindowManager` via `AccessibilityService`.
+*   **Elements:**
+    *   **Selection Highlight:** A `View` drawing a border around the selected area.
+    *   **Prompt Box:** A small floating window with an `AzTextBox` for input.
+    *   **Log Overlay:** A floating window displaying real-time AI progress near the selected element.
+
+## Theming (`ui/theme`)
+*   **Color Palette:** Defined in `Color.kt`. Primarily greys, blacks, and whites.
+*   **Typography:** Standard Material 3 typography.
+*   **Dark/Light Mode:** User-toggleable in Settings. Note: "Dark Mode" in this app often means "Light Text on Dark Background", but the "Greyscale" theme might invert this.
+*   **Shape:** `AzButtonShape` defines button corners.
+
+## Common UI Patterns
+*   **`AzButton`:** The standard button component.
+*   **`AzTextBox`:** The standard input field.
+*   **`AzNavRail`:** The main navigation structure.
+*   **`LiveOutputBottomCard`:** A specific card for showing live build output, floating above the bottom sheet.
+
+## Accessibility
+*   The IDE itself uses an Accessibility Service, but the IDE's UI (Host App) must also be accessible.
+*   **Content Descriptions:** All icons and images must have content descriptions.
+*   **Touch Targets:** Minimum 48dp touch targets.

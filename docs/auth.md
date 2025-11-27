@@ -1,30 +1,40 @@
-# IDEaz IDE: Authentication & Tooling
+# Authentication & Security
 
-This document outlines the authentication strategy for the IDEaz IDE application and the management of its core toolchain.
+## 1. Overview
+IDEaz currently operates on a **Bring Your Own Key (BYOK)** model. It does not have a centralized backend for user accounts. Authentication is handled locally via keys stored on the device.
 
-## 1. User Authentication for IDEaz IDE
-**Goal:** To provide a seamless and secure login experience for users of the IDEaz IDE app itself.
+## 2. API Key Management
 
-The authentication for the main app will follow standard, user-friendly web and mobile practices.
+### Storage Mechanism
+*   **Implementation:** Keys are stored in Android's `SharedPreferences` (specifically `PreferenceManager.getDefaultSharedPreferences(context)`).
+*   **Security Note:** Currently, standard `SharedPreferences` is used. Future improvements should migrate to `EncryptedSharedPreferences` for better security.
 
--   **Primary Method: Social Sign-On:** Users will sign in using trusted third-party providers like Google. This avoids the need for traditional password management.
--   **Authentication Flow:** The app will use a standard OAuth 2.0 flow to authenticate the user and receive a JWT to maintain the session.
+### Supported Keys
+1.  **GitHub Personal Access Token (PAT)**
+    *   **Key:** `KEY_GITHUB_TOKEN`
+    *   **Scope Required:** `repo`, `workflow`, `contents: write`.
+    *   **Usage:**
+        *   Cloning private repositories (`GitManager`).
+        *   Pushing changes (`GitManager`).
+        *   Creating repositories (`MainViewModel`).
+        *   Reporting bugs (`GithubIssueReporter`).
+2.  **Google AI Studio API Key (Gemini)**
+    *   **Key:** `google_api_key`
+    *   **Usage:** Authenticating requests to the Gemini API (`GeminiApiClient`).
+3.  **Jules Project ID**
+    *   **Key:** `KEY_JULES_PROJECT_ID`
+    *   **Usage:** Identifying the project context for Jules API calls.
 
-## 2. API Key Management: The "Bring Your Own Key" (BYOK) Model
-**Goal:** To ensure all calls to the Jules and Gemini APIs are authenticated without exposing a secret key in the app.
+## 3. GitHub Integration
+*   **Credentials Provider:** `GitManager` uses `UsernamePasswordCredentialsProvider` with the stored GitHub user and token.
+*   **User Identity:** `KEY_GITHUB_USER` stores the username.
+*   **Fallback:** If no token is present, read-only operations on public repos might work, but push operations will fail.
 
-User authentication is completely separate from API authentication. To use the AI's code generation capabilities, the user must provide their own API keys.
+## 4. Social Sign-On (Planned)
+*   **Status:** Not Implemented.
+*   **Goal:** Future phases may implement Google Sign-In to simplify the onboarding process, but the BYOK model for API usage will likely remain.
 
--   **User-Provided Keys:** The user is responsible for obtaining their own API keys from the respective platforms (Jules, Google AI Studio).
--   **Input and Storage:** The user will enter these keys into the "Settings" screen. The app will then save these keys securely on the device using Android's **`EncryptedSharedPreferences`**.
--   **Usage:**
-    -   **Jules:** The `JulesCliClient` does not use the API key directly. It is assumed the native `libjules.so` binary is pre-configured or handles its own auth (e.g., prompting for a login) via its CLI interface. The `JulesApiClient` uses the key for HTTP requests.
-    -   **Gemini:** The `GeminiApiClient` retrieves the securely stored key and uses it for all HTTP API calls.
-
-## 3. GitHub Authentication
-**Goal:** To enable repository management and automated bug reporting.
-
--   **Personal Access Token (PAT):** The user provides a GitHub PAT with `repo` scope in the Settings screen.
--   **Usage:**
-    -   **Project Management:** Used by `GitManager` and `GitHubApiClient` to clone repositories, create new repositories, and push changes.
-    -   **Automated Bug Reporting:** Used by `GithubIssueReporter` to automatically open issues on the `HereLiesAz/IDEaz` repository when an internal IDE error occurs. If no token is present (or the API call fails), the app falls back to opening a browser window with the issue details pre-filled.
+## 5. Security Best Practices for Agents
+*   **No Hardcoding:** Never hardcode API keys or tokens in the source code.
+*   **Log Redaction:** Ensure logs (especially those sent to AI or GitHub) do not contain raw API keys. The `LoggingInterceptor` should handle this.
+*   **Permissions:** The app requests sensitive permissions (Accessibility, Overlay). Respect the user's trust and only use these for their intended purpose.

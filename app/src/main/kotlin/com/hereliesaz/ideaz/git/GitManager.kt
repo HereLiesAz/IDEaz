@@ -6,8 +6,27 @@ import org.eclipse.jgit.lib.ProgressMonitor
 import java.io.File
 import java.io.ByteArrayInputStream
 
+/**
+ * Manages Git operations for a specific project directory using the JGit library.
+ *
+ * This class encapsulates all version control logic, including cloning, pulling, pushing,
+ * committing, and branch management. It is designed to be thread-safe when used in conjunction
+ * with external synchronization (e.g., [com.hereliesaz.ideaz.ui.MainViewModel.gitMutex]).
+ *
+ * @property projectDir The local directory of the project (the repository root).
+ */
 class GitManager(private val projectDir: File) {
 
+    /**
+     * Clones a repository from GitHub.
+     *
+     * @param owner The GitHub username or organization name of the repository owner.
+     * @param repo The name of the repository.
+     * @param username The username for authentication (optional).
+     * @param token The Personal Access Token (PAT) for authentication (optional).
+     * @param onProgress A callback function to report progress (percentage 0-100, task description).
+     * @throws org.eclipse.jgit.api.errors.GitAPIException If the clone operation fails.
+     */
     fun clone(owner: String, repo: String, username: String? = null, token: String? = null, onProgress: ((Int, String) -> Unit)? = null) {
         val url = "https://github.com/$owner/$repo.git"
         val cmd = Git.cloneRepository()
@@ -26,6 +45,14 @@ class GitManager(private val projectDir: File) {
         cmd.call().close()
     }
 
+    /**
+     * Pulls the latest changes from the remote origin.
+     *
+     * @param username The username for authentication (optional).
+     * @param token The Personal Access Token (PAT) for authentication (optional).
+     * @param onProgress A callback function to report progress.
+     * @throws org.eclipse.jgit.api.errors.GitAPIException If the pull operation fails.
+     */
     fun pull(username: String? = null, token: String? = null, onProgress: ((Int, String) -> Unit)? = null) {
         Git.open(projectDir).use { git ->
             val cmd = git.pull()
@@ -43,24 +70,46 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    /**
+     * Checks if there are any uncommitted changes in the working directory or index.
+     *
+     * @return `true` if there are changes (modified, added, deleted, untracked files), `false` if clean.
+     */
     fun hasChanges(): Boolean {
         Git.open(projectDir).use { git ->
             return !git.status().call().isClean
         }
     }
 
+    /**
+     * stages all changes in the working directory (equivalent to `git add .`).
+     */
     fun addAll() {
         Git.open(projectDir).use { git ->
             git.add().addFilepattern(".").call()
         }
     }
 
+    /**
+     * Commits staged changes.
+     *
+     * @param message The commit message.
+     * @param allowEmpty If `true`, allows creating a commit with no changes.
+     */
     fun commit(message: String, allowEmpty: Boolean = false) {
         Git.open(projectDir).use { git ->
             git.commit().setMessage(message).setAllowEmpty(allowEmpty).call()
         }
     }
 
+    /**
+     * Pushes committed changes to the remote origin.
+     *
+     * @param username The username for authentication (optional).
+     * @param token The Personal Access Token (PAT) for authentication (optional).
+     * @param onProgress A callback function to report progress.
+     * @throws org.eclipse.jgit.api.errors.GitAPIException If the push operation fails.
+     */
     fun push(username: String? = null, token: String? = null, onProgress: ((Int, String) -> Unit)? = null) {
         Git.open(projectDir).use { git ->
             val cmd = git.push()
@@ -75,6 +124,13 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    /**
+     * Fetches the latest objects and refs from the remote origin.
+     *
+     * @param username The username for authentication (optional).
+     * @param token The Personal Access Token (PAT) for authentication (optional).
+     * @param onProgress A callback function to report progress.
+     */
     fun fetch(username: String? = null, token: String? = null, onProgress: ((Int, String) -> Unit)? = null) {
         Git.open(projectDir).use { git ->
             val cmd = git.fetch().setRemote("origin")
@@ -89,6 +145,17 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    /**
+     * Fetches a specific Pull Request branch from GitHub.
+     *
+     * This method fetches `refs/pull/{id}/head` into a local branch `pr-{id}` (or whatever is passed as `localBranch`).
+     *
+     * @param prId The ID of the pull request (e.g., "42").
+     * @param localBranch The name of the local branch to create/update (e.g., "pr-42").
+     * @param username The username for authentication (optional).
+     * @param token The Personal Access Token (PAT) for authentication (optional).
+     * @param onProgress A callback function to report progress.
+     */
     fun fetchPr(prId: String, localBranch: String, username: String? = null, token: String? = null, onProgress: ((Int, String) -> Unit)? = null) {
         Git.open(projectDir).use { git ->
             val cmd = git.fetch()
@@ -106,6 +173,11 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    /**
+     * Checks out an existing branch.
+     *
+     * @param branch The name of the branch to check out.
+     */
     fun checkout(branch: String) {
         Git.open(projectDir).use { git ->
             val cmd = git.checkout().setName(branch)
@@ -116,6 +188,11 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    /**
+     * Creates a new branch if it doesn't exist, and checks it out.
+     *
+     * @param branch The name of the branch to create/checkout.
+     */
     fun createAndCheckoutBranch(branch: String) {
         Git.open(projectDir).use { git ->
             val branchExists = git.branchList().call().any { it.name == "refs/heads/$branch" }
@@ -127,6 +204,11 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    /**
+     * Deletes a local branch forcibly.
+     *
+     * @param branchName The name of the branch to delete.
+     */
     fun deleteBranch(branchName: String) {
         Git.open(projectDir).use { git ->
             // Delete local branch
@@ -134,6 +216,11 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    /**
+     * Merges a branch into the current HEAD.
+     *
+     * @param branch The name of the branch to merge in.
+     */
     fun merge(branch: String) {
         Git.open(projectDir).use { git ->
             val repository = git.repository
@@ -142,6 +229,13 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    /**
+     * Checks if a branch is ahead of a base branch (i.e., has commits not in base).
+     *
+     * @param branch The branch to check.
+     * @param base The base branch to compare against.
+     * @return `true` if `branch` has commits that are not reachable from `base`.
+     */
     fun isAhead(branch: String, base: String): Boolean {
         return try {
             Git.open(projectDir).use { git ->
@@ -178,6 +272,9 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    /**
+     * Initializes a new Git repository in the project directory.
+     */
     fun init() {
         if (!projectDir.exists()) {
             projectDir.mkdirs()
@@ -185,6 +282,11 @@ class GitManager(private val projectDir: File) {
         Git.init().setDirectory(projectDir).call().close()
     }
 
+    /**
+     * Applies a Git patch to the repository.
+     *
+     * @param patch The content of the unified diff patch.
+     */
     fun applyPatch(patch: String) {
         Git.open(projectDir).use { git ->
             val patchInputStream = ByteArrayInputStream(patch.toByteArray())
@@ -192,6 +294,11 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    /**
+     * Stashes current changes (dirty working directory).
+     *
+     * @param message The optional message for the stash entry.
+     */
     fun stash(message: String? = null) {
         Git.open(projectDir).use { git ->
             val cmd = git.stashCreate()
@@ -200,12 +307,20 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    /**
+     * Applies the latest stash to the working directory.
+     */
     fun unstash() {
         Git.open(projectDir).use { git ->
             git.stashApply().call()
         }
     }
 
+    /**
+     * Retrieves the SHA-1 hash of the current HEAD commit.
+     *
+     * @return The 40-character SHA string, or null on error.
+     */
     fun getHeadSha(): String? {
         return try {
             Git.open(projectDir).use { git ->
@@ -217,6 +332,11 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    /**
+     * Retrieves the name of the currently checked-out branch.
+     *
+     * @return The branch name (e.g., "main"), or null on error.
+     */
     fun getCurrentBranch(): String? {
         return try {
             Git.open(projectDir).use { git ->
@@ -227,6 +347,14 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    /**
+     * Attempts to determine the default branch of the remote repository (e.g., "main" or "master").
+     *
+     * It checks `refs/remotes/origin/HEAD`, which should point to the default branch if
+     * the clone was successful and symbolic refs were fetched.
+     *
+     * @return The default branch name, or null if not found.
+     */
     fun getDefaultBranch(): String? {
         return try {
             Git.open(projectDir).use { git ->
@@ -243,6 +371,11 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    /**
+     * Retrieves the commit history of the current branch.
+     *
+     * @return A list of formatted commit strings ("shortSha - message (author)").
+     */
     fun getCommitHistory(): List<String> {
         try {
             Git.open(projectDir).use { git ->
@@ -257,6 +390,11 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    /**
+     * Retrieves a list of all known branches (local and remote).
+     *
+     * @return A sorted list of unique branch names.
+     */
     fun getBranches(): List<String> {
         try {
             Git.open(projectDir).use { git ->
@@ -269,6 +407,11 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    /**
+     * Retrieves the current status of the working directory.
+     *
+     * @return A list of status messages (e.g., "Added: filename", "Modified: filename").
+     */
     fun getStatus(): List<String> {
         try {
             Git.open(projectDir).use { git ->
@@ -287,6 +430,9 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    /**
+     * A simple implementation of [ProgressMonitor] to bridge JGit progress to the UI callback.
+     */
     private class SimpleProgressMonitor(private val callback: (Int, String) -> Unit) : ProgressMonitor {
         private var totalWork = 0
         private var currentWork = 0
