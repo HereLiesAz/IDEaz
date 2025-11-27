@@ -10,6 +10,8 @@ import com.hereliesaz.ideaz.api.CreateIssueRequest
 import com.hereliesaz.ideaz.api.GitHubApiClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.net.URLEncoder
 import androidx.core.net.toUri
 
@@ -20,6 +22,13 @@ object GithubIssueReporter {
     private const val REPO_NAME = "IDEaz"
     private const val ISSUE_URL_BASE = "https://github.com/$REPO_OWNER/$REPO_NAME/issues/new"
 
+    private const val PREFS_NAME = "bug_report_prefs"
+    private const val KEY_PREFIX_TIMESTAMP = "report_timestamp_"
+    private const val COOLDOWN_MS = 24 * 60 * 60 * 1000L // 24 hours
+
+    private val reportMutex = Mutex()
+    private val reportedHashes = mutableSetOf<Int>()
+
     /**
      * Attempts to report an error to GitHub.
      * 1. Tries to use the GitHub API to auto-post the issue (if token provided).
@@ -27,6 +36,34 @@ object GithubIssueReporter {
      */
     suspend fun reportError(context: Context, token: String?, error: Throwable, contextMessage: String, logContent: String? = null): String {
         val stackTrace = error.stackTraceToString()
+
+        // Deduplication Logic
+        val errorSignature = "$contextMessage|${error::class.simpleName}|${error.message}"
+        val errorHash = errorSignature.hashCode()
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val timestampKey = "$KEY_PREFIX_TIMESTAMP$errorHash"
+        val pid = android.os.Process.myPid()
+
+        val shouldReport = reportMutex.withLock {
+            if (reportedHashes.contains(errorHash)) {
+                false
+            } else {
+                val lastReportTime = prefs.getLong(timestampKey, 0L)
+                if (System.currentTimeMillis() - lastReportTime < COOLDOWN_MS) {
+                    reportedHashes.add(errorHash) // Sync memory cache
+                    false
+                } else {
+                    reportedHashes.add(errorHash)
+                    prefs.edit().putLong(timestampKey, System.currentTimeMillis()).apply()
+                    true
+                }
+            }
+        }
+
+        if (!shouldReport) {
+            Log.i(TAG, "Skipping duplicate bug report (Hash: $errorHash, PID: $pid)")
+            return "Skipped (Duplicate report within 24h) [Hash: $errorHash, PID: $pid]"
+        }
 
         val logSection = if (logContent != null) {
             """
@@ -70,10 +107,11 @@ object GithubIssueReporter {
                     )
                 )
                 Log.d(TAG, "Issue created successfully: #${response.number}")
+
                 withContext(Dispatchers.Main) {
                     Toast.makeText(context, "Bug report sent (Issue #${response.number})", Toast.LENGTH_LONG).show()
                 }
-                return "Reported automatically: ${response.htmlUrl}"
+                return "Reported automatically: ${response.htmlUrl} [Hash: $errorHash, PID: $pid]"
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to post issue via API. Falling back to browser.", e)
                 withContext(Dispatchers.Main) {
