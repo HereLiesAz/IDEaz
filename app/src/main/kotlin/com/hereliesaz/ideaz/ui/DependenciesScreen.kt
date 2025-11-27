@@ -11,16 +11,17 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
 @Composable
-fun DependenciesScreen(
+fun LibrariesScreen(
     viewModel: MainViewModel,
     settingsViewModel: SettingsViewModel
 ) {
-    val dependencies = remember { mutableStateListOf(*viewModel.getDependencies().map { Dependency.fromString(it) }.toTypedArray()) }
+    // getDependencies now returns List<Dependency> which is compatible with mutableStateListOf
+    val dependencies = remember { mutableStateListOf(*viewModel.getDependencies().toTypedArray()) }
     var newDependency by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Dependencies", style = MaterialTheme.typography.headlineMedium)
+        Text("Libraries", style = MaterialTheme.typography.headlineMedium)
 
         Spacer(modifier = Modifier.height(16.dp))
 

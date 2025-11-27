@@ -75,6 +75,20 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    fun fetch(username: String? = null, token: String? = null, onProgress: ((Int, String) -> Unit)? = null) {
+        Git.open(projectDir).use { git ->
+            val cmd = git.fetch().setRemote("origin")
+            if (!token.isNullOrBlank()) {
+                val user = if (!username.isNullOrBlank()) username else token
+                cmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(user, token))
+            }
+            if (onProgress != null) {
+                cmd.setProgressMonitor(SimpleProgressMonitor(onProgress))
+            }
+            cmd.call()
+        }
+    }
+
     fun fetchPr(prId: String, localBranch: String, username: String? = null, token: String? = null, onProgress: ((Int, String) -> Unit)? = null) {
         Git.open(projectDir).use { git ->
             val cmd = git.fetch()
@@ -94,15 +108,29 @@ class GitManager(private val projectDir: File) {
 
     fun checkout(branch: String) {
         Git.open(projectDir).use { git ->
-            // Check if branch exists locally
-            val branchExists = git.branchList().call().any { it.name == "refs/heads/$branch" }
             val cmd = git.checkout().setName(branch)
-            if (!branchExists) {
-                // If not local, assume remote tracking or just creating it
-                // For PR branches fetched via fetchPr, they are local heads.
-                // But usually checkout checks out existing branch.
-            }
+            // If the branch doesn't exist locally but exists on remote, JGit might handle it if we set start point.
+            // But simple checkout usually requires local branch.
+            // For now, let's just try to checkout.
             cmd.call()
+        }
+    }
+
+    fun createAndCheckoutBranch(branch: String) {
+        Git.open(projectDir).use { git ->
+            val branchExists = git.branchList().call().any { it.name == "refs/heads/$branch" }
+            if (branchExists) {
+                git.checkout().setName(branch).call()
+            } else {
+                git.checkout().setCreateBranch(true).setName(branch).call()
+            }
+        }
+    }
+
+    fun deleteBranch(branchName: String) {
+        Git.open(projectDir).use { git ->
+            // Delete local branch
+            git.branchDelete().setBranchNames(branchName).setForce(true).call()
         }
     }
 
