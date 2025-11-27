@@ -8,6 +8,7 @@ import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.ideaz.api.Activity
 
 import com.composables.core.BottomSheetState
+import com.hereliesaz.aznavrail.model.AzHeaderIconShape
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -29,14 +30,15 @@ fun IdeNavRail(
             // displayAppNameInHeader = true, // Set to true to display the app name instead of the icon
             packRailButtons = true,
             defaultShape = AzButtonShape.RECTANGLE,
-            enableRailDragging = !isIdeVisible
+            enableRailDragging = !isIdeVisible,
+            headerIconShape = AzHeaderIconShape.NONE
+
         )
         azRailItem(id = "project_settings", text = "Project", onClick = { navController.navigate("project_settings") })
 
-        azRailHostItem(id = "tools", text = "Tools", onClick = {})
-        azRailSubItem(id = "file_explorer", hostId = "tools", text = "File Explorer", onClick = { navController.navigate("file_explorer") })
-        azRailSubItem(id = "git", hostId = "tools", text = "Git", onClick = { navController.navigate("git") })
-        azRailSubItem(id = "dependencies", hostId = "tools", text = "Dependencies", onClick = { navController.navigate("dependencies") })
+        azMenuItem(id = "file_explorer",  text = "Files", onClick = { navController.navigate("file_explorer") })
+        azMenuItem(id = "git",  text = "Git", onClick = { navController.navigate("git") })
+        azMenuItem(id = "libraries",  text = "Libraries", onClick = { navController.navigate("libraries") })
 
         // MODIFIED: Renamed "Status" to "IDE"
         azRailHostItem(id = "main", text = "IDE", onClick = { handleActionClick { navController.navigate("main") } })
