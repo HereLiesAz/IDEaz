@@ -68,10 +68,19 @@ object ProjectConfigManager {
     }
 
     fun ensureWorkflow(context: Context, projectDir: File, type: ProjectType): Boolean {
-        val (assetPath, destName) = when (type) {
-            ProjectType.ANDROID -> "project/.github/workflows/android_ci_jules.yml" to "android_ci_jules.yml"
-            ProjectType.REACT_NATIVE -> "templates/react_native/.github/workflows/react_native_ci_jules.yml" to "react_native_ci_jules.yml"
-            ProjectType.FLUTTER -> "templates/flutter/.github/workflows/flutter_ci_jules.yml" to "flutter_ci_jules.yml"
+        val workflows = when (type) {
+            ProjectType.ANDROID -> listOf(
+                "project/.github/workflows/android_ci_jules.yml" to "android_ci_jules.yml",
+                "project/.github/workflows/codeql.yml" to "codeql.yml",
+                "project/.github/workflows/jules.yml" to "jules.yml",
+                "project/.github/workflows/release.yml" to "release.yml"
+            )
+            ProjectType.REACT_NATIVE -> listOf(
+                "templates/react_native/.github/workflows/react_native_ci_jules.yml" to "react_native_ci_jules.yml"
+            )
+            ProjectType.FLUTTER -> listOf(
+                "templates/flutter/.github/workflows/flutter_ci_jules.yml" to "flutter_ci_jules.yml"
+            )
             else -> return false
         }
 
@@ -82,13 +91,19 @@ object ProjectConfigManager {
                 workflowsDir.mkdirs()
             }
 
-            val destFile = File(workflowsDir, destName)
-            // Force overwrite to ensure latest workflow
-            context.assets.open(assetPath).use { input ->
-                val content = input.readBytes()
-                if (!destFile.exists() || !destFile.readBytes().contentEquals(content)) {
-                    destFile.writeBytes(content)
-                    modified = true
+            for ((assetPath, destName) in workflows) {
+                val destFile = File(workflowsDir, destName)
+                // Force overwrite to ensure latest workflow
+                try {
+                    context.assets.open(assetPath).use { input ->
+                        val content = input.readBytes()
+                        if (!destFile.exists() || !destFile.readBytes().contentEquals(content)) {
+                            destFile.writeBytes(content)
+                            modified = true
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
             }
         } catch (e: Exception) {
