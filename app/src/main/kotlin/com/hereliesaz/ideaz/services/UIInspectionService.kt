@@ -53,6 +53,12 @@ class UIInspectionService : AccessibilityService() {
     private var debugTextView: TextView? = null
     private var shouldInspect = false
 
+    // For hiding/restoring overlays
+    private val restoreRunnable = Runnable { restoreOverlays() }
+    private var previousTouchVisibility = View.VISIBLE
+    private var previousOverlayVisibility = View.GONE
+    private var previousPopupVisibility = View.GONE
+
     // Dedicated view for reliable drawing
     private inner class SelectionView(context: Context) : View(context) {
         private val selectionPaint = Paint().apply {
@@ -204,6 +210,12 @@ class UIInspectionService : AccessibilityService() {
                 }
                 "com.hereliesaz.ideaz.SHOW_UPDATE_POPUP" -> {
                     mainHandler?.post { showUpdatePopup() }
+                }
+                "com.hereliesaz.ideaz.HIDE_OVERLAYS_TEMPORARILY" -> {
+                    mainHandler?.post { hideOverlaysTemporarily() }
+                }
+                "com.hereliesaz.ideaz.RESTORE_OVERLAYS" -> {
+                    mainHandler?.post { restoreOverlays() }
                 }
             }
         }
@@ -440,5 +452,44 @@ class UIInspectionService : AccessibilityService() {
             if (child != null) return child
         }
         return root
+    }
+
+    private fun hideOverlaysTemporarily() {
+        // Save state
+        previousTouchVisibility = touchInterceptor?.visibility ?: View.GONE
+        previousOverlayVisibility = overlayView?.visibility ?: View.GONE
+        previousPopupVisibility = updatePopupView?.visibility ?: View.GONE
+
+        // Hide
+        touchInterceptor?.visibility = View.GONE
+        overlayView?.visibility = View.GONE
+        updatePopupView?.visibility = View.GONE
+
+        // Auto-restore after 3 seconds in case something goes wrong
+        mainHandler?.removeCallbacks(restoreRunnable)
+        mainHandler?.postDelayed(restoreRunnable, 3000)
+    }
+
+    private fun restoreOverlays() {
+        mainHandler?.removeCallbacks(restoreRunnable)
+
+        // Restore touch interceptor if we are still inspecting
+        if (shouldInspect) {
+            if (previousTouchVisibility == View.VISIBLE) {
+                touchInterceptor?.visibility = View.VISIBLE
+            }
+        } else {
+             touchInterceptor?.visibility = View.GONE
+        }
+
+        // Restore overlay view (Log/Prompt)
+        if (overlayView != null) {
+             overlayView?.visibility = previousOverlayVisibility
+        }
+
+        // Restore popup
+        if (updatePopupView != null) {
+            updatePopupView?.visibility = previousPopupVisibility
+        }
     }
 }
