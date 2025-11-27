@@ -9,8 +9,9 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface JulesApi {
-    @GET("sources")
+    @GET("{parent}/sources")
     suspend fun listSources(
+        @Path("parent") parent: String,
         @Query("pageSize") pageSize: Int? = null,
         @Query("pageToken") pageToken: String? = null,
         @Query("filter") filter: String? = null
@@ -22,8 +23,9 @@ interface JulesApi {
     @POST("sessions")
     suspend fun createSession(@Body request: CreateSessionRequest): Session
 
-    @GET("sessions")
+    @GET("{parent}/sessions")
     suspend fun listSessions(
+        @Path("parent") parent: String,
         @Query("pageSize") pageSize: Int? = null,
         @Query("pageToken") pageToken: String? = null
     ): ListSessionsResponse
