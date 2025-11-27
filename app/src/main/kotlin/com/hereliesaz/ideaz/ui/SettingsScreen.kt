@@ -78,6 +78,7 @@ fun SettingsScreen(
     var apiKey by remember { mutableStateOf(settingsViewModel.getApiKey() ?: "") }
     var googleApiKey by remember { mutableStateOf(settingsViewModel.getGoogleApiKey() ?: "") }
     var githubToken by remember { mutableStateOf(settingsViewModel.getGithubToken() ?: "") }
+    var julesProjectId by remember { mutableStateOf(settingsViewModel.getJulesProjectId() ?: "") }
 
     var showCancelWarning by remember {
         mutableStateOf(settingsViewModel.getShowCancelWarning())
@@ -219,6 +220,26 @@ fun SettingsScreen(
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://jules.google.com/settings"))
                         context.startActivity(intent)
                     }, text = "Get Key", shape = AzButtonShape.NONE)
+                }
+
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Jules Project ID", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
+                }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    AzTextBox(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = julesProjectId,
+                        onValueChange = { julesProjectId = it },
+                        hint = "Jules Project ID",
+                        onSubmit = {
+                            settingsViewModel.saveJulesProjectId(julesProjectId)
+                            Toast.makeText(context, "Jules Project ID Saved", Toast.LENGTH_SHORT).show()
+                        },
+                        submitButtonContent = { Text("Save") }
+                    )
                 }
 
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

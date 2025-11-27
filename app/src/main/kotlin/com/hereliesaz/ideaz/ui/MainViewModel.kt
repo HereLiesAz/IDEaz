@@ -283,7 +283,8 @@ class MainViewModel(
             _isLoadingSources.value = true
             Log.d(TAG, "fetchOwnedSources: Fetching sources...")
             try {
-                val response = JulesApiClient.listSources()
+                val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
+                val response = JulesApiClient.listSources(parent)
                 _ownedSources.value = response.sources ?: emptyList()
                 Log.d(TAG, "fetchOwnedSources: Success. Found ${response.sources?.size ?: 0} sources.")
             } catch (e: Exception) {
@@ -299,7 +300,8 @@ class MainViewModel(
         if (settingsViewModel.getApiKey().isNullOrBlank()) return
         viewModelScope.launch {
             try {
-                val response = JulesApiClient.listSessions()
+                val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
+                val response = JulesApiClient.listSessions(parent)
                 val appName = settingsViewModel.getAppName()
                 val githubUser = settingsViewModel.getGithubUser()
                 val currentSource = "sources/github/$githubUser/$appName"
