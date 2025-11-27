@@ -87,6 +87,7 @@ configurations.all {
 
         }
     }
+    exclude(group = "javax.inject", module = "javax.inject")
 }
 
 dependencies {
@@ -95,11 +96,18 @@ dependencies {
     implementation(libs.validation.api)
     implementation(libs.glassfish.el)
     implementation(libs.slf4j.simple)
-    constraints {
-        implementation("com.google.guava:guava:32.1.3-android") {
-            because("Guava Android is smaller and avoids conflicts")
-        }
+    implementation(libs.guava)
+    implementation(libs.kotlinc.android) {
+        exclude(group = "javax.inject", module = "javax.inject")
     }
+    implementation(libs.nb.javac.android)
+    implementation(libs.r8)
+    implementation(libs.sora.editor)
+    implementation(libs.scala.compiler) {
+        exclude(group = "org.jline")
+    }
+    implementation(libs.smali)
+    implementation(libs.baksmali)
     implementation(libs.org.eclipse.jgit)
     implementation(libs.slf4j.api)
     implementation(libs.slf4j.android)
