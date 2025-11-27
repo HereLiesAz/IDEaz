@@ -52,7 +52,7 @@ object BubbleUtils {
             .setLongLabel("IDEaz Overlay")
             .setShortLabel("IDEaz")
             .setIcon(icon)
-            .setIntent(Intent(context, MainActivity::class.java).setAction(Intent.ACTION_MAIN))
+            .setIntent(target.setAction(Intent.ACTION_MAIN))
             .setPerson(person)
             .build()
 
