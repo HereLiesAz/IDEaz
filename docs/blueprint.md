@@ -1,107 +1,71 @@
-# **Architectural Blueprint for IDEaz**
+# Architectural Blueprint for IDEaz
 
-## **1. Executive Vision: A New Paradigm for Mobile Development**
+## 1. Vision: The Visual, Post-Code IDE
+IDEaz (com.hereliesaz.ideaz) is a mobile IDE that redefines app development. It is not a text editor; it is a **visual creation engine**. The user interacts primarily with their running application, not its source code.
 
-IDEaz represents a fundamental leap forward in mobile application development, engineered to drastically compress the iteration cycle. The core thesis is the seamless integration of a visual, on-device UI inspection mechanism with the transformative power of generative artificial intelligence. This approach moves beyond the traditional, text-centric coding paradigm, introducing a more intuitive, interactive, and conversational model of software creation.
+*   **Core Loop:** Run App -> Visual Select -> AI Prompt -> AI Edit -> Compile -> Run.
+*   **The "Invisible" Overlay:** The IDE provides a transparent overlay over the user's running app.
+*   **Interaction:**
+    *   **Select:** User taps a component or drags to select an area.
+    *   **Prompt:** A text input appears near the selection.
+    *   **Action:** User describes the change (e.g., "Make this button blue").
+    *   **Execution:** The AI (Jules) accesses the source, implements changes, and the IDE rebuilds the app.
 
-The user does not write code; they visually select an element in their running application. This action presents a **contextual AI prompt and log overlay**. The user describes the desired change, and an AI agent, powered by a **user-selected API (e.g., Jules Tools CLI or Gemini)**, handles the entire development lifecycle—code generation, compilation, and debugging—directly on the device.
+## 2. System Architecture
 
----
+### 2.1 The "Race to Build" Strategy
+To minimize user wait time, the IDE employs a dual-build strategy:
+1.  **Local Build:** The device attempts to build the app using its internal toolchain (`aapt2`, `d8`, `kotlinc`).
+2.  **Remote Build:** GitHub CI/CD is triggered to build the app remotely.
 
-## **2. System Architecture: A Multi-Process, On-Device Toolchain**
+*   **Winner Takes All:** Whichever build finishes first (Local APK or Remote Release Artifact) is automatically downloaded/installed.
+*   **Prioritization:**
+    *   **Check Existing:** If the installed app matches the Repo Head (SHA), run it.
+    *   **Check Remote:** If a compiled Release exists for the current SHA, download and install it.
+    *   **Race:** If neither exists, start both Local and Remote builds.
+*   **Local Priority:** The local build runs on a lower priority thread to ensure the UI remains responsive for the user to continue prompting/planning.
 
-The architecture is founded on principles of robustness and performance, leveraging a multi-process design to isolate core components and prevent system-wide failures.
+### 2.2 GitHub Integration
+*   **Source of Truth:** GitHub is the backend. All changes are committed.
+*   **AI Access:** Jules (the AI) works on the GitHub repository, pulling source, editing, and pushing commits.
+*   **Synchronization:** The IDE automatically pulls changes from GitHub before building.
 
-### **2.1 Architectural Philosophy: Process Isolation**
+### 2.3 The Feedback Loop
+*   **Success:** App updates live.
+*   **Compilation Error:**
+    *   If **User Code** fails: The build log is sent to Jules. Jules fixes the code, commits, and the cycle repeats.
+    *   If **IDE Infrastructure** fails: The log is sent to the `HereLiesAz/IDEaz` repository as a GitHub Issue with the label `jules`. **Crucially, the user's AI is NOT asked to debug the IDE's own bugs.**
 
-A monolithic architecture, where the IDE, build tools, and target application all reside in a single process, is inherently unstable. Therefore, the foundational design is a **multi-process architecture**, where each major component operates in its own distinct process boundary, communicating via well-defined Inter-Process Communication (IPC) channels.
+## 3. User Experience (UI/UX)
 
-### **2.2 The Four Core Components**
+### 3.1 The Overlay
+*   **Attachment:** The overlay "sticks" to the target application package. It is visible ONLY when the target app is in the foreground.
+*   **Transparency:**
+    *   **IDE Mode (Interact/Select):** Background is transparent.
+    *   **Settings/Setup Screens:** Background is **Opaque** (Solid). Transparency here is a bug.
+*   **Update Popup:** When a background build finishes, a popup ("Updating, gimme a sec") appears. Text in the prompt box is auto-copied to clipboard.
 
-1.  **IDEaz Host Application:** The primary, user-facing application providing the UI for project management, code editing, and AI interaction. It is the central orchestrator of the entire system. It also provides a **global build/compile log** and a **contextless AI chat prompt**.
-2.  **On-Device Build Service:** A background `Service` running in a separate process (`:build_process`). It manages the entire on-device build toolchain (for Android, React Native, Flutter, and Web), receiving build requests from the Host App and reporting back status and logs.
-3.  **UI Inspection Service:** A privileged `AccessibilityService` running in its own dedicated process. It is responsible for drawing the visual overlay on the target application, capturing **user taps (for element selection) and drags (for area selection)**, and **rendering the contextual AI prompt and log UI** for a selected element.
-4.  **Target Application Process:** The user's application being developed. It runs in its own standard Android sandbox, completely isolated from the IDEaz components, ensuring an accurate representation of its real-world behavior.
+### 3.2 The Console (Bottom Card)
+*   **Live Logs:** A swipe-up bottom card displays the live build log (Logcat) or AI output.
+*   **Contextless Debugging:** Below the log is a prompt box for general questions or debugging assistance.
 
-### **2.3 Inter-Process Communication (IPC) Strategy**
+### 3.3 Background Reliability
+*   **Notification:** A persistent notification displays the last 3 lines of the log, keeping the Build Service alive and the user informed even when the app is backgrounded.
 
-Communication between the isolated processes will be handled using the **Android Interface Definition Language (AIDL)** for the `BuildService` and **system Broadcasts** for the `UIInspectionService`. This provides a robust framework for managing state and streaming data (logs, commands) across process boundaries.
+## 4. Initialization vs. Loading
 
----
+### 4.1 Loading
+*   **Action:** User selects a project to "Load".
+*   **Process:** Clone repo, Sync changes, Fetch branches.
+*   **Destination:** Takes user to the **Setup Tab**, NOT the build screen.
 
-## **3. The "No-Gradle" On-Device Build Pipeline**
+### 4.2 Initialization
+*   **Action:** User presses "Save & Initialize" in the Setup Tab.
+*   **Process:**
+    1.  **Inject Workflows:** Force-push critical workflow files (`android_ci_jules.yml`, `codeql.yml`, `jules.yml`, `release.yml`) to `.github/workflows/`.
+    2.  **Inject Scripts:** Force-push `setup_env.sh` and `AGENTS_SETUP.md`.
+    3.  **Start Build:** Initiate the first build/run cycle.
 
-The IDE eschews a full Gradle system in favor of a direct, scripted orchestration of core command-line build tools. This "No-Gradle" approach prioritizes speed, simplicity, and a minimal resource footprint.
-
-The build pipeline is designed to be extensible for multiple platforms:
-*   **Android:** Uses `aapt2`, `d8`, and `kotlinc`.
-*   **React Native:** (Planned) Will utilize a custom Metro-like bundler or optimized JS packaging for on-device execution.
-*   **Flutter:** (Planned) Will leverage the `flutter` tool or a dart compilation step compatible with the on-device environment.
-*   **Web:** (Planned) A lightweight build process handling HTML/CSS/JS minification and asset linking.
-
-For a complete breakdown of this system, see **`docs/build_pipeline.md`**.
-
----
-
-## **4. Visual Interaction and Source Mapping**
-
-The cornerstone of the IDE is the ability to visually select a UI element and have the AI instantly modify its source code.
-
-### **4.1 Core Technology: The Android Accessibility Service**
-
-The **Android AccessibilityService** is the core technology that enables the IDE to inspect the UI of the target application securely and without requiring root access. An AccessibilityService runs with elevated privileges that allow it to traverse the "accessibility node tree" (a representation of the on-screen UI elements) of the currently active window. This is the only non-root method available for this purpose.
-
-### **4.2 Hybrid Selection: Tap vs. Drag**
-
-The `UIInspectionService`'s overlay supports two distinct selection methods:
-
-1.  **Tap-to-Select (Element):** If the user performs a simple tap, the service uses `findNodeAt()` to identify the deepest `AccessibilityNodeInfo` at that coordinate. It retrieves the element's `resourceId` and its on-screen `Rect` bounds.
-2.  **Drag-to-Select (Area):** If the user drags their finger, the service draws a real-time selection box. On release, it captures the final `Rect` of the drawn area.
-
-In both cases, the service creates a log overlay matching the `Rect` of the selection and a prompt overlay below it.
-
-### **4.3 Build-Time Source Map**
-
-To map a tapped element to its source code, the Build Service generates a `source_map.json` file during compilation, linking `resourceId` strings to their exact file path and line number. This map is *only* used for the Tap-to-Select flow.
-
-### **4.4 Contextual Prompt Prefixing**
-
-When the user submits a prompt, the `MainViewModel` constructs a "rich prompt" by *prefixing* the user's text with the context it received from the service:
-* **On Tap:** `Context (for element [resourceId]): File: [path], Line: [num], Snippet: [code]... User Request: "[prompt]"`
-* **On Drag:** `Context: Screen area Rect([coords])... User Request: "[prompt]"`
-
----
-
-## **5. AI Integration and Abstraction**
-
-The IDE will use an embedded **JGit** library to manage every project as a local Git repository. This is a prerequisite for AI models that operate on changesets.
-
-### **5.0 Multi-Platform "Post-Code" Vision**
-
-The core "post-code" philosophy—interacting with the running app rather than text files—must be preserved across all supported platforms:
-*   **Android:** (Current) Visual inspection via AccessibilityService.
-*   **React Native:** Visual inspection via AccessibilityService or a custom bridge to the JS runtime.
-*   **Web:** Visual inspection via DOM injection or a custom Chrome/WebView client.
-*   **Flutter:** Visual inspection via the Flutter Inspector protocol or AccessibilityService.
-
-Regardless of the underlying technology, the user experience remains constant: Select Element -> Describe Change -> AI Implements -> Rebuild/Reload.
-
-### **5.1 AI Abstraction Layer**
-
-The IDE is not tied to a single AI. The `SettingsViewModel` stores user preferences for which AI model (e.g., "Jules", "Gemini Flash") to use for specific tasks:
-* Project Initialization
-* Contextual (Overlay) Chat
-* Contextless (Global) Chat
-
-The `MainViewModel` reads these preferences and routes all AI requests to the appropriate client (e.g., `JulesCliClient` for Jules, or `GeminiApiClient` for Gemini).
-
-### **5.2 The AI Workflow (Contextual)**
-
-1.  **Commit Current State:** The IDE automatically commits the current state of the project.
-2.  **Construct Rich Prompt:** The `MainViewModel` constructs the detailed, prefixed prompt as described in 4.4.
-3.  **Route and Call AI:** The `MainViewModel` checks the user's settings for the **"Overlay Chat"** task and selects the assigned AI.
-    * **If Jules:** It calls the `JulesCliClient`, which executes the `libjules.so` native binary with the prompt.
-    * **If Gemini:** It calls the `GeminiApiClient`, which makes an HTTP request.
-4.  **Stream Logs to Overlay:** As the AI works, all chat and activity logs are streamed *only* to the `UIInspectionService`'s floating log box. The log box contains a **Cancel (X) button** to terminate the task.
-5.  **Receive and Apply Patch:** The AI's final output (a `gitPatch`) is received.
-6.  **Trigger Rebuild:** The Host App sends an IPC message to the On-Device Build Service. All **build and compile logs** are streamed *only* to the Host App's main bottom sheet.
+## 5. Agent Constraints
+*   **Polling:** Polling for AI progress must **NEVER** time out. Agents need time to think and setup. Poll for *activities*, not just the final result.
+*   **Environment:** The user never touches a file. The AI handles the file system.

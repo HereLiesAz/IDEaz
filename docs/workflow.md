@@ -1,33 +1,59 @@
-# IDEaz IDE: Development Workflow
+# Developer Workflow & Logic
 
-This document outlines the standardized development workflow for contributors working on the **IDEaz IDE application itself**. This is distinct from the automated workflow the AI uses to build user applications.
+## 1. The "Race to Build" Strategy
+IDEaz minimizes user wait time by racing a local build against a remote CI build.
 
-## 1. Branching Model: GitFlow
-We will use the **GitFlow** branching model to manage the development of the IDEaz IDE.
+### Decision Logic
+1.  **Check Installed:** Is the app installed? Does its SHA match the Repo HEAD?
+    *   *Yes:* Run Installed App.
+2.  **Check Remote:** Is there a GitHub Release for the current HEAD SHA?
+    *   *Yes:* Download and Install.
+3.  **Race:** If neither:
+    *   **Start Remote:** Trigger GitHub Action (by push).
+    *   **Start Local:** Start on-device build (low priority thread).
+    *   **Winner:** First to finish triggers installation. The loser is cancelled (or ignored).
 
-**Main Branches:**
--   `main`: Contains production-ready, stable code for the IDEaz IDE.
--   `develop`: The primary development branch for integrating new features.
+## 2. Project Lifecycle: Loading vs. Initialization
 
-**Supporting Branches:**
--   **Feature Branches (`feature/<feature-name>`):** For developing new features for the IDE (e.g., `feature/improve-screenshot-annotation`). Created from `develop`.
--   **Release Branches (`release/vX.X.X`):** For preparing a new public release of the IDEaz IDE app. Created from `develop`.
--   **Hotfix Branches (`hotfix/<issue-name>`):** For fixing critical bugs in the production version of the IDEaz IDE app. Created from `main`.
+### 2.1 Loading (Preparation)
+*   **Trigger:** User selects a project from the "Load" tab.
+*   **Actions:**
+    1.  Clone/Pull repository.
+    2.  Fetch branches and history.
+    3.  Detect Project Type.
+    4.  Navigate to **Setup Tab**.
+*   **Note:** This does *not* start a build.
 
-## 2. Code Contribution Workflow
-1.  **Create an Issue:** Before starting work on a new feature or bug fix for the IDEaz IDE, create a detailed issue.
-2.  **Create a Feature Branch:** Branch from `develop`.
-3.  **Implement Changes:** Make your code changes on the feature branch.
-4.  **Run Tests:** Run the full suite of unit, integration, and E2E tests locally to ensure no regressions have been introduced in the IDE.
-5.  **Open a Pull Request (PR):** Open a PR to merge your feature branch into `develop`. The PR must be reviewed and approved by at least one other team member.
+### 2.2 Initialization (Activation)
+*   **Trigger:** User clicks "Save & Initialize" in Setup Tab.
+*   **Actions:**
+    1.  **Inject Workflows:** The IDE *must* force-push the following files to `.github/workflows/`:
+        *   `android_ci_jules.yml`
+        *   `codeql.yml`
+        *   `jules.yml`
+        *   `release.yml`
+    2.  **Inject Environment:** Force-push `setup_env.sh` and `AGENTS_SETUP.md` to root.
+    3.  **Start Build:** Initiate the "Race to Build".
 
-## 3. The AI's Internal Workflow (For Reference)
-It is important not to confuse our development workflow with the one the AI uses. The Jules agent, orchestrated by the on-device IDEaz Service, uses a much simpler, automated workflow internally for each user app:
+## 3. The Error Handling Loop
+The IDE distinguishes between "User Errors" (code that won't compile) and "IDE Errors" (the toolchain crashed).
 
-1.  **AI is Triggered:** A user's prompt initiates the process.
-2.  **AI Creates a Branch:** The Jules agent creates a new branch in the user's "Invisible Repository."
-3.  **AI Commits Code:** The agent makes the requested code change and commits it.
-4.  **AI Creates a PR:** The agent creates a pull request.
-5.  **IDEaz Service Merges:** The on-device service automatically validates and merges the PR.
-6.  **IDEaz Service Pulls and Compiles:** The service pulls the merged code from the `main` branch of the user's repository and triggers a build.
-7.  **Loop or Relaunch:** If the build fails, the loop repeats from step 2. If it succeeds, the app is relaunched.
+### Scenario A: User Code Error
+*   **Detection:** `BuildService` returns failure, but `isIdeError()` returns false.
+*   **Action:**
+    1.  Capture Build Log.
+    2.  Send to **User's AI Session** (Jules).
+    3.  AI fixes code, commits, pushes.
+    4.  IDE pulls and retries build.
+
+### Scenario B: IDE Infrastructure Error
+*   **Detection:** `BuildService` throws Exception or `isIdeError()` returns true (e.g., "Tool not found").
+*   **Action:**
+    1.  Capture Stack Trace + Context.
+    2.  Report to **IDEaz Repository** (`HereLiesAz/IDEaz`) as a GitHub Issue.
+    3.  **Label:** Must use label `jules` to trigger the debugging workflow.
+    4.  **Constraint:** Do *not* ask the user's AI to fix this.
+
+## 4. Working with Agents (Jules)
+*   **Polling:** Polling for AI responses should **never time out**. Agents need time. Poll for `activities` to show progress.
+*   **Transparency:** Always show the "Live Output" card when waiting for AI or Build.
