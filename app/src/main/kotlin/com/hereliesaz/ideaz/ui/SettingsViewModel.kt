@@ -47,6 +47,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_PROJECT_LIST = "project_list"
         const val KEY_GOOGLE_API_KEY = "google_api_key" // Gemini
         const val KEY_GITHUB_TOKEN = "github_token"
+        const val KEY_JULES_PROJECT_ID = "jules_project_id"
 
         const val KEY_PROJECT_TYPE = "project_type"
 
@@ -189,6 +190,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun getGithubToken(): String? {
         return sharedPreferences.getString(KEY_GITHUB_TOKEN, null)
+    }
+
+    fun saveJulesProjectId(projectId: String) {
+        sharedPreferences.edit().putString(KEY_JULES_PROJECT_ID, projectId).apply()
+    }
+
+    fun getJulesProjectId(): String? {
+        return sharedPreferences.getString(KEY_JULES_PROJECT_ID, null)
     }
 
     fun saveApiKey(apiKey: String) {
