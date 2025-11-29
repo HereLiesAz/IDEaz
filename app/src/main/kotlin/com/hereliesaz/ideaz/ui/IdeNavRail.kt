@@ -36,9 +36,8 @@ fun IdeNavRail(
             // displayAppNameInHeader = true, // Set to true to display the app name instead of the icon
             packRailButtons = true,
             defaultShape = AzButtonShape.RECTANGLE,
-            enableRailDragging = enableRailDraggingOverride ?: !isIdeVisible,
-            headerIconShape = AzHeaderIconShape.NONE,
-            onUndock = onUndock
+            enableRailDragging = true,
+            onUndock = { createBubble(context) }            headerIconShape = AzHeaderIconShape.NONE,
         )
 
         // 1. Project
