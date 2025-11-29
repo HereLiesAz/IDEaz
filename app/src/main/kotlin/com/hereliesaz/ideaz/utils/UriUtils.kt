@@ -5,7 +5,7 @@ import android.net.Uri
 import android.os.Environment
 import android.provider.DocumentsContract
 import android.os.storage.StorageManager
-import java.io.File
+import android.util.Log
 
 object UriUtils {
     fun getPathFromUri(context: Context, uri: Uri): String? {
@@ -17,28 +17,26 @@ object UriUtils {
                     val type = parts[0]
                     val path = parts[1]
 
+                    val storageManager = context.getSystemService(Context.STORAGE_SERVICE) as StorageManager
+                    val storageVolumes = storageManager.storageVolumes
+
                     if (type == "primary") {
-                        return Environment.getExternalStorageDirectory().absolutePath + "/" + path
+                        val primaryVolume = storageVolumes.find { it.isPrimary }
+                        primaryVolume?.directory?.let { return "${it.absolutePath}/$path" }
+                        // Fallback for safety on older devices or edge cases
+                        @Suppress("DEPRECATION")
+                        return "${Environment.getExternalStorageDirectory().absolutePath}/$path"
                     } else {
                         // Handle SD cards / Secondary volumes
-                        val storageManager = context.getSystemService(Context.STORAGE_SERVICE) as StorageManager
-                        val storageVolumes = storageManager.storageVolumes
-                        for (volume in storageVolumes) {
-                            // volume.uuid is nullable
-                            if (!volume.isPrimary && volume.uuid == type) {
-                                val dir = volume.directory
-                                if (dir != null) {
-                                    return dir.absolutePath + "/" + path
-                                }
-                            }
-                        }
-                        // Fallback attempt
+                        val volume = storageVolumes.find { !it.isPrimary && it.uuid == type }
+                        volume?.directory?.let { return "${it.absolutePath}/$path" }
+                        // Fallback attempt for non-standard volumes
                         return "/storage/$type/$path"
                     }
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("UriUtils", "Failed to get path from URI: $uri", e)
         }
         return null
     }

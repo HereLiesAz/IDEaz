@@ -12,6 +12,8 @@ import androidx.preference.PreferenceManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import com.hereliesaz.ideaz.api.AuthInterceptor
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
 import java.io.File
 import java.io.FileOutputStream
 
@@ -327,17 +329,27 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         loadLocalProjects()
     }
 
-    fun saveProjectPath(name: String, path: String) {
+    private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+
+    private fun getProjectPaths(): Map<String, String> {
         val jsonStr = sharedPreferences.getString(KEY_PROJECT_PATHS, "{}")
-        val json = org.json.JSONObject(jsonStr ?: "{}")
-        json.put(name, path)
-        sharedPreferences.edit().putString(KEY_PROJECT_PATHS, json.toString()).apply()
+        return try {
+            json.decodeFromString<Map<String, String>>(jsonStr ?: "{}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse project paths JSON", e)
+            emptyMap()
+        }
+    }
+
+    fun saveProjectPath(name: String, path: String) {
+        val paths = getProjectPaths().toMutableMap()
+        paths[name] = path
+        val jsonStr = json.encodeToString(paths)
+        sharedPreferences.edit().putString(KEY_PROJECT_PATHS, jsonStr).apply()
     }
 
     fun getProjectPath(name: String): File {
-        val jsonStr = sharedPreferences.getString(KEY_PROJECT_PATHS, "{}")
-        val json = org.json.JSONObject(jsonStr ?: "{}")
-        val path = json.optString(name)
+        val path = getProjectPaths()[name]
         if (!path.isNullOrBlank()) {
             return File(path)
         }
@@ -345,11 +357,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun removeProjectPath(name: String) {
-        val jsonStr = sharedPreferences.getString(KEY_PROJECT_PATHS, "{}")
-        val json = org.json.JSONObject(jsonStr ?: "{}")
-        if (json.has(name)) {
-            json.remove(name)
-            sharedPreferences.edit().putString(KEY_PROJECT_PATHS, json.toString()).apply()
+        val paths = getProjectPaths().toMutableMap()
+        if (paths.remove(name) != null) {
+            val jsonStr = json.encodeToString(paths)
+            sharedPreferences.edit().putString(KEY_PROJECT_PATHS, jsonStr).apply()
         }
     }
 

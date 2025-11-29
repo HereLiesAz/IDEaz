@@ -756,7 +756,9 @@ class MainViewModel(
                             uri,
                             Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                         )
-                    } catch (e: Exception) {}
+                    } catch (e: SecurityException) {
+                        Log.w(TAG, "Could not take persistable URI permission (it might already be held)", e)
+                    }
 
                     settingsViewModel.addProject(name)
                     settingsViewModel.saveProjectPath(name, pathStr)
