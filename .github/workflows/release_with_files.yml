@@ -1,0 +1,77 @@
+name: Release IDEaz with Build Tools
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build APK and Tools
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v2
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build Release APK
+        run: ./gradlew assembleRelease
+
+      - name: Sign APK
+        uses: r0adkll/sign-android-release@v1
+        id: sign_app
+        with:
+          releaseDirectory: app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+        env:
+          BUILD_TOOLS_VERSION: "34.0.0"
+
+      - name: Package Local Build Tools
+        run: |
+          mkdir -p build_tools_package/tools
+          mkdir -p build_tools_package/native
+          
+          # Copy assets/tools (Jars, Keystores)
+          if [ -d "app/src/main/assets/tools" ]; then
+            cp -r app/src/main/assets/tools/* build_tools_package/tools/
+          fi
+          
+          # Copy jniLibs (Native Binaries)
+          # We flatten the structure or keep architecture? 
+          # For simplicity in ToolManager, we'll keep the arm64-v8a folder structure if needed,
+          # but ToolManager usually looks for flattened binaries or specifics.
+          # Let's verify ToolManager expectations. It expects direct access.
+          # We'll zip the 'arm64-v8a' folder contents into 'native'.
+          
+          if [ -d "app/src/main/jniLibs/arm64-v8a" ]; then
+            cp -r app/src/main/jniLibs/arm64-v8a/* build_tools_package/native/
+          fi
+          
+          # Zip it up
+          cd build_tools_package
+          zip -r ../build-tools.zip .
+          cd ..
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ${{ steps.sign_app.outputs.signedReleaseFile }}
+            build-tools.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

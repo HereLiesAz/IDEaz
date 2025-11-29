@@ -33,12 +33,6 @@ import java.util.ArrayDeque
 
 /**
  * A foreground [Service] that orchestrates the build process in a separate process (`:build_process`).
- *
- * This service is responsible for:
- * 1.  Running the build toolchain (AAPT2, D8, Kotlinc, etc.) off the main UI thread.
- * 2.  Managing the "Sync and Exit" background operation.
- * 3.  Providing a persistent notification to keep the process alive during long builds.
- * 4.  Communicating progress back to the [MainActivity] via AIDL ([IBuildCallback]).
  */
 class BuildService : Service() {
     companion object {
@@ -62,14 +56,9 @@ class BuildService : Service() {
         override fun cancelBuild() = this@BuildService.cancelBuild()
     }
 
-    /**
-     * Called when the service is created.
-     * Ensures that all necessary build tools are installed or repaired using [ToolManager].
-     */
     override fun onCreate() {
         super.onCreate()
-        // Ensure tools are installed/repaired on service creation
-        ToolManager.installTools(this)
+        // No auto-install from assets. Tools must be downloaded.
         createNotificationChannel()
     }
 
@@ -78,10 +67,6 @@ class BuildService : Service() {
         serviceScope.cancel()
     }
 
-    /**
-     * Called when the service is started via [startService] or [startForegroundService].
-     * Handles the [ACTION_SYNC_AND_EXIT] intent action.
-     */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_SYNC_AND_EXIT) {
             handleSyncAndExit()
@@ -104,10 +89,6 @@ class BuildService : Service() {
         }
     }
 
-    /**
-     * Updates the foreground notification with the latest log message.
-     * This keeps the user informed even if they leave the app.
-     */
     private fun updateNotification(message: String) {
         synchronized(logBuffer) {
             message.lines().forEach { line ->
@@ -155,10 +136,6 @@ class BuildService : Service() {
             .addAction(android.R.drawable.ic_menu_save, "Sync & Exit", syncPendingIntent)
     }
 
-    /**
-     * Commits all changes to Git, pushes to remote, and then stops the service.
-     * Triggered by the "Sync & Exit" notification action.
-     */
     private fun handleSyncAndExit() {
         val path = currentProjectPath
         if (path == null) {
@@ -191,7 +168,6 @@ class BuildService : Service() {
         }
     }
 
-    // Helper to check tool and log specifically to the user console
     private fun checkTool(name: String, callback: IBuildCallback): String? {
         callback.onLog("Verifying tool: $name...")
         val path = ToolManager.getToolPath(this, name)
@@ -206,7 +182,7 @@ class BuildService : Service() {
                 return null
             }
         } else {
-            callback.onLog("  ERROR: ToolManager returned null for '$name'. Check nativeLibraryDir or assets.")
+            callback.onLog("  ERROR: ToolManager returned null for '$name'. Ensure tools are downloaded.")
             return null
         }
     }
@@ -221,12 +197,6 @@ class BuildService : Service() {
         }
     }
 
-    /**
-     * Starts the build process for the specified project.
-     *
-     * @param projectPath The absolute path to the project root.
-     * @param callback The callback interface for reporting progress and results.
-     */
     private fun startBuild(projectPath: String, callback: IBuildCallback) {
         cancelBuild()
         buildJob = serviceScope.launch(Dispatchers.IO) {
@@ -248,6 +218,7 @@ class BuildService : Service() {
 
                 // --- WEB BUILD ---
                 if (type == ProjectType.WEB) {
+                    // ... (existing web build logic)
                     val outputDir = File(filesDir, "web_dist")
                     val step = WebBuildStep(projectDir, outputDir)
                     val result = step.execute(callback)
@@ -267,20 +238,8 @@ class BuildService : Service() {
                     return@launch
                 }
 
-                // --- REACT NATIVE BUILD ---
-                if (type == ProjectType.REACT_NATIVE) {
-                    val step = ReactNativeBuildStep(this@BuildService, projectDir, buildDir, cacheDir, localRepoDir)
-                    val result = step.execute(callback)
-                    if (result.success && isActive) {
-                        callback.onSuccess(File(buildDir, "app-signed.apk").absolutePath)
-                        ApkInstaller.installApk(this@BuildService, File(buildDir, "app-signed.apk").absolutePath)
-                    } else if (isActive) {
-                        callback.onFailure(result.output)
-                    }
-                    return@launch
-                }
-
                 // --- ANDROID BUILD ---
+                // ... (Dependency Resolution)
                 val resolver = HttpDependencyResolver(projectDir, File(projectDir, "dependencies.toml"), localRepoDir, callback)
                 val resolverResult = resolver.execute()
                 if (!resolverResult.success && isActive) {
@@ -291,6 +250,11 @@ class BuildService : Service() {
                 if (!isActive) return@launch
 
                 // --- TOOL VERIFICATION ---
+                if (!ToolManager.areToolsInstalled(this@BuildService)) {
+                    callback.onFailure("Local build tools not installed. Please enable them in Settings.")
+                    return@launch
+                }
+
                 callback.onLog("\n--- Toolchain Verification ---")
                 val aapt2Path = checkTool("aapt2", callback)
                 val kotlincJarPath = checkTool("kotlin-compiler.jar", callback)
@@ -299,7 +263,6 @@ class BuildService : Service() {
                 val androidJarPath = checkTool("android.jar", callback)
                 val javaBinaryPath = checkTool("java", callback)
 
-                // Handle Keystore: Check for custom, fallback to default asset
                 val prefs = PreferenceManager.getDefaultSharedPreferences(this@BuildService)
                 val customKsPath = prefs.getString(SettingsViewModel.KEY_KEYSTORE_PATH, null)
                 val keystorePath = if (customKsPath != null && File(customKsPath).exists()) {
@@ -309,7 +272,6 @@ class BuildService : Service() {
                     checkTool("debug.keystore", callback)
                 }
 
-                // Read signing creds
                 val ksPass = prefs.getString(SettingsViewModel.KEY_KEYSTORE_PASS, "android") ?: "android"
                 val keyAlias = prefs.getString(SettingsViewModel.KEY_KEY_ALIAS, "androiddebugkey") ?: "androiddebugkey"
 
@@ -330,12 +292,10 @@ class BuildService : Service() {
                     callback.onFailure(errorMsg)
                     return@launch
                 }
-                // ---------------------------
 
                 if (!isActive) return@launch
 
                 // --- PRE-PROCESSING ---
-                // Process AARs (Extract and Compile Resources)
                 val processAars = ProcessAars(resolver.resolvedArtifacts, buildDir, aapt2Path!!)
                 val aarResult = processAars.execute(callback)
                 if (!aarResult.success && isActive) {
@@ -343,7 +303,6 @@ class BuildService : Service() {
                     return@launch
                 }
 
-                // Construct Classpath
                 val aarJars = processAars.jars.joinToString(File.pathSeparator)
                 val resolvedJars = resolver.resolvedClasspath
                 val fullClasspath = if (aarJars.isNotEmpty()) {
@@ -373,7 +332,6 @@ class BuildService : Service() {
                 val result = buildOrchestrator.execute(callback)
                 if (result.success && isActive) {
                     callback.onSuccess(File(buildDir, "app-signed.apk").absolutePath)
-                    // Install Trigger
                     ApkInstaller.installApk(this@BuildService, File(buildDir, "app-signed.apk").absolutePath)
                 } else if (isActive) {
                     callback.onFailure(result.output)

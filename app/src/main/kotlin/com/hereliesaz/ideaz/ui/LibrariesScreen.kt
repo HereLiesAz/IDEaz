@@ -5,29 +5,51 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.hereliesaz.aznavrail.AzButton
 import com.hereliesaz.aznavrail.AzForm
-import com.hereliesaz.aznavrail.AzTextBox
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import kotlinx.coroutines.launch
-import java.util.Map.entry
 
 @Composable
 fun LibrariesScreen(
     viewModel: MainViewModel,
     settingsViewModel: SettingsViewModel
 ) {
+    // GATE CHECK
+    if (!settingsViewModel.isLocalBuildEnabled()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
+                Text(
+                    text = "Local Builds Disabled",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Dependency management requires the local build tools extension.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                AzButton(
+                    onClick = { /* Navigate to settings? Or just inform */ },
+                    text = "Go to Settings to Enable",
+                    shape = AzButtonShape.RECTANGLE
+                )
+            }
+        }
+        return
+    }
+
     // getDependencies now returns List<Dependency> which is compatible with mutableStateListOf
     val dependencies = remember { mutableStateListOf(*viewModel.getDependencies().toTypedArray()) }
-    var newDependency by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Spacer(modifier = Modifier.height(64.dp))
-
 
         Row {
             AzForm(

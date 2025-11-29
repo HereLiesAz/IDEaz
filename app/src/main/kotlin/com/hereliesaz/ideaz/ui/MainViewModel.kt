@@ -38,12 +38,13 @@ import com.hereliesaz.ideaz.api.Source
 import com.hereliesaz.ideaz.buildlogic.HttpDependencyResolver
 import com.hereliesaz.ideaz.utils.SourceContextHelper
 import com.hereliesaz.ideaz.models.IdeazProjectConfig
-import com.hereliesaz.ideaz.models.ProjectType // Added missing import
+import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.api.CreateRepoRequest
 import com.hereliesaz.ideaz.utils.GithubIssueReporter
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ProjectConfigManager
+import com.hereliesaz.ideaz.utils.ToolManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
@@ -341,6 +342,12 @@ class MainViewModel(
     }
 
     fun startBuild(context: Context, projectDir: File? = null) {
+        // CHECK: Local Build Enabled?
+        if (!settingsViewModel.isLocalBuildEnabled()) {
+            _buildLog.value += "[INFO] Local build disabled. Using GitHub Action (Remote).\n"
+            return
+        }
+
         if (isBuildServiceBound) {
             val dir = projectDir ?: settingsViewModel.getProjectPath(settingsViewModel.getAppName() ?: "")
             buildService?.startBuild(dir.absolutePath, buildCallback)
@@ -392,7 +399,7 @@ class MainViewModel(
         }
     }
 
-    // --- RESTORED GIT OPERATIONS ---
+    // --- GIT OPERATIONS ---
 
     fun refreshGitData() {
         viewModelScope.launch {
@@ -513,7 +520,7 @@ class MainViewModel(
         }
     }
 
-    // --- RESTORED PROJECT & DEPENDENCY OPS ---
+    // --- PROJECT & DEPENDENCY OPS ---
 
     fun createGitHubRepository(
         appName: String,
@@ -678,7 +685,6 @@ class MainViewModel(
 
     fun cloneOrPullProject(owner: String, repo: String, branch: String) {
         // Re-implementation of basic clone logic if needed or defer to loadProject
-        // For brevity, assuming basic implementation
         val appName = repo
         val projectDir = settingsViewModel.getProjectPath(appName)
         val token = settingsViewModel.getGithubToken()
@@ -849,50 +855,62 @@ class MainViewModel(
 
     fun clearLog() { _buildLog.value = ""; _aiLog.value = "" }
 
-    // --- Helpers ---
-    private fun createProjectFromTemplateInternal(context: Context, type: ProjectType, projectDir: File) {
-        // Minimal implementation for compilation
-        projectDir.mkdirs()
-    }
+    // --- DOWNLOAD TOOLS LOGIC ---
 
-    private fun logPromptToHistory(p: String, i: String?) {}
-    private fun getAssignedModelForTask(k: String): AiModel? = AiModels.JULES
-
-    // Polling logic
-    private fun pollForPatch(sessionId: String, logTarget: Any) {
+    fun downloadBuildTools() {
         viewModelScope.launch {
-            // Simple polling logic
-            var attempts = 0
-            while (attempts < 60) { // 15 mins
-                try {
-                    val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
-                    val response = JulesApiClient.listActivities(parent, sessionId)
-                    // Check for patch...
-                    // If found, apply and return
-                    delay(15000)
-                    attempts++
-                } catch (e: Exception) {
-                    break
+            _updateStatus.value = "Downloading build tools..."
+            try {
+                // Determine latest release from GitHub
+                val owner = "HereLiesAz"
+                val repo = "IDEaz"
+                val token = settingsViewModel.getGithubToken()
+                val api = if (!token.isNullOrBlank()) GitHubApiClient.createService(token) else GitHubApiClient.createService("")
+
+                val releases = withContext(Dispatchers.IO) {
+                    try { api.getReleases(owner, repo) } catch (e: Exception) { emptyList() }
                 }
+
+                val latestRelease = releases.firstOrNull { it.assets.any { asset -> asset.name == "build-tools.zip" } }
+
+                if (latestRelease == null) {
+                    _updateStatus.value = "Error: No build tools found in latest release."
+                    delay(3000)
+                    _updateStatus.value = null
+                    return@launch
+                }
+
+                val asset = latestRelease.assets.find { it.name == "build-tools.zip" }!!
+                val downloadUrl = asset.browserDownloadUrl
+
+                val destFile = File(getApplication<Application>().cacheDir, "build-tools.zip")
+                if (destFile.exists()) destFile.delete()
+
+                withContext(Dispatchers.IO) {
+                    downloadFile(downloadUrl, destFile, token)
+                }
+
+                _updateStatus.value = "Installing tools..."
+                val success = withContext(Dispatchers.IO) {
+                    ToolManager.installToolsFromZip(getApplication(), destFile)
+                }
+
+                if (success) {
+                    _updateStatus.value = "Build tools installed."
+                } else {
+                    _updateStatus.value = "Error installing tools."
+                }
+
+                delay(3000)
+                _updateStatus.value = null
+
+            } catch (e: Exception) {
+                _updateStatus.value = "Error: ${e.message}"
+                delay(3000)
+                _updateStatus.value = null
             }
         }
     }
-
-    // Other required stubs
-    fun fetchOwnedSources() {}
-    fun fetchSessions() {}
-    fun loadLastProject(c: Context) {}
-    fun requestCancelTask() { contextualTaskJob?.cancel(); _showCancelDialog.value = true }
-    fun confirmCancelTask() { contextualTaskJob?.cancel(); _showCancelDialog.value = false }
-    fun dismissCancelTask() { _showCancelDialog.value = false }
-    fun setActiveSession(id: String) {}
-    fun deleteSession(s: com.hereliesaz.ideaz.api.Session) {}
-    fun trySession(s: com.hereliesaz.ideaz.api.Session) {}
-    fun acceptSession(s: com.hereliesaz.ideaz.api.Session) {}
-    fun gitDeleteBranch(b: String) {}
-    fun getDependencies(): List<com.hereliesaz.ideaz.ui.Dependency> = emptyList()
-    fun saveDependencies(l: List<String>) {}
-    suspend fun checkForUpdates(d: com.hereliesaz.ideaz.ui.Dependency): com.hereliesaz.ideaz.ui.Dependency = d
 
     // --- EXPERIMENTAL UPDATE LOGIC ---
     private val _updateStatus = MutableStateFlow<String?>(null)
@@ -1042,4 +1060,49 @@ class MainViewModel(
             }
         }
     }
+
+    // --- Helpers ---
+    private fun createProjectFromTemplateInternal(context: Context, type: ProjectType, projectDir: File) {
+        // Minimal implementation for compilation
+        projectDir.mkdirs()
+    }
+
+    private fun logPromptToHistory(p: String, i: String?) {}
+    private fun getAssignedModelForTask(k: String): AiModel? = AiModels.JULES
+
+    // Polling logic
+    private fun pollForPatch(sessionId: String, logTarget: Any) {
+        viewModelScope.launch {
+            // Simple polling logic
+            var attempts = 0
+            while (attempts < 60) { // 15 mins
+                try {
+                    val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
+                    val response = JulesApiClient.listActivities(parent, sessionId)
+                    // Check for patch...
+                    // If found, apply and return
+                    delay(15000)
+                    attempts++
+                } catch (e: Exception) {
+                    break
+                }
+            }
+        }
+    }
+
+    // Other required stubs
+    fun fetchOwnedSources() {}
+    fun fetchSessions() {}
+    fun loadLastProject(c: Context) {}
+    fun requestCancelTask() { contextualTaskJob?.cancel(); _showCancelDialog.value = true }
+    fun confirmCancelTask() { contextualTaskJob?.cancel(); _showCancelDialog.value = false }
+    fun dismissCancelTask() { _showCancelDialog.value = false }
+    fun setActiveSession(id: String) {}
+    fun deleteSession(s: com.hereliesaz.ideaz.api.Session) {}
+    fun trySession(s: com.hereliesaz.ideaz.api.Session) {}
+    fun acceptSession(s: com.hereliesaz.ideaz.api.Session) {}
+    fun gitDeleteBranch(b: String) {}
+    fun getDependencies(): List<com.hereliesaz.ideaz.ui.Dependency> = emptyList()
+    fun saveDependencies(l: List<String>) {}
+    suspend fun checkForUpdates(d: com.hereliesaz.ideaz.ui.Dependency): com.hereliesaz.ideaz.ui.Dependency = d
 }

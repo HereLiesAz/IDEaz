@@ -67,7 +67,9 @@ fun BubbleScreen(
     val context = LocalContext.current
     var showPromptPopup by remember{ mutableStateOf(false) }
 
-    // Minimal implementation of callbacks
+    // Read capability
+    val isLocalBuildEnabled = remember { viewModel.settingsViewModel.isLocalBuildEnabled() }
+
     val handleActionClick = { action: () -> Unit -> action() }
 
     Row(modifier = Modifier.fillMaxSize()) {
@@ -83,6 +85,7 @@ fun BubbleScreen(
             scope = scope,
             initiallyExpanded = true,
             onUndock = onUndock,
+            isLocalBuildEnabled = isLocalBuildEnabled
         )
 
         IdeNavHost(
@@ -90,7 +93,7 @@ fun BubbleScreen(
             navController = navController,
             viewModel = viewModel,
             settingsViewModel = viewModel.settingsViewModel,
-            onThemeToggle = { } 
+            onThemeToggle = { }
         )
     }
 }
