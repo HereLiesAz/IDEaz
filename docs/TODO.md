@@ -12,7 +12,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] Implement `SettingsViewModel` (SharedPreferences).
     - [x] Implement `ProjectAnalyzer` for project type detection.
 - [ ] **1.3: "Race to Build" Logic**
-    - [ ] **1.3.1: Artifact Detection:** Implement logic to compare Installed SHA vs Remote Release SHA vs Repo Head SHA.
+    - [x] **1.3.1: Artifact Detection:** Implement logic to compare Installed SHA vs Remote Release SHA vs Repo Head SHA. (Implemented manual check for updates).
     - [ ] **1.3.2: Remote Polling:** Implement loop to check GitHub Releases for new builds.
     - [ ] **1.3.3: Local Build:** Implement background build thread with lower priority.
     - [ ] **1.3.4: Cancellation:** Implement logic to cancel local build if remote wins (and vice versa).
