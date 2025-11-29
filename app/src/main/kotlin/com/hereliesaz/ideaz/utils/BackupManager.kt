@@ -82,6 +82,6 @@ object BackupManager {
     }
 
     private fun shouldSkip(path: String): Boolean {
-        return false
+        return path.contains("cache") || path.contains(".ideaz") || path.endsWith("debug.keystore")
     }
 }

@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "IDEaz"
 include(":app")
+include(":min-app")
