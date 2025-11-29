@@ -3,12 +3,14 @@
 ## Overview
 IDEaz uses a file-system-centric data layer combined with `SharedPreferences` for configuration. It does **not** currently use a relational database like Room, deviating from initial specifications to reduce complexity and dependency overhead.
 
-## 1. Project Storage (`filesDir`)
-Projects are stored in the application's internal private storage to ensure sandbox isolation.
-*   **Root:** `context.filesDir`
-*   **Project Path:** `context.filesDir/{projectName}`
-*   **Access:** Direct `java.io.File` access.
-*   **Backup:** The entire `filesDir` is subject to Android Auto Backup (configured in `backup_rules.xml`).
+## 1. Project Storage (`filesDir` & External)
+Projects are primarily stored in the application's internal private storage, but can also be registered from external storage.
+*   **Internal Root:** `context.filesDir`
+*   **Internal Path:** `context.filesDir/{projectName}`
+*   **External Projects:** Projects may reside in external storage (e.g., Documents, SD Card) if registered by the user.
+    *   **Mapping:** `SettingsViewModel` stores a `project_paths` JSON map linking Project Name -> Filesystem Path.
+    *   **Access:** Direct `java.io.File` access (requires `MANAGE_EXTERNAL_STORAGE` permission).
+*   **Backup:** The entire `filesDir` is subject to Android Auto Backup. External projects are **not** automatically backed up by the app's internal backup rules.
 
 ## 2. Configuration (`SharedPreferences`)
 User settings and lightweight state are stored in `SharedPreferences`.
