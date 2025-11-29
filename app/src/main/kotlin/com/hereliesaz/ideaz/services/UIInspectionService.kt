@@ -26,6 +26,7 @@ import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
@@ -59,6 +60,7 @@ class UIInspectionService : AccessibilityService() {
         createBubbleChannel()
     }
 
+    @RequiresApi(Build.VERSION_CODES.R)
     override fun onServiceConnected() {
         super.onServiceConnected()
         Log.d(TAG, "Service Connected - Launching Bubble")
@@ -87,6 +89,7 @@ class UIInspectionService : AccessibilityService() {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.R)
     private fun showBubbleNotification() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
 
