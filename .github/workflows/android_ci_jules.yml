@@ -114,4 +114,4 @@ jobs:
 
     - name: Fail Job if Build Failed
       if: steps.gradle-build.outcome == 'failure'
-      run: exit 1
+      run: exit 1   
