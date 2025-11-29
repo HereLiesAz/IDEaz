@@ -82,7 +82,7 @@ fun BubbleScreen(
             sheetState = sheetState,
             scope = scope,
             initiallyExpanded = true,
-            onUndock = onUndock
+            onUndock = onUndock,
         )
 
         IdeNavHost(

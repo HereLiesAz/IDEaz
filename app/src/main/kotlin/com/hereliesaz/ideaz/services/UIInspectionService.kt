@@ -32,7 +32,7 @@ import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import com.hereliesaz.ideaz.R
-import com.hereliesaz.ideaz.ui.BubbleActivity
+import com.hereliesaz.ideaz.BubbleActivity
 import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.max
