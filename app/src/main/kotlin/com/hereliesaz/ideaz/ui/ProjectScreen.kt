@@ -148,6 +148,7 @@ fun ProjectScreen(
 
     LaunchedEffect(tabIndex, localProjects) {
         if (isLoadTab) {
+            viewModel.scanLocalProjects()
             withContext(Dispatchers.IO) {
                 projectMetadataList = viewModel.getLocalProjectsWithMetadata()
             }

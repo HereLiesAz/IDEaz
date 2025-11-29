@@ -2,7 +2,6 @@ package com.hereliesaz.ideaz.utils
 
 import android.content.Context
 import android.net.Uri
-import android.os.Environment
 import android.provider.DocumentsContract
 import android.os.storage.StorageManager
 import android.util.Log
@@ -23,15 +22,10 @@ object UriUtils {
                     if (type == "primary") {
                         val primaryVolume = storageVolumes.find { it.isPrimary }
                         primaryVolume?.directory?.let { return "${it.absolutePath}/$path" }
-                        // Fallback for safety on older devices or edge cases
-                        @Suppress("DEPRECATION")
-                        return "${Environment.getExternalStorageDirectory().absolutePath}/$path"
                     } else {
                         // Handle SD cards / Secondary volumes
                         val volume = storageVolumes.find { !it.isPrimary && it.uuid == type }
                         volume?.directory?.let { return "${it.absolutePath}/$path" }
-                        // Fallback attempt for non-standard volumes
-                        return "/storage/$type/$path"
                     }
                 }
             }
