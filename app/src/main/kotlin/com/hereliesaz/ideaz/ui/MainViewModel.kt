@@ -52,6 +52,10 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.io.FileOutputStream
+import kotlinx.coroutines.async
+import java.util.zip.ZipInputStream
+import java.time.Instant
+import com.hereliesaz.ideaz.utils.ApkInstaller
 
 data class ProjectMetadata(
     val name: String,
@@ -805,4 +809,153 @@ class MainViewModel(
     fun getDependencies(): List<com.hereliesaz.ideaz.ui.Dependency> = emptyList()
     fun saveDependencies(l: List<String>) {}
     suspend fun checkForUpdates(d: com.hereliesaz.ideaz.ui.Dependency): com.hereliesaz.ideaz.ui.Dependency = d
+
+    // --- EXPERIMENTAL UPDATE LOGIC ---
+    private val _updateStatus = MutableStateFlow<String?>(null)
+    val updateStatus = _updateStatus.asStateFlow()
+
+    private val _showUpdateWarning = MutableStateFlow<Boolean>(false)
+    val showUpdateWarning = _showUpdateWarning.asStateFlow()
+    private var pendingUpdatePath: String? = null
+
+    fun confirmUpdate() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            if (!getApplication<Application>().packageManager.canRequestPackageInstalls()) {
+                _updateStatus.value = "Error: Install permission not granted."
+                viewModelScope.launch {
+                    delay(3000)
+                    _updateStatus.value = null
+                }
+                _showUpdateWarning.value = false
+                return
+            }
+        }
+
+        _showUpdateWarning.value = false
+        pendingUpdatePath?.let { path ->
+            ApkInstaller.installApk(getApplication(), path)
+        }
+    }
+
+    fun dismissUpdateWarning() {
+        _showUpdateWarning.value = false
+        pendingUpdatePath = null
+    }
+
+    fun checkForExperimentalUpdates() {
+        viewModelScope.launch {
+            _updateStatus.value = "Checking for updates..."
+            try {
+                val owner = "HereLiesAz"
+                val repo = "IDEaz"
+                val token = settingsViewModel.getGithubToken()
+                val api = if (!token.isNullOrBlank()) GitHubApiClient.createService(token) else GitHubApiClient.createService("")
+
+                val releasesDeferred = async { try { api.getReleases(owner, repo) } catch (e: Exception) { emptyList() } }
+                val artifactsDeferred = async { try { api.getArtifacts(owner, repo) } catch (e: Exception) { null } }
+
+                val releases = releasesDeferred.await()
+                val artifactsResponse = artifactsDeferred.await()
+
+                val latestRelease = releases.firstOrNull { it.assets.any { asset -> asset.name.endsWith(".apk") } }
+                val latestArtifact = artifactsResponse?.artifacts?.firstOrNull {
+                    (it.name.contains("app") || it.name.contains("apk")) && !it.expired
+                }
+
+                var downloadUrl: String? = null
+                var isArtifact = false
+                var versionTime: Instant = Instant.MIN
+
+                if (latestRelease != null) {
+                    val releaseTime = Instant.parse(latestRelease.publishedAt)
+                    versionTime = releaseTime
+                    val asset = latestRelease.assets.find { it.name.endsWith(".apk") }
+                    downloadUrl = asset?.browserDownloadUrl
+                }
+
+                if (latestArtifact != null) {
+                    val artifactTime = Instant.parse(latestArtifact.createdAt)
+                    if (artifactTime.isAfter(versionTime)) {
+                        versionTime = artifactTime
+                        downloadUrl = latestArtifact.archiveDownloadUrl
+                        isArtifact = true
+                    }
+                }
+
+                if (downloadUrl == null) {
+                    _updateStatus.value = "No updates found."
+                    delay(2000)
+                    _updateStatus.value = null
+                    return@launch
+                }
+
+                _updateStatus.value = "Downloading update..."
+                val destFile = if (isArtifact) File(getApplication<Application>().cacheDir, "update_artifact.zip") else File(getApplication<Application>().cacheDir, "update.apk")
+                if (destFile.exists()) destFile.delete()
+
+                withContext(Dispatchers.IO) {
+                    downloadFile(downloadUrl!!, destFile, token)
+                }
+
+                var apkFile = destFile
+                if (isArtifact) {
+                    _updateStatus.value = "Extracting..."
+                    val unzipDir = File(getApplication<Application>().cacheDir, "update_extracted")
+                    if (unzipDir.exists()) unzipDir.deleteRecursively()
+                    unzipDir.mkdirs()
+
+                    withContext(Dispatchers.IO) {
+                        ZipInputStream(destFile.inputStream()).use { zis ->
+                            var entry = zis.nextEntry
+                            while (entry != null) {
+                                if (entry.name.endsWith(".apk")) {
+                                    val outFile = File(unzipDir, entry.name)
+                                    FileOutputStream(outFile).use { fos ->
+                                        zis.copyTo(fos)
+                                    }
+                                    apkFile = outFile
+                                    break // Assuming one APK
+                                }
+                                entry = zis.nextEntry
+                            }
+                        }
+                    }
+                }
+
+                if (!apkFile.name.endsWith(".apk")) {
+                    _updateStatus.value = "Error: No APK found in artifact."
+                    delay(2000)
+                    _updateStatus.value = null
+                    return@launch
+                }
+
+                _updateStatus.value = null
+                pendingUpdatePath = apkFile.absolutePath
+                _showUpdateWarning.value = true
+
+            } catch (e: Exception) {
+                _updateStatus.value = "Error: ${e.message}"
+                delay(3000)
+                _updateStatus.value = null
+            }
+        }
+    }
+
+    private fun downloadFile(url: String, destFile: File, token: String?) {
+        val connection = URL(url).openConnection() as HttpURLConnection
+        if (!token.isNullOrBlank()) {
+            connection.setRequestProperty("Authorization", "token $token")
+        }
+        connection.connect()
+
+        if (connection.responseCode !in 200..299) {
+            throw Exception("HTTP Error ${connection.responseCode}")
+        }
+
+        connection.inputStream.use { input ->
+            FileOutputStream(destFile).use { output ->
+                input.copyTo(output)
+            }
+        }
+    }
 }
