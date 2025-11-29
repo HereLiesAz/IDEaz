@@ -1,8 +1,10 @@
 *.iml
 .gradle
+.gradle/
 /local.properties
 .DS_Store
 /build
+build/
 /captures
 .externalNativeBuild
 .cxx
@@ -17,3 +19,6 @@ local.properties
 /.kotlin/errors/errors-1763681705690.log
 kotlin-compiler-*.salive
 /.idea/
+min-app/build/
+min-app/app/build/
+min-app/.gradle/
