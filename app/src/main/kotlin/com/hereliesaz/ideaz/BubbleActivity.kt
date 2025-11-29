@@ -82,9 +82,7 @@ fun BubbleScreen(
             sheetState = sheetState,
             scope = scope,
             initiallyExpanded = true,
-            drag
-            onUndock = onUndock,
-            onUndockOverride = { finish() } // Undock in bubble closes it
+            onUndock = onUndock
         )
 
         IdeNavHost(

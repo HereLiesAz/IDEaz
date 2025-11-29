@@ -37,7 +37,8 @@ fun IdeNavRail(
             packRailButtons = true,
             defaultShape = AzButtonShape.RECTANGLE,
             enableRailDragging = true,
-            onUndock = { createBubble(context) }            headerIconShape = AzHeaderIconShape.NONE,
+            headerIconShape = AzHeaderIconShape.NONE,
+            onUndock = onUndock
         )
 
         // 1. Project
