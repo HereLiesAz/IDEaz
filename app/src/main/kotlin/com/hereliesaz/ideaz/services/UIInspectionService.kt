@@ -9,8 +9,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.ShortcutInfo
-import android.content.pm.ShortcutManager
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.PixelFormat
@@ -19,7 +17,6 @@ import android.graphics.Rect
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.util.Log
-import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -28,14 +25,11 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
-import androidx.core.content.pm.ShortcutInfoCompat
-import androidx.core.content.pm.ShortcutManagerCompat
-import androidx.core.graphics.drawable.IconCompat
-import com.hereliesaz.ideaz.R
 import com.hereliesaz.ideaz.BubbleActivity
+import com.hereliesaz.ideaz.R
 import kotlin.math.abs
-import kotlin.math.min
 import kotlin.math.max
+import kotlin.math.min
 
 class UIInspectionService : AccessibilityService() {
 
@@ -49,15 +43,13 @@ class UIInspectionService : AccessibilityService() {
 
     // State
     private var isSelectMode = false
-    private var pendingSelectionRect: Rect? = null
     private var currentHighlightRect: Rect? = null
 
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "UIInspectionService.onCreate - DIAGNOSTIC LOG - v3")
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
 
-        // Defer overlay setup until it's needed
-        // setupSelectionOverlay()
         registerBroadcastReceivers()
         createBubbleChannel()
     }
@@ -71,7 +63,10 @@ class UIInspectionService : AccessibilityService() {
 
     override fun onDestroy() {
         if (selectionOverlayView != null && isOverlaySetup) windowManager?.removeView(selectionOverlayView)
-        try { unregisterReceiver(commandReceiver) } catch (e: Exception) {}
+        try {
+            unregisterReceiver(commandReceiver)
+        } catch (e: Exception) {
+        }
         super.onDestroy()
     }
 
@@ -114,7 +109,6 @@ class UIInspectionService : AccessibilityService() {
             .setSmallIcon(R.mipmap.ic_launcher)
             .setBubbleMetadata(bubbleData)
             .addPerson(person)
-            .setStyle(Notification.MessagingStyle(person).setConversationTitle("IDEaz"))
 
         getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, builder.build())
     }
@@ -122,7 +116,7 @@ class UIInspectionService : AccessibilityService() {
     // --- 2. Selection Overlay Logic (Red Box) ---
 
     private fun setupSelectionOverlay() {
-        if(isOverlaySetup) return
+        if (isOverlaySetup) return
 
         selectionOverlayView = SelectionView(this)
         val params = WindowManager.LayoutParams(
@@ -257,9 +251,7 @@ class UIInspectionService : AccessibilityService() {
                         isDragging = false
                         invalidate()
                         if (rect.width() > 20 && rect.height() > 20) {
-                            sendBroadcast(Intent("com.hereliesaz.ideaz.PROMPT_SUBMITTED_RECT")
-                                .putExtra("RECT", rect)
-                                .setPackage(packageName))
+                            sendBroadcast(Intent("com.hereliesaz.ideaz.PROMPT_SUBMITTED_RECT").putExtra("RECT", rect).setPackage(packageName))
                             // Keep overlay visible for screenshot
                             showBubbleNotification()
                         }
@@ -273,14 +265,9 @@ class UIInspectionService : AccessibilityService() {
                             currentHighlightRect = rect // Ensure it's drawn
                             invalidate()
 
-                            var id = node.viewIdResourceName?.substringAfterLast(":id/")
-                                ?: node.text?.toString()?.take(20)
-                                ?: "Unknown"
+                            val id = node.viewIdResourceName?.substringAfterLast(":id/") ?: node.text?.toString()?.take(20) ?: "Unknown"
 
-                            sendBroadcast(Intent("com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE")
-                                .putExtra("RESOURCE_ID", id)
-                                .putExtra("BOUNDS", rect)
-                                .setPackage(packageName))
+                            sendBroadcast(Intent("com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE").putExtra("RESOURCE_ID", id).putExtra("BOUNDS", rect).setPackage(packageName))
                             // Keep overlay visible for screenshot
                             showBubbleNotification()
                         }
