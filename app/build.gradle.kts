@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.hereliesaz.ideaz"
-        minSdk = 26
+        minSdk = 30
 
         targetSdk = 36
         versionCode = 1
