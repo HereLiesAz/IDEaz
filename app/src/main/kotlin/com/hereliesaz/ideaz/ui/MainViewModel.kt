@@ -701,20 +701,25 @@ class MainViewModel(
         }
     }
 
-    fun getLocalProjectsWithMetadata(): List<ProjectMetadata> {
-        val projects = settingsViewModel.getProjectList().toMutableSet()
-        val filesDir = getApplication<Application>().filesDir
+    fun scanLocalProjects() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val projects = settingsViewModel.getProjectList().toMutableSet()
+                val filesDir = getApplication<Application>().filesDir
 
-        // Scan for untracked projects
-        filesDir.listFiles { file ->
-            file.isDirectory && (File(file, ".ideaz").exists() || File(file, ".git").exists())
-        }?.forEach {
-            if (!projects.contains(it.name)) {
-                projects.add(it.name)
-                settingsViewModel.addProject(it.name)
+                filesDir.listFiles { file ->
+                    file.isDirectory && (File(file, ".ideaz").exists() || File(file, ".git").exists())
+                }?.forEach {
+                    if (!projects.contains(it.name)) {
+                        settingsViewModel.addProject(it.name)
+                    }
+                }
             }
         }
+    }
 
+    fun getLocalProjectsWithMetadata(): List<ProjectMetadata> {
+        val projects = settingsViewModel.getProjectList()
         return projects.mapNotNull { name ->
             val dir = settingsViewModel.getProjectPath(name)
             if (dir.exists()) {
