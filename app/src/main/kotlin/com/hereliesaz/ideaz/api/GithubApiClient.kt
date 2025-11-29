@@ -65,6 +65,43 @@ data class RequiredPullRequestReviews(
     @SerialName("required_approving_review_count") val requiredApprovingReviewCount: Int? = 0
 )
 
+// --- Release & Artifact Data Classes ---
+@Serializable
+data class GitHubRelease(
+    val id: Long,
+    @SerialName("tag_name") val tagName: String,
+    @SerialName("name") val name: String?,
+    @SerialName("published_at") val publishedAt: String,
+    val assets: List<GitHubAsset>,
+    val prerelease: Boolean
+)
+
+@Serializable
+data class GitHubAsset(
+    val id: Long,
+    val name: String,
+    @SerialName("browser_download_url") val browserDownloadUrl: String,
+    @SerialName("content_type") val contentType: String,
+    val size: Long
+)
+
+@Serializable
+data class GitHubArtifactsResponse(
+    @SerialName("total_count") val totalCount: Int,
+    val artifacts: List<GitHubArtifact>
+)
+
+@Serializable
+data class GitHubArtifact(
+    val id: Long,
+    val name: String,
+    @SerialName("archive_download_url") val archiveDownloadUrl: String,
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("size_in_bytes") val sizeInBytes: Long,
+    val expired: Boolean
+)
+// --- End Release & Artifact Data Classes ---
+
 // --- NEW: Issue Data Classes ---
 @Serializable
 data class CreateIssueRequest(
@@ -105,6 +142,18 @@ interface GitHubApi {
         @Path("repo") repo: String,
         @Path("branch") branch: String
     ): GitHubBranchProtection
+
+    @retrofit2.http.GET("repos/{owner}/{repo}/releases")
+    suspend fun getReleases(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String
+    ): List<GitHubRelease>
+
+    @retrofit2.http.GET("repos/{owner}/{repo}/actions/artifacts")
+    suspend fun getArtifacts(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String
+    ): GitHubArtifactsResponse
 }
 
 object GitHubApiClient {
