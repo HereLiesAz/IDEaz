@@ -9,6 +9,7 @@ import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.ideaz.api.Activity
 import com.hereliesaz.aznavrail.model.AzHeaderIconShape
 import com.hereliesaz.ideaz.ui.Halfway
+import com.hereliesaz.ideaz.utils.BubbleUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -37,7 +38,8 @@ fun IdeNavRail(
             packRailButtons = true,
             defaultShape = AzButtonShape.RECTANGLE,
             enableRailDragging = true,
-            onUndock = { createBubble(context) }            headerIconShape = AzHeaderIconShape.NONE,
+            onUndock = onUndock ?: { BubbleUtils.createBubbleNotification(context) },
+            headerIconShape = AzHeaderIconShape.NONE,
         )
 
         // 1. Project
