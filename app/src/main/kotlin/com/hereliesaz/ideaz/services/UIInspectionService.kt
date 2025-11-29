@@ -45,6 +45,7 @@ class UIInspectionService : AccessibilityService() {
 
     private var windowManager: WindowManager? = null
     private var selectionOverlayView: SelectionView? = null
+    private var isOverlaySetup = false
 
     // State
     private var isSelectMode = false
@@ -55,7 +56,8 @@ class UIInspectionService : AccessibilityService() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
 
-        setupSelectionOverlay()
+        // Defer overlay setup until it's needed
+        // setupSelectionOverlay()
         registerBroadcastReceivers()
         createBubbleChannel()
     }
@@ -68,7 +70,7 @@ class UIInspectionService : AccessibilityService() {
     }
 
     override fun onDestroy() {
-        if (selectionOverlayView != null) windowManager?.removeView(selectionOverlayView)
+        if (selectionOverlayView != null && isOverlaySetup) windowManager?.removeView(selectionOverlayView)
         try { unregisterReceiver(commandReceiver) } catch (e: Exception) {}
         super.onDestroy()
     }
@@ -120,6 +122,8 @@ class UIInspectionService : AccessibilityService() {
     // --- 2. Selection Overlay Logic (Red Box) ---
 
     private fun setupSelectionOverlay() {
+        if(isOverlaySetup) return
+
         selectionOverlayView = SelectionView(this)
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
@@ -129,10 +133,19 @@ class UIInspectionService : AccessibilityService() {
             PixelFormat.TRANSLUCENT
         )
         selectionOverlayView?.visibility = View.GONE
-        windowManager?.addView(selectionOverlayView, params)
+        try {
+            windowManager?.addView(selectionOverlayView, params)
+            isOverlaySetup = true
+        } catch (e: WindowManager.BadTokenException) {
+            Log.e(TAG, "Failed to add window, is your activity running?", e)
+        }
     }
 
     private fun toggleSelectionMode(enabled: Boolean) {
+        if (enabled && !isOverlaySetup) {
+            setupSelectionOverlay()
+        }
+
         isSelectMode = enabled
         selectionOverlayView?.visibility = if (enabled) View.VISIBLE else View.GONE
     }
