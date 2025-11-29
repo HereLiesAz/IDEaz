@@ -34,7 +34,7 @@
 ## 4. Project Screen (`ProjectScreen.kt`)
 *   **Role:** Entry point.
 *   **Tabs:**
-    *   **Load:** Select existing local project. -> **Transitions to Setup Tab.**
+    *   **Load:** Select existing local project. **Includes "Add External Project" button (requests Storage Permission).** -> **Transitions to Setup Tab.**
     *   **Clone:** Search/Clone from GitHub.
     *   **Create:** Generate from template.
     *   **Setup:** **INITIALIZATION happens here.**

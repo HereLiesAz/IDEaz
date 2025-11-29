@@ -11,6 +11,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] Implement `GitManager` (JGit wrapper).
     - [x] Implement `SettingsViewModel` (SharedPreferences).
     - [x] Implement `ProjectAnalyzer` for project type detection.
+    - [x] Implement auto-discovery of local projects and external project registration (SAF + Native File Access).
 - [ ] **1.3: "Race to Build" Logic**
     - [x] **1.3.1: Artifact Detection:** Implement logic to compare Installed SHA vs Remote Release SHA vs Repo Head SHA. (Implemented manual check for updates).
     - [ ] **1.3.2: Remote Polling:** Implement loop to check GitHub Releases for new builds.
