@@ -39,6 +39,7 @@ slf4jAndroid = "2.0.17-0"
 slf4jApi = "2.0.17"
 slf4jSimple = "2.0.17"
 composeUnstyledCore = "1.49.2"
+documentfile = "1.0.1"
 generativeai = "0.9.0"
 haze = "1.7.0"
 kotlincAndroid = "fce2462f00"
@@ -106,6 +107,7 @@ androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "u
 androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+androidx-documentfile = { group = "androidx.documentfile", name = "documentfile", version.ref = "documentfile" }
 androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended", version.ref = "materialIconsExtended" }
 compose-unstyled-core = { module = "com.composables:core", version.ref = "composeUnstyledCore" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }

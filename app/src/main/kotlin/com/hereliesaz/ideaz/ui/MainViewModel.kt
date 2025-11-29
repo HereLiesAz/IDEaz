@@ -9,8 +9,10 @@ import android.content.BroadcastReceiver
 import android.content.ServiceConnection
 import android.graphics.Rect
 import android.app.Application
+import android.net.Uri
 import android.os.IBinder
 import android.util.Log
+import androidx.documentfile.provider.DocumentFile
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -700,11 +702,102 @@ class MainViewModel(
     }
 
     fun getLocalProjectsWithMetadata(): List<ProjectMetadata> {
-        val projects = settingsViewModel.getProjectList()
-        return projects.map { name ->
-            val dir = getApplication<Application>().filesDir.resolve(name)
-            val size = if (dir.exists()) dir.walkTopDown().sumOf { it.length() } else 0L
-            ProjectMetadata(name, size)
+        val projects = settingsViewModel.getProjectList().toMutableSet()
+        val filesDir = getApplication<Application>().filesDir
+
+        // Scan for untracked projects
+        filesDir.listFiles { file ->
+            file.isDirectory && (File(file, ".ideaz").exists() || File(file, ".git").exists())
+        }?.forEach {
+            if (!projects.contains(it.name)) {
+                projects.add(it.name)
+                settingsViewModel.addProject(it.name)
+            }
+        }
+
+        return projects.mapNotNull { name ->
+            val dir = filesDir.resolve(name)
+            if (dir.exists()) {
+                val size = dir.walkTopDown().sumOf { it.length() }
+                ProjectMetadata(name, size)
+            } else {
+                null
+            }
+        }
+    }
+
+    fun importProject(uri: Uri) {
+        viewModelScope.launch {
+            _loadingProgress.value = 0
+            _buildLog.value += "[INFO] Importing project...\n"
+
+            withContext(Dispatchers.IO) {
+                try {
+                    val context = getApplication<Application>()
+                    val docFile = DocumentFile.fromTreeUri(context, uri)
+                    if (docFile == null || !docFile.isDirectory) {
+                        throw Exception("Invalid folder selected")
+                    }
+
+                    val name = docFile.name ?: "ImportedProject_${System.currentTimeMillis()}"
+                    val ideaz = docFile.findFile(".ideaz")
+
+                    if (ideaz == null) {
+                        throw Exception("Selected folder is not an IDEaz project (missing .ideaz folder)")
+                    }
+
+                    val destDir = context.filesDir.resolve(name)
+                    if (destDir.exists()) {
+                        throw Exception("Project '$name' already exists locally.")
+                    }
+                    destDir.mkdirs()
+
+                    _buildLog.value += "[INFO] Copying files for '$name'...\n"
+                    copyRecursive(context, docFile, destDir)
+
+                    settingsViewModel.addProject(name)
+                    settingsViewModel.setAppName(name)
+
+                    // Attempt to load config
+                    val loadedConfig = ProjectConfigManager.loadConfig(destDir)
+                    if (loadedConfig != null) {
+                        settingsViewModel.setProjectType(loadedConfig.projectType)
+                        if (loadedConfig.packageName != null) settingsViewModel.saveTargetPackageName(loadedConfig.packageName)
+                    } else {
+                         // Auto-detect if config missing
+                         val type = ProjectAnalyzer.detectProjectType(destDir)
+                         settingsViewModel.setProjectType(type.name)
+                    }
+
+                    _buildLog.value += "[INFO] Imported '$name' successfully.\n"
+                    withContext(Dispatchers.Main) {
+                        loadProject(name)
+                    }
+
+                } catch (e: Exception) {
+                    _buildLog.value += "[ERROR] Import failed: ${e.message}\n"
+                } finally {
+                    _loadingProgress.value = null
+                }
+            }
+        }
+    }
+
+    private fun copyRecursive(context: Context, src: DocumentFile, dest: File) {
+        if (src.isDirectory) {
+            if (!dest.exists()) dest.mkdirs()
+            src.listFiles().forEach { child ->
+                if (child.name != null) {
+                    val childDest = File(dest, child.name!!)
+                    copyRecursive(context, child, childDest)
+                }
+            }
+        } else {
+            context.contentResolver.openInputStream(src.uri)?.use { input ->
+                FileOutputStream(dest).use { output ->
+                    input.copyTo(output)
+                }
+            }
         }
     }
 
