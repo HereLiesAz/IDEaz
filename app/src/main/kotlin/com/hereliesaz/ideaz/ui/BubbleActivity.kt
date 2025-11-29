@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -12,6 +13,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -35,9 +38,24 @@ class BubbleActivity : ComponentActivity() {
     private val bubbleReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
-                "com.hereliesaz.ideaz.PROMPT_SUBMITTED_RECT",
+                "com.hereliesaz.ideaz.PROMPT_SUBMITTED_RECT" -> {
+                    val rect = if (Build.VERSION.SDK_INT >= 33) {
+                        intent.getParcelableExtra("RECT", android.graphics.Rect::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra("RECT")
+                    }
+                    if (rect != null) viewModel.onSelectionMade(rect)
+                }
                 "com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE" -> {
-                    // Handle selection return logic if needed
+                    val rect = if (Build.VERSION.SDK_INT >= 33) {
+                        intent.getParcelableExtra("BOUNDS", android.graphics.Rect::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra("BOUNDS")
+                    }
+                    val id = intent.getStringExtra("RESOURCE_ID")
+                    if (rect != null) viewModel.onSelectionMade(rect, id)
                 }
             }
         }
@@ -56,6 +74,8 @@ class BubbleActivity : ComponentActivity() {
             IDEazTheme(darkTheme = true) {
                 val navController = rememberNavController()
                 val scope = rememberCoroutineScope()
+                val isChatVisible by viewModel.isContextualChatVisible.collectAsState()
+                val selectionRect by viewModel.activeSelectionRect.collectAsState()
 
                 val sheetState = rememberBottomSheetState(
                     initialDetent = Peek,
@@ -71,7 +91,8 @@ class BubbleActivity : ComponentActivity() {
                     Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
 
                         // 1. Nav Rail
-                        AzNavRail(navController = navController) {
+                        if (!isChatVisible) {
+                            AzNavRail(navController = navController) {
                             azSettings(
                                 packRailButtons = true,
                                 defaultShape = AzButtonShape.RECTANGLE,
@@ -107,17 +128,27 @@ class BubbleActivity : ComponentActivity() {
                             )
 
                             azRailItem(id = "settings", text = "Settings", onClick = { })
+                            }
+
+                            // 2. Bottom Sheet
+                            IdeBottomSheet(
+                                sheetState = sheetState,
+                                viewModel = viewModel,
+                                peekDetent = Peek,
+                                halfwayDetent = Halfway,
+                                screenHeight = screenHeight,
+                                onSendPrompt = { viewModel.sendPrompt(it) }
+                            )
                         }
 
-                        // 2. Bottom Sheet
-                        IdeBottomSheet(
-                            sheetState = sheetState,
-                            viewModel = viewModel,
-                            peekDetent = Peek,
-                            halfwayDetent = Halfway,
-                            screenHeight = screenHeight,
-                            onSendPrompt = { viewModel.sendPrompt(it) }
-                        )
+                        val rect = selectionRect
+                        if (isChatVisible && rect != null) {
+                            ContextualChatOverlay(
+                                rect = rect,
+                                viewModel = viewModel,
+                                onClose = { viewModel.closeContextualChat() }
+                            )
+                        }
                     }
                 }
             }

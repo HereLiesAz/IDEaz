@@ -48,6 +48,7 @@ class UIInspectionService : AccessibilityService() {
     // State
     private var isSelectMode = false
     private var pendingSelectionRect: Rect? = null
+    private var currentHighlightRect: Rect? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -138,6 +139,7 @@ class UIInspectionService : AccessibilityService() {
             when (intent?.action) {
                 "com.hereliesaz.ideaz.START_INSPECTION" -> toggleSelectionMode(true)
                 "com.hereliesaz.ideaz.STOP_INSPECTION" -> toggleSelectionMode(false)
+                "com.hereliesaz.ideaz.RESTORE_OVERLAYS" -> toggleSelectionMode(false)
             }
         }
     }
@@ -146,6 +148,7 @@ class UIInspectionService : AccessibilityService() {
         val filter = IntentFilter().apply {
             addAction("com.hereliesaz.ideaz.START_INSPECTION")
             addAction("com.hereliesaz.ideaz.STOP_INSPECTION")
+            addAction("com.hereliesaz.ideaz.RESTORE_OVERLAYS")
         }
         ContextCompat.registerReceiver(this, commandReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
     }
@@ -189,6 +192,11 @@ class UIInspectionService : AccessibilityService() {
                 val rect = getRect()
                 canvas.drawRect(rect, paint)
                 canvas.drawRect(rect, border)
+            } else {
+                currentHighlightRect?.let { rect ->
+                    canvas.drawRect(rect, paint)
+                    canvas.drawRect(rect, border)
+                }
             }
         }
 
@@ -209,16 +217,20 @@ class UIInspectionService : AccessibilityService() {
                     endX = startX
                     endY = startY
                     isDragging = false
+                    updateHighlightAt(startX.toInt(), startY.toInt())
                     return true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     if (!isDragging && (abs(event.rawX - startX) > touchSlop || abs(event.rawY - startY) > touchSlop)) {
                         isDragging = true
+                        currentHighlightRect = null // Clear tap highlight when dragging starts
                     }
                     if (isDragging) {
                         endX = event.rawX
                         endY = event.rawY
                         invalidate()
+                    } else {
+                        updateHighlightAt(event.rawX.toInt(), event.rawY.toInt())
                     }
                     return true
                 }
@@ -232,8 +244,7 @@ class UIInspectionService : AccessibilityService() {
                             sendBroadcast(Intent("com.hereliesaz.ideaz.PROMPT_SUBMITTED_RECT")
                                 .putExtra("RECT", rect)
                                 .setPackage(packageName))
-                            toggleSelectionMode(false)
-                            // Show bubble logic (OS handles expanding the bubble if notification updates)
+                            // Keep overlay visible for screenshot
                             showBubbleNotification()
                         }
                     } else {
@@ -243,6 +254,8 @@ class UIInspectionService : AccessibilityService() {
                         if (node != null) {
                             val rect = Rect()
                             node.getBoundsInScreen(rect)
+                            currentHighlightRect = rect // Ensure it's drawn
+                            invalidate()
 
                             var id = node.viewIdResourceName?.substringAfterLast(":id/")
                                 ?: node.text?.toString()?.take(20)
@@ -252,7 +265,7 @@ class UIInspectionService : AccessibilityService() {
                                 .putExtra("RESOURCE_ID", id)
                                 .putExtra("BOUNDS", rect)
                                 .setPackage(packageName))
-                            toggleSelectionMode(false)
+                            // Keep overlay visible for screenshot
                             showBubbleNotification()
                         }
                     }
@@ -260,6 +273,24 @@ class UIInspectionService : AccessibilityService() {
                 }
             }
             return super.onTouchEvent(event)
+        }
+
+        private fun updateHighlightAt(x: Int, y: Int) {
+            val root = rootInActiveWindow
+            val node = findNodeAt(root, x, y)
+            if (node != null) {
+                val rect = Rect()
+                node.getBoundsInScreen(rect)
+                if (currentHighlightRect != rect) {
+                    currentHighlightRect = rect
+                    invalidate()
+                }
+            } else {
+                if (currentHighlightRect != null) {
+                    currentHighlightRect = null
+                    invalidate()
+                }
+            }
         }
     }
 }

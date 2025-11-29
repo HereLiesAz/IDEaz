@@ -151,9 +151,9 @@ class ScreenshotService : Service() {
                 bitmap.copyPixelsFromBuffer(buffer)
                 image.close()
 
-                // Crop and draw
-                val finalBitmap = processBitmap(bitmap, rect)
-                val base64String = bitmapToBase64(finalBitmap)
+                // Crop and draw (Draw skipped as UIInspectionService handles highlight)
+                // val finalBitmap = processBitmap(bitmap, rect)
+                val base64String = bitmapToBase64(bitmap)
 
                 // Send broadcast back to MainViewModel
                 val resultIntent = Intent("com.hereliesaz.ideaz.SCREENSHOT_TAKEN").apply {
@@ -165,17 +165,6 @@ class ScreenshotService : Service() {
             }
             stopCapture()
         }, 500) // Delay to ensure capture
-    }
-
-    private fun processBitmap(bitmap: Bitmap, rect: Rect): Bitmap {
-        // Create a mutable copy
-        val mutableBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
-        val canvas = Canvas(mutableBitmap)
-
-        // Draw the highlight rectangle
-        canvas.drawRect(rect, highlightPaint)
-
-        return mutableBitmap
     }
 
     private fun bitmapToBase64(bitmap: Bitmap): String {

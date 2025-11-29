@@ -104,11 +104,18 @@ class MainViewModel(
     val showCancelDialog = _showCancelDialog.asStateFlow()
     private var contextualTaskJob: Job? = null
 
+    private val _isContextualChatVisible = MutableStateFlow(false)
+    val isContextualChatVisible = _isContextualChatVisible.asStateFlow()
+
+    private val _activeSelectionRect = MutableStateFlow<Rect?>(null)
+    val activeSelectionRect = _activeSelectionRect.asStateFlow()
+
     private val _requestScreenCapture = MutableStateFlow(false)
     val requestScreenCapture = _requestScreenCapture.asStateFlow()
     private var screenCaptureResultCode: Int? = null
     private var screenCaptureData: Intent? = null
-    private var pendingRichPrompt: String? = null
+    private var pendingContextInfo: String? = null
+    private var pendingBase64Screenshot: String? = null
     private var pendingRect: Rect? = null
 
     private val _commitHistory = MutableStateFlow<List<String>>(emptyList())
@@ -202,54 +209,35 @@ class MainViewModel(
 
     // --- Overlay / Inspection Logic ---
 
-    fun onNodePromptSubmitted(resourceId: String, prompt: String, bounds: Rect) {
-        pendingRect = bounds
-        viewModelScope.launch {
-            if (resourceId == "contextless_chat") {
-                // Pure overlay chat, no source context mapping
-                pendingRichPrompt = prompt
-                takeScreenshot(bounds)
-                return@launch
-            }
-
-            val appName = settingsViewModel.getAppName()
-            if (appName.isNullOrBlank()) {
-                pendingRichPrompt = "Context: Error: No project loaded.\nUser Request: \"$prompt\""
-                takeScreenshot(bounds)
-                return@launch
-            }
-
-            val projectDir = getApplication<Application>().filesDir.resolve(appName)
-            val contextResult = withContext(Dispatchers.IO) {
-                SourceContextHelper.resolveContext(resourceId, projectDir, sourceMap)
-            }
-
-            if (!contextResult.isError) {
-                pendingRichPrompt = """
-                    Context (Element $resourceId):
-                    File: ${contextResult.file}
-                    Line: ${contextResult.line}
-                    Snippet: ${contextResult.snippet}
-                    
-                    User Request: "$prompt"
-                    """.trimIndent()
-            } else {
-                // Fallback to just ID
-                pendingRichPrompt = "Context: Element ID $resourceId\nUser Request: \"$prompt\""
-            }
-
-            takeScreenshot(bounds)
-        }
-    }
-
-    fun onRectPromptSubmitted(rect: Rect, prompt: String) {
+    fun onSelectionMade(rect: Rect, resourceId: String? = null) {
         pendingRect = rect
-        pendingRichPrompt = """
-        Context: Screen area Rect(${rect.left}, ${rect.top}, ${rect.right}, ${rect.bottom})
-        User Request: "$prompt"
-        """.trimIndent()
-
-        takeScreenshot(rect)
+        _activeSelectionRect.value = rect
+        viewModelScope.launch {
+            if (resourceId != null && resourceId != "contextless_chat") {
+                val appName = settingsViewModel.getAppName()
+                if (!appName.isNullOrBlank()) {
+                    val projectDir = getApplication<Application>().filesDir.resolve(appName)
+                    val contextResult = withContext(Dispatchers.IO) {
+                        SourceContextHelper.resolveContext(resourceId, projectDir, sourceMap)
+                    }
+                    if (!contextResult.isError) {
+                        pendingContextInfo = """
+                            Context (Element $resourceId):
+                            File: ${contextResult.file}
+                            Line: ${contextResult.line}
+                            Snippet: ${contextResult.snippet}
+                            """.trimIndent()
+                    } else {
+                        pendingContextInfo = "Context: Element ID $resourceId"
+                    }
+                } else {
+                    pendingContextInfo = "Context: Element ID $resourceId (No Project Loaded)"
+                }
+            } else {
+                pendingContextInfo = "Context: Screen area Rect(${rect.left}, ${rect.top}, ${rect.right}, ${rect.bottom})"
+            }
+            takeScreenshot(rect)
+        }
     }
 
     private fun takeScreenshot(rect: Rect) {
@@ -273,15 +261,31 @@ class MainViewModel(
     }
 
     fun onScreenshotTaken(base64: String) {
-        // Restore Overlay visibility
+        // Restore Overlay visibility (Signals UIInspectionService to hide highlight)
         sendOverlayBroadcast(Intent("com.hereliesaz.ideaz.RESTORE_OVERLAYS"))
+        pendingBase64Screenshot = base64
+        _isContextualChatVisible.value = true
+    }
 
-        val prompt = pendingRichPrompt ?: "Error: No pending prompt"
-        pendingRichPrompt = null
-        val finalRichPrompt = "$prompt\n\n[IMAGE: data:image/png;base64,$base64]"
+    fun submitContextualPrompt(userPrompt: String) {
+        val context = pendingContextInfo ?: "No context"
+        val base64 = pendingBase64Screenshot
 
-        logPromptToHistory(prompt, base64)
+        val finalRichPrompt = if (base64 != null) {
+            "$context\n\nUser Request: \"$userPrompt\"\n\n[IMAGE: data:image/png;base64,$base64]"
+        } else {
+            "$context\n\nUser Request: \"$userPrompt\""
+        }
+
+        logPromptToHistory(userPrompt, base64)
         startContextualAITask(finalRichPrompt)
+    }
+
+    fun closeContextualChat() {
+        _isContextualChatVisible.value = false
+        _activeSelectionRect.value = null
+        pendingContextInfo = null
+        pendingBase64Screenshot = null
     }
 
     private fun startContextualAITask(richPrompt: String) {
