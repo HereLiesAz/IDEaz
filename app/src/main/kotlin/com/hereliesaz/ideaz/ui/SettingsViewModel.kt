@@ -45,6 +45,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_GITHUB_USER = "github_user"
         const val KEY_BRANCH_NAME = "branch_name"
         const val KEY_PROJECT_LIST = "project_list"
+        const val KEY_PROJECT_PATHS = "project_paths"
         const val KEY_GOOGLE_API_KEY = "google_api_key" // Gemini
         const val KEY_GITHUB_TOKEN = "github_token"
         const val KEY_JULES_PROJECT_ID = "jules_project_id"
@@ -322,7 +323,34 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val projects = getProjectList().toMutableSet()
         projects.remove(projectName)
         sharedPreferences.edit().putStringSet(KEY_PROJECT_LIST, projects).apply()
+        removeProjectPath(projectName)
         loadLocalProjects()
+    }
+
+    fun saveProjectPath(name: String, path: String) {
+        val jsonStr = sharedPreferences.getString(KEY_PROJECT_PATHS, "{}")
+        val json = org.json.JSONObject(jsonStr ?: "{}")
+        json.put(name, path)
+        sharedPreferences.edit().putString(KEY_PROJECT_PATHS, json.toString()).apply()
+    }
+
+    fun getProjectPath(name: String): File {
+        val jsonStr = sharedPreferences.getString(KEY_PROJECT_PATHS, "{}")
+        val json = org.json.JSONObject(jsonStr ?: "{}")
+        val path = json.optString(name)
+        if (!path.isNullOrBlank()) {
+            return File(path)
+        }
+        return getApplication<Application>().filesDir.resolve(name)
+    }
+
+    fun removeProjectPath(name: String) {
+        val jsonStr = sharedPreferences.getString(KEY_PROJECT_PATHS, "{}")
+        val json = org.json.JSONObject(jsonStr ?: "{}")
+        if (json.has(name)) {
+            json.remove(name)
+            sharedPreferences.edit().putString(KEY_PROJECT_PATHS, json.toString()).apply()
+        }
     }
 
     fun saveProjectConfig(appName: String, githubUser: String, branchName: String) {
