@@ -31,6 +31,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -40,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -482,6 +485,50 @@ fun SettingsScreen(
                 Text("Log Level", color = MaterialTheme.colorScheme.onBackground)
                 LogLevelDropdown(
                     settingsViewModel = settingsViewModel
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Text("Updates", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                val updateStatus by viewModel.updateStatus.collectAsState()
+                val showUpdateWarning by viewModel.showUpdateWarning.collectAsState()
+
+                if (updateStatus != null) {
+                    AlertDialog(
+                        onDismissRequest = { },
+                        title = { Text("Updating") },
+                        text = {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator()
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(updateStatus!!)
+                            }
+                        },
+                        confirmButton = {}
+                    )
+                }
+
+                if (showUpdateWarning) {
+                    AlertDialog(
+                        onDismissRequest = { viewModel.dismissUpdateWarning() },
+                        title = { Text("Update Ready") },
+                        text = { Text("An update has been downloaded. The version might be the same as the installed one. Proceed with installation?") },
+                        confirmButton = {
+                            AzButton(onClick = { viewModel.confirmUpdate() }, text = "Install")
+                        },
+                        dismissButton = {
+                            AzButton(onClick = { viewModel.dismissUpdateWarning() }, text = "Cancel", shape = AzButtonShape.NONE)
+                        }
+                    )
+                }
+
+                AzButton(
+                    onClick = { viewModel.checkForExperimentalUpdates() },
+                    text = "Check for Experimental Updates",
+                    shape = AzButtonShape.RECTANGLE,
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
