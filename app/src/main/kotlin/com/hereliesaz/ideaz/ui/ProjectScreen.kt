@@ -48,6 +48,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Switch
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 
@@ -708,7 +710,27 @@ fun ProjectScreen(
                 }
             } else if (isLoadTab) {
                 // --- LOAD TAB ---
+                val openProjectLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.OpenDocumentTree()
+                ) { uri ->
+                    if (uri != null) {
+                        viewModel.importProject(uri)
+                        Toast.makeText(context, "Importing project...", Toast.LENGTH_SHORT).show()
+                    }
+                }
+
                 LazyColumn(modifier = Modifier.weight(1f)) {
+                    item {
+                        AzButton(
+                            onClick = { openProjectLauncher.launch(null) },
+                            text = "Import Project Folder",
+                            shape = AzButtonShape.RECTANGLE,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp)
+                        )
+                    }
+
                     if (projectMetadataList.isEmpty()) {
                         item {
                             Spacer(modifier = Modifier.height(16.dp))
