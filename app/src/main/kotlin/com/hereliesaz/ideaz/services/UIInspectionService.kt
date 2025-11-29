@@ -41,6 +41,9 @@ class UIInspectionService : AccessibilityService() {
     private var selectionOverlayView: SelectionView? = null
     private var isOverlaySetup = false
 
+    // Guard flag to prevent WindowManager calls before onServiceConnected
+    private var isConnected = false
+
     // State
     private var isSelectMode = false
     private var currentHighlightRect: Rect? = null
@@ -54,15 +57,29 @@ class UIInspectionService : AccessibilityService() {
         createBubbleChannel()
     }
 
-    @RequiresApi(Build.VERSION_CODES.R)
     override fun onServiceConnected() {
         super.onServiceConnected()
         Log.d(TAG, "Service Connected - Launching Bubble")
-        showBubbleNotification()
+        isConnected = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            showBubbleNotification()
+        }
+
+        // If we were supposed to be in select mode (e.g. from saved state), restore it now
+        if (isSelectMode) {
+            toggleSelectionMode(true)
+        }
     }
 
     override fun onDestroy() {
-        if (selectionOverlayView != null && isOverlaySetup) windowManager?.removeView(selectionOverlayView)
+        isConnected = false
+        if (selectionOverlayView != null && isOverlaySetup) {
+            try {
+                windowManager?.removeView(selectionOverlayView)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error removing overlay view", e)
+            }
+        }
         try {
             unregisterReceiver(commandReceiver)
         } catch (e: Exception) {
@@ -116,7 +133,8 @@ class UIInspectionService : AccessibilityService() {
     // --- 2. Selection Overlay Logic (Red Box) ---
 
     private fun setupSelectionOverlay() {
-        if (isOverlaySetup) return
+        // Critical Fix: Do not attempt to add window if service is not fully connected or already setup
+        if (isOverlaySetup || !isConnected) return
 
         selectionOverlayView = SelectionView(this)
         val params = WindowManager.LayoutParams(
@@ -131,17 +149,28 @@ class UIInspectionService : AccessibilityService() {
             windowManager?.addView(selectionOverlayView, params)
             isOverlaySetup = true
         } catch (e: WindowManager.BadTokenException) {
-            Log.e(TAG, "Failed to add window, is your activity running?", e)
+            Log.e(TAG, "Failed to add window: BadTokenException. Is Activity/Service running?", e)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to add window", e)
         }
     }
 
     private fun toggleSelectionMode(enabled: Boolean) {
-        if (enabled && !isOverlaySetup) {
-            setupSelectionOverlay()
+        if (enabled) {
+            if (!isOverlaySetup) {
+                setupSelectionOverlay()
+            }
+            // Double check setup success before setting visibility
+            if (isOverlaySetup) {
+                selectionOverlayView?.visibility = View.VISIBLE
+                isSelectMode = true
+            }
+        } else {
+            isSelectMode = false
+            if (isOverlaySetup) {
+                selectionOverlayView?.visibility = View.GONE
+            }
         }
-
-        isSelectMode = enabled
-        selectionOverlayView?.visibility = if (enabled) View.VISIBLE else View.GONE
     }
 
     private val commandReceiver = object : BroadcastReceiver() {
@@ -253,7 +282,9 @@ class UIInspectionService : AccessibilityService() {
                         if (rect.width() > 20 && rect.height() > 20) {
                             sendBroadcast(Intent("com.hereliesaz.ideaz.PROMPT_SUBMITTED_RECT").putExtra("RECT", rect).setPackage(packageName))
                             // Keep overlay visible for screenshot
-                            showBubbleNotification()
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                showBubbleNotification()
+                            }
                         }
                     } else {
                         // Tap Finished
@@ -269,7 +300,9 @@ class UIInspectionService : AccessibilityService() {
 
                             sendBroadcast(Intent("com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE").putExtra("RESOURCE_ID", id).putExtra("BOUNDS", rect).setPackage(packageName))
                             // Keep overlay visible for screenshot
-                            showBubbleNotification()
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                showBubbleNotification()
+                            }
                         }
                     }
                     return true

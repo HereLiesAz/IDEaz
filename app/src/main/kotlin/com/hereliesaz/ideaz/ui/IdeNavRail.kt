@@ -18,7 +18,6 @@ fun IdeNavRail(
     navController: NavHostController,
     viewModel: MainViewModel,
     context: Context,
-    // MODIFIED: Removed status variables
     onShowPromptPopup: () -> Unit,
     handleActionClick: (() -> Unit) -> Unit,
     isIdeVisible: Boolean,
@@ -27,14 +26,14 @@ fun IdeNavRail(
     scope: CoroutineScope,
     initiallyExpanded: Boolean = false,
     onUndock: (() -> Unit)? = null,
-    enableRailDraggingOverride: Boolean? = null
+    enableRailDraggingOverride: Boolean? = null,
+    isLocalBuildEnabled: Boolean = false // NEW PARAMETER
 ) {
     AzNavRail(
         navController = navController,
         initiallyExpanded = initiallyExpanded
     ) {
         azSettings(
-            // displayAppNameInHeader = true, // Set to true to display the app name instead of the icon
             packRailButtons = true,
             defaultShape = AzButtonShape.RECTANGLE,
             enableRailDragging = true,
@@ -48,8 +47,11 @@ fun IdeNavRail(
         // 2. Git
         azMenuItem(id = "git",  text = "Git", onClick = { navController.navigate("git") })
 
-        // 3. Libs
-        azMenuItem(id = "libraries",  text = "Libs", onClick = { navController.navigate("libraries") })
+        // 3. Libs - GATED
+        // Local dependency management only makes sense if we are building locally.
+        if (isLocalBuildEnabled) {
+            azMenuItem(id = "libraries", text = "Libs", onClick = { navController.navigate("libraries") })
+        }
 
         // 4. IDEaz (Host)
         azRailHostItem(id = "main", text = "IDEaz", onClick = { handleActionClick { navController.navigate("main") } })
@@ -58,7 +60,11 @@ fun IdeNavRail(
         azRailSubItem(id = "prompt", hostId = "main", text = "Prompt", onClick = { handleActionClick { onShowPromptPopup() } })
 
         // 4b. Build (Sub)
-        azRailSubItem(id = "build", hostId = "main", text = "Build", onClick = {
+        // We keep this visible because it serves as the "Log Console" view.
+        // However, if local build is disabled, clicking this to "Start Build" via a UI trigger
+        // inside the screen (if we added one) would fail.
+        // The nav rail item just opens the log/bottom sheet.
+        azRailSubItem(id = "build", hostId = "main", text = "Logs", onClick = {
             handleActionClick {
                 navController.navigate("build")
                 scope.launch {
@@ -68,8 +74,6 @@ fun IdeNavRail(
         })
 
         // 4c. Mode Toggle (Sub Toggle)
-        // In the Dashboard, we are effectively in "Interact" mode.
-        // Clicking this should take us to "Select" mode (The Overlay).
         azRailSubToggle(
             id = "mode_toggle",
             hostId = "main",
@@ -79,7 +83,6 @@ fun IdeNavRail(
             shape = AzButtonShape.NONE,
             onClick = {
                 handleActionClick {
-                    // Launching overlay minimizes this dashboard
                     onLaunchOverlay()
                 }
             }

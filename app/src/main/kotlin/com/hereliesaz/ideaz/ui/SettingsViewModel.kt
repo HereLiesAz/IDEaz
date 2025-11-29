@@ -75,6 +75,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         // Auto report bugs key
         const val KEY_AUTO_REPORT_BUGS = "auto_report_bugs"
 
+        // MODULAR BUILD SETTINGS
+        const val KEY_ENABLE_LOCAL_BUILDS = "enable_local_builds"
+
         // Theme Keys
         const val KEY_THEME_MODE = "theme_mode"
         const val THEME_AUTO = "auto"
@@ -153,6 +156,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setAutoReportBugs(enabled: Boolean) {
         sharedPreferences.edit().putBoolean(KEY_AUTO_REPORT_BUGS, enabled).apply()
+    }
+
+    // --- Local Builds ---
+    fun isLocalBuildEnabled(): Boolean {
+        return sharedPreferences.getBoolean(KEY_ENABLE_LOCAL_BUILDS, false) // Default FALSE (Cloud only)
+    }
+
+    fun setLocalBuildEnabled(enabled: Boolean) {
+        sharedPreferences.edit().putBoolean(KEY_ENABLE_LOCAL_BUILDS, enabled).apply()
     }
 
     // --- Theme ---

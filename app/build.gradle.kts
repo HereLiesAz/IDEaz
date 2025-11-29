@@ -50,6 +50,10 @@ android {
     sourceSets {
         getByName("main") {
             kotlin.srcDirs("src/main/kotlin")
+            // EXCLUDING LOCAL BUILD TOOLS FROM APK
+            // We want the app to rely solely on GitHub by default.
+            // The tools will be zipped and downloaded separately.
+            jniLibs.setSrcDirs(emptyList<String>())
         }
     }
 
@@ -68,6 +72,9 @@ android {
             excludes.add("META-INF/plexus/components.xml")
             excludes.add("plugin.properties")
             pickFirsts += "META-INF/sisu/javax.inject.Named"
+
+            // EXCLUDE ASSET TOOLS
+            excludes.add("assets/tools/**")
         }
     }
 }

@@ -47,6 +47,26 @@ fun MainScreen(
     val showCancelDialog by viewModel.showCancelDialog.collectAsState()
     val isTargetAppVisible by viewModel.isTargetAppVisible.collectAsState()
 
+    // --- OBSERVE LOCAL BUILD SETTING ---
+    // This allows the UI to react instantly when the user toggles the switch in Settings.
+    var isLocalBuildEnabled by remember {
+        mutableStateOf(viewModel.settingsViewModel.isLocalBuildEnabled())
+    }
+
+    // We can't easily observe SharedPreferences directly in Compose without a wrapper,
+    // but since we are toggling it in the same app session, we can rely on screen recomposition
+    // or a more robust flow. For now, let's assume Settings updates trigger a recomposition
+    // or we can add a flow in SettingsViewModel if needed.
+    // Ideally, SettingsViewModel exposes this as a Flow.
+    // Let's assume for this MVP we re-read it on recomposition or navigation.
+    // To be safe, let's check it whenever the route changes.
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
+    LaunchedEffect(currentRoute) {
+        isLocalBuildEnabled = viewModel.settingsViewModel.isLocalBuildEnabled()
+    }
+
     // --- Bottom Sheet State (Dashboard Console) ---
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
@@ -57,9 +77,6 @@ fun MainScreen(
     )
 
     // --- Visibility Logic ---
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
-
     // Dashboard is visible unless we are hidden by target app
     val isDashboardVisible = !isTargetAppVisible
     val isBottomSheetVisible = currentRoute == "main" || currentRoute == "build"
@@ -80,8 +97,6 @@ fun MainScreen(
     }
 
     val handleActionClick = { action: () -> Unit ->
-        // If we are deep in settings, navigate back to main first?
-        // Ideally we just run the action.
         action()
     }
 
@@ -134,7 +149,8 @@ fun MainScreen(
                     },
                     sheetState = sheetState,
                     scope = scope,
-                    onUndock = { BubbleUtils.createBubbleNotification(context) }
+                    onUndock = { BubbleUtils.createBubbleNotification(context) },
+                    isLocalBuildEnabled = isLocalBuildEnabled // PASSING THE FLAG
                 )
 
                 AnimatedVisibility(
