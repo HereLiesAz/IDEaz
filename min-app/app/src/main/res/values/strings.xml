@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">IDEaz</string>
+    <string name="selection_prompt_hint">What do you want to do here?</string>
+    <string name="submit">Submit</string>
+    <string name="cancel">Cancel</string>
+    <string name="starting_task">Starting task...</string>
+<string name="accessibility_service_label">IDEaz Inspection Service</string>
+<string name="accessibility_service_description">Allows IDEaz to inspect the UI layout to provide contextual AI assistance.</string>
+</resources>
