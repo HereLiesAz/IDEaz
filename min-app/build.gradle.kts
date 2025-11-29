@@ -39,7 +39,22 @@ android {
         compose = true
         aidl = true
     }
-    dynamicFeatures = mutableSetOf(":app")
+    packaging {
+        resources {
+            excludes.add("/META-INF/{AL2.0,LGPL2.1}")
+        }
+    }
+}
+
+configurations.all {
+    resolutionStrategy {
+        eachDependency {
+            if (requested.group == "commons-logging" && requested.name == "commons-logging") {
+                useTarget("org.slf4j:jcl-over-slf4j:1.7.30")
+                because("Avoids duplicate classes with jcl-over-slf4j")
+            }
+        }
+    }
 }
 
 dependencies {
@@ -57,18 +72,12 @@ dependencies {
     implementation(libs.androidx.preference.ktx)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
-    implementation(libs.r8) {
-        exclude(group = "org.jline")
-    }
+    implementation(libs.r8)
     implementation(libs.scala.compiler) {
         exclude(group = "org.jline")
     }
-    implementation(libs.smali) {
-        exclude(group = "org.jline")
-    }
-    implementation(libs.kotlinc.android) {
-        exclude(group = "org.jline")
-    }
+    implementation(libs.smali)
+    implementation(libs.kotlinc.android)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
