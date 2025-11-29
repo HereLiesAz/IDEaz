@@ -2,15 +2,18 @@
 
 ## 1. The Overlay ("Invisible Screen")
 *   **Role:** The primary interface for "Post-Code" development.
-*   **Implementation:** `UIInspectionService` (Accessibility Service).
+*   **Implementation:** `UIInspectionService` (Accessibility Service) + `BubbleActivity`.
 *   **Context:** Visible *only* over the target application.
+*   **Modes:**
+    *   **Interact:** Pass-through to target app.
+    *   **Select:** Blocks interaction to allow Element Tap or Rect Drag selection.
 *   **Components:**
-    *   **Selection Highlight:** Visual border around selected nodes or drawn rects.
-    *   **Prompt Input:** Floating text box anchored to the selection.
+    *   **Selection Highlight:** Visual border around selected nodes or drawn rects (managed by `UIInspectionService`).
+    *   **Contextual Chat:** Inline chat display + input anchored to the selection (managed by `BubbleActivity`).
     *   **Update Popup:** "Updating, gimme a sec" toast/dialog.
 
 ## 2. Main Host Screen (`MainScreen.kt`)
-*   **Role:** The container for the IDE management UI.
+*   **Role:** The container for the IDE management UI (Docked Mode).
 *   **Components:**
     *   `IdeNavRail`: Navigation bar (Project, Git, Settings).
     *   `IdeBottomSheet`: The Global Console.
@@ -56,8 +59,9 @@
 *   **Component:** `WebView` loading the generated `index.html`.
 
 ## 8. Bubble Overlay (`BubbleActivity.kt`)
-*   **Role:** Provides a persistent, system-managed overlay for quick access to IDE features while using other apps.
+*   **Role:** Provides a persistent, system-managed overlay for quick access to IDE features while using other apps. The "IDE Screen".
 *   **Implementation:** Android Bubbles API via `BubbleActivity`.
 *   **Components:**
     *   `IdeNavRail`: Navigation bar.
     *   `IdeNavHost`: Content area for IDE screens within the bubble.
+    *   `ContextualChatOverlay`: The chat interface displayed over a selection.
