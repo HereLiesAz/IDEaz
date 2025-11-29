@@ -222,7 +222,7 @@ class MainViewModel(
             if (resourceId != null && resourceId != "contextless_chat") {
                 val appName = settingsViewModel.getAppName()
                 if (!appName.isNullOrBlank()) {
-                    val projectDir = getApplication<Application>().filesDir.resolve(appName)
+                    val projectDir = settingsViewModel.getProjectPath(appName)
                     val contextResult = withContext(Dispatchers.IO) {
                         SourceContextHelper.resolveContext(resourceId, projectDir, sourceMap)
                     }
@@ -342,7 +342,7 @@ class MainViewModel(
 
     fun startBuild(context: Context, projectDir: File? = null) {
         if (isBuildServiceBound) {
-            val dir = projectDir ?: getApplication<Application>().filesDir.resolve(settingsViewModel.getAppName() ?: "")
+            val dir = projectDir ?: settingsViewModel.getProjectPath(settingsViewModel.getAppName() ?: "")
             buildService?.startBuild(dir.absolutePath, buildCallback)
         } else {
             _buildLog.value += "Error: Build Service not bound.\n"
@@ -397,7 +397,7 @@ class MainViewModel(
     fun refreshGitData() {
         viewModelScope.launch {
             val appName = settingsViewModel.getAppName() ?: return@launch
-            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            val projectDir = settingsViewModel.getProjectPath(appName)
             if (projectDir.exists()) {
                 withContext(Dispatchers.IO) {
                     try {
@@ -416,7 +416,7 @@ class MainViewModel(
     fun gitFetch() {
         viewModelScope.launch {
             val appName = settingsViewModel.getAppName() ?: return@launch
-            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            val projectDir = settingsViewModel.getProjectPath(appName)
             val user = settingsViewModel.getGithubUser()
             val token = settingsViewModel.getGithubToken()
             withContext(Dispatchers.IO) {
@@ -434,7 +434,7 @@ class MainViewModel(
     fun gitPull() {
         viewModelScope.launch {
             val appName = settingsViewModel.getAppName() ?: return@launch
-            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            val projectDir = settingsViewModel.getProjectPath(appName)
             val user = settingsViewModel.getGithubUser()
             val token = settingsViewModel.getGithubToken()
             withContext(Dispatchers.IO) {
@@ -452,7 +452,7 @@ class MainViewModel(
     fun gitPush() {
         viewModelScope.launch {
             val appName = settingsViewModel.getAppName() ?: return@launch
-            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            val projectDir = settingsViewModel.getProjectPath(appName)
             val user = settingsViewModel.getGithubUser()
             val token = settingsViewModel.getGithubToken()
             withContext(Dispatchers.IO) {
@@ -470,7 +470,7 @@ class MainViewModel(
     fun gitStash(message: String? = null) {
         viewModelScope.launch {
             val appName = settingsViewModel.getAppName() ?: return@launch
-            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            val projectDir = settingsViewModel.getProjectPath(appName)
             withContext(Dispatchers.IO) {
                 try {
                     GitManager(projectDir).stash(message)
@@ -486,7 +486,7 @@ class MainViewModel(
     fun gitUnstash() {
         viewModelScope.launch {
             val appName = settingsViewModel.getAppName() ?: return@launch
-            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            val projectDir = settingsViewModel.getProjectPath(appName)
             withContext(Dispatchers.IO) {
                 try {
                     GitManager(projectDir).unstash()
@@ -502,7 +502,7 @@ class MainViewModel(
     fun switchBranch(branch: String) {
         viewModelScope.launch {
             val appName = settingsViewModel.getAppName() ?: return@launch
-            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            val projectDir = settingsViewModel.getProjectPath(appName)
             if (projectDir.exists()) {
                 withContext(Dispatchers.IO) {
                     GitManager(projectDir).checkout(branch)
@@ -542,7 +542,7 @@ class MainViewModel(
                 settingsViewModel.setProjectType(projectType.name)
                 settingsViewModel.setAppName(appName)
 
-                val projectDir = context.filesDir.resolve(appName)
+                val projectDir = settingsViewModel.getProjectPath(appName)
                 gitMutex.withLock {
                     if (projectDir.exists()) projectDir.deleteRecursively()
                     projectDir.mkdirs()
@@ -586,7 +586,7 @@ class MainViewModel(
         viewModelScope.launch {
             gitMutex.withLock {
                 try {
-                    val projectDir = getApplication<Application>().filesDir.resolve(appName)
+                    val projectDir = settingsViewModel.getProjectPath(appName)
                     val token = settingsViewModel.getGithubToken()
 
                     if (projectDir.exists()) {
@@ -625,7 +625,7 @@ class MainViewModel(
         viewModelScope.launch {
             _buildLog.value += "[INFO] Loading project '$projectName'...\n"
             try {
-                val projectDir = getApplication<Application>().filesDir.resolve(projectName)
+                val projectDir = settingsViewModel.getProjectPath(projectName)
                 if (!projectDir.exists()) {
                     _buildLog.value += "[ERROR] Project not found.\n"
                     return@launch
@@ -651,7 +651,7 @@ class MainViewModel(
 
     fun forceUpdateInitFiles() {
         val appName = settingsViewModel.getAppName() ?: return
-        val projectDir = getApplication<Application>().filesDir.resolve(appName)
+        val projectDir = settingsViewModel.getProjectPath(appName)
         val typeStr = settingsViewModel.getProjectType()
         val type = ProjectType.fromString(typeStr)
         val user = settingsViewModel.getGithubUser()
@@ -680,7 +680,7 @@ class MainViewModel(
         // Re-implementation of basic clone logic if needed or defer to loadProject
         // For brevity, assuming basic implementation
         val appName = repo
-        val projectDir = getApplication<Application>().filesDir.resolve(appName)
+        val projectDir = settingsViewModel.getProjectPath(appName)
         val token = settingsViewModel.getGithubToken()
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
@@ -716,7 +716,7 @@ class MainViewModel(
         }
 
         return projects.mapNotNull { name ->
-            val dir = filesDir.resolve(name)
+            val dir = settingsViewModel.getProjectPath(name)
             if (dir.exists()) {
                 val size = dir.walkTopDown().sumOf { it.length() }
                 ProjectMetadata(name, size)
@@ -726,56 +726,58 @@ class MainViewModel(
         }
     }
 
-    fun importProject(uri: Uri) {
+    fun registerExternalProject(uri: Uri) {
         viewModelScope.launch {
             _loadingProgress.value = 0
-            _buildLog.value += "[INFO] Importing project...\n"
+            _buildLog.value += "[INFO] Registering external project...\n"
 
             withContext(Dispatchers.IO) {
                 try {
                     val context = getApplication<Application>()
-                    val docFile = DocumentFile.fromTreeUri(context, uri)
-                    if (docFile == null || !docFile.isDirectory) {
-                        throw Exception("Invalid folder selected")
+                    val pathStr = com.hereliesaz.ideaz.utils.UriUtils.getPathFromUri(context, uri)
+
+                    if (pathStr == null) {
+                        throw Exception("Could not resolve filesystem path. Ensure the folder is on local storage.")
+                    }
+                    val projectDir = File(pathStr)
+
+                    if (!projectDir.exists() || !projectDir.isDirectory) {
+                        throw Exception("Path invalid: $pathStr")
                     }
 
-                    val name = docFile.name ?: "ImportedProject_${System.currentTimeMillis()}"
-                    val ideaz = docFile.findFile(".ideaz")
-
-                    if (ideaz == null) {
-                        throw Exception("Selected folder is not an IDEaz project (missing .ideaz folder)")
+                    if (!File(projectDir, ".ideaz").exists()) {
+                        throw Exception("Selected folder is not an IDEaz project (missing .ideaz folder).")
                     }
 
-                    val destDir = context.filesDir.resolve(name)
-                    if (destDir.exists()) {
-                        throw Exception("Project '$name' already exists locally.")
-                    }
-                    destDir.mkdirs()
+                    val name = projectDir.name
 
-                    _buildLog.value += "[INFO] Copying files for '$name'...\n"
-                    copyRecursive(context, docFile, destDir)
+                    try {
+                        context.contentResolver.takePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                        )
+                    } catch (e: Exception) {}
 
                     settingsViewModel.addProject(name)
+                    settingsViewModel.saveProjectPath(name, pathStr)
                     settingsViewModel.setAppName(name)
 
-                    // Attempt to load config
-                    val loadedConfig = ProjectConfigManager.loadConfig(destDir)
+                    val loadedConfig = ProjectConfigManager.loadConfig(projectDir)
                     if (loadedConfig != null) {
                         settingsViewModel.setProjectType(loadedConfig.projectType)
                         if (loadedConfig.packageName != null) settingsViewModel.saveTargetPackageName(loadedConfig.packageName)
                     } else {
-                         // Auto-detect if config missing
-                         val type = ProjectAnalyzer.detectProjectType(destDir)
-                         settingsViewModel.setProjectType(type.name)
+                        val type = ProjectAnalyzer.detectProjectType(projectDir)
+                        settingsViewModel.setProjectType(type.name)
                     }
 
-                    _buildLog.value += "[INFO] Imported '$name' successfully.\n"
+                    _buildLog.value += "[INFO] Registered '$name' at $pathStr.\n"
                     withContext(Dispatchers.Main) {
                         loadProject(name)
                     }
 
                 } catch (e: Exception) {
-                    _buildLog.value += "[ERROR] Import failed: ${e.message}\n"
+                    _buildLog.value += "[ERROR] Registration failed: ${e.message}\n"
                 } finally {
                     _loadingProgress.value = null
                 }
@@ -783,27 +785,9 @@ class MainViewModel(
         }
     }
 
-    private fun copyRecursive(context: Context, src: DocumentFile, dest: File) {
-        if (src.isDirectory) {
-            if (!dest.exists()) dest.mkdirs()
-            src.listFiles().forEach { child ->
-                if (child.name != null) {
-                    val childDest = File(dest, child.name!!)
-                    copyRecursive(context, child, childDest)
-                }
-            }
-        } else {
-            context.contentResolver.openInputStream(src.uri)?.use { input ->
-                FileOutputStream(dest).use { output ->
-                    input.copyTo(output)
-                }
-            }
-        }
-    }
-
     fun deleteProject(projectName: String) {
         viewModelScope.launch {
-            val projectDir = getApplication<Application>().filesDir.resolve(projectName)
+            val projectDir = settingsViewModel.getProjectPath(projectName)
             if (projectDir.exists()) projectDir.deleteRecursively()
             settingsViewModel.removeProject(projectName)
             if (settingsViewModel.getAppName() == projectName) settingsViewModel.setAppName("")
@@ -814,7 +798,7 @@ class MainViewModel(
     fun syncAndDeleteProject(projectName: String) {
         viewModelScope.launch {
             gitMutex.withLock {
-                val projectDir = getApplication<Application>().filesDir.resolve(projectName)
+                val projectDir = settingsViewModel.getProjectPath(projectName)
                 if (projectDir.exists()) {
                     try {
                         withContext(Dispatchers.IO) {
@@ -833,7 +817,7 @@ class MainViewModel(
     fun downloadDependencies() {
         viewModelScope.launch {
             val appName = settingsViewModel.getAppName() ?: return@launch
-            val projectDir = getApplication<Application>().filesDir.resolve(appName)
+            val projectDir = settingsViewModel.getProjectPath(appName)
             val dependenciesFile = File(projectDir, "dependencies.txt")
             val localRepoDir = getApplication<Application>().filesDir.resolve("local-repo")
 

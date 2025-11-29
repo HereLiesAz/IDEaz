@@ -2,6 +2,10 @@ package com.hereliesaz.ideaz.ui
 
 import android.util.Log
 import android.widget.Toast
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import android.os.Environment
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -714,21 +718,48 @@ fun ProjectScreen(
                     contract = ActivityResultContracts.OpenDocumentTree()
                 ) { uri ->
                     if (uri != null) {
-                        viewModel.importProject(uri)
-                        Toast.makeText(context, "Importing project...", Toast.LENGTH_SHORT).show()
+                        viewModel.registerExternalProject(uri)
+                        Toast.makeText(context, "Registering project...", Toast.LENGTH_SHORT).show()
                     }
+                }
+
+                val isExternalStorageManager = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                    Environment.isExternalStorageManager()
+                } else {
+                    true
                 }
 
                 LazyColumn(modifier = Modifier.weight(1f)) {
                     item {
-                        AzButton(
-                            onClick = { openProjectLauncher.launch(null) },
-                            text = "Import Project Folder",
-                            shape = AzButtonShape.RECTANGLE,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 16.dp)
-                        )
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R && !isExternalStorageManager) {
+                            AzButton(
+                                onClick = {
+                                    try {
+                                        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                                        intent.addCategory("android.intent.category.DEFAULT")
+                                        intent.data = Uri.parse("package:${context.packageName}")
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                                        context.startActivity(intent)
+                                    }
+                                },
+                                text = "Grant Storage Permission",
+                                shape = AzButtonShape.RECTANGLE,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp)
+                            )
+                        } else {
+                            AzButton(
+                                onClick = { openProjectLauncher.launch(null) },
+                                text = "Add External Project",
+                                shape = AzButtonShape.RECTANGLE,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp)
+                            )
+                        }
                     }
 
                     if (projectMetadataList.isEmpty()) {
