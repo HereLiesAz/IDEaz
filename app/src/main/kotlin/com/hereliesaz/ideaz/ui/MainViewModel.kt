@@ -357,6 +357,24 @@ class MainViewModel(
         pendingBase64Screenshot = null
     }
 
+    // --- NEW: Launch Target App ---
+    fun launchTargetApp(context: Context) {
+        val packageName = settingsViewModel.getTargetPackageName() ?: return
+        try {
+            val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(launchIntent)
+                _isTargetAppVisible.value = true
+                logToOverlay("Launching $packageName...")
+            } else {
+                logToOverlay("Error: Could not launch $packageName. Is it installed?")
+            }
+        } catch (e: Exception) {
+            logToOverlay("Error launching app: ${e.message}")
+        }
+    }
+
     private fun startContextualAITask(richPrompt: String) {
         logToOverlay("Thinking...")
 

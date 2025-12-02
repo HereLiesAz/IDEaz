@@ -34,47 +34,51 @@ object JulesApiClient {
         return retrofit.create(JulesApi::class.java)
     }
 
+    private fun ensureParent(parent: String): String {
+        return if (parent.startsWith("projects/")) parent else "projects/$parent"
+    }
+
     /**
      * Creates a new Jules session.
      */
     suspend fun createSession(parent: String, request: CreateSessionRequest): Session {
-        return getClient().createSession(parent, request)
+        return getClient().createSession(ensureParent(parent), request)
     }
 
     /**
      * Lists activities for a given session.
      */
     suspend fun listActivities(parent: String, sessionId: String): ListActivitiesResponse {
-        val sessionName = "$parent/sessions/$sessionId"
+        val sessionName = "${ensureParent(parent)}/sessions/$sessionId"
         return getClient().listActivities(sessionName)
     }
 
     suspend fun sendMessage(parent: String, sessionId: String, prompt: String) {
-        val sessionName = "$parent/sessions/$sessionId"
+        val sessionName = "${ensureParent(parent)}/sessions/$sessionId"
         val request = SendMessageRequest(prompt = prompt)
         getClient().sendMessage(sessionName, request)
     }
 
     // Used by MainViewModel
     suspend fun listSessions(parent: String): ListSessionsResponse {
-        return getClient().listSessions(parent)
+        return getClient().listSessions(ensureParent(parent))
     }
 
     suspend fun listSources(parent: String): ListSourcesResponse {
-        return getClient().listSources(parent)
+        return getClient().listSources(ensureParent(parent))
     }
 
     suspend fun getSource(parent: String, sourceId: String): Source {
-        return getClient().getSource(parent, sourceId)
+        return getClient().getSource(ensureParent(parent), sourceId)
     }
 
     suspend fun getSession(parent: String, sessionId: String): Session {
-        val sessionName = "$parent/sessions/$sessionId"
+        val sessionName = "${ensureParent(parent)}/sessions/$sessionId"
         return getClient().getSession(sessionName)
     }
 
     suspend fun deleteSession(parent: String, sessionId: String) {
-        val sessionName = "$parent/sessions/$sessionId"
+        val sessionName = "${ensureParent(parent)}/sessions/$sessionId"
         getClient().deleteSession(sessionName)
     }
 }

@@ -1,7 +1,7 @@
 [versions]
 agp = "8.13.1"
 aetherTransportFile = "2.0.13"
-aznavrail = "4.18"
+aznavrail = "4.19"
 coreKtx = "1.17.0"
 dependencyresolver = "main-SNAPSHOT"
 googleGenai = "1.28.0"

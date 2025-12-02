@@ -80,7 +80,17 @@ fun MainScreen(
     val isSelectMode by viewModel.isSelectMode.collectAsState()
     // Dashboard is visible if NOT in select mode (and not hidden by target app signal which is deprecated/handled by select mode)
     val isDashboardVisible = !isSelectMode
-    val isBottomSheetVisible = currentRoute == "main" || currentRoute == "build"
+
+    // The "main" and "build" routes are considered "Overlay Modes" where we want to see the target app.
+    val isOverlayRoute = currentRoute == "main" || currentRoute == "build"
+    val isBottomSheetVisible = isOverlayRoute
+
+    // Auto-launch target app if entering overlay mode
+    LaunchedEffect(isOverlayRoute) {
+        if (isOverlayRoute && !isTargetAppVisible) {
+            viewModel.launchTargetApp(context)
+        }
+    }
 
     // Auto-expand sheet when navigating to Build screen (Dashboard view)
     LaunchedEffect(currentRoute) {
@@ -127,7 +137,7 @@ fun MainScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = if (isSelectMode) Color.Transparent else MaterialTheme.colorScheme.background,
+        containerColor = if (isSelectMode || isOverlayRoute) Color.Transparent else MaterialTheme.colorScheme.background,
     ) { innerPadding ->
 
         Box(modifier = Modifier.fillMaxSize()) {

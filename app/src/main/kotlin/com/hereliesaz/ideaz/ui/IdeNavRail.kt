@@ -10,6 +10,8 @@ import com.hereliesaz.ideaz.api.Activity
 import com.hereliesaz.aznavrail.model.AzHeaderIconShape
 import com.hereliesaz.ideaz.ui.Halfway
 import com.hereliesaz.ideaz.utils.BubbleUtils
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -49,6 +51,8 @@ fun IdeNavRail(
 
         // 2. Git
         azMenuItem(id = "git",  text = "Git", onClick = { navController.navigate("git") })
+
+
 
         // 3. Libs - GATED
         // Local dependency management only makes sense if we are building locally.
