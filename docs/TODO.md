@@ -12,6 +12,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] Implement `SettingsViewModel` (SharedPreferences).
     - [x] Implement `ProjectAnalyzer` for project type detection.
     - [x] Implement auto-discovery of local projects and external project registration (SAF + Native File Access).
+    - [x] **1.2.5: Encrypted Settings Export/Import:** Allow user to save credentials to file.
 - [ ] **1.3: "Race to Build" Logic**
     - [x] **1.3.1: Artifact Detection:** Implement logic to compare Installed SHA vs Remote Release SHA vs Repo Head SHA. (Implemented manual check for updates).
     - [ ] **1.3.2: Remote Polling:** Implement loop to check GitHub Releases for new builds.
@@ -44,6 +45,9 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [ ] **3.3: Feedback Loops**
     - [ ] **3.3.1: Update Popup:** "Updating, gimme a sec" dialog.
     - [ ] **3.3.2: Clipboard:** Auto-copy prompt text on update.
+- [ ] **3.4: UI Refinement**
+    - [x] Reorder Settings Screen (Build Config first).
+    - [x] Improve Project Load Tab layout.
 
 ## Phase 4: AI Integration & Workflow
 - [ ] **4.1: Jules Integration**
