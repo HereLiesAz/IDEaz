@@ -62,6 +62,7 @@ import com.hereliesaz.aznavrail.model.AzButtonShape
 import androidx.compose.foundation.background
 import com.hereliesaz.ideaz.utils.ToolManager
 import java.io.File
+import android.app.AppOpsManager
 
 private const val TAG = "SettingsScreen"
 
@@ -189,6 +190,13 @@ fun SettingsScreen(
         contract = ActivityResultContracts.StartActivityForResult(),
         onResult = {
             Log.d(TAG, "Returned from accessibility settings")
+            refreshTrigger++
+        }
+    )
+    val usageStatsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+        onResult = {
+            Log.d(TAG, "Returned from usage stats settings")
             refreshTrigger++
         }
     )
@@ -580,6 +588,10 @@ fun SettingsScreen(
                         else true
                     )
                 }
+                val hasUsageStats by remember(refreshTrigger) {
+                    mutableStateOf(hasUsageStatsPermission(context))
+                }
+
 
                 PermissionCheckRow(
                     name = "Draw Over Other Apps",
@@ -661,6 +673,20 @@ fun SettingsScreen(
                         }
                     }
                 )
+
+                PermissionCheckRow(
+                    name = "Package Usage Stats",
+                    granted = hasUsageStats,
+                    onClick = {
+                        if (!hasUsageStats) {
+                            val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+                            usageStatsPermissionLauncher.launch(intent)
+                        } else {
+                            Toast.makeText(context, "Permission already granted", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+
 
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -774,6 +800,17 @@ fun isAccessibilityServiceEnabled(context: Context, serviceName: String): Boolea
     return prefString?.contains(context.packageName + serviceName) ?: false
 }
 
+fun hasUsageStatsPermission(context: Context): Boolean {
+    val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+    val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        appOps.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName)
+    } else {
+        appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName)
+    }
+    return mode == AppOpsManager.MODE_ALLOWED
+}
+
+
 @Composable
 fun PermissionCheckRow(
     name: String,
@@ -844,7 +881,7 @@ fun AiAssignmentDropdown(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3AI::class, ExperimentalMaterial3Api::class)
 @Composable
 fun LogLevelDropdown(
     settingsViewModel: SettingsViewModel
