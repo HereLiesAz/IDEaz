@@ -37,6 +37,8 @@ jobs:
 
     - name: Build with Gradle
       id: gradle-build
+      env:
+        BUILD_NUMBER: ${{ github.run_number }}
       # capture output while still failing if build fails (but continue-on-error handles the workflow flow)
       run: |
         set +e
@@ -52,7 +54,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: app-debug
-        path: app/build/outputs/apk/debug/app-debug.apk
+        path: app/build/outputs/apk/debug/IDEaz-*.apk
 
     # Update the release (or create it) without deleting it first to avoid downtime
     - name: Update Release
@@ -60,8 +62,8 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         TAG_NAME: latest-debug
-        APK_FILE: app/build/outputs/apk/debug/app-debug.apk
       run: |
+        APK_FILE=$(ls app/build/outputs/apk/debug/IDEaz-*.apk | head -n 1)
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
