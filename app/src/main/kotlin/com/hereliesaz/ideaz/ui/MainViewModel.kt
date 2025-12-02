@@ -365,16 +365,18 @@ class MainViewModel(
     }
 
     fun bindBuildService(context: Context) {
+        if (isServiceRegistered) return
+
         filteredLog = combine(buildLog, aiLog) { b, a -> (b.lines() + a.lines()).filter { it.isNotBlank() } }
             .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
         val intent = Intent(context, BuildService::class.java)
-        context.bindService(intent, buildServiceConnection, Context.BIND_AUTO_CREATE)
+        context.applicationContext.bindService(intent, buildServiceConnection, Context.BIND_AUTO_CREATE)
         isServiceRegistered = true
     }
 
     fun unbindBuildService(context: Context) {
         if (isServiceRegistered) {
-            try { context.unbindService(buildServiceConnection) } catch (e: Exception) {}
+            try { context.applicationContext.unbindService(buildServiceConnection) } catch (e: Exception) {}
             isServiceRegistered = false
         }
     }
