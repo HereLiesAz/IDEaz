@@ -75,9 +75,6 @@ class MainViewModel(
     private val _loadingProgress = MutableStateFlow<Int?>(null)
     val loadingProgress = _loadingProgress.asStateFlow()
 
-    private val _sourcesStatus = MutableStateFlow<String?>(null)
-    val sourcesStatus = _sourcesStatus.asStateFlow()
-
     private val _isTargetAppVisible = MutableStateFlow(false)
     val isTargetAppVisible = _isTargetAppVisible.asStateFlow()
 
@@ -480,7 +477,11 @@ class MainViewModel(
 
     // Helper to sync logs
     private fun onGitProgress(percent: Int, task: String) {
-        _loadingProgress.value = percent
+        if (percent >= 100) {
+            _loadingProgress.value = null
+        } else {
+            _loadingProgress.value = percent
+        }
         if (task != lastGitTask) {
             _buildLog.value += "[GIT] $task\n"
             lastGitTask = task
