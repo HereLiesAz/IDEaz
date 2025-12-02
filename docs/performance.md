@@ -12,6 +12,7 @@
 *   **JGit:** Close `Git` instances immediately after use.
 
 ## 3. Build Speed
+*   **Configuration Cache:** Enabled in `gradle.properties` (`org.gradle.configuration-cache=true`) to significantly reduce configuration time on subsequent builds.
 *   **Incremental Builds:** The `BuildOrchestrator` attempts to skip steps if inputs haven't changed.
 *   **Parallelism:** Future improvements should run independent steps (e.g., compiling different modules) in parallel.
 *   **Caching:** `HttpDependencyResolver` caches artifacts in `filesDir/local-repo`.
@@ -22,5 +23,5 @@
 *   **Overlays:** The `UIInspectionService` overlay should be lightweight. Avoid complex layouts in the overlay.
 
 ## 5. Network
-*   **Polling:** The AI activity polling (`MainViewModel`) should use an adaptive interval or long-polling to save battery/data.
+*   **Polling:** The AI polling loop (`MainViewModel`) should use an adaptive interval or long-polling to save battery/data.
 *   **Data Usage:** Avoid re-downloading dependencies if they exist in the cache.
