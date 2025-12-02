@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
+import android.os.Build
 import com.hereliesaz.ideaz.MainActivity
 import java.io.File
 
@@ -31,7 +32,12 @@ object ApkInstaller {
         inputStream.close()
 
         val intent = Intent(context, MainActivity::class.java) // Or a results receiver
-        val pendingIntent = PendingIntent.getActivity(context, sessionId, intent, PendingIntent.FLAG_IMMUTABLE)
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            PendingIntent.FLAG_MUTABLE
+        } else {
+            0
+        }
+        val pendingIntent = PendingIntent.getActivity(context, sessionId, intent, flags)
         session.commit(pendingIntent.intentSender)
         session.close()
     }
