@@ -109,7 +109,14 @@ class UIInspectionService : AccessibilityService() {
 
         // Create target intent
         val target = Intent(this, BubbleActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(this, 0, target, PendingIntent.FLAG_MUTABLE)
+        // Bubbles require Mutable PendingIntent on Android 12+ (API 31)
+        // We use FLAG_UPDATE_CURRENT to ensure we have the latest intent
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            target,
+            PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
 
         // Create Bubble Metadata
         val bubbleData = Notification.BubbleMetadata.Builder(pendingIntent, Icon.createWithResource(this, R.mipmap.ic_launcher))
