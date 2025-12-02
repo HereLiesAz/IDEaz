@@ -9,6 +9,15 @@ Before committing ANY changes, you **MUST** strictly adhere to the following wor
 3.  **Update Documentation:** You must update ALL relevant documentation to reflect your changes. This includes `TODO.md`, `file_descriptions.md`, and any other specific docs.
 4.  **Commit:** Only AFTER steps 1-3 are successfully completed may you commit your changes.
 
+## Versioning Strategy
+
+*   **Format:** `IDEaz-a.b.c.d.apk` (e.g., `IDEaz-1.0.0.14.apk`).
+    *   `a` (Prime): User controlled.
+    *   `b` (Minor): Incremented by Agents for **Major Features/Functions**.
+    *   `c` (Patch): Incremented by Agents for **Small Functions/Bug Fixes**.
+    *   `d` (Build): Incremented programmatically by CI.
+*   **Instruction:** When completing a task, you MUST update the `minor` or `patch` variables in `app/build.gradle.kts` appropriately.
+
 ---
 
 ## Documentation Index
