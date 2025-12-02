@@ -5,14 +5,23 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+import java.util.Properties
+import java.io.FileInputStream
+
+val versionProps = Properties()
+val versionPropsFile = rootProject.file("version.properties")
+if (versionPropsFile.exists()) {
+    versionProps.load(FileInputStream(versionPropsFile))
+}
+
+val major = versionProps.getProperty("major", "1").toInt()
+val minor = versionProps.getProperty("minor", "0").toInt()
+val patch = versionProps.getProperty("patch", "1").toInt()
+val buildNumber = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
+
 android {
     namespace = "com.hereliesaz.ideaz"
     compileSdk = 36
-
-    val major = 1
-    val minor = 0
-    val patch = 1
-    val buildNumber = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
 
     defaultConfig {
         applicationId = "com.hereliesaz.ideaz"
@@ -24,15 +33,6 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
-
-    applicationVariants.configureEach {
-        val variant = this
-        outputs.configureEach {
-            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-            output.outputFileName = "IDEaz-${variant.versionName}-${variant.buildType.name}.apk"
-        }
-    }
-
 
     buildTypes {
         release {
@@ -103,6 +103,17 @@ configurations.all {
         }
     }
     exclude(group = "javax.inject", module = "javax.inject")
+}
+
+androidComponents.onVariants { variant ->
+    variant.outputs.forEach { output ->
+        val version = output.versionName.get()
+        // Workaround: VariantOutput interface does not expose outputFileName in this AGP version.
+        // We cast to the internal implementation to maintain the renaming feature.
+        if (output is com.android.build.api.variant.impl.VariantOutputImpl) {
+            output.outputFileName.set("IDEaz-$version-${variant.name}.apk")
+        }
+    }
 }
 
 dependencies {
