@@ -14,7 +14,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] Implement auto-discovery of local projects and external project registration (SAF + Native File Access).
     - [x] **1.2.5: Encrypted Settings Export/Import:** Allow user to save credentials to file.
 - [ ] **1.3: "Race to Build" Logic**
-    - [x] **1.3.1: Artifact Detection:** Implement logic to compare Installed SHA vs Remote Release SHA vs Repo Head SHA. (Implemented manual check for updates).
+    - [x] **1.3.1: Artifact Detection:** Implement logic to compare Installed SHA vs Remote Release SHA vs Repo Head SHA. (Implemented manual check for updates in `MainViewModel`).
     - [ ] **1.3.2: Remote Polling:** Implement loop to check GitHub Releases for new builds.
     - [ ] **1.3.3: Local Build:** Implement background build thread with lower priority.
     - [ ] **1.3.4: Cancellation:** Implement logic to cancel local build if remote wins (and vice versa).
@@ -43,7 +43,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [ ] **3.2.1: Live Logs:** Stream Logcat/Build logs to the sheet.
     - [ ] **3.2.2: Persistent Notification:** Show last 3 log lines in notification.
 - [ ] **3.3: Feedback Loops**
-    - [ ] **3.3.1: Update Popup:** "Updating, gimme a sec" dialog.
+    - [x] **3.3.1: Update Popup:** "Updating, gimme a sec" dialog. (Implemented update confirmation dialog).
     - [ ] **3.3.2: Clipboard:** Auto-copy prompt text on update.
 - [ ] **3.4: UI Refinement**
     - [x] Reorder Settings Screen (Build Config first).
@@ -55,7 +55,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [ ] **4.1.1: Session Management:** Create/Delete/Resume sessions.
     - [ ] **4.1.2: Polling:** Implement infinite polling for *activities* (not just patch).
 - [ ] **4.2: Workflow Injection (Initialization)**
-    - [x] **4.2.1: File Creation:** Generate `android_ci_jules.yml`, `codeql.yml`, `jules.yml`, `release.yml`.
+    - [x] **4.2.1: File Creation:** Generate `android_ci_jules.yml`, `codeql.yml`, `jules.yml`, `release.yml`. (Updated templates to use branch-aware tags).
     - [x] **4.2.2: Force Push:** Logic to commit and push these files on "Save & Initialize".
 - [ ] **4.3: Error Handling Loop**
     - [ ] **4.3.1: User Error:** If build fails (compilation), send log to Jules.
