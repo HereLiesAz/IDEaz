@@ -154,6 +154,9 @@ interface GitHubApi {
         @Path("owner") owner: String,
         @Path("repo") repo: String
     ): GitHubArtifactsResponse
+
+    @retrofit2.http.GET("user/repos?sort=updated&per_page=100")
+    suspend fun listRepos(): List<GitHubRepoResponse>
 }
 
 object GitHubApiClient {

@@ -427,133 +427,6 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // --- BUILD CONFIGURATION ---
-                Text("Build Configuration", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Enable Local Builds (Experimental)",
-                        modifier = Modifier.weight(1f),
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Switch(
-                        checked = isLocalBuildEnabled,
-                        onCheckedChange = { enabled ->
-                            if (enabled) {
-                                // Check if tools exist
-                                if (!ToolManager.areToolsInstalled(context)) {
-                                    showDownloadToolsDialog = true
-                                    // Toggle waits for confirmation
-                                } else {
-                                    isLocalBuildEnabled = true
-                                    settingsViewModel.setLocalBuildEnabled(true)
-                                }
-                            } else {
-                                // Disable
-                                showDeleteToolsDialog = true
-                                // Toggle waits for confirmation/dismiss of dialog
-                            }
-                        }
-                    )
-                }
-                Text(
-                    text = "Requires downloading extension (~100MB). If disabled, the app relies solely on GitHub Actions for builds.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // --- Saved Settings and Credentials ---
-                Text("Saved Settings and Credentials", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "Save all API keys, passwords, and settings to an encrypted file.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    AzButton(
-                        onClick = { exportSettingsLauncher.launch("ideaz_settings.enc") },
-                        text = "Save Settings",
-                        shape = AzButtonShape.RECTANGLE,
-                        modifier = Modifier.weight(1f).padding(end = 8.dp)
-                    )
-
-                    AzButton(
-                        onClick = { importSettingsLauncher.launch(arrayOf("application/octet-stream")) },
-                        text = "Load Settings",
-                        shape = AzButtonShape.RECTANGLE,
-                        modifier = Modifier.weight(1f).padding(start = 8.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // --- NEW: Signing Config Section ---
-                Text("Signing Configuration", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text("Current Keystore: ${File(keystorePath).name}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                AzButton(
-                    onClick = { keystorePickerLauncher.launch("*/*") },
-                    text = "Select Custom Keystore",
-                    shape = AzButtonShape.RECTANGLE,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-                AzTextBox(
-                    value = keystorePass,
-                    onValueChange = { keystorePass = it },
-                    hint = "Keystore Password",
-                    secret = true,
-                    onSubmit = { settingsViewModel.saveSigningCredentials(keystorePass, keyAlias, keyPass) }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                AzTextBox(
-                    value = keyAlias,
-                    onValueChange = { keyAlias = it },
-                    hint = "Key Alias",
-                    onSubmit = { settingsViewModel.saveSigningCredentials(keystorePass, keyAlias, keyPass) }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                AzTextBox(
-                    value = keyPass,
-                    onValueChange = { keyPass = it },
-                    hint = "Key Password",
-                    secret = true,
-                    onSubmit = {
-                        settingsViewModel.saveSigningCredentials(keystorePass, keyAlias, keyPass)
-                        Toast.makeText(context, "Signing config saved", Toast.LENGTH_SHORT).show()
-                    },
-                    submitButtonContent = { Text("Save") }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                AzButton(
-                    onClick = {
-                        settingsViewModel.clearSigningConfig()
-                        keystorePath = "Default (debug.keystore)"
-                        keystorePass = "android"
-                        keyAlias = "androiddebugkey"
-                        keyPass = "android"
-                        Toast.makeText(context, "Reset to default debug keystore", Toast.LENGTH_SHORT).show()
-                    },
-                    text = "Reset to Default",
-                    shape = AzButtonShape.NONE,
-                    modifier = Modifier.align(Alignment.End)
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
                 Text(
                     "API Keys",
                     color = MaterialTheme.colorScheme.onBackground,
@@ -588,27 +461,6 @@ fun SettingsScreen(
 
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Spacer(modifier = Modifier.height(24.dp))
-                }
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Jules Project ID", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
-                }
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    AzTextBox(
-                        modifier = Modifier.fillMaxWidth(),
-                        value = julesProjectId,
-                        onValueChange = { julesProjectId = it },
-                        hint = "Jules Project ID",
-                        onSubmit = {
-                            settingsViewModel.saveJulesProjectId(julesProjectId)
-                            Toast.makeText(context, "Jules Project ID Saved", Toast.LENGTH_SHORT).show()
-                        },
-                        submitButtonContent = { Text("Save") }
-                    )
-                }
-
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Spacer(modifier = Modifier.height(24.dp))
-
                 }
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
 
@@ -657,6 +509,25 @@ fun SettingsScreen(
                         submitButtonContent = { Text("Save") }
                     )
                 }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Google Cloud Project Number", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
+                }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    AzTextBox(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = julesProjectId,
+                        onValueChange = { julesProjectId = it },
+                        hint = "Google Cloud Project Number",
+                        onSubmit = {
+                            settingsViewModel.saveJulesProjectId(julesProjectId)
+                            Toast.makeText(context, "Project Number Saved", Toast.LENGTH_SHORT).show()
+                        },
+                        submitButtonContent = { Text("Save") }
+                    )
+                }
+
                 Row(Modifier.width(60.dp), verticalAlignment = Alignment.CenterVertically) {
                     AzButton(onClick = {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/api-keys"))
