@@ -881,7 +881,7 @@ fun AiAssignmentDropdown(
     }
 }
 
-@OptIn(ExperimentalMaterial3AI::class, ExperimentalMaterial3Api::class)
+@OptIn( ExperimentalMaterial3Api::class)
 @Composable
 fun LogLevelDropdown(
     settingsViewModel: SettingsViewModel
