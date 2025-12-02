@@ -5,13 +5,20 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.saveable.Saver
 import androidx.preference.PreferenceManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.hereliesaz.ideaz.api.AuthInterceptor
+import com.hereliesaz.ideaz.utils.SecurityUtils
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
 import java.io.File
@@ -35,6 +42,22 @@ object AiModels {
     fun findById(id: String?): AiModel? = availableModels.find { it.id == id }
 }
 
+@Serializable
+data class SettingsExport(
+    val strings: Map<String, String> = emptyMap(),
+    val booleans: Map<String, Boolean> = emptyMap(),
+    val ints: Map<String, Int> = emptyMap(),
+    val longs: Map<String, Long> = emptyMap(),
+    val floats: Map<String, Float> = emptyMap(),
+    val stringSets: Map<String, Set<String>> = emptyMap(),
+    val keystore: KeystoreData? = null
+)
+
+@Serializable
+data class KeystoreData(
+    val filename: String,
+    val contentBase64: String
+)
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -127,6 +150,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _apiKey = MutableStateFlow(getApiKey())
     val apiKey = _apiKey.asStateFlow()
 
+    private val _settingsVersion = MutableStateFlow(0)
+    val settingsVersion = _settingsVersion.asStateFlow()
+
     init {
         // Initialize AuthInterceptor with saved API key
         val savedKey = getApiKey()
@@ -192,7 +218,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     // --- API Key Save/Get ---
 
     fun saveGoogleApiKey(apiKey: String) {
-        sharedPreferences.edit().putString(KEY_GOOGLE_API_KEY, apiKey).apply()
+        sharedPreferences.edit().putString(KEY_GOOGLE_API_KEY, apiKey.trim()).apply()
     }
 
     fun getGoogleApiKey(): String? {
@@ -200,7 +226,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun saveGithubToken(token: String) {
-        sharedPreferences.edit().putString(KEY_GITHUB_TOKEN, token).apply()
+        sharedPreferences.edit().putString(KEY_GITHUB_TOKEN, token.trim()).apply()
     }
 
     fun getGithubToken(): String? {
@@ -208,7 +234,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun saveJulesProjectId(projectId: String) {
-        sharedPreferences.edit().putString(KEY_JULES_PROJECT_ID, projectId).apply()
+        sharedPreferences.edit().putString(KEY_JULES_PROJECT_ID, projectId.trim()).apply()
     }
 
     fun getJulesProjectId(): String? {
@@ -216,11 +242,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun saveApiKey(apiKey: String) {
-        sharedPreferences.edit().putString(KEY_API_KEY, apiKey).apply()
+        val trimmed = apiKey.trim()
+        sharedPreferences.edit().putString(KEY_API_KEY, trimmed).apply()
 
         // Also update the interceptor immediately
-        AuthInterceptor.apiKey = apiKey
-        _apiKey.value = apiKey
+        AuthInterceptor.apiKey = trimmed
+        _apiKey.value = trimmed
     }
 
     fun getApiKey(): String? {
@@ -289,6 +316,120 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             .apply()
     }
     // --- END NEW ---
+
+    // --- Export/Import ---
+
+    fun exportSettings(context: Context, uri: Uri, password: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val prefsMap = sharedPreferences.all
+                val strings = mutableMapOf<String, String>()
+                val booleans = mutableMapOf<String, Boolean>()
+                val ints = mutableMapOf<String, Int>()
+                val longs = mutableMapOf<String, Long>()
+                val floats = mutableMapOf<String, Float>()
+                val stringSets = mutableMapOf<String, Set<String>>()
+
+                prefsMap.forEach { (key, value) ->
+                    if (value != null) {
+                        when (value) {
+                            is String -> strings[key] = value
+                            is Boolean -> booleans[key] = value
+                            is Int -> ints[key] = value
+                            is Long -> longs[key] = value
+                            is Float -> floats[key] = value
+                            is Set<*> -> {
+                                @Suppress("UNCHECKED_CAST")
+                                stringSets[key] = value as Set<String>
+                            }
+                        }
+                    }
+                }
+
+                // Handle Keystore
+                var keystoreData: KeystoreData? = null
+                val keystorePath = getKeystorePath()
+                if (keystorePath != null) {
+                    val file = File(keystorePath)
+                    if (file.exists()) {
+                        val bytes = file.readBytes()
+                        val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                        keystoreData = KeystoreData(file.name, base64)
+                    }
+                }
+
+                val export = SettingsExport(strings, booleans, ints, longs, floats, stringSets, keystoreData)
+                val jsonString = json.encodeToString(export)
+                val encrypted = SecurityUtils.encrypt(jsonString, password)
+
+                context.contentResolver.openOutputStream(uri)?.use {
+                    it.write(encrypted.toByteArray(Charsets.UTF_8))
+                }
+
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Settings exported successfully", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Export failed", e)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    fun importSettings(context: Context, uri: Uri, password: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val encrypted = context.contentResolver.openInputStream(uri)?.use {
+                    it.readBytes().toString(Charsets.UTF_8)
+                } ?: throw Exception("Failed to read file")
+
+                val jsonString = SecurityUtils.decrypt(encrypted, password)
+                val export = json.decodeFromString<SettingsExport>(jsonString)
+
+                sharedPreferences.edit().apply {
+                    export.strings.forEach { (k, v) -> putString(k, v) }
+                    export.booleans.forEach { (k, v) -> putBoolean(k, v) }
+                    export.ints.forEach { (k, v) -> putInt(k, v) }
+                    export.longs.forEach { (k, v) -> putLong(k, v) }
+                    export.floats.forEach { (k, v) -> putFloat(k, v) }
+                    export.stringSets.forEach { (k, v) -> putStringSet(k, v) }
+                }.commit()
+
+                // Restore Keystore
+                if (export.keystore != null) {
+                    val bytes = android.util.Base64.decode(export.keystore.contentBase64, android.util.Base64.NO_WRAP)
+                    val destFile = File(context.filesDir, export.keystore.filename)
+                    FileOutputStream(destFile).use { it.write(bytes) }
+
+                    sharedPreferences.edit().putString(KEY_KEYSTORE_PATH, destFile.absolutePath).apply()
+                }
+
+                // Refresh state flows
+                withContext(Dispatchers.Main) {
+                    _apiKey.value = getApiKey()
+                    _currentAppName.value = getAppName()
+                    _targetPackageName.value = getTargetPackageName()
+                    _localProjects.value = getProjectList().toList()
+                    _logLevel.value = getLogLevel()
+
+                    val key = getApiKey()
+                    if (key != null) AuthInterceptor.apiKey = key
+
+                    _settingsVersion.value++
+
+                    Toast.makeText(context, "Settings imported successfully", Toast.LENGTH_SHORT).show()
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Import failed", e)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Import failed: ${e.message} (Wrong password?)", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
 
     // --- Target Package Name ---
 
@@ -445,4 +586,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun isRepoAdmin(): Boolean = sharedPreferences.getBoolean(KEY_REPO_IS_ADMIN, false)
     fun isBranchProtected(): Boolean = sharedPreferences.getBoolean(KEY_BRANCH_PROTECTED, false)
     fun isPrRequired(): Boolean = sharedPreferences.getBoolean(KEY_PR_REQUIRED, false)
+
+    fun getAppVersion(): String {
+        return try {
+            val pInfo = getApplication<Application>().packageManager.getPackageInfo(getApplication<Application>().packageName, 0)
+            val versionName = pInfo.versionName
+            "v$versionName"
+        } catch (e: Exception) {
+            "Unknown"
+        }
+    }
 }

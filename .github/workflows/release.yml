@@ -3,6 +3,10 @@ name: Release Build CI
 on:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
 
@@ -23,6 +27,8 @@ jobs:
 
       - name: Build with gradle
         uses: gradle/gradle-build-action@v3.1.0
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
         with:
           gradle-version: nightly
           arguments: assembleRelease
@@ -31,5 +37,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: apk-release
-          path: app/build/outputs/apk/release
+          path: app/build/outputs/apk/release/IDEaz-*.apk
 
