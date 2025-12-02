@@ -75,6 +75,9 @@ class MainViewModel(
     private val _loadingProgress = MutableStateFlow<Int?>(null)
     val loadingProgress = _loadingProgress.asStateFlow()
 
+    private val _sourcesStatus = MutableStateFlow<String?>(null)
+    val sourcesStatus = _sourcesStatus.asStateFlow()
+
     private val _isTargetAppVisible = MutableStateFlow(false)
     val isTargetAppVisible = _isTargetAppVisible.asStateFlow()
 
@@ -783,6 +786,8 @@ class MainViewModel(
                     refreshGitData()
                 } catch (e: Exception) {
                     _buildLog.value += "Force update failed: ${e.message}\n"
+                } finally {
+                    _loadingProgress.value = null
                 }
             }
         }
@@ -807,6 +812,8 @@ class MainViewModel(
                     }
                 } catch (e: Exception) {
                     _buildLog.value += "Clone failed: ${e.message}\n"
+                } finally {
+                    _loadingProgress.value = null
                 }
             }
         }
@@ -926,6 +933,9 @@ class MainViewModel(
                             git.push(settingsViewModel.getGithubUser(), settingsViewModel.getGithubToken(), ::onGitProgress)
                         }
                     } catch (e: Exception) {}
+                    finally {
+                        _loadingProgress.value = null
+                    }
                 }
                 deleteProject(projectName)
             }
@@ -992,7 +1002,9 @@ class MainViewModel(
                 if (destFile.exists()) destFile.delete()
 
                 withContext(Dispatchers.IO) {
-                    downloadFile(downloadUrl, destFile, token)
+                    downloadFile(downloadUrl, destFile, token) { progress ->
+                        _updateStatus.value = "Downloading build tools... $progress%"
+                    }
                 }
 
                 _updateStatus.value = "Installing tools..."
@@ -1020,6 +1032,9 @@ class MainViewModel(
     // --- EXPERIMENTAL UPDATE LOGIC ---
     private val _updateStatus = MutableStateFlow<String?>(null)
     val updateStatus = _updateStatus.asStateFlow()
+
+    private val _updateVersion = MutableStateFlow<String?>(null)
+    val updateVersion = _updateVersion.asStateFlow()
 
     private val _showUpdateWarning = MutableStateFlow<Boolean>(false)
     val showUpdateWarning = _showUpdateWarning.asStateFlow()
@@ -1072,12 +1087,14 @@ class MainViewModel(
                 var downloadUrl: String? = null
                 var isArtifact = false
                 var versionTime: Instant = Instant.MIN
+                var versionString: String? = null
 
                 if (latestRelease != null) {
                     val releaseTime = Instant.parse(latestRelease.publishedAt)
                     versionTime = releaseTime
                     val asset = latestRelease.assets.find { it.name.endsWith(".apk") }
                     downloadUrl = asset?.browserDownloadUrl
+                    versionString = latestRelease.tagName
                 }
 
                 if (latestArtifact != null) {
@@ -1086,6 +1103,7 @@ class MainViewModel(
                         versionTime = artifactTime
                         downloadUrl = latestArtifact.archiveDownloadUrl
                         isArtifact = true
+                        versionString = "Artifact-${latestArtifact.id}"
                     }
                 }
 
@@ -1096,12 +1114,15 @@ class MainViewModel(
                     return@launch
                 }
 
+                _updateVersion.value = versionString
                 _updateStatus.value = "Downloading update..."
                 val destFile = if (isArtifact) File(getApplication<Application>().cacheDir, "update_artifact.zip") else File(getApplication<Application>().cacheDir, "update.apk")
                 if (destFile.exists()) destFile.delete()
 
                 withContext(Dispatchers.IO) {
-                    downloadFile(downloadUrl!!, destFile, token)
+                    downloadFile(downloadUrl!!, destFile, token) { progress ->
+                        _updateStatus.value = "Downloading update... $progress%"
+                    }
                 }
 
                 var apkFile = destFile
@@ -1148,7 +1169,7 @@ class MainViewModel(
         }
     }
 
-    private fun downloadFile(url: String, destFile: File, token: String?) {
+    private fun downloadFile(url: String, destFile: File, token: String?, onProgress: (Int) -> Unit) {
         val connection = URL(url).openConnection() as HttpURLConnection
         if (!token.isNullOrBlank()) {
             connection.setRequestProperty("Authorization", "token $token")
@@ -1159,9 +1180,26 @@ class MainViewModel(
             throw Exception("HTTP Error ${connection.responseCode}")
         }
 
+        val contentLength = connection.contentLength
+        var lastProgress = 0
+
         connection.inputStream.use { input ->
             FileOutputStream(destFile).use { output ->
-                input.copyTo(output)
+                val buffer = ByteArray(8 * 1024)
+                var bytesRead = input.read(buffer)
+                var totalBytesRead = 0L
+                while (bytesRead >= 0) {
+                    output.write(buffer, 0, bytesRead)
+                    totalBytesRead += bytesRead
+                    if (contentLength > 0) {
+                        val progress = ((totalBytesRead * 100) / contentLength).toInt()
+                        if (progress > lastProgress) {
+                            lastProgress = progress
+                            onProgress(progress)
+                        }
+                    }
+                    bytesRead = input.read(buffer)
+                }
             }
         }
     }
@@ -1199,6 +1237,7 @@ class MainViewModel(
     fun fetchOwnedSources() {
         viewModelScope.launch {
             _isLoadingSources.value = true
+            _sourcesStatus.value = "Fetching from Jules..."
             try {
                 // Try Jules First
                 val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
@@ -1208,10 +1247,12 @@ class MainViewModel(
 
                 if (!response.sources.isNullOrEmpty()) {
                     _ownedSources.value = response.sources
+                    _sourcesStatus.value = null
                 } else {
                     throw Exception("Jules returned no sources")
                 }
             } catch (e: Exception) {
+                _sourcesStatus.value = "Jules failed. Fetching from GitHub..."
                 // Fallback to GitHub
                 try {
                     val token = settingsViewModel.getGithubToken()
@@ -1232,10 +1273,14 @@ class MainViewModel(
                                 )
                             )
                         }
+                        _sourcesStatus.value = null
+                    } else {
+                        _sourcesStatus.value = "GitHub Token missing. Check Settings."
                     }
                 } catch (e2: Exception) {
                     val msg = if (e2.message?.contains("401") == true) "HTTP 401: Invalid GitHub Token. Check Settings." else e2.message
                     _buildLog.value += "[ERROR] Failed to fetch sources: $msg\n"
+                    _sourcesStatus.value = "Error: $msg"
                 }
             } finally {
                 _isLoadingSources.value = false
