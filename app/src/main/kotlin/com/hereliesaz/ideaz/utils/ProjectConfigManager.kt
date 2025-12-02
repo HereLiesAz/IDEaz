@@ -70,10 +70,10 @@ object ProjectConfigManager {
     fun ensureWorkflow(context: Context, projectDir: File, type: ProjectType): Boolean {
         val workflows = when (type) {
             ProjectType.ANDROID -> listOf(
-                "project/.github/workflows/android_ci_jules.yml" to "android_ci_jules.yml",
-                "project/.github/workflows/codeql.yml" to "codeql.yml",
-                "project/.github/workflows/jules.yml" to "jules.yml",
-                "project/.github/workflows/release.yml" to "release.yml"
+                "workflows/android_ci_jules.yml" to "android_ci_jules.yml",
+                "workflows/codeql.yml" to "codeql.yml",
+                "workflows/jules.yml" to "jules.yml",
+                "workflows/release.yml" to "release.yml"
             )
             ProjectType.REACT_NATIVE -> listOf(
                 "templates/react_native/.github/workflows/react_native_ci_jules.yml" to "react_native_ci_jules.yml"
