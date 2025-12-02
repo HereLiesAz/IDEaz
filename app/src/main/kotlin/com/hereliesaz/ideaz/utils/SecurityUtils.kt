@@ -7,6 +7,8 @@ import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 import java.nio.charset.StandardCharsets
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.PBEKeySpec
 
 object SecurityUtils {
 
@@ -64,11 +66,8 @@ object SecurityUtils {
     }
 
     private fun deriveKey(password: String, salt: ByteArray): ByteArray {
-        // Simple key derivation: SHA-256 of (password + salt)
-        // In production, PBKDF2 is better, but SHA-256 is acceptable for this scope if not brute-forced easily.
-        // To keep dependencies low and standard, we use MessageDigest.
-        val digest = MessageDigest.getInstance("SHA-256")
-        digest.update(salt)
-        return digest.digest(password.toByteArray(StandardCharsets.UTF_8))
+        val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        val spec = PBEKeySpec(password.toCharArray(), salt, 65536, 256)
+        return factory.generateSecret(spec).encoded
     }
 }
