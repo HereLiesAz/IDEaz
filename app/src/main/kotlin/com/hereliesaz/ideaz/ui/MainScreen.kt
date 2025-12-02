@@ -1,6 +1,6 @@
 package com.hereliesaz.ideaz.ui
 
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -9,10 +9,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.rememberNavController
-import com.hereliesaz.ideaz.models.ProjectType
+import com.composables.core.rememberBottomSheetState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -23,20 +24,38 @@ fun MainScreen(
     onLaunchOverlay: () -> Unit
 ) {
     val navController = rememberNavController()
-    // This MainScreen is now primarily the "Dashboard" / "Home" activity.
-    // The actual IDE overlay tools are running in the Service.
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val sheetState = rememberBottomSheetState(initialDetent = Halfway)
 
-    val currentPackageName by viewModel.settingsViewModel.targetPackageName.collectAsState()
+    val isIdeVisible by viewModel.isTargetAppVisible.collectAsState()
+    val isLocalBuildEnabled = viewModel.settingsViewModel.isLocalBuildEnabled()
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-            // We reuse IdeNavHost here but only for the non-overlay screens (Settings, Project)
-            // The "IDE" logic (Rail, Console) is now in the Service.
+        Row(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+            IdeNavRail(
+                navController = navController,
+                viewModel = viewModel,
+                context = context,
+                onShowPromptPopup = { /*TODO*/ },
+                handleActionClick = { it() },
+                isIdeVisible = isIdeVisible,
+                onLaunchOverlay = onLaunchOverlay,
+                sheetState = sheetState,
+                scope = scope,
+                isLocalBuildEnabled = isLocalBuildEnabled,
+                onNavigateToMainApp = { route ->
+                    navController.navigate(route) {
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            )
             IdeNavHost(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.weight(1f),
                 navController = navController,
                 viewModel = viewModel,
                 settingsViewModel = viewModel.settingsViewModel,
