@@ -90,6 +90,9 @@ jobs:
           VERSION_NAME="$MAJOR.$MINOR.$PATCH.$BUILD_NUMBER"
           echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
 
+          TAG_NAME="latest-debug-v${MAJOR}.${MINOR}"
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+
           # Find APK
           APK_FILE=$(find downloaded_apk -name "IDEaz-*-debug.apk" | head -n 1)
           if [ -z "$APK_FILE" ]; then
@@ -121,7 +124,6 @@ jobs:
       - name: Publish Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: debug-v${{ env.VERSION_NAME }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -134,7 +136,7 @@ jobs:
           if gh release view $TAG_NAME > /dev/null 2>&1; then
              echo "Release $TAG_NAME already exists, editing..."
              gh release edit $TAG_NAME \
-               --title "Pre-release $TAG_NAME" \
+               --title "Latest Debug Build ($TAG_NAME)" \
                --notes "Debug build $TAG_NAME" \
                --target ${{ github.event.workflow_run.head_sha }} \
                --prerelease
@@ -145,7 +147,7 @@ jobs:
           else
              echo "Creating new release $TAG_NAME..."
              gh release create $TAG_NAME "$APK_FILE" \
-               --title "Pre-release $TAG_NAME" \
+               --title "Latest Debug Build ($TAG_NAME)" \
                --notes "Debug build $TAG_NAME" \
                --target ${{ github.event.workflow_run.head_sha }} \
                --prerelease
