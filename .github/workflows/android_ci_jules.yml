@@ -30,6 +30,9 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
+    # This step handles caching for Gradle User Home and local build cache.
+    # cache-read-only: false ensures that new dependencies/build artifacts
+    # are written back to the cache for future runs.
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
       with:
@@ -42,10 +45,11 @@ jobs:
       id: gradle-build
       env:
         BUILD_NUMBER: ${{ github.run_number }}
-      # capture output while still failing if build fails (but continue-on-error handles the workflow flow)
+      # capture output while still failing if build fails (continue-on-error handles the workflow flow)
       run: |
         set +e
         export BUILD_NUMBER=$(git rev-list --count HEAD)
+        # --build-cache is crucial here to utilize the cache restored by setup-gradle
         ./gradlew assembleDebug --build-cache > build.log 2>&1
         EXIT_CODE=$?
         echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
@@ -69,20 +73,16 @@ jobs:
       run: |
         MAJOR=$(grep 'major=' version.properties | cut -d'=' -f2)
         MINOR=$(grep 'minor=' version.properties | cut -d'=' -f2)
-
         # Sanitize branch name (replace / with -)
         SAFE_BRANCH_NAME=${BRANCH_NAME//\//-}
         TAG_NAME="debug-${SAFE_BRANCH_NAME}-v${MAJOR}.${MINOR}"
         echo "Using tag: $TAG_NAME"
-
         APK_FILE=$(ls app/build/outputs/apk/debug/*.apk | head -n 1)
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
         # Update the tag to point to the new commit
         git tag -fa $TAG_NAME -m "Update debug release"
         git push origin $TAG_NAME --force
-
         if gh release view $TAG_NAME > /dev/null 2>&1; then
           echo "Updating existing release..."
           gh release edit $TAG_NAME \
@@ -90,7 +90,6 @@ jobs:
             --title "Latest Debug Build ($TAG_NAME)" \
             --notes "Automatic build from commit $GITHUB_SHA" \
             --target $GITHUB_SHA
-
           gh release upload $TAG_NAME $APK_FILE --clobber
         else
           echo "Creating new release..."
@@ -115,9 +114,7 @@ jobs:
           } catch (e) {
             console.log('Error reading build.log', e);
           }
-
           const body = `Build failed on ${context.eventName === 'pull_request' ? 'PR #' + context.issue.number : context.ref}.\n\n**Log Output:**\n\`\`\`\n${logTail}\n\`\`\`\n\nJules, @google-labs-jules, please debug and fix this build failure.`;
-
           await github.rest.issues.create({
             owner: context.repo.owner,
             repo: context.repo.repo,
@@ -128,4 +125,4 @@ jobs:
 
     - name: Fail Job if Build Failed
       if: steps.gradle-build.outcome == 'failure'
-      run: exit 1   
+      run: exit 1
