@@ -256,6 +256,12 @@ class UIInspectionService : AccessibilityService() {
         }
 
         override fun onTouchEvent(event: MotionEvent): Boolean {
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                if (shouldPassThrough(event.rawX.toInt(), event.rawY.toInt())) {
+                    return false
+                }
+            }
+
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     startX = event.rawX
@@ -316,6 +322,28 @@ class UIInspectionService : AccessibilityService() {
                 }
             }
             return super.onTouchEvent(event)
+        }
+
+        private fun shouldPassThrough(x: Int, y: Int): Boolean {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                val winList = windows
+                for (window in winList) {
+                    val bounds = Rect()
+                    window.getBoundsInScreen(bounds)
+                    if (bounds.contains(x, y)) {
+                        val root = window.root
+                        if (root != null) {
+                            val pkg = root.packageName
+                            root.recycle()
+                            if (pkg == packageName || pkg == "com.android.systemui") {
+                                return true
+                            }
+                        }
+                        return false
+                    }
+                }
+            }
+            return false
         }
 
         private fun updateHighlightAt(x: Int, y: Int) {

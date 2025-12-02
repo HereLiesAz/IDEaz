@@ -37,7 +37,8 @@ fun IdeNavRail(
             packRailButtons = true,
             defaultShape = AzButtonShape.RECTANGLE,
             enableRailDragging = true,
-            onUndock = onUndock ?: { BubbleUtils.createBubbleNotification(context) },
+            onUndock = onUndock,
+            bubbleTargetActivity = com.hereliesaz.ideaz.BubbleActivity::class.java,
             headerIconShape = AzHeaderIconShape.NONE,
         )
 
