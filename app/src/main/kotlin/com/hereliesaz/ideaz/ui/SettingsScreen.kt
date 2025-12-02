@@ -79,6 +79,7 @@ fun SettingsScreen(
 
     val settingsVersion by settingsViewModel.settingsVersion.collectAsState()
     val appVersion = remember { settingsViewModel.getAppVersion() }
+    val updateVersion by viewModel.updateVersion.collectAsState()
 
     var apiKey by remember(settingsVersion) { mutableStateOf(settingsViewModel.getApiKey() ?: "") }
     var googleApiKey by remember(settingsVersion) { mutableStateOf(settingsViewModel.getGoogleApiKey() ?: "") }
@@ -190,13 +191,6 @@ fun SettingsScreen(
         contract = ActivityResultContracts.StartActivityForResult(),
         onResult = {
             Log.d(TAG, "Returned from accessibility settings")
-            refreshTrigger++
-        }
-    )
-    val usageStatsPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult(),
-        onResult = {
-            Log.d(TAG, "Returned from usage stats settings")
             refreshTrigger++
         }
     )
@@ -588,9 +582,6 @@ fun SettingsScreen(
                         else true
                     )
                 }
-                val hasUsageStats by remember(refreshTrigger) {
-                    mutableStateOf(hasUsageStatsPermission(context))
-                }
 
 
                 PermissionCheckRow(
@@ -674,18 +665,6 @@ fun SettingsScreen(
                     }
                 )
 
-                PermissionCheckRow(
-                    name = "Package Usage Stats",
-                    granted = hasUsageStats,
-                    onClick = {
-                        if (!hasUsageStats) {
-                            val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
-                            usageStatsPermissionLauncher.launch(intent)
-                        } else {
-                            Toast.makeText(context, "Permission already granted", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                )
 
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -761,7 +740,7 @@ fun SettingsScreen(
                     AlertDialog(
                         onDismissRequest = { viewModel.dismissUpdateWarning() },
                         title = { Text("Update Ready") },
-                        text = { Text("An update has been downloaded. The version might be the same as the installed one. Proceed with installation?") },
+                        text = { Text("An update ${if (updateVersion != null) "($updateVersion) " else ""}has been downloaded. The version might be the same as the installed one. Proceed with installation?") },
                         confirmButton = {
                             AzButton(onClick = { viewModel.confirmUpdate() }, text = "Install")
                         },
@@ -800,15 +779,6 @@ fun isAccessibilityServiceEnabled(context: Context, serviceName: String): Boolea
     return prefString?.contains(context.packageName + serviceName) ?: false
 }
 
-fun hasUsageStatsPermission(context: Context): Boolean {
-    val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-    val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        appOps.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName)
-    } else {
-        appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName)
-    }
-    return mode == AppOpsManager.MODE_ALLOWED
-}
 
 
 @Composable
