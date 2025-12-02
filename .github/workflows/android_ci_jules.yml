@@ -12,13 +12,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # JOB 1: BUILD THE APK
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
-      issues: write
-
+      contents: read # Read-only for build
+    outputs:
+      outcome: ${{ steps.gradle-build.outcome }}
+    
     steps:
     - uses: actions/checkout@v4
       with:
@@ -42,6 +43,7 @@ jobs:
       id: gradle-build
       env:
         BUILD_NUMBER: ${{ github.run_number }}
+      # Build and capture log, but don't fail immediately (so we can report to Jules)
       run: |
         set +e
         export BUILD_NUMBER=$(git rev-list --count HEAD)
@@ -52,62 +54,24 @@ jobs:
         exit $EXIT_CODE
       continue-on-error: true
 
-    - name: Upload Artifact to Action Summary
+    # Upload the APK so the Publish job can see it
+    - name: Upload APK Artifact
       if: steps.gradle-build.outcome == 'success'
       uses: actions/upload-artifact@v4
       with:
         name: app-debug
         path: app/build/outputs/apk/debug/*.apk
+        retention-days: 1
 
-    # Publishes/Updates the Debug Pre-Release
-    - name: Publish Debug Pre-Release
-      if: steps.gradle-build.outcome == 'success' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        BRANCH_NAME: ${{ github.ref_name }}
-      run: |
-        # 1. Extract Version Info
-        MAJOR=$(grep 'major=' version.properties | cut -d'=' -f2)
-        MINOR=$(grep 'minor=' version.properties | cut -d'=' -f2)
-        
-        # 2. Prepare Tag and File
-        SAFE_BRANCH_NAME=${BRANCH_NAME//\//-}
-        TAG_NAME="debug-${SAFE_BRANCH_NAME}-v${MAJOR}.${MINOR}"
-        APK_FILE=$(ls app/build/outputs/apk/debug/*.apk | head -n 1)
-        
-        echo "Targeting Tag: $TAG_NAME"
-        
-        # 3. Configure Git for Tagging
-        git config user.name "github-actions[bot]"
-        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+    - name: Upload Build Log (for debugging)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-log
+        path: build.log
+        retention-days: 1
 
-        # 4. Force Move Tag to Current Commit
-        # This makes the "Release" point to the code we just built
-        git tag -fa $TAG_NAME -m "Latest debug build for $SAFE_BRANCH_NAME"
-        git push origin $TAG_NAME --force
-
-        # 5. Create or Update Release Asset
-        if gh release view $TAG_NAME > /dev/null 2>&1; then
-          echo "Updating existing release metadata and assets..."
-          
-          # Update the commit pointer in GitHub Releases and the notes
-          gh release edit $TAG_NAME \
-            --prerelease \
-            --title "Debug Build ($TAG_NAME)" \
-            --notes "Automatic debug build from commit $GITHUB_SHA" \
-            --target $GITHUB_SHA
-            
-          # Upload the new APK, overwriting the old one (--clobber)
-          gh release upload $TAG_NAME $APK_FILE --clobber
-        else
-          echo "Creating new release..."
-          gh release create $TAG_NAME $APK_FILE \
-            --prerelease \
-            --title "Debug Build ($TAG_NAME)" \
-            --notes "Automatic debug build from commit $GITHUB_SHA" \
-            --target $GITHUB_SHA
-        fi
-
+    # Report failure if build failed
     - name: Report Failure to Jules
       if: steps.gradle-build.outcome == 'failure'
       uses: actions/github-script@v7
@@ -118,22 +82,79 @@ jobs:
           let logTail = 'Log file not found.';
           try {
             const log = fs.readFileSync('build.log', 'utf8');
-            logTail = log.slice(-4000); // Capture last 4000 chars
-          } catch (e) {
-            console.log('Error reading build.log', e);
-          }
+            logTail = log.slice(-4000);
+          } catch (e) { console.log(e); }
           
           const refName = context.eventName === 'pull_request' ? `PR #${context.issue.number}` : context.ref;
-          const body = `Build failed on ${refName}.\n\n**Log Output:**\n\`\`\`\n${logTail}\n\`\`\`\n\nJules, @google-labs-jules, please debug and fix this build failure.`;
           
           await github.rest.issues.create({
             owner: context.repo.owner,
             repo: context.repo.repo,
             title: `Build Failure on ${refName}`,
-            body: body,
+            body: `Build failed.\n\n**Log Output:**\n\`\`\`\n${logTail}\n\`\`\`\n\nJules, please fix.`,
             labels: ['jules']
           });
 
-    - name: Fail Job if Build Failed
+    - name: Fail Job
       if: steps.gradle-build.outcome == 'failure'
       run: exit 1
+
+  # JOB 2: PUBLISH THE RELEASE
+  publish:
+    needs: build
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required to create releases/tags
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download APK Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-debug
+          path: ./artifacts
+
+      - name: Publish Pre-Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH_NAME: ${{ github.ref_name }}
+        run: |
+          # 1. Get Version Info
+          MAJOR=$(grep 'major=' version.properties | cut -d'=' -f2)
+          MINOR=$(grep 'minor=' version.properties | cut -d'=' -f2)
+          
+          # 2. Prepare Tag Name
+          SAFE_BRANCH_NAME=${BRANCH_NAME//\//-}
+          TAG_NAME="debug-${SAFE_BRANCH_NAME}-v${MAJOR}.${MINOR}"
+          
+          # 3. Find the downloaded APK
+          APK_FILE=$(ls ./artifacts/*.apk | head -n 1)
+          echo "Found APK: $APK_FILE"
+
+          # 4. Configure Git
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # 5. Move Tag (Force Update)
+          git tag -fa $TAG_NAME -m "Latest debug build"
+          git push origin $TAG_NAME --force
+
+          # 6. Create or Update Release
+          if gh release view $TAG_NAME > /dev/null 2>&1; then
+            echo "Updating existing release..."
+            gh release edit $TAG_NAME \
+              --prerelease \
+              --title "Debug Build ($TAG_NAME)" \
+              --notes "Built from commit $GITHUB_SHA" \
+              --target $GITHUB_SHA
+            gh release upload $TAG_NAME $APK_FILE --clobber
+          else
+            echo "Creating new release..."
+            gh release create $TAG_NAME $APK_FILE \
+              --prerelease \
+              --title "Debug Build ($TAG_NAME)" \
+              --notes "Built from commit $GITHUB_SHA" \
+              --target $GITHUB_SHA
+          fi
