@@ -147,6 +147,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _targetPackageName = MutableStateFlow(getTargetPackageName())
     val targetPackageName = _targetPackageName.asStateFlow()
 
+    private val _projectType = MutableStateFlow(getProjectType())
+    val projectType = _projectType.asStateFlow()
+
     private val _apiKey = MutableStateFlow(getApiKey())
     val apiKey = _apiKey.asStateFlow()
 
@@ -584,6 +587,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setProjectType(type: String) {
         sharedPreferences.edit().putString(KEY_PROJECT_TYPE, type).apply()
+        _projectType.value = type
     }
 
     // --- Repo Permissions & Rules ---

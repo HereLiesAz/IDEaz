@@ -52,7 +52,7 @@ fun IdeBottomSheet(
         state = sheetState,
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface)
+            .background(androidx.compose.ui.graphics.Color(0xFF1E1E1E))
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
 
