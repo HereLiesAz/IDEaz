@@ -30,9 +30,7 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # This step handles caching for Gradle User Home and local build cache.
-    # cache-read-only: false ensures that new dependencies/build artifacts
-    # are written back to the cache for future runs.
+    # Enables Gradle caching and allows writing back to the cache
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
       with:
@@ -45,11 +43,11 @@ jobs:
       id: gradle-build
       env:
         BUILD_NUMBER: ${{ github.run_number }}
-      # capture output while still failing if build fails (continue-on-error handles the workflow flow)
+      # We allow the step to "fail" without stopping the workflow immediately
+      # so we can report the failure to Jules in the next step.
       run: |
         set +e
         export BUILD_NUMBER=$(git rev-list --count HEAD)
-        # --build-cache is crucial here to utilize the cache restored by setup-gradle
         ./gradlew assembleDebug --build-cache > build.log 2>&1
         EXIT_CODE=$?
         echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
@@ -57,45 +55,55 @@ jobs:
         exit $EXIT_CODE
       continue-on-error: true
 
-    - name: Upload APK
+    - name: Upload Artifact to Action Summary
       if: steps.gradle-build.outcome == 'success'
       uses: actions/upload-artifact@v4
       with:
         name: app-debug
         path: app/build/outputs/apk/debug/*.apk
 
-    # Update the release (or create it) without deleting it first to avoid downtime
-    - name: Update Release
+    # Publishes the APK to the "Releases" page as a Pre-release
+    - name: Publish Debug Pre-Release
       if: steps.gradle-build.outcome == 'success' && github.event_name == 'push'
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         BRANCH_NAME: ${{ github.ref_name }}
       run: |
+        # 1. Extract Version Info
         MAJOR=$(grep 'major=' version.properties | cut -d'=' -f2)
         MINOR=$(grep 'minor=' version.properties | cut -d'=' -f2)
-        # Sanitize branch name (replace / with -)
+        
+        # 2. Prepare Tag and File
         SAFE_BRANCH_NAME=${BRANCH_NAME//\//-}
         TAG_NAME="debug-${SAFE_BRANCH_NAME}-v${MAJOR}.${MINOR}"
-        echo "Using tag: $TAG_NAME"
         APK_FILE=$(ls app/build/outputs/apk/debug/*.apk | head -n 1)
+        
+        echo "Publishing $APK_FILE to release $TAG_NAME..."
+
+        # 3. Configure Git Identity for Tagging
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        # Update the tag to point to the new commit
-        git tag -fa $TAG_NAME -m "Update debug release"
+
+        # 4. Move the Tag to Current Commit (Rolling Release)
+        git tag -fa $TAG_NAME -m "Latest debug build for $SAFE_BRANCH_NAME"
         git push origin $TAG_NAME --force
+
+        # 5. Create or Update the Release
         if gh release view $TAG_NAME > /dev/null 2>&1; then
           echo "Updating existing release..."
           gh release edit $TAG_NAME \
             --prerelease \
-            --title "Latest Debug Build ($TAG_NAME)" \
+            --title "Debug Build ($TAG_NAME)" \
             --notes "Automatic build from commit $GITHUB_SHA" \
             --target $GITHUB_SHA
+          
+          # Upload (Clobber overwrites existing APK)
           gh release upload $TAG_NAME $APK_FILE --clobber
         else
           echo "Creating new release..."
           gh release create $TAG_NAME $APK_FILE \
             --prerelease \
-            --title "Latest Debug Build ($TAG_NAME)" \
+            --title "Debug Build ($TAG_NAME)" \
             --notes "Automatic build from commit $GITHUB_SHA" \
             --target $GITHUB_SHA
         fi
@@ -110,15 +118,18 @@ jobs:
           let logTail = 'Log file not found.';
           try {
             const log = fs.readFileSync('build.log', 'utf8');
-            logTail = log.slice(-4000); // Capture last 4000 chars
+            logTail = log.slice(-4000); // Capture last 4000 chars to fit in API limit
           } catch (e) {
             console.log('Error reading build.log', e);
           }
-          const body = `Build failed on ${context.eventName === 'pull_request' ? 'PR #' + context.issue.number : context.ref}.\n\n**Log Output:**\n\`\`\`\n${logTail}\n\`\`\`\n\nJules, @google-labs-jules, please debug and fix this build failure.`;
+          
+          const refName = context.eventName === 'pull_request' ? `PR #${context.issue.number}` : context.ref;
+          const body = `Build failed on ${refName}.\n\n**Log Output:**\n\`\`\`\n${logTail}\n\`\`\`\n\nJules, @google-labs-jules, please debug and fix this build failure.`;
+          
           await github.rest.issues.create({
             owner: context.repo.owner,
             repo: context.repo.repo,
-            title: `Build Failure on ${context.eventName === 'pull_request' ? 'PR #' + context.issue.number : context.ref}`,
+            title: `Build Failure on ${refName}`,
             body: body,
             labels: ['jules']
           });
