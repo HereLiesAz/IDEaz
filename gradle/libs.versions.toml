@@ -47,8 +47,10 @@ r8 = "8.13.17"
 soraEditor = "0.23.6"
 scalaCompiler = "3.7.4"
 smali = "2.5.2"
+robolectric = "4.14.1"
 
 [libraries]
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 smali = { module = "org.smali:smali", version.ref = "smali" }
 baksmali = { module = "org.smali:baksmali", version.ref = "smali" }
 sora-editor = { module = "io.github.Rosemoe.sora-editor:editor", version.ref = "soraEditor" }
