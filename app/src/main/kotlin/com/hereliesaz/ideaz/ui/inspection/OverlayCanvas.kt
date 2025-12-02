@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlin.math.abs
 import kotlin.math.min
+import kotlin.math.max
 
 @Composable
 fun OverlayCanvas(
@@ -33,7 +34,7 @@ fun OverlayCanvas(
             .then(
                 if (isSelectMode) {
                     Modifier
-                        .background(Color.Black.copy(alpha = 0.3f)) // Dim screen in select mode
+                        .background(Color.Black.copy(alpha = 0.3f))
                         .pointerInput(Unit) {
                             detectTapGestures { offset ->
                                 onTap(offset.x, offset.y)
@@ -50,12 +51,13 @@ fun OverlayCanvas(
                                     val start = dragStart
                                     val end = dragCurrent
                                     if (start != null && end != null) {
-                                        val left = min(start.x, end.x).toInt()
-                                        val top = min(start.y, end.y).toInt()
-                                        val right = (left + abs(start.x - end.x)).toInt()
-                                        val bottom = (top + abs(start.y - end.y)).toInt()
+                                        val left = min(start.x, end.x)
+                                        val top = min(start.y, end.y)
+                                        val right = max(start.x, end.x)
+                                        val bottom = max(start.y, end.y)
+
                                         if (abs(right - left) > 20 && abs(bottom - top) > 20) {
-                                            onDragSelection(Rect(left, top, right, bottom))
+                                            onDragSelection(Rect(left.toInt(), top.toInt(), right.toInt(), bottom.toInt()))
                                         }
                                     }
                                     dragStart = null; dragCurrent = null
@@ -79,8 +81,14 @@ fun OverlayCanvas(
         if (isSelectMode && dragStart != null && dragCurrent != null) {
             val start = dragStart!!
             val end = dragCurrent!!
-            val topLeft = Offset(min(start.x, end.x), min(start.y, end.y))
-            val size = Size(abs(start.x - end.x), abs(start.y - end.y))
+
+            val topLeftX = min(start.x, end.x)
+            val topLeftY = min(start.y, end.y)
+            val sizeX = abs(start.x - end.x)
+            val sizeY = abs(start.y - end.y)
+
+            val topLeft = Offset(topLeftX, topLeftY)
+            val size = Size(sizeX, sizeY)
 
             drawRect(color = Color.Green.copy(alpha = 0.3f), topLeft = topLeft, size = size, style = Fill)
             drawRect(color = Color.Green, topLeft = topLeft, size = size, style = Stroke(width = 5f))

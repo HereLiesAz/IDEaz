@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -80,6 +81,7 @@ fun WebRuntimeScreen(
     var errorInfo by remember { mutableStateOf<String?>(null) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     val lifecycleOwner = LocalLifecycleOwner.current
+    val context = LocalContext.current
 
     DisposableEffect(lifecycleOwner, webViewRef) {
         val observer = LifecycleEventObserver { _, event ->
@@ -129,7 +131,15 @@ fun WebRuntimeScreen(
                             }
 
                             override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
-                                Log.d("WebRuntime", "${consoleMessage?.message()} -- From line ${consoleMessage?.lineNumber()} of ${consoleMessage?.sourceId()}")
+                                val logMessage = "[WEB] ${consoleMessage?.message()} (${consoleMessage?.sourceId()}:${consoleMessage?.lineNumber()})"
+                                Log.d("WebRuntime", logMessage)
+
+                                // Broadcast log to IDE Console
+                                val intent = Intent("com.hereliesaz.ideaz.AI_LOG").apply {
+                                    putExtra("MESSAGE", logMessage)
+                                    setPackage(context.packageName)
+                                }
+                                context.sendBroadcast(intent)
                                 return true
                             }
                         }
