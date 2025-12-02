@@ -1,71 +1,70 @@
 package com.hereliesaz.ideaz.jules
 
-import com.hereliesaz.ideaz.api.*
+import kotlinx.serialization.Serializable
 import retrofit2.http.Body
-import retrofit2.http.DELETE
-import retrofit2.http.GET
 import retrofit2.http.POST
-import retrofit2.http.Path
-import retrofit2.http.Query
 
 interface JulesApi {
-    @GET("{parent}/sources")
-    suspend fun listSources(
-        @Path(value = "parent", encoded = true) parent: String,
-        @Query("pageSize") pageSize: Int? = null,
-        @Query("pageToken") pageToken: String? = null,
-        @Query("filter") filter: String? = null
-    ): ListSourcesResponse
+    @POST("generateresponse")
+    suspend fun generateResponse(
+        @Body prompt: Prompt
+    ): GenerateResponseResponse
+}
 
-    @GET("{parent}/sources/{sourceId}")
-    suspend fun getSource(
-        @Path(value = "parent", encoded = true) parent: String,
-        @Path("sourceId") sourceId: String
-    ): Source
-
-    @POST("{parent}/sessions")
-    suspend fun createSession(
-        @Path(value = "parent", encoded = true) parent: String,
-        @Body request: CreateSessionRequest
-    ): Session
-
-    @GET("{parent}/sessions")
-    suspend fun listSessions(
-        @Path(value = "parent", encoded = true) parent: String,
-        @Query("pageSize") pageSize: Int? = null,
-        @Query("pageToken") pageToken: String? = null
-    ): ListSessionsResponse
-
-    @GET("{sessionName}")
-    suspend fun getSession(
-        @Path(value = "sessionName", encoded = true) sessionName: String
-    ): Session
-
-    @POST("{sessionName}:approvePlan")
-    suspend fun approvePlan(
-        @Path(value = "sessionName", encoded = true) sessionName: String
+@Serializable
+data class Prompt(
+    val parent: String, // e.g., projects/my-project
+    val session: SessionDetails?, // nullable for initial prompt
+    val query: String,
+    val sourceContext: SourceContext? = null,
+    val history: List<Message>? = null
+) {
+    @Serializable
+    data class SourceContext(
+        val name: String,
+        val gitHubRepoContext: GitHubRepoContext
     )
 
-    @GET("{sessionName}/activities")
-    suspend fun listActivities(
-        @Path(value = "sessionName", encoded = true) sessionName: String,
-        @Query("pageSize") pageSize: Int? = null,
-        @Query("pageToken") pageToken: String? = null
-    ): ListActivitiesResponse
-
-    @GET("{activityName}")
-    suspend fun getActivity(
-        @Path(value = "activityName", encoded = true) activityName: String
-    ): Activity
-
-    @POST("{sessionName}:sendMessage")
-    suspend fun sendMessage(
-        @Path(value = "sessionName", encoded = true) sessionName: String,
-        @Body request: SendMessageRequest
-    )
-
-    @DELETE("{sessionName}")
-    suspend fun deleteSession(
-        @Path(value = "sessionName", encoded = true) sessionName: String
+    @Serializable
+    data class GitHubRepoContext(
+        val branch: String
     )
 }
+
+@Serializable
+data class SessionDetails(
+    val id: String,
+    val context: String? = null // e.g., "new-session" or a previous session context
+)
+
+@Serializable
+data class GenerateResponseResponse(
+    val message: Message,
+    val patch: Patch? = null,
+    val session: SessionDetails,
+    val activities: List<Activity>? = null
+)
+
+@Serializable
+data class Patch(
+    val actions: List<PatchAction>
+)
+
+@Serializable
+data class PatchAction(
+    val type: String, // e.g., "CREATE_FILE", "UPDATE_FILE", "DELETE_FILE"
+    val filePath: String,
+    val content: String // For CREATE_FILE and UPDATE_FILE
+)
+
+@Serializable
+data class Message(
+    val role: String, // "user" or "model"
+    val content: String
+)
+
+@Serializable
+data class Activity(
+    val name: String,
+    val description: String
+)

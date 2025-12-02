@@ -20,6 +20,12 @@ import androidx.lifecycle.viewModelScope
 import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.IBuildService
 import com.hereliesaz.ideaz.jules.JulesApiClient
+import com.hereliesaz.ideaz.jules.Prompt
+import com.hereliesaz.ideaz.jules.GenerateResponseResponse
+import com.hereliesaz.ideaz.jules.SessionDetails
+import com.hereliesaz.ideaz.jules.Message
+import com.hereliesaz.ideaz.jules.Patch
+import com.hereliesaz.ideaz.jules.Activity
 import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.services.BuildService
 import kotlinx.coroutines.Dispatchers
@@ -32,15 +38,11 @@ import com.hereliesaz.ideaz.models.SourceMapEntry
 import com.hereliesaz.ideaz.utils.SourceMapParser
 import com.hereliesaz.ideaz.services.ScreenshotService
 import com.hereliesaz.ideaz.api.GeminiApiClient
-import com.hereliesaz.ideaz.api.CreateSessionRequest
-import com.hereliesaz.ideaz.api.SourceContext
-import com.hereliesaz.ideaz.api.GitHubRepoContext
-import com.hereliesaz.ideaz.api.Source
+import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.buildlogic.HttpDependencyResolver
 import com.hereliesaz.ideaz.utils.SourceContextHelper
 import com.hereliesaz.ideaz.models.IdeazProjectConfig
 import com.hereliesaz.ideaz.models.ProjectType
-import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.api.CreateRepoRequest
 import com.hereliesaz.ideaz.utils.GithubIssueReporter
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
@@ -106,20 +108,30 @@ class MainViewModel(
 
     private var sourceMap: Map<String, SourceMapEntry> = emptyMap()
 
-    private val _ownedSources = MutableStateFlow<List<Source>>(emptyList())
-    val ownedSources = _ownedSources.asStateFlow()
+    private val _currentJulesSessionId = MutableStateFlow<String?>(null)
+    val currentJulesSessionId = _currentJulesSessionId.asStateFlow()
 
-    private val _isLoadingSources = MutableStateFlow(false)
-    val isLoadingSources = _isLoadingSources.asStateFlow()
+    private val _julesResponse = MutableStateFlow<GenerateResponseResponse?>(null)
+    val julesResponse = _julesResponse.asStateFlow()
 
-    private val _sourcesStatus = MutableStateFlow<String?>(null)
-    val sourcesStatus = _sourcesStatus.asStateFlow()
+    private val _julesHistory = MutableStateFlow<List<Message>>(emptyList())
+    val julesHistory = _julesHistory.asStateFlow()
 
-    private val _availableSessions = MutableStateFlow<List<com.hereliesaz.ideaz.api.Session>>(emptyList())
-    val availableSessions = _availableSessions.asStateFlow()
+    private val _isLoadingJulesResponse = MutableStateFlow(false)
+    val isLoadingJulesResponse = _isLoadingJulesResponse.asStateFlow()
 
-    private val _activeSessionId = MutableStateFlow<String?>(null)
-    val activeSessionId = _activeSessionId.asStateFlow()
+    private val _julesError = MutableStateFlow<String?>(null)
+    val julesError = _julesError.asStateFlow()
+
+
+
+
+
+
+
+
+
+
 
     private val _showCancelDialog = MutableStateFlow(false)
     val showCancelDialog = _showCancelDialog.asStateFlow()
@@ -227,8 +239,8 @@ class MainViewModel(
         viewModelScope.launch {
             settingsViewModel.apiKey.collect { key ->
                 if (!key.isNullOrBlank()) {
-                    fetchOwnedSources()
-                    fetchSessions()
+
+
                 }
             }
         }
@@ -436,12 +448,15 @@ class MainViewModel(
 
     private fun startContextualAITask(richPrompt: String) {
         logToOverlay("Thinking...")
+        _isLoadingJulesResponse.value = true
+        _julesError.value = null
 
         val model = getAssignedModelForTask(SettingsViewModel.KEY_AI_ASSIGNMENT_OVERLAY) ?: AiModels.JULES
         val key = settingsViewModel.getApiKey(model.requiredKey)
 
         if (key.isNullOrBlank()) {
             logToOverlay("Error: API Key missing for ${model.displayName}")
+            _isLoadingJulesResponse.value = false
             return
         }
 
@@ -453,15 +468,38 @@ class MainViewModel(
                         val user = settingsViewModel.getGithubUser() ?: "user"
                         val branch = settingsViewModel.getBranchName()
                         val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
-                        val source = "sources/github/$user/$appName"
 
-                        val request = CreateSessionRequest(
-                            prompt = richPrompt,
-                            sourceContext = SourceContext(source, GitHubRepoContext(branch))
+                        val currentSourceContext = Prompt.SourceContext(
+                            name = "sources/github/$user/$appName",
+                            gitHubRepoContext = Prompt.GitHubRepoContext(branch)
                         )
-                        val session = JulesApiClient.createSession(parent, request)
-                        logToOverlay("Session created. Waiting for patch...")
-                        pollForPatch(session.name.substringAfterLast("/"), "OVERLAY")
+
+                        val currentSessionDetails = _currentJulesSessionId.value?.let { sessionId ->
+                            SessionDetails(id = sessionId)
+                        }
+
+                        val prompt = Prompt(
+                            parent = parent,
+                            session = currentSessionDetails,
+                            query = richPrompt,
+                            sourceContext = currentSourceContext,
+                            history = _julesHistory.value.takeLast(10) // Send last 10 messages for context
+                        )
+
+                        val response = JulesApiClient.generateResponse(prompt)
+                        _julesResponse.value = response
+                        _julesHistory.value = _julesHistory.value + response.message // Add new message to history
+                        _currentJulesSessionId.value = response.session.id
+
+                        response.patch?.let { patch ->
+                            logToOverlay("Patch received. Applying...", "JULES_RESPONSE")
+                            val patchSuccess = applyPatch(patch)
+                            if (patchSuccess) {
+                                logToOverlay("Patch applied successfully.", "JULES_RESPONSE")
+                            } else {
+                                logToOverlay("Error applying patch.", "JULES_RESPONSE")
+                            }
+                        }
                     }
                     AiModels.GEMINI_FLASH -> {
                         val response = GeminiApiClient.generateContent(richPrompt, key)
@@ -470,6 +508,9 @@ class MainViewModel(
                 }
             } catch (e: Exception) {
                 logToOverlay("Error: ${e.message}")
+                _julesError.value = e.message
+            } finally {
+                _isLoadingJulesResponse.value = false
             }
         }
     }
@@ -550,6 +591,50 @@ class MainViewModel(
         if (task != lastGitTask) {
             _buildLog.value += "[GIT] $task\n"
             lastGitTask = task
+        }
+    }
+
+    private fun logToOverlay(message: String, logTarget: String) {
+        // Simple logic to decide where to log based on a target string
+        if (logTarget == "OVERLAY") {
+            logToOverlay(message)
+        } else {
+            viewModelScope.launch { _buildLog.value += "[JULES] $message\n" }
+        }
+    }
+
+    private suspend fun applyPatch(patch: Patch): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val appName = settingsViewModel.getAppName() ?: return@withContext false
+                val projectDir = settingsViewModel.getProjectPath(appName)
+
+                patch.actions.forEach { action ->
+                    val file = File(projectDir, action.filePath)
+                    when (action.type) {
+                        "CREATE_FILE" -> {
+                            file.parentFile?.mkdirs()
+                            file.writeText(action.content)
+                        }
+                        "UPDATE_FILE" -> {
+                            if (file.exists()) {
+                                file.writeText(action.content)
+                            }
+                        }
+                        "DELETE_FILE" -> {
+                            if (file.exists()) {
+                                file.delete()
+                            }
+                        }
+                    }
+                }
+                // After applying patch, refresh Git status
+                refreshGitData()
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to apply patch", e)
+                false
+            }
         }
     }
 
@@ -686,20 +771,5 @@ class MainViewModel(
     // Helpers
     private fun logPromptToHistory(p: String, i: String?) {}
     private fun getAssignedModelForTask(k: String): AiModel? = AiModels.JULES
-    private fun pollForPatch(sessionId: String, logTarget: Any) {}
 
-    fun fetchOwnedSources() {}
-    fun fetchSessions() {}
-    fun loadLastProject(c: Context) {}
-    fun requestCancelTask() { contextualTaskJob?.cancel(); _showCancelDialog.value = true }
-    fun confirmCancelTask() { contextualTaskJob?.cancel(); _showCancelDialog.value = false }
-    fun dismissCancelTask() { _showCancelDialog.value = false }
-    fun setActiveSession(id: String) {}
-    fun deleteSession(s: com.hereliesaz.ideaz.api.Session) {}
-    fun trySession(s: com.hereliesaz.ideaz.api.Session) {}
-    fun acceptSession(s: com.hereliesaz.ideaz.api.Session) {}
-    fun gitDeleteBranch(b: String) {}
-    fun getDependencies(): List<com.hereliesaz.ideaz.ui.Dependency> = emptyList()
-    fun saveDependencies(l: List<String>) {}
-    suspend fun checkForUpdates(d: com.hereliesaz.ideaz.ui.Dependency): com.hereliesaz.ideaz.ui.Dependency = d
 }

@@ -90,7 +90,7 @@ class MainActivity : ComponentActivity() {
         }
 
         viewModel.bindBuildService(this)
-        viewModel.loadLastProject(this)
+
 
         mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
 

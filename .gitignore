@@ -38,3 +38,4 @@ min-app/backup.ps1
 minapp/.kotlin/errors/errors-1763681705690.log
 minapp/kotlin-compiler-*.salive
 minapp/.idea/
+/build.log
