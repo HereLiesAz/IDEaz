@@ -6,6 +6,8 @@
 *   `build.gradle.kts`: Root Gradle build script.
 *   `settings.gradle.kts`: Gradle settings and repository configuration.
 *   `setup_env.sh`: Script to set up the development environment (Java, Android SDK).
+*   `version.properties`: Single Source of Truth for the project version.
+*   `get_version.sh`: Script to retrieve the version string for CI/CD workflows.
 
 ## app/
 *   `build.gradle.kts`: App module build script.
