@@ -153,6 +153,20 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _settingsVersion = MutableStateFlow(0)
     val settingsVersion = _settingsVersion.asStateFlow()
 
+    private val _logLevel = MutableStateFlow(LOG_LEVEL_INFO)
+    val logLevel = _logLevel.asStateFlow()
+
+    private val _themeMode = MutableStateFlow(THEME_AUTO)
+    val themeMode = _themeMode.asStateFlow()
+
+    private val preferenceChangeListener =
+        android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            when (key) {
+                KEY_THEME_MODE -> _themeMode.value = getThemeMode()
+                KEY_LOG_LEVEL -> _logLevel.value = getLogLevel()
+            }
+        }
+
     init {
         // Initialize AuthInterceptor with saved API key
         val savedKey = getApiKey()
@@ -160,10 +174,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             AuthInterceptor.apiKey = savedKey
         }
         loadLocalProjects()
+
+        _themeMode.value = getThemeMode()
+        sharedPreferences.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
     }
 
-    private val _logLevel = MutableStateFlow(LOG_LEVEL_INFO)
-    val logLevel = _logLevel.asStateFlow()
+    override fun onCleared() {
+        super.onCleared()
+        sharedPreferences.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
+    }
 
     // --- Cancel Warning ---
 
@@ -201,6 +220,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setThemeMode(mode: String) {
         sharedPreferences.edit().putString(KEY_THEME_MODE, mode).apply()
+        _themeMode.value = mode
     }
 
     // --- Log Verbosity ---

@@ -16,6 +16,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -84,6 +85,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate: Start")
 
+        intent?.getStringExtra("NAV_ROUTE")?.let {
+            viewModel.setPendingRoute(it)
+        }
+
         viewModel.bindBuildService(this)
         viewModel.loadLastProject(this)
 
@@ -91,9 +96,9 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
-            var trigger by remember { mutableStateOf(true) }
+            val themeMode by viewModel.settingsViewModel.themeMode.collectAsState()
 
-            val useDarkTheme = when (viewModel.settingsViewModel.getThemeMode()) {
+            val useDarkTheme = when (themeMode) {
                 SettingsViewModel.THEME_LIGHT -> false
                 SettingsViewModel.THEME_DARK -> true
                 SettingsViewModel.THEME_SYSTEM -> isSystemInDarkTheme()
@@ -108,7 +113,11 @@ class MainActivity : ComponentActivity() {
                         mediaProjectionManager?.createScreenCaptureIntent()
                             ?.let { screenCaptureLauncher.launch(it) }
                     },
-                    onThemeToggle = { trigger = !trigger },
+                    onThemeToggle = { isDark ->
+                        viewModel.settingsViewModel.setThemeMode(
+                            if (isDark) SettingsViewModel.THEME_DARK else SettingsViewModel.THEME_LIGHT
+                        )
+                    },
                     onLaunchOverlay = {
                         // Trigger the Service to show the Bubble Notification
                         // Note: The Accessibility Service must be enabled in settings for this to work fully.
@@ -151,5 +160,12 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         viewModel.unbindBuildService(this)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        intent.getStringExtra("NAV_ROUTE")?.let {
+            viewModel.setPendingRoute(it)
+        }
     }
 }
