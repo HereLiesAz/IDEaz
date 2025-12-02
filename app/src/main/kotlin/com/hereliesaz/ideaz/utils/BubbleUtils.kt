@@ -52,22 +52,24 @@ object BubbleUtils {
             .setLongLabel("IDEaz Overlay")
             .setShortLabel("IDEaz")
             .setIcon(icon)
-            .setIntent(target.setAction(Intent.ACTION_MAIN))
+            .setIntent(Intent(context, MainActivity::class.java).setAction(Intent.ACTION_MAIN))
             .setPerson(person)
+            .setAlwaysBadged()
             .build()
 
         ShortcutManagerCompat.pushDynamicShortcut(context, shortcut)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle("IDEaz Overlay")
-            .setContentText("Tap to open IDE")
             .setSmallIcon(R.mipmap.ic_launcher)
             .setBubbleMetadata(bubbleData)
             .setShortcutId(SHORTCUT_ID)
             .addPerson(person)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setStyle(NotificationCompat.MessagingStyle(person)
-                .setConversationTitle("IDEaz"))
+                .setConversationTitle("IDEaz")
+                .addMessage("Tap to open IDE", System.currentTimeMillis(), person)
+            )
 
         val notificationManager = NotificationManagerCompat.from(context)
         try {
