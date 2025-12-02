@@ -64,8 +64,12 @@ jobs:
       if: steps.gradle-build.outcome == 'success' && github.event_name == 'push'
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        TAG_NAME: latest-debug
       run: |
+        MAJOR=$(grep 'val major =' app/build.gradle.kts | awk '{print $4}')
+        MINOR=$(grep 'val minor =' app/build.gradle.kts | awk '{print $4}')
+        TAG_NAME="latest-debug-v${MAJOR}.${MINOR}"
+        echo "Using tag: $TAG_NAME"
+
         APK_FILE=$(ls app/build/outputs/apk/debug/IDEaz-*-debug.apk | head -n 1)
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -78,7 +82,7 @@ jobs:
           echo "Updating existing release..."
           gh release edit $TAG_NAME \
             --prerelease \
-            --title "Latest Debug Build" \
+            --title "Latest Debug Build ($TAG_NAME)" \
             --notes "Automatic build from commit $GITHUB_SHA" \
             --target $GITHUB_SHA
 
@@ -87,7 +91,7 @@ jobs:
           echo "Creating new release..."
           gh release create $TAG_NAME $APK_FILE \
             --prerelease \
-            --title "Latest Debug Build" \
+            --title "Latest Debug Build ($TAG_NAME)" \
             --notes "Automatic build from commit $GITHUB_SHA" \
             --target $GITHUB_SHA
         fi
