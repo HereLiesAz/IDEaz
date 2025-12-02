@@ -75,6 +75,9 @@ class MainViewModel(
     private val _loadingProgress = MutableStateFlow<Int?>(null)
     val loadingProgress = _loadingProgress.asStateFlow()
 
+    private val _sourcesStatus = MutableStateFlow<String?>(null)
+    val sourcesStatus = _sourcesStatus.asStateFlow()
+
     private val _isTargetAppVisible = MutableStateFlow(false)
     val isTargetAppVisible = _isTargetAppVisible.asStateFlow()
 
@@ -786,6 +789,8 @@ class MainViewModel(
                     refreshGitData()
                 } catch (e: Exception) {
                     _buildLog.value += "Force update failed: ${e.message}\n"
+                } finally {
+                    _loadingProgress.value = null
                 }
             }
         }
@@ -810,6 +815,8 @@ class MainViewModel(
                     }
                 } catch (e: Exception) {
                     _buildLog.value += "Clone failed: ${e.message}\n"
+                } finally {
+                    _loadingProgress.value = null
                 }
             }
         }
@@ -929,6 +936,9 @@ class MainViewModel(
                             git.push(settingsViewModel.getGithubUser(), settingsViewModel.getGithubToken(), ::onGitProgress)
                         }
                     } catch (e: Exception) {}
+                    finally {
+                        _loadingProgress.value = null
+                    }
                 }
                 deleteProject(projectName)
             }
