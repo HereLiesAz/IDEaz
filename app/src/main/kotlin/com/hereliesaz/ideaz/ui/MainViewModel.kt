@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.ui
 
+import com.hereliesaz.ideaz.ui.web.WebRuntimeActivity
 import android.app.Activity as AndroidActivity
 import android.content.ComponentName
 import android.content.Context
@@ -373,6 +374,32 @@ class MainViewModel(
 
     // --- NEW: Launch Target App ---
     fun launchTargetApp(context: Context) {
+        val typeStr = settingsViewModel.getProjectType()
+        val type = ProjectType.fromString(typeStr)
+
+        if (type == ProjectType.WEB) {
+            val appName = settingsViewModel.getAppName() ?: return
+            val indexFile = File(getApplication<Application>().filesDir, "web_dist/index.html")
+
+            if (indexFile.exists()) {
+                try {
+                    val intent = Intent(context, WebRuntimeActivity::class.java).apply {
+                        putExtra("URL", indexFile.toURI().toString())
+                        putExtra("TIMESTAMP", System.currentTimeMillis())
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(intent)
+                    _isTargetAppVisible.value = true
+                    logToOverlay("Launching Web Project...")
+                } catch (e: Exception) {
+                    logToOverlay("Error launching Web Project: ${e.message}")
+                }
+            } else {
+                logToOverlay("Error: web_dist/index.html not found. Please build first.")
+            }
+            return
+        }
+
         val packageName = settingsViewModel.getTargetPackageName() ?: return
         try {
             val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)

@@ -308,14 +308,17 @@ fun ProjectScreen(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        AzTextBox(
-                            value = packageName,
-                            onValueChange = { packageName = it },
-                            hint = "Package Name",
-                            onSubmit = {}
-                        )
+                        if (selectedType == ProjectType.ANDROID || selectedType == ProjectType.REACT_NATIVE || selectedType == ProjectType.FLUTTER) {
+                            AzTextBox(
+                                value = packageName,
+                                onValueChange = { packageName = it },
+                                hint = "Package Name",
+                                onSubmit = {}
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("Private Repository")
@@ -441,16 +444,18 @@ fun ProjectScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        AzTextBox(
-                            value = packageName,
-                            onValueChange = {
-                                packageName = it
-                                settingsViewModel.saveTargetPackageName(it)
-                            },
-                            hint = "Package Name",
-                            onSubmit = {}
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
+                        if (selectedType == ProjectType.ANDROID || selectedType == ProjectType.REACT_NATIVE || selectedType == ProjectType.FLUTTER) {
+                            AzTextBox(
+                                value = packageName,
+                                onValueChange = {
+                                    packageName = it
+                                    settingsViewModel.saveTargetPackageName(it)
+                                },
+                                hint = "Package Name",
+                                onSubmit = {}
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
 
                         var expanded by remember { mutableStateOf(false) }
                         val projectTypes = ProjectType.values().toList()
