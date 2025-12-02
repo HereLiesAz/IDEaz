@@ -9,15 +9,28 @@ android {
     namespace = "com.hereliesaz.ideaz"
     compileSdk = 36
 
+    val major = 1
+    val minor = 0
+    val patch = 1
+    val buildNumber = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
+
     defaultConfig {
         applicationId = "com.hereliesaz.ideaz"
         minSdk = 30
 
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = major * 1000000 + minor * 10000 + patch * 100 + buildNumber
+        versionName = "$major.$minor.$patch.$buildNumber"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    applicationVariants.configureEach {
+        val variant = this
+        outputs.configureEach {
+            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            output.outputFileName = "IDEaz-${variant.versionName}.apk"
+        }
     }
 
 
