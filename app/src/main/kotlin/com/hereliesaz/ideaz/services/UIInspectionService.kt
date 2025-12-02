@@ -37,22 +37,12 @@ class UIInspectionService : AccessibilityService() {
     private val CHANNEL_ID = "ideaz_bubble_channel"
     private val NOTIFICATION_ID = 1001
 
-    private var windowManager: WindowManager? = null
-    private var selectionOverlayView: SelectionView? = null
-    private var isOverlaySetup = false
-
-    // Guard flag to prevent WindowManager calls before onServiceConnected
+    // Guard flag to prevent calls before onServiceConnected
     private var isConnected = false
-
-    // State
-    private var isSelectMode = false
-    private var currentHighlightRect: Rect? = null
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "UIInspectionService.onCreate - DIAGNOSTIC LOG - v3")
-        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-
+        Log.d(TAG, "UIInspectionService.onCreate")
         registerBroadcastReceivers()
         createBubbleChannel()
     }
@@ -64,22 +54,10 @@ class UIInspectionService : AccessibilityService() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             showBubbleNotification()
         }
-
-        // If we were supposed to be in select mode (e.g. from saved state), restore it now
-        if (isSelectMode) {
-            toggleSelectionMode(true)
-        }
     }
 
     override fun onDestroy() {
         isConnected = false
-        if (selectionOverlayView != null && isOverlaySetup) {
-            try {
-                windowManager?.removeView(selectionOverlayView)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error removing overlay view", e)
-            }
-        }
         try {
             unregisterReceiver(commandReceiver)
         } catch (e: Exception) {
@@ -137,69 +115,42 @@ class UIInspectionService : AccessibilityService() {
         getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, builder.build())
     }
 
-    // --- 2. Selection Overlay Logic (Red Box) ---
-
-    private fun setupSelectionOverlay() {
-        // Critical Fix: Do not attempt to add window if service is not fully connected or already setup
-        if (isOverlaySetup || !isConnected) return
-
-        selectionOverlayView = SelectionView(this)
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            PixelFormat.TRANSLUCENT
-        )
-        selectionOverlayView?.visibility = View.GONE
-        try {
-            windowManager?.addView(selectionOverlayView, params)
-            isOverlaySetup = true
-        } catch (e: WindowManager.BadTokenException) {
-            Log.e(TAG, "Failed to add window: BadTokenException. Is Activity/Service running?", e)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to add window", e)
-        }
-    }
-
-    private fun toggleSelectionMode(enabled: Boolean) {
-        if (enabled) {
-            if (!isOverlaySetup) {
-                setupSelectionOverlay()
-            }
-            // Double check setup success before setting visibility
-            if (isOverlaySetup) {
-                selectionOverlayView?.visibility = View.VISIBLE
-                isSelectMode = true
-            }
-        } else {
-            isSelectMode = false
-            if (isOverlaySetup) {
-                selectionOverlayView?.visibility = View.GONE
-            }
-        }
-    }
+    // --- 2. Node Detection ---
 
     private val commandReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            when (intent?.action) {
-                "com.hereliesaz.ideaz.START_INSPECTION" -> toggleSelectionMode(true)
-                "com.hereliesaz.ideaz.STOP_INSPECTION" -> toggleSelectionMode(false)
-                "com.hereliesaz.ideaz.RESTORE_OVERLAYS" -> toggleSelectionMode(false)
+            if (intent?.action == "com.hereliesaz.ideaz.INSPECT_AT_COORDINATES") {
+                val x = intent.getIntExtra("X", -1)
+                val y = intent.getIntExtra("Y", -1)
+                if (x != -1 && y != -1) {
+                    inspectAt(x, y)
+                }
             }
         }
     }
 
     private fun registerBroadcastReceivers() {
-        val filter = IntentFilter().apply {
-            addAction("com.hereliesaz.ideaz.START_INSPECTION")
-            addAction("com.hereliesaz.ideaz.STOP_INSPECTION")
-            addAction("com.hereliesaz.ideaz.RESTORE_OVERLAYS")
-        }
+        val filter = IntentFilter("com.hereliesaz.ideaz.INSPECT_AT_COORDINATES")
         ContextCompat.registerReceiver(this, commandReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
     }
 
-    // --- Node / Rect Detection ---
+    private fun inspectAt(x: Int, y: Int) {
+        val root = rootInActiveWindow
+        val node = findNodeAt(root, x, y)
+        if (node != null) {
+            val rect = Rect()
+            node.getBoundsInScreen(rect)
+            val id = node.viewIdResourceName?.substringAfterLast(":id/") ?: node.text?.toString()?.take(20) ?: "Unknown"
+
+            val intent = Intent("com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE")
+                .putExtra("RESOURCE_ID", id)
+                .putExtra("BOUNDS", rect)
+                .setPackage(packageName)
+
+            sendBroadcast(intent)
+        }
+    }
+
     private fun findNodeAt(root: AccessibilityNodeInfo?, x: Int, y: Int): AccessibilityNodeInfo? {
         if (root == null) return null
         val rect = Rect()
@@ -211,157 +162,5 @@ class UIInspectionService : AccessibilityService() {
             if (child != null) return child
         }
         return root
-    }
-
-    // --- Custom View ---
-    private inner class SelectionView(context: Context) : View(context) {
-        private val paint = Paint().apply {
-            color = 0x5500FF00 // Translucent Green
-            style = Paint.Style.FILL
-        }
-        private val border = Paint().apply {
-            color = 0xFF00FF00.toInt()
-            style = Paint.Style.STROKE
-            strokeWidth = 6f
-        }
-
-        private var startX = 0f
-        private var startY = 0f
-        private var endX = 0f
-        private var endY = 0f
-        private var isDragging = false
-        private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
-
-        override fun onDraw(canvas: Canvas) {
-            canvas.drawColor(0, PorterDuff.Mode.CLEAR)
-            if (isDragging) {
-                val rect = getRect()
-                canvas.drawRect(rect, paint)
-                canvas.drawRect(rect, border)
-            } else {
-                currentHighlightRect?.let { rect ->
-                    canvas.drawRect(rect, paint)
-                    canvas.drawRect(rect, border)
-                }
-            }
-        }
-
-        private fun getRect(): Rect {
-            return Rect(
-                min(startX, endX).toInt(),
-                min(startY, endY).toInt(),
-                max(startX, endX).toInt(),
-                max(startY, endY).toInt()
-            )
-        }
-
-        override fun onTouchEvent(event: MotionEvent): Boolean {
-            if (event.action == MotionEvent.ACTION_DOWN) {
-                if (shouldPassThrough(event.rawX.toInt(), event.rawY.toInt())) {
-                    return false
-                }
-            }
-
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    startX = event.rawX
-                    startY = event.rawY
-                    endX = startX
-                    endY = startY
-                    isDragging = false
-                    updateHighlightAt(startX.toInt(), startY.toInt())
-                    return true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    if (!isDragging && (abs(event.rawX - startX) > touchSlop || abs(event.rawY - startY) > touchSlop)) {
-                        isDragging = true
-                        currentHighlightRect = null // Clear tap highlight when dragging starts
-                    }
-                    if (isDragging) {
-                        endX = event.rawX
-                        endY = event.rawY
-                        invalidate()
-                    } else {
-                        updateHighlightAt(event.rawX.toInt(), event.rawY.toInt())
-                    }
-                    return true
-                }
-                MotionEvent.ACTION_UP -> {
-                    if (isDragging) {
-                        // Drag Finished
-                        val rect = getRect()
-                        isDragging = false
-                        invalidate()
-                        if (rect.width() > 20 && rect.height() > 20) {
-                            sendBroadcast(Intent("com.hereliesaz.ideaz.PROMPT_SUBMITTED_RECT").putExtra("RECT", rect).setPackage(packageName))
-                            // Keep overlay visible for screenshot
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                                showBubbleNotification()
-                            }
-                        }
-                    } else {
-                        // Tap Finished
-                        val root = rootInActiveWindow
-                        val node = findNodeAt(root, startX.toInt(), startY.toInt())
-                        if (node != null) {
-                            val rect = Rect()
-                            node.getBoundsInScreen(rect)
-                            currentHighlightRect = rect // Ensure it's drawn
-                            invalidate()
-
-                            val id = node.viewIdResourceName?.substringAfterLast(":id/") ?: node.text?.toString()?.take(20) ?: "Unknown"
-
-                            sendBroadcast(Intent("com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE").putExtra("RESOURCE_ID", id).putExtra("BOUNDS", rect).setPackage(packageName))
-                            // Keep overlay visible for screenshot
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                                showBubbleNotification()
-                            }
-                        }
-                    }
-                    return true
-                }
-            }
-            return super.onTouchEvent(event)
-        }
-
-        private fun shouldPassThrough(x: Int, y: Int): Boolean {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                val winList = windows
-                for (window in winList) {
-                    val bounds = Rect()
-                    window.getBoundsInScreen(bounds)
-                    if (bounds.contains(x, y)) {
-                        val root = window.root
-                        if (root != null) {
-                            val pkg = root.packageName
-                            root.recycle()
-                            if (pkg == packageName || pkg == "com.android.systemui") {
-                                return true
-                            }
-                        }
-                        return false
-                    }
-                }
-            }
-            return false
-        }
-
-        private fun updateHighlightAt(x: Int, y: Int) {
-            val root = rootInActiveWindow
-            val node = findNodeAt(root, x, y)
-            if (node != null) {
-                val rect = Rect()
-                node.getBoundsInScreen(rect)
-                if (currentHighlightRect != rect) {
-                    currentHighlightRect = rect
-                    invalidate()
-                }
-            } else {
-                if (currentHighlightRect != null) {
-                    currentHighlightRect = null
-                    invalidate()
-                }
-            }
-        }
     }
 }

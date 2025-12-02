@@ -77,8 +77,9 @@ fun MainScreen(
     )
 
     // --- Visibility Logic ---
-    // Dashboard is visible unless we are hidden by target app
-    val isDashboardVisible = !isTargetAppVisible
+    val isSelectMode by viewModel.isSelectMode.collectAsState()
+    // Dashboard is visible if NOT in select mode (and not hidden by target app signal which is deprecated/handled by select mode)
+    val isDashboardVisible = !isSelectMode
     val isBottomSheetVisible = currentRoute == "main" || currentRoute == "build"
 
     // Auto-expand sheet when navigating to Build screen (Dashboard view)
@@ -126,57 +127,66 @@ fun MainScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = if (isTargetAppVisible) Color.Transparent else MaterialTheme.colorScheme.background,
+        containerColor = if (isSelectMode) Color.Transparent else MaterialTheme.colorScheme.background,
     ) { innerPadding ->
 
-        Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                IdeNavRail(
-                    navController = navController,
-                    viewModel = viewModel,
-                    context = context,
-                    onShowPromptPopup = { showPromptPopup = true },
-                    handleActionClick = handleActionClick,
-                    isIdeVisible = isDashboardVisible,
-                    onLaunchOverlay = {
-                        if (!viewModel.hasScreenCapturePermission()) {
-                            viewModel.requestScreenCapturePermission()
-                        } else {
-                            onLaunchOverlay()
-                        }
-                    },
-                    sheetState = sheetState,
-                    scope = scope,
-                    onUndock = { BubbleUtils.createBubbleNotification(context) },
-                    isLocalBuildEnabled = isLocalBuildEnabled // PASSING THE FLAG
-                )
+        Box(modifier = Modifier.fillMaxSize()) {
 
-                AnimatedVisibility(
-                    visible = isDashboardVisible,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    IdeNavHost(
-                        modifier = Modifier.fillMaxSize(),
-                        navController = navController,
-                        viewModel = viewModel,
-                        settingsViewModel = viewModel.settingsViewModel,
-                        onThemeToggle = onThemeToggle
-                    )
-                }
+            // Selection Overlay (Behind Rail, Above Transparent Background)
+            // Placed outside padding to ensure global coordinates match screen coordinates
+            if (isSelectMode) {
+                SelectionOverlay(
+                    modifier = Modifier.fillMaxSize(),
+                    onTap = { x, y -> viewModel.handleOverlayTap(x, y) },
+                    onDragEnd = { rect -> viewModel.handleOverlayDragEnd(rect) }
+                )
             }
 
-            // Dashboard Console (Separate from Overlay Console)
-            if (isBottomSheetVisible && isDashboardVisible) {
-                IdeBottomSheet(
-                    sheetState = sheetState,
-                    viewModel = viewModel,
-                    peekDetent = Peek,
-                    halfwayDetent = Halfway,
-                    screenHeight = screenHeight,
-                    onSendPrompt = { viewModel.sendPrompt(it) }
-                )
+            Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+                Row(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    IdeNavRail(
+                        navController = navController,
+                        viewModel = viewModel,
+                        context = context,
+                        onShowPromptPopup = { showPromptPopup = true },
+                        handleActionClick = handleActionClick,
+                        isIdeVisible = isDashboardVisible,
+                        onLaunchOverlay = {
+                            viewModel.toggleSelectMode(!isSelectMode)
+                        },
+                        sheetState = sheetState,
+                        scope = scope,
+                        onUndock = { BubbleUtils.createBubbleNotification(context) },
+                        isLocalBuildEnabled = isLocalBuildEnabled // PASSING THE FLAG
+                    )
+
+                    AnimatedVisibility(
+                        visible = isDashboardVisible,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        IdeNavHost(
+                            modifier = Modifier.fillMaxSize(),
+                            navController = navController,
+                            viewModel = viewModel,
+                            settingsViewModel = viewModel.settingsViewModel,
+                            onThemeToggle = onThemeToggle
+                        )
+                    }
+                }
+
+                // Dashboard Console (Separate from Overlay Console)
+                if (isBottomSheetVisible && isDashboardVisible) {
+                    IdeBottomSheet(
+                        sheetState = sheetState,
+                        viewModel = viewModel,
+                        peekDetent = Peek,
+                        halfwayDetent = Halfway,
+                        screenHeight = screenHeight,
+                        onSendPrompt = { viewModel.sendPrompt(it) }
+                    )
+                }
             }
         }
     }
