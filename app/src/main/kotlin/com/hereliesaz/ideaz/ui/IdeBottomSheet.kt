@@ -66,7 +66,11 @@ fun IdeBottomSheet(
                             .padding(horizontal = 16.dp)
                     ) {
                         items(logMessages) { message ->
-                            Text(text = message, style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                text = message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = androidx.compose.ui.graphics.Color.White
+                            )
                         }
                     }
 

@@ -78,6 +78,17 @@ class MainViewModel(
     private val _isTargetAppVisible = MutableStateFlow(false)
     val isTargetAppVisible = _isTargetAppVisible.asStateFlow()
 
+    private val _pendingRoute = MutableStateFlow<String?>(null)
+    val pendingRoute = _pendingRoute.asStateFlow()
+
+    fun setPendingRoute(route: String?) {
+        _pendingRoute.value = route
+        if (route != null) {
+            // Ensure UI is visible (exit select/bubble mode logic state)
+            _isSelectMode.value = false
+        }
+    }
+
     private val gitMutex = Mutex()
     private var lastGitTask = ""
 

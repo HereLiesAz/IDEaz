@@ -4,11 +4,13 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,7 +40,17 @@ class BubbleActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            IDEazTheme {
+            val themeMode by viewModel.settingsViewModel.themeMode.collectAsState()
+
+            val useDarkTheme = when (themeMode) {
+                SettingsViewModel.THEME_LIGHT -> false
+                SettingsViewModel.THEME_DARK -> true
+                SettingsViewModel.THEME_SYSTEM -> isSystemInDarkTheme()
+                SettingsViewModel.THEME_AUTO -> !isSystemInDarkTheme() // Opposite for Overlay
+                else -> !isSystemInDarkTheme()
+            }
+
+            IDEazTheme(darkTheme = useDarkTheme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -86,7 +98,15 @@ fun BubbleScreen(
             initiallyExpanded = true,
             onUndock = onUndock,
             isLocalBuildEnabled = isLocalBuildEnabled,
-            isBubbleMode = true
+            isBubbleMode = true,
+            onNavigateToMainApp = { route ->
+                val intent = android.content.Intent(context, MainActivity::class.java).apply {
+                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                    putExtra("NAV_ROUTE", route)
+                }
+                context.startActivity(intent)
+                onUndock()
+            }
         )
 
         IdeNavHost(
