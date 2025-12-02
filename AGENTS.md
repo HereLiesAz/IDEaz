@@ -7,7 +7,8 @@ Before committing ANY changes, you **MUST** strictly adhere to the following wor
 1.  **Code Review:** You must request and receive a complete code review.
 2.  **Verify Build & Tests:** You must run a full build and ensure all tests pass. Use `./gradlew build` and `./gradlew testDebugUnitTest`.
 3.  **Update Documentation:** You must update ALL relevant documentation to reflect your changes. This includes `TODO.md`, `file_descriptions.md`, and any other specific docs.
-4.  **Commit:** Only AFTER steps 1-3 are successfully completed may you commit your changes.
+4.  **Update version:** Follow the versioning strategy below.
+5.  **Commit:** Only AFTER steps 1-4 are successfully completed may you commit your changes.
 
 ## Versioning Strategy
 
