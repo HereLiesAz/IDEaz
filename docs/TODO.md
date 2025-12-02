@@ -73,3 +73,5 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 ## Phase 6: Maintenance
 - [ ] Keep `docs/` up to date.
 - [ ] Monitor GitHub Issues reported by the IDE.
+- [x] Migrate to `androidComponents` API in `build.gradle.kts`.
+- [x] Security Hardening: Implement PBKDF2 for key derivation.

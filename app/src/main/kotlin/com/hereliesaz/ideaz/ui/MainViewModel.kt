@@ -1147,7 +1147,7 @@ class MainViewModel(
                 val response = withContext(Dispatchers.IO) { JulesApiClient.listSessions(parent) }
                 _availableSessions.value = response.sessions ?: emptyList()
             } catch (e: Exception) {
-                // Ignore
+                Log.d(TAG, "Failed to fetch sessions, ignoring.", e)
             }
         }
     }

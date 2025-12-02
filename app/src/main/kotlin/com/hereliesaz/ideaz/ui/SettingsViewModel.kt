@@ -395,7 +395,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     export.longs.forEach { (k, v) -> putLong(k, v) }
                     export.floats.forEach { (k, v) -> putFloat(k, v) }
                     export.stringSets.forEach { (k, v) -> putStringSet(k, v) }
-                }.commit()
+                }.apply()
 
                 // Restore Keystore
                 if (export.keystore != null) {
