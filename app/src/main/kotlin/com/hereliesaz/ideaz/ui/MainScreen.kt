@@ -44,6 +44,15 @@ fun MainScreen(
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
 
+    val pendingRoute by viewModel.pendingRoute.collectAsState()
+
+    LaunchedEffect(pendingRoute) {
+        pendingRoute?.let {
+            navController.navigate(it)
+            viewModel.setPendingRoute(null)
+        }
+    }
+
     val showCancelDialog by viewModel.showCancelDialog.collectAsState()
     val isTargetAppVisible by viewModel.isTargetAppVisible.collectAsState()
 

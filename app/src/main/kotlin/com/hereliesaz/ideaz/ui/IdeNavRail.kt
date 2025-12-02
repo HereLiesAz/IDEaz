@@ -30,7 +30,8 @@ fun IdeNavRail(
     onUndock: (() -> Unit)? = null,
     enableRailDraggingOverride: Boolean? = null,
     isLocalBuildEnabled: Boolean = false, // NEW PARAMETER
-    isBubbleMode: Boolean = false
+    isBubbleMode: Boolean = false,
+    onNavigateToMainApp: (String) -> Unit = { navController.navigate(it) }
 ) {
     AzNavRail(
         navController = navController,
@@ -46,7 +47,7 @@ fun IdeNavRail(
         )
 
         // 1. Project
-        azRailItem(id = "project_settings", text = "Project", onClick = { navController.navigate("project_settings") })
+        azRailItem(id = "project_settings", text = "Project", onClick = { onNavigateToMainApp("project_settings") })
 
         // 2. Git
         azMenuItem(id = "git",  text = "Git", onClick = { navController.navigate("git") })
@@ -98,6 +99,6 @@ fun IdeNavRail(
         azMenuItem(id = "file_explorer",  text = "Files", onClick = { navController.navigate("file_explorer") })
 
         // 6. Settings
-        azRailItem(id = "settings", text = "Settings", onClick = { navController.navigate("settings") })
+        azRailItem(id = "settings", text = "Settings", onClick = { onNavigateToMainApp("settings") })
     }
 }
