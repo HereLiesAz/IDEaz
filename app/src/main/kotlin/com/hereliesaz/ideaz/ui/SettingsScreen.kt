@@ -104,7 +104,7 @@ fun SettingsScreen(
     var keyAlias by remember(settingsVersion) { mutableStateOf(settingsViewModel.getKeyAlias()) }
     var keyPass by remember(settingsVersion) { mutableStateOf(settingsViewModel.getKeyPass()) }
 
-    // --- Export/Import State ---
+    // --- Export/Import State (Encrypted) ---
     var showExportPasswordDialog by remember { mutableStateOf(false) }
     var showImportPasswordDialog by remember { mutableStateOf(false) }
     var exportUri by remember { mutableStateOf<Uri?>(null) }
