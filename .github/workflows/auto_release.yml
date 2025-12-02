@@ -119,24 +119,27 @@ jobs:
           git tag -fa $TAG_NAME -m "Release $TAG_NAME"
           git push origin $TAG_NAME --force
 
-          FILES="$APK_FILE"
-
-          # Check for build tools
-          if [ -f "build-tools.zip" ]; then
-             FILES="$FILES build-tools.zip"
-          fi
+          BUILD_TOOLS_FILE="build-tools.zip"
 
           if gh release view $TAG_NAME > /dev/null 2>&1; then
+             echo "Release $TAG_NAME already exists, editing..."
              gh release edit $TAG_NAME \
                --title "Pre-release $TAG_NAME" \
                --notes "Debug build $TAG_NAME" \
                --target ${{ github.event.workflow_run.head_sha }} \
                --prerelease
-             gh release upload $TAG_NAME $FILES --clobber
+             gh release upload $TAG_NAME "$APK_FILE" --clobber
+             if [ -f "$BUILD_TOOLS_FILE" ]; then
+                gh release upload $TAG_NAME "$BUILD_TOOLS_FILE" --clobber
+             fi
           else
-             gh release create $TAG_NAME $FILES \
+             echo "Creating new release $TAG_NAME..."
+             gh release create $TAG_NAME "$APK_FILE" \
                --title "Pre-release $TAG_NAME" \
                --notes "Debug build $TAG_NAME" \
                --target ${{ github.event.workflow_run.head_sha }} \
                --prerelease
+             if [ -f "$BUILD_TOOLS_FILE" ]; then
+                gh release upload $TAG_NAME "$BUILD_TOOLS_FILE" --clobber
+             fi
           fi
