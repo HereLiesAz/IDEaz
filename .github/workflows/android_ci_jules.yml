@@ -58,7 +58,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: app-debug
-        path: app/build/outputs/apk/debug/IDEaz-*-debug.apk
+        path: app/build/outputs/apk/debug/*.apk
 
     # Update the release (or create it) without deleting it first to avoid downtime
     - name: Update Release
@@ -66,12 +66,12 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        MAJOR=$(grep 'val major =' app/build.gradle.kts | awk '{print $4}')
-        MINOR=$(grep 'val minor =' app/build.gradle.kts | awk '{print $4}')
+        MAJOR=$(grep 'major=' version.properties | cut -d'=' -f2)
+        MINOR=$(grep 'minor=' version.properties | cut -d'=' -f2)
         TAG_NAME="latest-debug-v${MAJOR}.${MINOR}"
         echo "Using tag: $TAG_NAME"
 
-        APK_FILE=$(ls app/build/outputs/apk/debug/IDEaz-*-debug.apk | head -n 1)
+        APK_FILE=$(ls app/build/outputs/apk/debug/*.apk | head -n 1)
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
