@@ -109,7 +109,14 @@ class UIInspectionService : AccessibilityService() {
 
         // Create target intent
         val target = Intent(this, BubbleActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(this, 0, target, PendingIntent.FLAG_MUTABLE)
+        // Bubbles require Mutable PendingIntent on Android 12+ (API 31)
+        // We use FLAG_UPDATE_CURRENT to ensure we have the latest intent
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            target,
+            PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
 
         // Create Bubble Metadata
         val bubbleData = Notification.BubbleMetadata.Builder(pendingIntent, Icon.createWithResource(this, R.mipmap.ic_launcher))
@@ -249,6 +256,12 @@ class UIInspectionService : AccessibilityService() {
         }
 
         override fun onTouchEvent(event: MotionEvent): Boolean {
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                if (shouldPassThrough(event.rawX.toInt(), event.rawY.toInt())) {
+                    return false
+                }
+            }
+
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     startX = event.rawX
@@ -309,6 +322,28 @@ class UIInspectionService : AccessibilityService() {
                 }
             }
             return super.onTouchEvent(event)
+        }
+
+        private fun shouldPassThrough(x: Int, y: Int): Boolean {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                val winList = windows
+                for (window in winList) {
+                    val bounds = Rect()
+                    window.getBoundsInScreen(bounds)
+                    if (bounds.contains(x, y)) {
+                        val root = window.root
+                        if (root != null) {
+                            val pkg = root.packageName
+                            root.recycle()
+                            if (pkg == packageName || pkg == "com.android.systemui") {
+                                return true
+                            }
+                        }
+                        return false
+                    }
+                }
+            }
+            return false
         }
 
         private fun updateHighlightAt(x: Int, y: Int) {
