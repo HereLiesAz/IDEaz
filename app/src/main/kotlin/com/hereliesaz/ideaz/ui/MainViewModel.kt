@@ -365,16 +365,18 @@ class MainViewModel(
     }
 
     fun bindBuildService(context: Context) {
+        if (isServiceRegistered) return
+
         filteredLog = combine(buildLog, aiLog) { b, a -> (b.lines() + a.lines()).filter { it.isNotBlank() } }
             .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
         val intent = Intent(context, BuildService::class.java)
-        context.bindService(intent, buildServiceConnection, Context.BIND_AUTO_CREATE)
+        context.applicationContext.bindService(intent, buildServiceConnection, Context.BIND_AUTO_CREATE)
         isServiceRegistered = true
     }
 
     fun unbindBuildService(context: Context) {
         if (isServiceRegistered) {
-            try { context.unbindService(buildServiceConnection) } catch (e: Exception) {}
+            try { context.applicationContext.unbindService(buildServiceConnection) } catch (e: Exception) {}
             isServiceRegistered = false
         }
     }
@@ -1091,8 +1093,64 @@ class MainViewModel(
     }
 
     // Other required stubs
-    fun fetchOwnedSources() {}
-    fun fetchSessions() {}
+    fun fetchOwnedSources() {
+        viewModelScope.launch {
+            _isLoadingSources.value = true
+            try {
+                // Try Jules First
+                val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
+                val response = withContext(Dispatchers.IO) {
+                    JulesApiClient.listSources(parent)
+                }
+
+                if (!response.sources.isNullOrEmpty()) {
+                    _ownedSources.value = response.sources
+                } else {
+                    throw Exception("Jules returned no sources")
+                }
+            } catch (e: Exception) {
+                // Fallback to GitHub
+                try {
+                    val token = settingsViewModel.getGithubToken()
+                    if (!token.isNullOrBlank()) {
+                        val api = GitHubApiClient.createService(token)
+                        val repos = withContext(Dispatchers.IO) { api.listRepos() }
+                        _ownedSources.value = repos.map { repo ->
+                            val parts = repo.fullName.split("/")
+                            val owner = parts.getOrElse(0) { "" }
+                            val name = parts.getOrElse(1) { "" }
+                            Source(
+                                name = "sources/github/${repo.fullName}",
+                                id = repo.id.toString(),
+                                githubRepo = com.hereliesaz.ideaz.api.GitHubRepo(
+                                    owner = owner,
+                                    repo = name,
+                                    defaultBranch = com.hereliesaz.ideaz.api.GitHubBranch(repo.defaultBranch ?: "main")
+                                )
+                            )
+                        }
+                    }
+                } catch (e2: Exception) {
+                    val msg = if (e2.message?.contains("401") == true) "HTTP 401: Invalid GitHub Token. Check Settings." else e2.message
+                    _buildLog.value += "[ERROR] Failed to fetch sources: $msg\n"
+                }
+            } finally {
+                _isLoadingSources.value = false
+            }
+        }
+    }
+
+    fun fetchSessions() {
+        viewModelScope.launch {
+            try {
+                val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
+                val response = withContext(Dispatchers.IO) { JulesApiClient.listSessions(parent) }
+                _availableSessions.value = response.sessions ?: emptyList()
+            } catch (e: Exception) {
+                // Ignore
+            }
+        }
+    }
     fun loadLastProject(c: Context) {}
     fun requestCancelTask() { contextualTaskJob?.cancel(); _showCancelDialog.value = true }
     fun confirmCancelTask() { contextualTaskJob?.cancel(); _showCancelDialog.value = false }

@@ -154,6 +154,9 @@ interface GitHubApi {
         @Path("owner") owner: String,
         @Path("repo") repo: String
     ): GitHubArtifactsResponse
+
+    @retrofit2.http.GET("user/repos?sort=updated&per_page=100")
+    suspend fun listRepos(): List<GitHubRepoResponse>
 }
 
 object GitHubApiClient {
@@ -162,7 +165,7 @@ object GitHubApiClient {
     fun createService(token: String): GitHubApi {
         val authInterceptor = Interceptor { chain ->
             val request = chain.request().newBuilder()
-                .header("Authorization", "token $token")
+                .header("Authorization", "Bearer $token")
                 .header("Accept", "application/vnd.github.v3+json")
                 .build()
             chain.proceed(request)
