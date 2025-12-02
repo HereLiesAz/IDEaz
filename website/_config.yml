@@ -1,0 +1,11 @@
+title: IDEaz
+description: The Post-Code IDE for Android.
+url: "https://hereliesaz.github.io"
+baseurl: "/IDEaz"
+theme: null
+
+markdown: kramdown
+highlighter: rouge
+
+sass:
+  style: compressed
