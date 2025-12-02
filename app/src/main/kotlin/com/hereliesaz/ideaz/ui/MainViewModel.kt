@@ -114,6 +114,9 @@ class MainViewModel(
     private val _isContextualChatVisible = MutableStateFlow(false)
     val isContextualChatVisible = _isContextualChatVisible.asStateFlow()
 
+    private val _isSelectMode = MutableStateFlow(false)
+    val isSelectMode = _isSelectMode.asStateFlow()
+
     private val _activeSelectionRect = MutableStateFlow<Rect?>(null)
     val activeSelectionRect = _activeSelectionRect.asStateFlow()
 
@@ -150,6 +153,12 @@ class MainViewModel(
                 if (!prompt.isNullOrBlank()) {
                     handleRemotePrompt(prompt)
                 }
+            } else if (intent?.action == "com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE") {
+                val rect = intent.getParcelableExtra<Rect>("BOUNDS")
+                val id = intent.getStringExtra("RESOURCE_ID")
+                if (rect != null) {
+                    onSelectionMade(rect, id)
+                }
             }
         }
     }
@@ -162,7 +171,10 @@ class MainViewModel(
 
     init {
         val filter = IntentFilter("com.hereliesaz.ideaz.TARGET_APP_VISIBILITY")
-        val promptFilter = IntentFilter("com.hereliesaz.ideaz.AI_PROMPT")
+        val promptFilter = IntentFilter().apply {
+            addAction("com.hereliesaz.ideaz.AI_PROMPT")
+            addAction("com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE")
+        }
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             getApplication<Application>().registerReceiver(visibilityReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -243,9 +255,32 @@ class MainViewModel(
 
     // --- Overlay / Inspection Logic ---
 
+    fun toggleSelectMode(enable: Boolean) {
+        _isSelectMode.value = enable
+        // Also ensure permission is there if enabling
+        if (enable && !hasScreenCapturePermission()) {
+            requestScreenCapturePermission()
+        }
+    }
+
+    fun handleOverlayTap(x: Float, y: Float) {
+        val intent = Intent("com.hereliesaz.ideaz.INSPECT_AT_COORDINATES").apply {
+            putExtra("X", x.toInt())
+            putExtra("Y", y.toInt())
+            setPackage(getApplication<Application>().packageName)
+        }
+        getApplication<Application>().sendBroadcast(intent)
+    }
+
+    fun handleOverlayDragEnd(rect: Rect) {
+        onSelectionMade(rect, "custom_selection")
+    }
+
     fun onSelectionMade(rect: Rect, resourceId: String? = null) {
         pendingRect = rect
         _activeSelectionRect.value = rect
+        // Exit select mode to show chat
+        _isSelectMode.value = false
         viewModelScope.launch {
             if (resourceId != null && resourceId != "contextless_chat") {
                 val appName = settingsViewModel.getAppName()
@@ -461,6 +496,8 @@ class MainViewModel(
                     _buildLog.value += "[GIT] Fetch complete.\n"
                 } catch (e: Exception) {
                     _buildLog.value += "[GIT] Fetch failed: ${e.message}\n"
+                } finally {
+                    _loadingProgress.value = null
                 }
             }
             refreshGitData()
@@ -479,6 +516,8 @@ class MainViewModel(
                     _buildLog.value += "[GIT] Pull complete.\n"
                 } catch (e: Exception) {
                     _buildLog.value += "[GIT] Pull failed: ${e.message}\n"
+                } finally {
+                    _loadingProgress.value = null
                 }
             }
             refreshGitData()
@@ -497,6 +536,8 @@ class MainViewModel(
                     _buildLog.value += "[GIT] Push complete.\n"
                 } catch (e: Exception) {
                     _buildLog.value += "[GIT] Push failed: ${e.message}\n"
+                } finally {
+                    _loadingProgress.value = null
                 }
             }
             refreshGitData()
@@ -604,6 +645,8 @@ class MainViewModel(
                 withContext(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {
                 _buildLog.value += "[ERROR] Failed to create repository: ${e.message}\n"
+            } finally {
+                _loadingProgress.value = null
             }
         }
     }
@@ -656,6 +699,8 @@ class MainViewModel(
                     }
                 } catch (e: Exception) {
                     _buildLog.value += "[ERROR] Init failed: ${e.message}\n"
+                } finally {
+                    _loadingProgress.value = null
                 }
             }
         }
@@ -675,11 +720,18 @@ class MainViewModel(
                 val loadedConfig = ProjectConfigManager.loadConfig(projectDir)
                 if (loadedConfig != null) {
                     settingsViewModel.setProjectType(loadedConfig.projectType)
-                    if (loadedConfig.packageName != null) settingsViewModel.saveTargetPackageName(loadedConfig.packageName)
+                    if (loadedConfig.packageName != null) {
+                        settingsViewModel.saveTargetPackageName(loadedConfig.packageName)
+                    } else {
+                        val pkg = ProjectAnalyzer.detectPackageName(projectDir)
+                        if (pkg != null) settingsViewModel.saveTargetPackageName(pkg)
+                    }
                     if (!loadedConfig.owner.isNullOrBlank()) settingsViewModel.setGithubUser(loadedConfig.owner)
                 } else {
                     val type = ProjectAnalyzer.detectProjectType(projectDir)
                     settingsViewModel.setProjectType(type.name)
+                    val pkg = ProjectAnalyzer.detectPackageName(projectDir)
+                    if (pkg != null) settingsViewModel.saveTargetPackageName(pkg)
                 }
                 fetchSessions()
                 refreshGitData()
