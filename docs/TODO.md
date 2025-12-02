@@ -63,7 +63,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 
 ## Phase 5: Production Polish
 - [ ] **5.1: Multi-Platform Support**
-    - [x] Web Support (Robust Runtime with JS/Console support).
+    - [x] Web Support (Runtime + Auto-Build/Correct).
     - [ ] React Native Support (In Progress).
     - [ ] Flutter Support (Planned).
 - [ ] **5.2: Testing**

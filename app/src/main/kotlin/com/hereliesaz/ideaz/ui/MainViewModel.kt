@@ -264,6 +264,13 @@ class MainViewModel(
             viewModelScope.launch {
                 _buildLog.value += "\n[IDE] Build Failed.\n"
                 logToOverlay("Build failed. Check global log.")
+
+                val type = ProjectType.fromString(settingsViewModel.getProjectType())
+                if (type == ProjectType.WEB) {
+                    _buildLog.value += "[IDE] Web Build Failed. Requesting correction from Jules...\n"
+                    val prompt = "The web build failed with the following error:\n\n$log\n\nPlease check the files and fix the issue."
+                    startContextualAITask(prompt)
+                }
             }
         }
     }
@@ -463,17 +470,31 @@ class MainViewModel(
     }
 
     fun startBuild(context: Context, projectDir: File? = null) {
-        // CHECK: Local Build Enabled?
-        if (!settingsViewModel.isLocalBuildEnabled()) {
-            _buildLog.value += "[INFO] Local build disabled. Using GitHub Action (Remote).\n"
-            return
-        }
+        viewModelScope.launch {
+            val typeStr = settingsViewModel.getProjectType()
+            val type = ProjectType.fromString(typeStr)
 
-        if (isBuildServiceBound) {
-            val dir = projectDir ?: settingsViewModel.getProjectPath(settingsViewModel.getAppName() ?: "")
-            buildService?.startBuild(dir.absolutePath, buildCallback)
-        } else {
-            _buildLog.value += "Error: Build Service not bound.\n"
+            // CHECK: Local Build Enabled?
+            // For Web, we force local build.
+            if (type != ProjectType.WEB && !settingsViewModel.isLocalBuildEnabled()) {
+                _buildLog.value += "[INFO] Local build disabled. Using GitHub Action (Remote).\n"
+                return@launch
+            }
+
+            if (type == ProjectType.WEB) {
+                _buildLog.value += "[IDE] Web Project: Pulling latest changes...\n"
+                val pullSuccess = pullRepo()
+                if (!pullSuccess) {
+                    _buildLog.value += "[IDE] Pull failed. Attempting build anyway...\n"
+                }
+            }
+
+            if (isBuildServiceBound) {
+                val dir = projectDir ?: settingsViewModel.getProjectPath(settingsViewModel.getAppName() ?: "")
+                buildService?.startBuild(dir.absolutePath, buildCallback)
+            } else {
+                _buildLog.value += "Error: Build Service not bound.\n"
+            }
         }
     }
 
@@ -569,21 +590,27 @@ class MainViewModel(
 
     fun gitPull() {
         viewModelScope.launch {
-            val appName = settingsViewModel.getAppName() ?: return@launch
-            val projectDir = settingsViewModel.getProjectPath(appName)
-            val user = settingsViewModel.getGithubUser()
-            val token = settingsViewModel.getGithubToken()
-            withContext(Dispatchers.IO) {
-                try {
-                    GitManager(projectDir).pull(user, token, ::onGitProgress)
-                    _buildLog.value += "[GIT] Pull complete.\n"
-                } catch (e: Exception) {
-                    _buildLog.value += "[GIT] Pull failed: ${e.message}\n"
-                } finally {
-                    _loadingProgress.value = null
-                }
-            }
+            pullRepo()
             refreshGitData()
+        }
+    }
+
+    private suspend fun pullRepo(): Boolean {
+        val appName = settingsViewModel.getAppName() ?: return false
+        val projectDir = settingsViewModel.getProjectPath(appName)
+        val user = settingsViewModel.getGithubUser()
+        val token = settingsViewModel.getGithubToken()
+        return withContext(Dispatchers.IO) {
+            try {
+                GitManager(projectDir).pull(user, token, ::onGitProgress)
+                _buildLog.value += "[GIT] Pull complete.\n"
+                true
+            } catch (e: Exception) {
+                _buildLog.value += "[GIT] Pull failed: ${e.message}\n"
+                false
+            } finally {
+                _loadingProgress.value = null
+            }
         }
     }
 
