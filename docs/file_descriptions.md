@@ -59,3 +59,9 @@
 
 ## docs/
 (See `AGENTS.md` for index)
+
+## website/
+*   `_config.yml`: Jekyll configuration for the project website.
+*   `_layouts/`: HTML templates for the site.
+*   `assets/`: CSS and other static assets.
+*   `index.md`: The homepage content.
