@@ -150,6 +150,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _apiKey = MutableStateFlow(getApiKey())
     val apiKey = _apiKey.asStateFlow()
 
+    private val _settingsVersion = MutableStateFlow(0)
+    val settingsVersion = _settingsVersion.asStateFlow()
+
     init {
         // Initialize AuthInterceptor with saved API key
         val savedKey = getApiKey()
@@ -412,6 +415,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
                     val key = getApiKey()
                     if (key != null) AuthInterceptor.apiKey = key
+
+                    _settingsVersion.value++
 
                     Toast.makeText(context, "Settings imported successfully", Toast.LENGTH_SHORT).show()
                 }

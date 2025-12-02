@@ -76,31 +76,40 @@ fun SettingsScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    var apiKey by remember { mutableStateOf(settingsViewModel.getApiKey() ?: "") }
-    var googleApiKey by remember { mutableStateOf(settingsViewModel.getGoogleApiKey() ?: "") }
-    var githubToken by remember { mutableStateOf(settingsViewModel.getGithubToken() ?: "") }
-    var julesProjectId by remember { mutableStateOf(settingsViewModel.getJulesProjectId() ?: "") }
+    val settingsVersion by settingsViewModel.settingsVersion.collectAsState()
 
-    var showCancelWarning by remember {
+    var apiKey by remember(settingsVersion) { mutableStateOf(settingsViewModel.getApiKey() ?: "") }
+    var googleApiKey by remember(settingsVersion) { mutableStateOf(settingsViewModel.getGoogleApiKey() ?: "") }
+    var githubToken by remember(settingsVersion) { mutableStateOf(settingsViewModel.getGithubToken() ?: "") }
+    var julesProjectId by remember(settingsVersion) { mutableStateOf(settingsViewModel.getJulesProjectId() ?: "") }
+
+    var showCancelWarning by remember(settingsVersion) {
         mutableStateOf(settingsViewModel.getShowCancelWarning())
     }
 
-    var autoReportBugs by remember {
+    var autoReportBugs by remember(settingsVersion) {
         mutableStateOf(settingsViewModel.getAutoReportBugs())
     }
 
     // Local Build State
-    var isLocalBuildEnabled by remember {
+    var isLocalBuildEnabled by remember(settingsVersion) {
         mutableStateOf(settingsViewModel.isLocalBuildEnabled())
     }
     var showDownloadToolsDialog by remember { mutableStateOf(false) }
     var showDeleteToolsDialog by remember { mutableStateOf(false) }
 
     // --- NEW: Signing State ---
-    var keystorePath by remember { mutableStateOf(settingsViewModel.getKeystorePath() ?: "Default (debug.keystore)") }
-    var keystorePass by remember { mutableStateOf(settingsViewModel.getKeystorePass()) }
-    var keyAlias by remember { mutableStateOf(settingsViewModel.getKeyAlias()) }
-    var keyPass by remember { mutableStateOf(settingsViewModel.getKeyPass()) }
+    var keystorePath by remember(settingsVersion) { mutableStateOf(settingsViewModel.getKeystorePath() ?: "Default (debug.keystore)") }
+    var keystorePass by remember(settingsVersion) { mutableStateOf(settingsViewModel.getKeystorePass()) }
+    var keyAlias by remember(settingsVersion) { mutableStateOf(settingsViewModel.getKeyAlias()) }
+    var keyPass by remember(settingsVersion) { mutableStateOf(settingsViewModel.getKeyPass()) }
+
+    // --- Export/Import State ---
+    var showExportPasswordDialog by remember { mutableStateOf(false) }
+    var showImportPasswordDialog by remember { mutableStateOf(false) }
+    var exportUri by remember { mutableStateOf<Uri?>(null) }
+    var importUri by remember { mutableStateOf<Uri?>(null) }
+
 
     // --- Export/Import State ---
     var showExportPasswordDialog by remember { mutableStateOf(false) }
