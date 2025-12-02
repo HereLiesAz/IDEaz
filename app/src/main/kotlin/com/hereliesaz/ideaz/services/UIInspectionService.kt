@@ -1,165 +1,197 @@
 package com.hereliesaz.ideaz.services
 
 import android.accessibilityservice.AccessibilityService
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.graphics.Canvas
-import android.graphics.Paint
 import android.graphics.PixelFormat
-import android.graphics.PorterDuff
 import android.graphics.Rect
-import android.graphics.drawable.Icon
-import android.os.Build
 import android.util.Log
-import android.view.MotionEvent
-import android.view.View
-import android.view.ViewConfiguration
+import android.view.Gravity
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
-import com.hereliesaz.ideaz.BubbleActivity
-import com.hereliesaz.ideaz.R
-import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
+import com.hereliesaz.ideaz.ui.inspection.OverlayView
 
 class UIInspectionService : AccessibilityService() {
 
     private val TAG = "UIInspectionService"
-    private val CHANNEL_ID = "ideaz_bubble_channel"
-    private val NOTIFICATION_ID = 1001
-
-    // Guard flag to prevent calls before onServiceConnected
-    private var isConnected = false
+    private var windowManager: WindowManager? = null
+    private var overlayView: OverlayView? = null
+    private var layoutParams: WindowManager.LayoutParams? = null
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "UIInspectionService.onCreate")
+        Log.d(TAG, "UIInspectionService Created")
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         registerBroadcastReceivers()
-        createBubbleChannel()
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        Log.d(TAG, "Service Connected - Launching Bubble")
-        isConnected = true
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            showBubbleNotification()
+        Log.d(TAG, "Accessibility Service Connected")
+        setupOverlay()
+    }
+
+    private fun setupOverlay() {
+        if (overlayView != null) return
+
+        overlayView = OverlayView(this)
+
+        // TYPE_ACCESSIBILITY_OVERLAY is crucial. It sits above other apps.
+        // It requires the AccessibilityService to be active.
+        val type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+
+        layoutParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            type,
+            // Start in "Interact Mode" (Pass-through)
+            // FLAG_NOT_TOUCHABLE: Events pass through to the app behind.
+            // FLAG_NOT_FOCUSABLE: We don't steal key input (Back button works for the app behind).
+            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        )
+
+        layoutParams?.gravity = Gravity.TOP or Gravity.START
+
+        try {
+            windowManager?.addView(overlayView, layoutParams)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error adding overlay view", e)
+        }
+    }
+
+    /**
+     * Updates the window flags to toggle between "Pass-through" and "Intercept" modes.
+     */
+    private fun setInteractionState(enableSelection: Boolean) {
+        if (layoutParams == null || overlayView == null) return
+
+        if (enableSelection) {
+            // Select Mode: We want to catch touch events.
+            // Remove FLAG_NOT_TOUCHABLE so OverlayView.onTouchEvent gets called.
+            // Keep FLAG_NOT_FOCUSABLE so the system nav bar / keyboard still work mostly.
+            layoutParams?.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+            overlayView?.setSelectionMode(true)
+        } else {
+            // Interact Mode: Touches pass through.
+            layoutParams?.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+            overlayView?.setSelectionMode(false)
+            overlayView?.clearHighlight()
+        }
+
+        try {
+            windowManager?.updateViewLayout(overlayView, layoutParams)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating view layout", e)
         }
     }
 
     override fun onDestroy() {
-        isConnected = false
+        super.onDestroy()
+        if (overlayView != null) {
+            try {
+                windowManager?.removeView(overlayView)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error removing overlay view", e)
+            }
+            overlayView = null
+        }
         try {
             unregisterReceiver(commandReceiver)
-        } catch (e: Exception) {
-        }
-        super.onDestroy()
+        } catch (e: Exception) {}
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // Optional: Monitor events to auto-update highlights if the screen scrolls
+    }
+
     override fun onInterrupt() {}
 
-    // --- 1. Bubble Notification Logic ---
-
-    private fun createBubbleChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID, "IDEaz Overlay", NotificationManager.IMPORTANCE_HIGH)
-            channel.description = "Floating IDE bubble"
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                channel.setAllowBubbles(true)
-            }
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
-        }
-    }
-
-    @RequiresApi(Build.VERSION_CODES.R)
-    private fun showBubbleNotification() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
-
-        // Create target intent
-        val target = Intent(this, BubbleActivity::class.java)
-        // Bubbles require Mutable PendingIntent on Android 12+ (API 31)
-        // We use FLAG_UPDATE_CURRENT to ensure we have the latest intent
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            target,
-            PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-
-        // Create Bubble Metadata
-        val bubbleData = Notification.BubbleMetadata.Builder(pendingIntent, Icon.createWithResource(this, R.mipmap.ic_launcher))
-            .setDesiredHeight(600)
-            .setAutoExpandBubble(true)
-            .setSuppressNotification(true)
-            .build()
-
-        // Create Person/Shortcut (Required for bubbles)
-        val person = android.app.Person.Builder().setName("IDEaz").build()
-
-        val builder = Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle("IDEaz")
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setBubbleMetadata(bubbleData)
-            .addPerson(person)
-
-        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, builder.build())
-    }
-
-    // --- 2. Node Detection ---
+    // --- Broadcast Handling ---
 
     private val commandReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == "com.hereliesaz.ideaz.INSPECT_AT_COORDINATES") {
-                val x = intent.getIntExtra("X", -1)
-                val y = intent.getIntExtra("Y", -1)
-                if (x != -1 && y != -1) {
-                    inspectAt(x, y)
+            when (intent?.action) {
+                "com.hereliesaz.ideaz.TOGGLE_SELECT_MODE" -> {
+                    val enable = intent.getBooleanExtra("ENABLE", false)
+                    setInteractionState(enable)
+                }
+                "com.hereliesaz.ideaz.HIGHLIGHT_RECT" -> {
+                    val rect = intent.getParcelableExtra<Rect>("RECT")
+                    if (rect != null) {
+                        overlayView?.updateHighlight(rect)
+                    }
+                }
+                // Handle tap events forwarded from the OverlayView back to us
+                "com.hereliesaz.ideaz.INTERNAL_TAP_DETECTED" -> {
+                    val x = intent.getIntExtra("X", 0)
+                    val y = intent.getIntExtra("Y", 0)
+                    inspectNodeAt(x, y)
                 }
             }
         }
     }
 
     private fun registerBroadcastReceivers() {
-        val filter = IntentFilter("com.hereliesaz.ideaz.INSPECT_AT_COORDINATES")
-        ContextCompat.registerReceiver(this, commandReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        val filter = IntentFilter().apply {
+            addAction("com.hereliesaz.ideaz.TOGGLE_SELECT_MODE")
+            addAction("com.hereliesaz.ideaz.HIGHLIGHT_RECT")
+            addAction("com.hereliesaz.ideaz.INTERNAL_TAP_DETECTED")
+        }
+        // Use RECEIVER_EXPORTED (or equivalent logic) to allow app <-> service communication
+        ContextCompat.registerReceiver(this, commandReceiver, filter, ContextCompat.RECEIVER_EXPORTED)
     }
 
-    private fun inspectAt(x: Int, y: Int) {
-        val root = rootInActiveWindow
+    private fun inspectNodeAt(x: Int, y: Int) {
+        val root = rootInActiveWindow ?: return
+
+        // Find the leaf node at these coordinates
         val node = findNodeAt(root, x, y)
+
         if (node != null) {
             val rect = Rect()
             node.getBoundsInScreen(rect)
-            val id = node.viewIdResourceName?.substringAfterLast(":id/") ?: node.text?.toString()?.take(20) ?: "Unknown"
 
-            val intent = Intent("com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE")
-                .putExtra("RESOURCE_ID", id)
-                .putExtra("BOUNDS", rect)
-                .setPackage(packageName)
+            // Draw visual feedback immediately
+            overlayView?.updateHighlight(rect)
 
+            // Identify the node
+            val id = node.viewIdResourceName?.substringAfterLast(":id/")
+                ?: node.text?.toString()?.take(20)
+                ?: node.className?.toString()?.substringAfterLast(".")
+                ?: "Unknown"
+
+            // Send info back to the main app (ViewModel)
+            val intent = Intent("com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE").apply {
+                putExtra("RESOURCE_ID", id)
+                putExtra("BOUNDS", rect)
+                setPackage(packageName)
+            }
             sendBroadcast(intent)
         }
     }
 
-    private fun findNodeAt(root: AccessibilityNodeInfo?, x: Int, y: Int): AccessibilityNodeInfo? {
-        if (root == null) return null
+    private fun findNodeAt(root: AccessibilityNodeInfo, x: Int, y: Int): AccessibilityNodeInfo? {
         val rect = Rect()
         root.getBoundsInScreen(rect)
         if (!rect.contains(x, y)) return null
 
-        for (i in 0 until root.childCount) {
-            val child = findNodeAt(root.getChild(i), x, y)
-            if (child != null) return child
+        // Search children (reverse order usually helps find top-most view in Z-order)
+        for (i in root.childCount - 1 downTo 0) {
+            val child = root.getChild(i)
+            if (child != null) {
+                val found = findNodeAt(child, x, y)
+                if (found != null) return found
+            }
         }
         return root
     }
