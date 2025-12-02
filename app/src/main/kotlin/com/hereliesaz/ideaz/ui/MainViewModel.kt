@@ -143,15 +143,41 @@ class MainViewModel(
         }
     }
 
+    private val promptReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "com.hereliesaz.ideaz.AI_PROMPT") {
+                val prompt = intent.getStringExtra("PROMPT")
+                if (!prompt.isNullOrBlank()) {
+                    handleRemotePrompt(prompt)
+                }
+            }
+        }
+    }
+
+    private fun handleRemotePrompt(prompt: String) {
+        val logContext = _buildLog.value.takeLast(2000)
+        val fullPrompt = "Context: Build Log (Partial)\n$logContext\n\nUser Request: $prompt"
+        startContextualAITask(fullPrompt)
+    }
+
     init {
         val filter = IntentFilter("com.hereliesaz.ideaz.TARGET_APP_VISIBILITY")
+        val promptFilter = IntentFilter("com.hereliesaz.ideaz.AI_PROMPT")
+
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             getApplication<Application>().registerReceiver(visibilityReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            getApplication<Application>().registerReceiver(promptReceiver, promptFilter, Context.RECEIVER_NOT_EXPORTED)
         } else {
             ContextCompat.registerReceiver(
                 getApplication<Application>(),
                 visibilityReceiver,
                 filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
+            ContextCompat.registerReceiver(
+                getApplication<Application>(),
+                promptReceiver,
+                promptFilter,
                 ContextCompat.RECEIVER_NOT_EXPORTED
             )
         }
@@ -170,6 +196,7 @@ class MainViewModel(
         super.onCleared()
         unbindBuildService(getApplication())
         try { getApplication<Application>().unregisterReceiver(visibilityReceiver) } catch (e: Exception) {}
+        try { getApplication<Application>().unregisterReceiver(promptReceiver) } catch (e: Exception) {}
     }
 
     // --- Service Connection ---
@@ -562,6 +589,9 @@ class MainViewModel(
                     // Setup Template
                     createProjectFromTemplateInternal(context, projectType, projectDir)
                     ProjectConfigManager.ensureGitIgnore(projectDir)
+                    ProjectConfigManager.ensureWorkflow(getApplication(), projectDir, projectType)
+                    if (projectType == ProjectType.ANDROID) ProjectConfigManager.ensureSetupScript(projectDir)
+                    ProjectConfigManager.ensureVersioning(projectDir, projectType)
 
                     _buildLog.value += "[INFO] Pushing initial commit...\n"
                     withContext(Dispatchers.IO) {
@@ -608,7 +638,9 @@ class MainViewModel(
                     }
                     // Ensure basic files
                     ProjectConfigManager.ensureGitIgnore(projectDir)
+                    ProjectConfigManager.ensureWorkflow(getApplication(), projectDir, type)
                     if (type == ProjectType.ANDROID) ProjectConfigManager.ensureSetupScript(projectDir)
+                    ProjectConfigManager.ensureVersioning(projectDir, type)
 
                     withContext(Dispatchers.IO) {
                         val git = GitManager(projectDir)
@@ -671,6 +703,7 @@ class MainViewModel(
                 try {
                     ProjectConfigManager.ensureWorkflow(getApplication(), projectDir, type)
                     if (type == ProjectType.ANDROID) ProjectConfigManager.ensureSetupScript(projectDir)
+                    ProjectConfigManager.ensureVersioning(projectDir, type)
                     withContext(Dispatchers.IO) {
                         val git = GitManager(projectDir)
                         git.addAll()
