@@ -39,6 +39,8 @@ jobs:
 
     - name: Build with Gradle
       id: gradle-build
+      env:
+        BUILD_NUMBER: ${{ github.run_number }}
       # capture output while still failing if build fails (but continue-on-error handles the workflow flow)
       run: |
         set +e
