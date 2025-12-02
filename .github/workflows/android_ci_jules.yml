@@ -65,10 +65,14 @@ jobs:
       if: steps.gradle-build.outcome == 'success' && github.event_name == 'push'
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        BRANCH_NAME: ${{ github.ref_name }}
       run: |
         MAJOR=$(grep 'major=' version.properties | cut -d'=' -f2)
         MINOR=$(grep 'minor=' version.properties | cut -d'=' -f2)
-        TAG_NAME="latest-debug-v${MAJOR}.${MINOR}"
+
+        # Sanitize branch name (replace / with -)
+        SAFE_BRANCH_NAME=${BRANCH_NAME//\//-}
+        TAG_NAME="debug-${SAFE_BRANCH_NAME}-v${MAJOR}.${MINOR}"
         echo "Using tag: $TAG_NAME"
 
         APK_FILE=$(ls app/build/outputs/apk/debug/*.apk | head -n 1)
