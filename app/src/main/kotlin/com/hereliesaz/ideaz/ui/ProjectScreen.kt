@@ -111,6 +111,7 @@ fun ProjectScreen(
 
     val allSources by viewModel.ownedSources.collectAsState()
     val isLoadingSources by viewModel.isLoadingSources.collectAsState()
+    val sourcesStatus by viewModel.sourcesStatus.collectAsState()
     val availableSessions by viewModel.availableSessions.collectAsState()
 
     LaunchedEffect(Unit) {
@@ -659,8 +660,22 @@ fun ProjectScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 contentAlignment = Alignment.Center
                             ) {
-                                CircularProgressIndicator()
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator()
+                                    if (sourcesStatus != null) {
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(sourcesStatus!!, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
                             }
+                        }
+                    } else if (sourcesStatus != null) {
+                        item {
+                            Text(
+                                sourcesStatus!!,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(16.dp)
+                            )
                         }
                     } else if (ownedSources.isEmpty()) {
                         item {
