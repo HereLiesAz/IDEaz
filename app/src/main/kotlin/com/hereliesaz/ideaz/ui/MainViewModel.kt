@@ -583,9 +583,105 @@ class MainViewModel(
     val updateVersion = _updateVersion.asStateFlow()
     private val _showUpdateWarning = MutableStateFlow<Boolean>(false)
     val showUpdateWarning = _showUpdateWarning.asStateFlow()
-    fun confirmUpdate() {}
-    fun dismissUpdateWarning() {}
-    fun checkForExperimentalUpdates() {}
+
+    private var pendingUpdateAssetUrl: String? = null
+
+    fun checkForExperimentalUpdates() {
+        viewModelScope.launch {
+            val user = settingsViewModel.getGithubUser()
+            val appName = settingsViewModel.getAppName()
+            val token = settingsViewModel.getGithubToken()
+
+            if (user.isNullOrBlank() || appName.isNullOrBlank() || token.isNullOrBlank()) {
+                logToOverlay("Cannot check for updates: Missing Project/Auth info.")
+                return@launch
+            }
+
+            _updateStatus.value = "Checking for updates..."
+
+            try {
+                val service = GitHubApiClient.createService(token)
+                // Use the configured user/app, assuming user is updating the IDE from its own repo
+                val releases = service.getReleases(user, appName)
+
+                val branch = settingsViewModel.getBranchName()
+                val sanitizedBranch = branch.replace("/", "-")
+                // Look for debug-{branch}-v... OR the old latest-debug-...
+                val targetTagPrefix = "debug-$sanitizedBranch-v"
+
+                // Find latest release matching prefix or old format
+                val update = releases.firstOrNull {
+                    it.tagName.startsWith(targetTagPrefix) || it.tagName.startsWith("latest-debug-")
+                }
+
+                if (update != null) {
+                    _updateVersion.value = update.tagName
+                    pendingUpdateAssetUrl = update.assets.firstOrNull { it.name.endsWith(".apk") }?.browserDownloadUrl
+
+                    if (pendingUpdateAssetUrl != null) {
+                        // Prompt the user
+                        _showUpdateWarning.value = true
+                    } else {
+                        logToOverlay("Update found ($update.tagName) but no APK asset.")
+                    }
+                } else {
+                    logToOverlay("No updates found for branch $branch.")
+                }
+            } catch (e: Exception) {
+                logToOverlay("Update check failed: ${e.message}")
+            } finally {
+                _updateStatus.value = null
+            }
+        }
+    }
+
+    fun confirmUpdate() {
+        _showUpdateWarning.value = false
+        val url = pendingUpdateAssetUrl ?: return
+
+        viewModelScope.launch {
+            _updateStatus.value = "Downloading update..."
+            val file = downloadFile(url, "update.apk")
+            if (file != null) {
+                _updateStatus.value = "Installing..."
+                ApkInstaller.installApk(getApplication(), file.absolutePath)
+            } else {
+                logToOverlay("Download failed.")
+            }
+            _updateStatus.value = null
+        }
+    }
+
+    fun dismissUpdateWarning() {
+        _showUpdateWarning.value = false
+        pendingUpdateAssetUrl = null
+    }
+
+    private suspend fun downloadFile(urlStr: String, fileName: String): File? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val url = URL(urlStr)
+                val connection = url.openConnection() as HttpURLConnection
+                connection.connect()
+
+                if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                    return@withContext null
+                }
+
+                val file = File(getApplication<Application>().filesDir, fileName)
+                val input = connection.inputStream
+                val output = FileOutputStream(file)
+
+                input.copyTo(output)
+                output.close()
+                input.close()
+                file
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            }
+        }
+    }
 
     // Helpers
     private fun logPromptToHistory(p: String, i: String?) {}
