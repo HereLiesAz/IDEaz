@@ -79,6 +79,7 @@ fun SettingsScreen(
 
     val settingsVersion by settingsViewModel.settingsVersion.collectAsState()
     val appVersion = remember { settingsViewModel.getAppVersion() }
+    val updateVersion by viewModel.updateVersion.collectAsState()
 
     var apiKey by remember(settingsVersion) { mutableStateOf(settingsViewModel.getApiKey() ?: "") }
     var googleApiKey by remember(settingsVersion) { mutableStateOf(settingsViewModel.getGoogleApiKey() ?: "") }
@@ -761,7 +762,7 @@ fun SettingsScreen(
                     AlertDialog(
                         onDismissRequest = { viewModel.dismissUpdateWarning() },
                         title = { Text("Update Ready") },
-                        text = { Text("An update has been downloaded. The version might be the same as the installed one. Proceed with installation?") },
+                        text = { Text("An update ${if (updateVersion != null) "($updateVersion) " else ""}has been downloaded. The version might be the same as the installed one. Proceed with installation?") },
                         confirmButton = {
                             AzButton(onClick = { viewModel.confirmUpdate() }, text = "Install")
                         },
