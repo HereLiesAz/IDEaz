@@ -15,7 +15,7 @@ fun LibrariesScreen(
 ) {
     Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
         Text(
-            text = "Feature under development",
+            text = "Libraries management is currently under re-development.",
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onBackground
         )
