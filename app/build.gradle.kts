@@ -29,7 +29,7 @@ android {
         val variant = this
         outputs.configureEach {
             val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-            output.outputFileName = "IDEaz-${variant.versionName}.apk"
+            output.outputFileName = "IDEaz-${variant.versionName}-${variant.buildType.name}.apk"
         }
     }
 
