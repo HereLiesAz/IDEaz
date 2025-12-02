@@ -71,18 +71,51 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Build Release APK
         run: |
           chmod +x gradlew
           export BUILD_NUMBER=$(git rev-list --count HEAD)
           ./gradlew assembleRelease
 
-          APK_FILE=$(ls app/build/outputs/apk/release/IDEaz-*-release.apk | head -n 1)
+          APK_FILE=$(ls app/build/outputs/apk/release/*.apk | head -n 1)
           echo "APK_FILE=$APK_FILE" >> $GITHUB_ENV
 
-          FILENAME=$(basename "$APK_FILE")
-          VERSION_NAME=$(echo "$FILENAME" | sed -E 's/IDEaz-(.*)-release.apk/\1/')
+          MAJOR=$(grep 'major=' version.properties | cut -d'=' -f2)
+          MINOR=$(grep 'minor=' version.properties | cut -d'=' -f2)
+          PATCH=$(grep 'patch=' version.properties | cut -d'=' -f2)
+          VERSION_NAME="$MAJOR.$MINOR.$PATCH.$BUILD_NUMBER"
           echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
+
+      - name: Sign APK
+        uses: r0adkll/sign-android-release@v1
+        id: sign_app
+        with:
+          releaseDirectory: app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+        continue-on-error: true
+
+      - name: Package Local Build Tools
+        run: |
+          mkdir -p build_tools_package/tools
+          mkdir -p build_tools_package/native
+
+          if [ -d "app/src/main/assets/tools" ]; then
+            cp -r app/src/main/assets/tools/* build_tools_package/tools/
+          fi
+
+          if [ -d "app/src/main/jniLibs/arm64-v8a" ]; then
+            cp -r app/src/main/jniLibs/arm64-v8a/* build_tools_package/native/
+          fi
+
+          cd build_tools_package
+          zip -r ../build-tools.zip .
+          cd ..
 
       - name: Publish Release
         env:
@@ -95,14 +128,27 @@ jobs:
           git tag -fa $TAG_NAME -m "Release $TAG_NAME"
           git push origin $TAG_NAME --force
 
+          FILES="$APK_FILE"
+
+          # Check for signed APK
+          SIGNED_APK=$(ls app/build/outputs/apk/release/*-signed.apk 2>/dev/null | head -n 1)
+          if [ ! -z "$SIGNED_APK" ]; then
+             FILES="$SIGNED_APK"
+          fi
+
+          # Check for build tools
+          if [ -f "build-tools.zip" ]; then
+             FILES="$FILES build-tools.zip"
+          fi
+
           if gh release view $TAG_NAME > /dev/null 2>&1; then
              gh release edit $TAG_NAME \
                --title "Release $TAG_NAME" \
                --notes "Release build $TAG_NAME" \
                --target ${{ github.event.workflow_run.head_sha }}
-             gh release upload $TAG_NAME $APK_FILE --clobber
+             gh release upload $TAG_NAME $FILES --clobber
           else
-             gh release create $TAG_NAME $APK_FILE \
+             gh release create $TAG_NAME $FILES \
                --title "Release $TAG_NAME" \
                --notes "Release build $TAG_NAME" \
                --target ${{ github.event.workflow_run.head_sha }}

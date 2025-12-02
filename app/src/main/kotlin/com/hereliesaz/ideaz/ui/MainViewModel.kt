@@ -562,6 +562,9 @@ class MainViewModel(
                     // Setup Template
                     createProjectFromTemplateInternal(context, projectType, projectDir)
                     ProjectConfigManager.ensureGitIgnore(projectDir)
+                    ProjectConfigManager.ensureWorkflow(getApplication(), projectDir, projectType)
+                    if (projectType == ProjectType.ANDROID) ProjectConfigManager.ensureSetupScript(projectDir)
+                    ProjectConfigManager.ensureVersioning(projectDir, projectType)
 
                     _buildLog.value += "[INFO] Pushing initial commit...\n"
                     withContext(Dispatchers.IO) {
@@ -608,7 +611,9 @@ class MainViewModel(
                     }
                     // Ensure basic files
                     ProjectConfigManager.ensureGitIgnore(projectDir)
+                    ProjectConfigManager.ensureWorkflow(getApplication(), projectDir, type)
                     if (type == ProjectType.ANDROID) ProjectConfigManager.ensureSetupScript(projectDir)
+                    ProjectConfigManager.ensureVersioning(projectDir, type)
 
                     withContext(Dispatchers.IO) {
                         val git = GitManager(projectDir)
@@ -671,6 +676,7 @@ class MainViewModel(
                 try {
                     ProjectConfigManager.ensureWorkflow(getApplication(), projectDir, type)
                     if (type == ProjectType.ANDROID) ProjectConfigManager.ensureSetupScript(projectDir)
+                    ProjectConfigManager.ensureVersioning(projectDir, type)
                     withContext(Dispatchers.IO) {
                         val git = GitManager(projectDir)
                         git.addAll()
