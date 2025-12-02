@@ -1131,7 +1131,8 @@ class MainViewModel(
                         }
                     }
                 } catch (e2: Exception) {
-                    _buildLog.value += "[ERROR] Failed to fetch sources: ${e2.message}\n"
+                    val msg = if (e2.message?.contains("401") == true) "HTTP 401: Invalid GitHub Token. Check Settings." else e2.message
+                    _buildLog.value += "[ERROR] Failed to fetch sources: $msg\n"
                 }
             } finally {
                 _isLoadingSources.value = false

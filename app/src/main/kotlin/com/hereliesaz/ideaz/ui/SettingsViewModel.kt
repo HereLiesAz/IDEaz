@@ -218,7 +218,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     // --- API Key Save/Get ---
 
     fun saveGoogleApiKey(apiKey: String) {
-        sharedPreferences.edit().putString(KEY_GOOGLE_API_KEY, apiKey).apply()
+        sharedPreferences.edit().putString(KEY_GOOGLE_API_KEY, apiKey.trim()).apply()
     }
 
     fun getGoogleApiKey(): String? {
@@ -226,7 +226,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun saveGithubToken(token: String) {
-        sharedPreferences.edit().putString(KEY_GITHUB_TOKEN, token).apply()
+        sharedPreferences.edit().putString(KEY_GITHUB_TOKEN, token.trim()).apply()
     }
 
     fun getGithubToken(): String? {
@@ -234,7 +234,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun saveJulesProjectId(projectId: String) {
-        sharedPreferences.edit().putString(KEY_JULES_PROJECT_ID, projectId).apply()
+        sharedPreferences.edit().putString(KEY_JULES_PROJECT_ID, projectId.trim()).apply()
     }
 
     fun getJulesProjectId(): String? {
@@ -242,11 +242,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun saveApiKey(apiKey: String) {
-        sharedPreferences.edit().putString(KEY_API_KEY, apiKey).apply()
+        val trimmed = apiKey.trim()
+        sharedPreferences.edit().putString(KEY_API_KEY, trimmed).apply()
 
         // Also update the interceptor immediately
-        AuthInterceptor.apiKey = apiKey
-        _apiKey.value = apiKey
+        AuthInterceptor.apiKey = trimmed
+        _apiKey.value = trimmed
     }
 
     fun getApiKey(): String? {

@@ -165,7 +165,7 @@ object GitHubApiClient {
     fun createService(token: String): GitHubApi {
         val authInterceptor = Interceptor { chain ->
             val request = chain.request().newBuilder()
-                .header("Authorization", "token $token")
+                .header("Authorization", "Bearer $token")
                 .header("Accept", "application/vnd.github.v3+json")
                 .build()
             chain.proceed(request)
