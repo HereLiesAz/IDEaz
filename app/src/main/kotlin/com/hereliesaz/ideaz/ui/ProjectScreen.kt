@@ -731,38 +731,6 @@ fun ProjectScreen(
                 }
 
                 LazyColumn(modifier = Modifier.weight(1f)) {
-                    item {
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R && !isExternalStorageManager) {
-                            AzButton(
-                                onClick = {
-                                    try {
-                                        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                                        intent.addCategory("android.intent.category.DEFAULT")
-                                        intent.data = Uri.parse("package:${context.packageName}")
-                                        context.startActivity(intent)
-                                    } catch (e: Exception) {
-                                        val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-                                        context.startActivity(intent)
-                                    }
-                                },
-                                text = "Grant Storage Permission",
-                                shape = AzButtonShape.RECTANGLE,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = 16.dp)
-                            )
-                        } else {
-                            AzButton(
-                                onClick = { openProjectLauncher.launch(null) },
-                                text = "Add External Project",
-                                shape = AzButtonShape.RECTANGLE,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = 16.dp)
-                            )
-                        }
-                    }
-
                     if (projectMetadataList.isEmpty()) {
                         item {
                             Spacer(modifier = Modifier.height(16.dp))
@@ -808,6 +776,39 @@ fun ProjectScreen(
                                     }
                                 }
                             }
+                        }
+                    }
+
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R && !isExternalStorageManager) {
+                            AzButton(
+                                onClick = {
+                                    try {
+                                        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                                        intent.addCategory("android.intent.category.DEFAULT")
+                                        intent.data = Uri.parse("package:${context.packageName}")
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                                        context.startActivity(intent)
+                                    }
+                                },
+                                text = "Grant Storage Permission",
+                                shape = AzButtonShape.RECTANGLE,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp)
+                            )
+                        } else {
+                            AzButton(
+                                onClick = { openProjectLauncher.launch(null) },
+                                text = "Add External Project",
+                                shape = AzButtonShape.RECTANGLE,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp)
+                            )
                         }
                     }
                 }

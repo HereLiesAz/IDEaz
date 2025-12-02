@@ -34,7 +34,7 @@
 ## 4. Project Screen (`ProjectScreen.kt`)
 *   **Role:** Entry point.
 *   **Tabs:**
-    *   **Load:** Select existing local project. **Includes "Add External Project" button (requests Storage Permission).** -> **Transitions to Setup Tab.**
+    *   **Load:** Select existing local project. **Includes "Add External Project" / "Grant Storage Permission" button below the list.** -> **Transitions to Setup Tab.**
     *   **Clone:** Search/Clone from GitHub.
     *   **Create:** Generate from template.
     *   **Setup:** **INITIALIZATION happens here.**
@@ -52,7 +52,13 @@
 ## 6. Settings Screen (`SettingsScreen.kt`)
 *   **Role:** Configuration.
 *   **Visuals:** **Opaque Background** (Transparency is not allowed here).
-*   **Sections:** AI Keys, GitHub Token, Theme, Tool Management.
+*   **Sections:**
+    1.  **Build Configuration:** (Local vs Cloud builds).
+    2.  **Saved Settings & Credentials:** Export/Import encrypted settings.
+    3.  **Signing Configuration:** Keystore management.
+    4.  **API Keys:** Jules, GitHub, AI Studio.
+    5.  **Permissions:** System permission status/requests.
+    6.  **Preferences/Theme/Logs/Updates/Debug.**
 
 ## 7. Web Runtime (`WebRuntimeActivity.kt`)
 *   **Role:** Host for Web projects.
