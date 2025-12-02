@@ -55,8 +55,8 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [ ] **4.1.1: Session Management:** Create/Delete/Resume sessions.
     - [ ] **4.1.2: Polling:** Implement infinite polling for *activities* (not just patch).
 - [ ] **4.2: Workflow Injection (Initialization)**
-    - [ ] **4.2.1: File Creation:** Generate `android_ci_jules.yml`, `codeql.yml`, `jules.yml`, `release.yml`.
-    - [ ] **4.2.2: Force Push:** Logic to commit and push these files on "Save & Initialize".
+    - [x] **4.2.1: File Creation:** Generate `android_ci_jules.yml`, `codeql.yml`, `jules.yml`, `release.yml`.
+    - [x] **4.2.2: Force Push:** Logic to commit and push these files on "Save & Initialize".
 - [ ] **4.3: Error Handling Loop**
     - [ ] **4.3.1: User Error:** If build fails (compilation), send log to Jules.
     - [ ] **4.3.2: IDE Error:** If build crashes (exception), report to `HereLiesAz/IDEaz` with label `jules`.

@@ -151,6 +151,151 @@ object ProjectConfigManager {
         return modified
     }
 
+    fun ensureVersioning(projectDir: File, type: ProjectType): Boolean {
+        var modified = false
+        val androidRoot = when(type) {
+            ProjectType.ANDROID -> projectDir
+            ProjectType.REACT_NATIVE, ProjectType.FLUTTER -> File(projectDir, "android")
+            else -> null
+        }
+
+        if (androidRoot != null && androidRoot.exists()) {
+            try {
+                // 1. Ensure version.properties
+                val versionFile = File(androidRoot, "version.properties")
+                if (!versionFile.exists()) {
+                    versionFile.writeText("major=1\nminor=0\npatch=0\n")
+                    modified = true
+                }
+
+                // 2. Check build.gradle or build.gradle.kts
+                val appDir = File(androidRoot, "app")
+                val ktsFile = File(appDir, "build.gradle.kts")
+                if (ktsFile.exists()) {
+                    if (injectVersioningKts(ktsFile)) modified = true
+                } else {
+                    val groovyFile = File(appDir, "build.gradle")
+                    if (groovyFile.exists()) {
+                        if (injectVersioningGroovy(groovyFile)) modified = true
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return modified
+    }
+
+    private fun injectVersioningKts(file: File): Boolean {
+        var content = file.readText()
+        var modified = false
+
+        if (!content.contains("import java.util.Properties")) {
+            content = "import java.util.Properties\nimport java.io.FileInputStream\n\n" + content
+            modified = true
+        }
+
+        if (!content.contains("val versionProps = Properties()")) {
+             val logic = """
+val versionProps = Properties()
+val versionPropsFile = rootProject.file("version.properties")
+if (versionPropsFile.exists()) {
+    versionProps.load(FileInputStream(versionPropsFile))
+}
+
+val major = versionProps.getProperty("major", "1").toInt()
+val minor = versionProps.getProperty("minor", "0").toInt()
+val patch = versionProps.getProperty("patch", "1").toInt()
+val buildNumber = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
+""".trimIndent()
+
+             val androidMatch = Regex("""\n\s*android\s*\{""").find(content)
+             if (androidMatch != null) {
+                 val insertPos = androidMatch.range.first
+                 content = content.substring(0, insertPos) + "\n" + logic + "\n" + content.substring(insertPos)
+                 modified = true
+             }
+        }
+
+        if (content.contains("val versionProps")) {
+             val vcRegex = Regex("""\bversionCode\s*=?\s*\d+""")
+             if (vcRegex.containsMatchIn(content)) {
+                 if (!content.contains("major * 1000000")) {
+                     content = content.replace(vcRegex, "versionCode = major * 1000000 + minor * 10000 + patch * 100 + buildNumber")
+                     modified = true
+                 }
+             }
+
+             val vnRegex = Regex("""\bversionName\s*=?\s*".*?"""")
+             if (vnRegex.containsMatchIn(content)) {
+                 if (!content.contains("\$major.\$minor")) {
+                     content = content.replace(vnRegex, "versionName = \"\$major.\$minor.\$patch.\$buildNumber\"")
+                     modified = true
+                 }
+             }
+        }
+
+        if (modified) {
+            file.writeText(content)
+        }
+        return modified
+    }
+
+    private fun injectVersioningGroovy(file: File): Boolean {
+        var content = file.readText()
+        var modified = false
+
+        if (!content.contains("import java.util.Properties")) {
+            content = "import java.util.Properties\nimport java.io.FileInputStream\n\n" + content
+            modified = true
+        }
+
+        if (!content.contains("def versionProps = new Properties()")) {
+             val logic = """
+def versionProps = new Properties()
+def versionPropsFile = rootProject.file("version.properties")
+if (versionPropsFile.exists()) {
+    versionProps.load(new FileInputStream(versionPropsFile))
+}
+
+def major = versionProps.getProperty("major", "1").toInteger()
+def minor = versionProps.getProperty("minor", "0").toInteger()
+def patch = versionProps.getProperty("patch", "1").toInteger()
+def buildNumber = System.getenv("BUILD_NUMBER")?.toInteger() ?: 1
+""".trimIndent()
+
+             val androidMatch = Regex("""\n\s*android\s*\{""").find(content)
+             if (androidMatch != null) {
+                 val insertPos = androidMatch.range.first
+                 content = content.substring(0, insertPos) + "\n" + logic + "\n" + content.substring(insertPos)
+                 modified = true
+             }
+        }
+
+        if (content.contains("def versionProps")) {
+             val vcRegex = Regex("""\bversionCode\s+(\d+)""")
+             if (vcRegex.containsMatchIn(content)) {
+                 if (!content.contains("major * 1000000")) {
+                     content = content.replace(vcRegex, "versionCode major * 1000000 + minor * 10000 + patch * 100 + buildNumber")
+                     modified = true
+                 }
+             }
+
+             val vnRegex = Regex("""\bversionName\s+"(.*?)"""")
+             if (vnRegex.containsMatchIn(content)) {
+                 if (!content.contains("\$major.\$minor")) {
+                     content = content.replace(vnRegex, "versionName \"\$major.\$minor.\$patch.\$buildNumber\"")
+                     modified = true
+                 }
+             }
+        }
+
+        if (modified) {
+            file.writeText(content)
+        }
+        return modified
+    }
+
     fun appendPromptToHistory(projectDir: File, promptText: String, screenshotBase64: String? = null) {
         try {
             val ideazDir = File(projectDir, CONFIG_DIR)
