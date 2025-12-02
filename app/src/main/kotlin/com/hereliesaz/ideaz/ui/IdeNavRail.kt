@@ -71,7 +71,7 @@ fun IdeNavRail(
         // However, if local build is disabled, clicking this to "Start Build" via a UI trigger
         // inside the screen (if we added one) would fail.
         // The nav rail item just opens the log/bottom sheet.
-        azRailSubItem(id = "build", hostId = "main", text = "Logs", onClick = {
+        azRailSubItem(id = "build", hostId = "main", text = "Build", onClick = {
             handleActionClick {
                 navController.navigate("build")
                 scope.launch {

@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import com.hereliesaz.aznavrail.AzButton
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.ideaz.utils.BubbleUtils
+import com.hereliesaz.ideaz.models.ProjectType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -71,6 +72,16 @@ fun MainScreen(
     // To be safe, let's check it whenever the route changes.
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+
+    val projectTypeStr by viewModel.settingsViewModel.projectType.collectAsState()
+    val projectType = ProjectType.fromString(projectTypeStr)
+
+    // Bubble Mode Logic
+    val isBubbleMode = when {
+        currentRoute == "project_settings" || currentRoute == "settings" -> false
+        projectType == ProjectType.WEB && (currentRoute == "main" || currentRoute == null) -> false
+        else -> true
+    }
 
     LaunchedEffect(currentRoute) {
         isLocalBuildEnabled = viewModel.settingsViewModel.isLocalBuildEnabled()
@@ -178,7 +189,8 @@ fun MainScreen(
                         sheetState = sheetState,
                         scope = scope,
                         onUndock = { BubbleUtils.createBubbleNotification(context) },
-                        isLocalBuildEnabled = isLocalBuildEnabled // PASSING THE FLAG
+                        isLocalBuildEnabled = isLocalBuildEnabled, // PASSING THE FLAG
+                        isBubbleMode = isBubbleMode
                     )
 
                     AnimatedVisibility(
