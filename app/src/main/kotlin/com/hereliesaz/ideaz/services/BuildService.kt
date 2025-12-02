@@ -41,8 +41,10 @@ class BuildService : Service() {
         private const val NOTIFICATION_ID = 1
         private const val MIN_SDK = 26
         private const val TARGET_SDK = 36
-        private const val MAX_LOG_LINES = 5
+        private const val MAX_LOG_LINES = 50
         private const val ACTION_SYNC_AND_EXIT = "SYNC_AND_EXIT"
+        private const val ACTION_BUILD_LOG_INPUT = "BUILD_LOG_INPUT"
+        private const val EXTRA_TEXT_REPLY = "KEY_TEXT_REPLY"
     }
 
     private val logBuffer = ArrayDeque<String>(MAX_LOG_LINES)
@@ -71,10 +73,21 @@ class BuildService : Service() {
         if (intent?.action == ACTION_SYNC_AND_EXIT) {
             handleSyncAndExit()
             return START_NOT_STICKY
+        } else if (intent?.action == ACTION_BUILD_LOG_INPUT) {
+            val remoteInput = androidx.core.app.RemoteInput.getResultsFromIntent(intent)
+            if (remoteInput != null) {
+                val input = remoteInput.getCharSequence(EXTRA_TEXT_REPLY).toString()
+                val promptIntent = Intent("com.hereliesaz.ideaz.AI_PROMPT").apply {
+                    putExtra("PROMPT", input)
+                }
+                sendBroadcast(promptIntent)
+            }
+            return START_NOT_STICKY
         }
 
         val notification = createNotificationBuilder()
             .setContentText("Build Service is running.")
+            .setStyle(NotificationCompat.BigTextStyle().bigText("Build Service is running."))
             .build()
         startForeground(NOTIFICATION_ID, notification)
         return START_STICKY
@@ -129,10 +142,33 @@ class BuildService : Service() {
             this, 1, syncIntent, PendingIntent.FLAG_IMMUTABLE
         )
 
+        val remoteInput = androidx.core.app.RemoteInput.Builder(EXTRA_TEXT_REPLY)
+            .setLabel("Prompt AI...")
+            .build()
+
+        val replyIntent = Intent(this, BuildService::class.java).apply {
+            action = ACTION_BUILD_LOG_INPUT
+        }
+        val replyPendingIntent = PendingIntent.getService(
+            this,
+            2,
+            replyIntent,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val replyAction = NotificationCompat.Action.Builder(
+            android.R.drawable.ic_input_add,
+            "Prompt",
+            replyPendingIntent
+        )
+        .addRemoteInput(remoteInput)
+        .build()
+
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setContentTitle("IDEaz IDE")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(contentIntent)
+            .addAction(replyAction)
             .addAction(android.R.drawable.ic_menu_save, "Sync & Exit", syncPendingIntent)
     }
 
