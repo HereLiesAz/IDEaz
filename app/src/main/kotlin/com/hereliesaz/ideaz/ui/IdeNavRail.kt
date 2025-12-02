@@ -41,7 +41,6 @@ fun IdeNavRail(
             defaultShape = AzButtonShape.RECTANGLE,
             enableRailDragging = true,
             onUndock = onUndock,
-            bubbleTargetActivity = com.hereliesaz.ideaz.BubbleActivity::class.java,
             headerIconShape = AzHeaderIconShape.NONE,
             bubbleMode = isBubbleMode
         )
