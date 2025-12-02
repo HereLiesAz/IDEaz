@@ -111,6 +111,13 @@ fun SettingsScreen(
     var importUri by remember { mutableStateOf<Uri?>(null) }
 
 
+    // --- Export/Import State ---
+    var showExportPasswordDialog by remember { mutableStateOf(false) }
+    var showImportPasswordDialog by remember { mutableStateOf(false) }
+    var exportUri by remember { mutableStateOf<Uri?>(null) }
+    var importUri by remember { mutableStateOf<Uri?>(null) }
+
+
     val keystorePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
