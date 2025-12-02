@@ -1,0 +1,105 @@
+name: Auto Release (Consolidated)
+
+on:
+  workflow_run:
+    workflows: ["Android CI with Jules AI Debugging"]
+    types:
+      - completed
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      checks: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Verify other workflows
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const ref = "${{ github.event.workflow_run.head_sha }}";
+
+            console.log(`Checking status for commit ${ref}`);
+
+            const { data: checks } = await github.rest.checks.listForRef({
+              owner,
+              repo,
+              ref,
+              per_page: 100
+            });
+
+            const failures = checks.check_runs.filter(c => c.conclusion === 'failure' || c.conclusion === 'timed_out');
+            if (failures.length > 0) {
+              const names = failures.map(c => c.name).join(', ');
+              core.setFailed(`The following checks failed: ${names}`);
+              return;
+            }
+
+            // Filter out self (this new run might show up as queued/in_progress)
+            const pending = checks.check_runs.filter(c =>
+                (c.status === 'in_progress' || c.status === 'queued') &&
+                c.name !== 'release' && // This job name
+                !c.name.includes('Auto Release') // This workflow name
+            );
+
+            if (pending.length > 0) {
+               console.log("Pending checks: " + pending.map(c => c.name).join(', '));
+               core.setFailed("Other workflows are still pending. Release aborted.");
+            } else {
+               console.log("All checks passed!");
+            }
+
+      - name: set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Build Release APK
+        run: |
+          chmod +x gradlew
+          export BUILD_NUMBER=$(git rev-list --count HEAD)
+          ./gradlew assembleRelease
+
+          APK_FILE=$(ls app/build/outputs/apk/release/IDEaz-*-release.apk | head -n 1)
+          echo "APK_FILE=$APK_FILE" >> $GITHUB_ENV
+
+          FILENAME=$(basename "$APK_FILE")
+          VERSION_NAME=$(echo "$FILENAME" | sed -E 's/IDEaz-(.*)-release.apk/\1/')
+          echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
+
+      - name: Publish Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: v${{ env.VERSION_NAME }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git tag -fa $TAG_NAME -m "Release $TAG_NAME"
+          git push origin $TAG_NAME --force
+
+          if gh release view $TAG_NAME > /dev/null 2>&1; then
+             gh release edit $TAG_NAME \
+               --title "Release $TAG_NAME" \
+               --notes "Release build $TAG_NAME" \
+               --target ${{ github.event.workflow_run.head_sha }}
+             gh release upload $TAG_NAME $APK_FILE --clobber
+          else
+             gh release create $TAG_NAME $APK_FILE \
+               --title "Release $TAG_NAME" \
+               --notes "Release build $TAG_NAME" \
+               --target ${{ github.event.workflow_run.head_sha }}
+          fi
