@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
@@ -101,6 +102,13 @@ fun SettingsScreen(
     var keyAlias by remember { mutableStateOf(settingsViewModel.getKeyAlias()) }
     var keyPass by remember { mutableStateOf(settingsViewModel.getKeyPass()) }
 
+    // --- Export/Import State ---
+    var showExportPasswordDialog by remember { mutableStateOf(false) }
+    var showImportPasswordDialog by remember { mutableStateOf(false) }
+    var exportUri by remember { mutableStateOf<Uri?>(null) }
+    var importUri by remember { mutableStateOf<Uri?>(null) }
+
+
     val keystorePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -112,6 +120,25 @@ fun SettingsScreen(
             }
         }
     }
+
+    val exportSettingsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri: Uri? ->
+        if (uri != null) {
+            exportUri = uri
+            showExportPasswordDialog = true
+        }
+    }
+
+    val importSettingsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            importUri = uri
+            showImportPasswordDialog = true
+        }
+    }
+
     // --- END NEW ---
 
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
@@ -164,6 +191,36 @@ fun SettingsScreen(
     )
 
     // --- Dialogs ---
+
+    if (showExportPasswordDialog) {
+        PasswordDialog(
+            title = "Set Password for Export",
+            confirmText = "Export",
+            onDismiss = { showExportPasswordDialog = false },
+            onConfirm = { password ->
+                showExportPasswordDialog = false
+                exportUri?.let { uri ->
+                    settingsViewModel.exportSettings(context, uri, password)
+                }
+            }
+        )
+    }
+
+    if (showImportPasswordDialog) {
+        PasswordDialog(
+            title = "Enter Password to Import",
+            confirmText = "Import",
+            onDismiss = { showImportPasswordDialog = false },
+            onConfirm = { password ->
+                showImportPasswordDialog = false
+                importUri?.let { uri ->
+                    settingsViewModel.importSettings(context, uri, password)
+                    // Refresh fields from viewModel state if needed, though flows should update UI automatically.
+                }
+            }
+        )
+    }
+
     if (showDownloadToolsDialog) {
         AlertDialog(
             onDismissRequest = {
@@ -233,6 +290,133 @@ fun SettingsScreen(
                     .padding(16.dp)
                     .verticalScroll(rememberScrollState())
             ) {
+
+                // --- BUILD CONFIGURATION ---
+                Text("Build Configuration", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Enable Local Builds (Experimental)",
+                        modifier = Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Switch(
+                        checked = isLocalBuildEnabled,
+                        onCheckedChange = { enabled ->
+                            if (enabled) {
+                                // Check if tools exist
+                                if (!ToolManager.areToolsInstalled(context)) {
+                                    showDownloadToolsDialog = true
+                                    // Toggle waits for confirmation
+                                } else {
+                                    isLocalBuildEnabled = true
+                                    settingsViewModel.setLocalBuildEnabled(true)
+                                }
+                            } else {
+                                // Disable
+                                showDeleteToolsDialog = true
+                                // Toggle waits for confirmation/dismiss of dialog
+                            }
+                        }
+                    )
+                }
+                Text(
+                    text = "Requires downloading extension (~100MB). If disabled, the app relies solely on GitHub Actions for builds.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // --- Saved Settings and Credentials ---
+                Text("Saved Settings and Credentials", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Save all API keys, passwords, and settings to an encrypted file.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    AzButton(
+                        onClick = { exportSettingsLauncher.launch("ideaz_settings.enc") },
+                        text = "Save Settings",
+                        shape = AzButtonShape.RECTANGLE,
+                        modifier = Modifier.weight(1f).padding(end = 8.dp)
+                    )
+
+                    AzButton(
+                        onClick = { importSettingsLauncher.launch(arrayOf("application/octet-stream")) },
+                        text = "Load Settings",
+                        shape = AzButtonShape.RECTANGLE,
+                        modifier = Modifier.weight(1f).padding(start = 8.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // --- NEW: Signing Config Section ---
+                Text("Signing Configuration", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text("Current Keystore: ${File(keystorePath).name}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                AzButton(
+                    onClick = { keystorePickerLauncher.launch("*/*") },
+                    text = "Select Custom Keystore",
+                    shape = AzButtonShape.RECTANGLE,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+                AzTextBox(
+                    value = keystorePass,
+                    onValueChange = { keystorePass = it },
+                    hint = "Keystore Password",
+                    secret = true,
+                    onSubmit = { settingsViewModel.saveSigningCredentials(keystorePass, keyAlias, keyPass) }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                AzTextBox(
+                    value = keyAlias,
+                    onValueChange = { keyAlias = it },
+                    hint = "Key Alias",
+                    onSubmit = { settingsViewModel.saveSigningCredentials(keystorePass, keyAlias, keyPass) }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                AzTextBox(
+                    value = keyPass,
+                    onValueChange = { keyPass = it },
+                    hint = "Key Password",
+                    secret = true,
+                    onSubmit = {
+                        settingsViewModel.saveSigningCredentials(keystorePass, keyAlias, keyPass)
+                        Toast.makeText(context, "Signing config saved", Toast.LENGTH_SHORT).show()
+                    },
+                    submitButtonContent = { Text("Save") }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                AzButton(
+                    onClick = {
+                        settingsViewModel.clearSigningConfig()
+                        keystorePath = "Default (debug.keystore)"
+                        keystorePass = "android"
+                        keyAlias = "androiddebugkey"
+                        keyPass = "android"
+                        Toast.makeText(context, "Reset to default debug keystore", Toast.LENGTH_SHORT).show()
+                    },
+                    text = "Reset to Default",
+                    shape = AzButtonShape.NONE,
+                    modifier = Modifier.align(Alignment.End)
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
 
                 Text(
                     "API Keys",
@@ -346,105 +530,6 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // --- BUILD CONFIGURATION ---
-                Text("Build Configuration", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Enable Local Builds (Experimental)",
-                        modifier = Modifier.weight(1f),
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Switch(
-                        checked = isLocalBuildEnabled,
-                        onCheckedChange = { enabled ->
-                            if (enabled) {
-                                // Check if tools exist
-                                if (!ToolManager.areToolsInstalled(context)) {
-                                    showDownloadToolsDialog = true
-                                    // Toggle waits for confirmation
-                                } else {
-                                    isLocalBuildEnabled = true
-                                    settingsViewModel.setLocalBuildEnabled(true)
-                                }
-                            } else {
-                                // Disable
-                                showDeleteToolsDialog = true
-                                // Toggle waits for confirmation/dismiss of dialog
-                            }
-                        }
-                    )
-                }
-                Text(
-                    text = "Requires downloading extension (~100MB). If disabled, the app relies solely on GitHub Actions for builds.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // --- NEW: Signing Config Section ---
-                Text("Signing Configuration", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text("Current Keystore: ${File(keystorePath).name}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                AzButton(
-                    onClick = { keystorePickerLauncher.launch("*/*") },
-                    text = "Select Custom Keystore",
-                    shape = AzButtonShape.RECTANGLE,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-                AzTextBox(
-                    value = keystorePass,
-                    onValueChange = { keystorePass = it },
-                    hint = "Keystore Password",
-                    secret = true,
-                    onSubmit = { settingsViewModel.saveSigningCredentials(keystorePass, keyAlias, keyPass) }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                AzTextBox(
-                    value = keyAlias,
-                    onValueChange = { keyAlias = it },
-                    hint = "Key Alias",
-                    onSubmit = { settingsViewModel.saveSigningCredentials(keystorePass, keyAlias, keyPass) }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                AzTextBox(
-                    value = keyPass,
-                    onValueChange = { keyPass = it },
-                    hint = "Key Password",
-                    secret = true,
-                    onSubmit = {
-                        settingsViewModel.saveSigningCredentials(keystorePass, keyAlias, keyPass)
-                        Toast.makeText(context, "Signing config saved", Toast.LENGTH_SHORT).show()
-                    },
-                    submitButtonContent = { Text("Save") }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                AzButton(
-                    onClick = {
-                        settingsViewModel.clearSigningConfig()
-                        keystorePath = "Default (debug.keystore)"
-                        keystorePass = "android"
-                        keyAlias = "androiddebugkey"
-                        keyPass = "android"
-                        Toast.makeText(context, "Reset to default debug keystore", Toast.LENGTH_SHORT).show()
-                    },
-                    text = "Reset to Default",
-                    shape = AzButtonShape.NONE,
-                    modifier = Modifier.align(Alignment.End)
-                )
-                // --- END NEW ---
-
-                Spacer(modifier = Modifier.height(24.dp))
                 Text("AI Assignments", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
 
                 SettingsViewModel.aiTasks.forEach { (taskKey, taskName) ->
@@ -481,6 +566,12 @@ fun SettingsScreen(
                 val hasScreenshot by remember(viewModel.hasScreenCapturePermission()) { mutableStateOf(viewModel.hasScreenCapturePermission()) }
                 val hasAccessibility by remember(refreshTrigger) {
                     mutableStateOf(isAccessibilityServiceEnabled(context, ".services.UIInspectionService"))
+                }
+                val hasStorage by remember(refreshTrigger) {
+                    mutableStateOf(
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Environment.isExternalStorageManager()
+                        else true
+                    )
                 }
 
                 PermissionCheckRow(
@@ -536,6 +627,28 @@ fun SettingsScreen(
                     onClick = {
                         if (!hasScreenshot) {
                             viewModel.requestScreenCapturePermission()
+                        } else {
+                            Toast.makeText(context, "Permission already granted", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+
+                PermissionCheckRow(
+                    name = "Manage All Files (Storage)",
+                    granted = hasStorage,
+                    onClick = {
+                        if (!hasStorage) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                try {
+                                    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                                    intent.addCategory("android.intent.category.DEFAULT")
+                                    intent.data = Uri.parse("package:${context.packageName}")
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                                    context.startActivity(intent)
+                                }
+                            }
                         } else {
                             Toast.makeText(context, "Permission already granted", Toast.LENGTH_SHORT).show()
                         }
@@ -821,4 +934,33 @@ fun ThemeDropdown(
             }
         }
     }
+}
+
+@Composable
+fun PasswordDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+    title: String,
+    confirmText: String
+) {
+    var password by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            AzTextBox(
+                value = password,
+                onValueChange = { password = it },
+                hint = "Enter Password",
+                secret = true,
+                onSubmit = { onConfirm(password) }
+            )
+        },
+        confirmButton = {
+            AzButton(onClick = { onConfirm(password) }, text = confirmText)
+        },
+        dismissButton = {
+            AzButton(onClick = onDismiss, text = "Cancel", shape = AzButtonShape.NONE)
+        }
+    )
 }
