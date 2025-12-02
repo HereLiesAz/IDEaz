@@ -85,7 +85,8 @@ fun BubbleScreen(
             scope = scope,
             initiallyExpanded = true,
             onUndock = onUndock,
-            isLocalBuildEnabled = isLocalBuildEnabled
+            isLocalBuildEnabled = isLocalBuildEnabled,
+            isBubbleMode = true
         )
 
         IdeNavHost(
