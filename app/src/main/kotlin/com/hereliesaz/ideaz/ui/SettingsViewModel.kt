@@ -585,4 +585,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun isRepoAdmin(): Boolean = sharedPreferences.getBoolean(KEY_REPO_IS_ADMIN, false)
     fun isBranchProtected(): Boolean = sharedPreferences.getBoolean(KEY_BRANCH_PROTECTED, false)
     fun isPrRequired(): Boolean = sharedPreferences.getBoolean(KEY_PR_REQUIRED, false)
+
+    fun getAppVersion(): String {
+        return try {
+            val pInfo = getApplication<Application>().packageManager.getPackageInfo(getApplication<Application>().packageName, 0)
+            val versionName = pInfo.versionName
+            "v$versionName"
+        } catch (e: Exception) {
+            "Unknown"
+        }
+    }
 }
