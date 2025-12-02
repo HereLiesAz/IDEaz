@@ -27,7 +27,8 @@ fun IdeNavRail(
     initiallyExpanded: Boolean = false,
     onUndock: (() -> Unit)? = null,
     enableRailDraggingOverride: Boolean? = null,
-    isLocalBuildEnabled: Boolean = false // NEW PARAMETER
+    isLocalBuildEnabled: Boolean = false, // NEW PARAMETER
+    isBubbleMode: Boolean = false
 ) {
     AzNavRail(
         navController = navController,
@@ -40,6 +41,7 @@ fun IdeNavRail(
             onUndock = onUndock,
             bubbleTargetActivity = com.hereliesaz.ideaz.BubbleActivity::class.java,
             headerIconShape = AzHeaderIconShape.NONE,
+            bubbleMode = isBubbleMode
         )
 
         // 1. Project
