@@ -38,4 +38,10 @@ object JulesApiClient {
     suspend fun generateResponse(prompt: Prompt): GenerateResponseResponse {
         return getClient().generateResponse(prompt)
     }
+
+    suspend fun listSessions(parent: String, pageSize: Int = 100, pageToken: String? = null) =
+        getClient().listSessions(parent, pageSize, pageToken)
+
+    suspend fun listSources(parent: String, pageSize: Int = 100, pageToken: String? = null) =
+        getClient().listSources(parent, pageSize, pageToken)
 }
