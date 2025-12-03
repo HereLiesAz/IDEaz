@@ -94,13 +94,19 @@ jobs:
           echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
 
           # Find APK
-          APK_FILE=$(find downloaded_apk -name "IDEaz-*-debug.apk" | head -n 1)
-          if [ -z "$APK_FILE" ]; then
+          APK_FOUND=$(find downloaded_apk -name "IDEaz-*-debug.apk" | head -n 1)
+          if [ -z "$APK_FOUND" ]; then
             echo "Error: No APK file found in downloaded_apk/"
             ls -R downloaded_apk/
             exit 1
           fi
-          echo "APK_FILE=$APK_FILE" >> $GITHUB_ENV
+
+          # Enforce naming convention
+          TARGET_NAME="IDEaz-${VERSION_NAME}-debug.apk"
+          echo "Renaming $APK_FOUND to $TARGET_NAME"
+          mv "$APK_FOUND" "$TARGET_NAME"
+
+          echo "APK_FILE=$TARGET_NAME" >> $GITHUB_ENV
 
 
 
