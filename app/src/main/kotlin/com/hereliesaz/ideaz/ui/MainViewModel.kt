@@ -39,6 +39,8 @@ import com.hereliesaz.ideaz.utils.SourceMapParser
 import com.hereliesaz.ideaz.services.ScreenshotService
 import com.hereliesaz.ideaz.api.GeminiApiClient
 import com.hereliesaz.ideaz.api.GitHubApiClient
+import com.hereliesaz.ideaz.api.GitHubRepoResponse
+import com.hereliesaz.ideaz.api.Session
 import com.hereliesaz.ideaz.buildlogic.HttpDependencyResolver
 import com.hereliesaz.ideaz.utils.SourceContextHelper
 import com.hereliesaz.ideaz.models.IdeazProjectConfig
@@ -62,6 +64,11 @@ import kotlinx.coroutines.async
 import java.util.zip.ZipInputStream
 import java.time.Instant
 import com.hereliesaz.ideaz.utils.ApkInstaller
+import com.hereliesaz.ideaz.BuildConfig
+import com.goterl.lazysodium.LazySodiumAndroid
+import com.goterl.lazysodium.SodiumAndroid
+import com.goterl.lazysodium.interfaces.Box
+import com.hereliesaz.ideaz.api.CreateSecretRequest
 
 data class ProjectMetadata(
     val name: String,
@@ -209,6 +216,58 @@ class MainViewModel(
         val logContext = _buildLog.value.takeLast(2000)
         val fullPrompt = "Context: Build Log (Partial)\n$logContext\n\nUser Request: $prompt"
         startContextualAITask(fullPrompt)
+    }
+
+    // --- New States for Repo & Sessions ---
+    private val _ownedRepos = MutableStateFlow<List<GitHubRepoResponse>>(emptyList())
+    val ownedRepos = _ownedRepos.asStateFlow()
+
+    private val _sessions = MutableStateFlow<List<Session>>(emptyList())
+    val sessions = _sessions.asStateFlow()
+
+    fun fetchGitHubRepos() {
+        viewModelScope.launch {
+            try {
+                _loadingProgress.value = 0 // Indeterminate
+                val token = settingsViewModel.getGithubToken()
+                if (!token.isNullOrBlank()) {
+                    val service = GitHubApiClient.createService(token)
+                    val repos = service.listRepos()
+                    _ownedRepos.value = repos
+                } else {
+                    logToOverlay("Error: No GitHub Token found.")
+                }
+            } catch (e: Exception) {
+                logToOverlay("Error fetching repos: ${e.message}")
+            } finally {
+                _loadingProgress.value = null
+            }
+        }
+    }
+
+    fun fetchSessionsForRepo(repoName: String) {
+        viewModelScope.launch {
+            try {
+                val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
+                val response = JulesApiClient.listSessions(parent)
+                val allSessions = response.sessions ?: emptyList()
+
+                val user = settingsViewModel.getGithubUser() ?: ""
+                val fullRepo = if (repoName.contains("/")) repoName else "$user/$repoName"
+                val targetSource = "sources/github/$fullRepo"
+
+                val filtered = allSessions.filter { session ->
+                    val source = session.sourceContext.source
+                    source.equals(targetSource, ignoreCase = true)
+                }
+
+                _sessions.value = filtered
+            } catch (e: Exception) {
+                Log.e(TAG, "Error fetching sessions", e)
+                // Optionally clear sessions on error
+                _sessions.value = emptyList()
+            }
+        }
     }
 
     init {
@@ -648,8 +707,95 @@ class MainViewModel(
     fun gitUnstash() { /* ... */ }
     fun switchBranch(branch: String) { /* ... */ }
     fun createGitHubRepository(appName: String, description: String, isPrivate: Boolean, projectType: ProjectType, packageName: String, context: Context, onSuccess: () -> Unit) { /* ... */ }
-    fun saveAndInitialize(appName: String, user: String, branch: String, pkg: String, type: ProjectType, context: Context, initialPrompt: String? = null) { /* ... */ }
-    fun loadProject(projectName: String, onSuccess: () -> Unit = {}) { /* ... */ }
+
+    fun uploadProjectSecrets(owner: String, repo: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val token = settingsViewModel.getGithubToken()
+                if (token.isNullOrBlank()) {
+                    logToOverlay("Cannot upload secrets: No GitHub Token")
+                    return@launch
+                }
+
+                val service = GitHubApiClient.createService(token)
+                // Fetch public key
+                val publicKey = service.getRepoPublicKey(owner, repo)
+                val keyId = publicKey.keyId
+                val keyBytes = android.util.Base64.decode(publicKey.key, android.util.Base64.DEFAULT)
+
+                val lazySodium = LazySodiumAndroid(SodiumAndroid())
+                val sealBytes = 48 // crypto_box_SEALBYTES
+
+                suspend fun encryptAndUpload(name: String, value: String) {
+                    try {
+                        val valueBytes = value.toByteArray(Charsets.UTF_8)
+                        val encryptedBytes = ByteArray(sealBytes + valueBytes.size)
+                        lazySodium.cryptoBoxSeal(encryptedBytes, valueBytes, valueBytes.size.toLong(), keyBytes)
+                        val encryptedBase64 = android.util.Base64.encodeToString(encryptedBytes, android.util.Base64.NO_WRAP)
+
+                        service.createSecret(owner, repo, name, CreateSecretRequest(encryptedBase64, keyId))
+                        logToOverlay("Uploaded secret: $name")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to upload secret $name", e)
+                        logToOverlay("Failed to upload secret $name")
+                    }
+                }
+
+                val geminiKey = settingsViewModel.getApiKey()
+                if (!geminiKey.isNullOrBlank()) encryptAndUpload("GEMINI_API_KEY", geminiKey)
+
+                val googleKey = settingsViewModel.getGoogleApiKey()
+                if (!googleKey.isNullOrBlank()) encryptAndUpload("GOOGLE_API_KEY", googleKey)
+
+                val keystorePath = settingsViewModel.getKeystorePath()
+                if (keystorePath != null) {
+                    val file = File(keystorePath)
+                    if (file.exists()) {
+                        val bytes = file.readBytes()
+                        val base64Keystore = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                        encryptAndUpload("ANDROID_KEYSTORE_BASE64", base64Keystore)
+                    }
+                }
+
+                val kp = settingsViewModel.getKeystorePass()
+                if (kp.isNotEmpty()) encryptAndUpload("ANDROID_KEYSTORE_PASSWORD", kp)
+
+                val ka = settingsViewModel.getKeyAlias()
+                if (ka.isNotEmpty()) encryptAndUpload("ANDROID_KEY_ALIAS", ka)
+
+                val kpp = settingsViewModel.getKeyPass()
+                if (kpp.isNotEmpty()) encryptAndUpload("ANDROID_KEY_PASSWORD", kpp)
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Error uploading secrets", e)
+                logToOverlay("Error uploading secrets: ${e.message}")
+            }
+        }
+    }
+
+    fun saveAndInitialize(appName: String, user: String, branch: String, pkg: String, type: ProjectType, context: Context, initialPrompt: String? = null) {
+        viewModelScope.launch {
+             settingsViewModel.saveProjectConfig(appName, user, branch)
+             settingsViewModel.saveTargetPackageName(pkg)
+             settingsViewModel.setProjectType(type.name)
+
+             uploadProjectSecrets(user, appName)
+
+             startBuild(context)
+        }
+    }
+
+    fun loadProject(projectName: String, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+             settingsViewModel.setAppName(projectName)
+             // Refresh Git Data?
+             val user = settingsViewModel.getGithubUser() ?: ""
+             if (user.isNotBlank()) {
+                 uploadProjectSecrets(user, projectName)
+             }
+             onSuccess()
+        }
+    }
     fun forceUpdateInitFiles() { /* ... */ }
     fun cloneOrPullProject(owner: String, repo: String, branch: String) { /* ... */ }
     fun scanLocalProjects() { /* ... */ }
@@ -668,6 +814,9 @@ class MainViewModel(
     val updateVersion = _updateVersion.asStateFlow()
     private val _showUpdateWarning = MutableStateFlow<Boolean>(false)
     val showUpdateWarning = _showUpdateWarning.asStateFlow()
+
+    private val _updateMessage = MutableStateFlow<String?>(null)
+    val updateMessage = _updateMessage.asStateFlow()
 
     private var pendingUpdateAssetUrl: String? = null
 
@@ -701,13 +850,29 @@ class MainViewModel(
 
                 if (update != null) {
                     _updateVersion.value = update.tagName
-                    pendingUpdateAssetUrl = update.assets.firstOrNull { it.name.endsWith(".apk") }?.browserDownloadUrl
+                    val asset = update.assets.firstOrNull { it.name.endsWith(".apk") }
+                    pendingUpdateAssetUrl = asset?.browserDownloadUrl
 
                     if (pendingUpdateAssetUrl != null) {
-                        // Prompt the user
+                        val remoteVersion = Regex("IDEaz-(.*)-debug\\.apk").find(asset!!.name)?.groupValues?.get(1)
+                        val localVersion = BuildConfig.VERSION_NAME
+
+                        if (remoteVersion != null) {
+                            val diff = compareVersions(remoteVersion, localVersion)
+                            if (diff > 0) {
+                                _updateMessage.value = "New version $remoteVersion is available (Current: $localVersion). Install?"
+                            } else if (diff < 0) {
+                                _updateMessage.value = "You are running a newer version ($localVersion) than the latest release ($remoteVersion). Downgrade?"
+                            } else {
+                                _updateMessage.value = "You are already on the latest version ($localVersion). Re-install?"
+                            }
+                        } else {
+                            _updateMessage.value = "Update found: ${update.tagName}. Install?"
+                        }
+
                         _showUpdateWarning.value = true
                     } else {
-                        logToOverlay("Update found ($update.tagName) but no APK asset.")
+                        logToOverlay("Update found (\${update.tagName}) but no APK asset.")
                     }
                 } else {
                     logToOverlay("No updates found for branch $branch.")
@@ -718,6 +883,19 @@ class MainViewModel(
                 _updateStatus.value = null
             }
         }
+    }
+
+    private fun compareVersions(v1: String, v2: String): Int {
+        val parts1 = v1.split(".").map { it.toIntOrNull() ?: 0 }
+        val parts2 = v2.split(".").map { it.toIntOrNull() ?: 0 }
+        val length = maxOf(parts1.size, parts2.size)
+
+        for (i in 0 until length) {
+            val p1 = parts1.getOrElse(i) { 0 }
+            val p2 = parts2.getOrElse(i) { 0 }
+            if (p1 != p2) return p1 - p2
+        }
+        return 0
     }
 
     fun confirmUpdate() {
