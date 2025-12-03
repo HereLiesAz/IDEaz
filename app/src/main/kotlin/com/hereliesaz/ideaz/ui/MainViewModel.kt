@@ -64,6 +64,7 @@ import kotlinx.coroutines.async
 import java.util.zip.ZipInputStream
 import java.time.Instant
 import com.hereliesaz.ideaz.utils.ApkInstaller
+import com.hereliesaz.ideaz.BuildConfig
 
 data class ProjectMetadata(
     val name: String,
@@ -723,6 +724,9 @@ class MainViewModel(
     private val _showUpdateWarning = MutableStateFlow<Boolean>(false)
     val showUpdateWarning = _showUpdateWarning.asStateFlow()
 
+    private val _updateMessage = MutableStateFlow<String?>(null)
+    val updateMessage = _updateMessage.asStateFlow()
+
     private var pendingUpdateAssetUrl: String? = null
 
     fun checkForExperimentalUpdates() {
@@ -755,13 +759,29 @@ class MainViewModel(
 
                 if (update != null) {
                     _updateVersion.value = update.tagName
-                    pendingUpdateAssetUrl = update.assets.firstOrNull { it.name.endsWith(".apk") }?.browserDownloadUrl
+                    val asset = update.assets.firstOrNull { it.name.endsWith(".apk") }
+                    pendingUpdateAssetUrl = asset?.browserDownloadUrl
 
                     if (pendingUpdateAssetUrl != null) {
-                        // Prompt the user
+                        val remoteVersion = Regex("IDEaz-(.*)-debug\\.apk").find(asset!!.name)?.groupValues?.get(1)
+                        val localVersion = BuildConfig.VERSION_NAME
+
+                        if (remoteVersion != null) {
+                            val diff = compareVersions(remoteVersion, localVersion)
+                            if (diff > 0) {
+                                _updateMessage.value = "New version $remoteVersion is available (Current: $localVersion). Install?"
+                            } else if (diff < 0) {
+                                _updateMessage.value = "You are running a newer version ($localVersion) than the latest release ($remoteVersion). Downgrade?"
+                            } else {
+                                _updateMessage.value = "You are already on the latest version ($localVersion). Re-install?"
+                            }
+                        } else {
+                            _updateMessage.value = "Update found: ${update.tagName}. Install?"
+                        }
+
                         _showUpdateWarning.value = true
                     } else {
-                        logToOverlay("Update found ($update.tagName) but no APK asset.")
+                        logToOverlay("Update found (\${update.tagName}) but no APK asset.")
                     }
                 } else {
                     logToOverlay("No updates found for branch $branch.")
@@ -772,6 +792,19 @@ class MainViewModel(
                 _updateStatus.value = null
             }
         }
+    }
+
+    private fun compareVersions(v1: String, v2: String): Int {
+        val parts1 = v1.split(".").map { it.toIntOrNull() ?: 0 }
+        val parts2 = v2.split(".").map { it.toIntOrNull() ?: 0 }
+        val length = maxOf(parts1.size, parts2.size)
+
+        for (i in 0 until length) {
+            val p1 = parts1.getOrElse(i) { 0 }
+            val p2 = parts2.getOrElse(i) { 0 }
+            if (p1 != p2) return p1 - p2
+        }
+        return 0
     }
 
     fun confirmUpdate() {
