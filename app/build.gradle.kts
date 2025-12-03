@@ -197,5 +197,4 @@ dependencies {
 
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.lazysodium.android)
-    implementation(libs.jna)
 }
