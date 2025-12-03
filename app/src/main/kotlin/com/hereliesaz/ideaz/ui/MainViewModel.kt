@@ -65,6 +65,10 @@ import java.util.zip.ZipInputStream
 import java.time.Instant
 import com.hereliesaz.ideaz.utils.ApkInstaller
 import com.hereliesaz.ideaz.BuildConfig
+import com.goterl.lazysodium.LazySodiumAndroid
+import com.goterl.lazysodium.SodiumAndroid
+import com.goterl.lazysodium.interfaces.Box
+import com.hereliesaz.ideaz.api.CreateSecretRequest
 
 data class ProjectMetadata(
     val name: String,
@@ -703,8 +707,95 @@ class MainViewModel(
     fun gitUnstash() { /* ... */ }
     fun switchBranch(branch: String) { /* ... */ }
     fun createGitHubRepository(appName: String, description: String, isPrivate: Boolean, projectType: ProjectType, packageName: String, context: Context, onSuccess: () -> Unit) { /* ... */ }
-    fun saveAndInitialize(appName: String, user: String, branch: String, pkg: String, type: ProjectType, context: Context, initialPrompt: String? = null) { /* ... */ }
-    fun loadProject(projectName: String, onSuccess: () -> Unit = {}) { /* ... */ }
+
+    fun uploadProjectSecrets(owner: String, repo: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val token = settingsViewModel.getGithubToken()
+                if (token.isNullOrBlank()) {
+                    logToOverlay("Cannot upload secrets: No GitHub Token")
+                    return@launch
+                }
+
+                val service = GitHubApiClient.createService(token)
+                // Fetch public key
+                val publicKey = service.getRepoPublicKey(owner, repo)
+                val keyId = publicKey.keyId
+                val keyBytes = android.util.Base64.decode(publicKey.key, android.util.Base64.DEFAULT)
+
+                val lazySodium = LazySodiumAndroid(SodiumAndroid())
+                val sealBytes = 48 // crypto_box_SEALBYTES
+
+                suspend fun encryptAndUpload(name: String, value: String) {
+                    try {
+                        val valueBytes = value.toByteArray(Charsets.UTF_8)
+                        val encryptedBytes = ByteArray(sealBytes + valueBytes.size)
+                        lazySodium.cryptoBoxSeal(encryptedBytes, valueBytes, valueBytes.size.toLong(), keyBytes)
+                        val encryptedBase64 = android.util.Base64.encodeToString(encryptedBytes, android.util.Base64.NO_WRAP)
+
+                        service.createSecret(owner, repo, name, CreateSecretRequest(encryptedBase64, keyId))
+                        logToOverlay("Uploaded secret: $name")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to upload secret $name", e)
+                        logToOverlay("Failed to upload secret $name")
+                    }
+                }
+
+                val geminiKey = settingsViewModel.getApiKey()
+                if (!geminiKey.isNullOrBlank()) encryptAndUpload("GEMINI_API_KEY", geminiKey)
+
+                val googleKey = settingsViewModel.getGoogleApiKey()
+                if (!googleKey.isNullOrBlank()) encryptAndUpload("GOOGLE_API_KEY", googleKey)
+
+                val keystorePath = settingsViewModel.getKeystorePath()
+                if (keystorePath != null) {
+                    val file = File(keystorePath)
+                    if (file.exists()) {
+                        val bytes = file.readBytes()
+                        val base64Keystore = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                        encryptAndUpload("ANDROID_KEYSTORE_BASE64", base64Keystore)
+                    }
+                }
+
+                val kp = settingsViewModel.getKeystorePass()
+                if (kp.isNotEmpty()) encryptAndUpload("ANDROID_KEYSTORE_PASSWORD", kp)
+
+                val ka = settingsViewModel.getKeyAlias()
+                if (ka.isNotEmpty()) encryptAndUpload("ANDROID_KEY_ALIAS", ka)
+
+                val kpp = settingsViewModel.getKeyPass()
+                if (kpp.isNotEmpty()) encryptAndUpload("ANDROID_KEY_PASSWORD", kpp)
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Error uploading secrets", e)
+                logToOverlay("Error uploading secrets: ${e.message}")
+            }
+        }
+    }
+
+    fun saveAndInitialize(appName: String, user: String, branch: String, pkg: String, type: ProjectType, context: Context, initialPrompt: String? = null) {
+        viewModelScope.launch {
+             settingsViewModel.saveProjectConfig(appName, user, branch)
+             settingsViewModel.saveTargetPackageName(pkg)
+             settingsViewModel.setProjectType(type.name)
+
+             uploadProjectSecrets(user, appName)
+
+             startBuild(context)
+        }
+    }
+
+    fun loadProject(projectName: String, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+             settingsViewModel.setAppName(projectName)
+             // Refresh Git Data?
+             val user = settingsViewModel.getGithubUser() ?: ""
+             if (user.isNotBlank()) {
+                 uploadProjectSecrets(user, projectName)
+             }
+             onSuccess()
+        }
+    }
     fun forceUpdateInitFiles() { /* ... */ }
     fun cloneOrPullProject(owner: String, repo: String, branch: String) { /* ... */ }
     fun scanLocalProjects() { /* ... */ }
