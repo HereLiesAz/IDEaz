@@ -115,11 +115,37 @@ data class GitHubIssueResponse(
     val number: Int,
     @SerialName("html_url") val htmlUrl: String
 )
+
+@Serializable
+data class GitHubPublicKey(
+    @SerialName("key_id") val keyId: String,
+    val key: String
+)
+
+@Serializable
+data class CreateSecretRequest(
+    @SerialName("encrypted_value") val encryptedValue: String,
+    @SerialName("key_id") val keyId: String
+)
 // --- END NEW ---
 
 interface GitHubApi {
     @POST("user/repos")
     suspend fun createRepo(@Body request: CreateRepoRequest): GitHubRepoResponse
+
+    @retrofit2.http.GET("repos/{owner}/{repo}/actions/secrets/public-key")
+    suspend fun getRepoPublicKey(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String
+    ): GitHubPublicKey
+
+    @retrofit2.http.PUT("repos/{owner}/{repo}/actions/secrets/{secret_name}")
+    suspend fun createSecret(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("secret_name") secretName: String,
+        @Body request: CreateSecretRequest
+    ): retrofit2.Response<Unit>
 
     // --- NEW: Create Issue Endpoint ---
     @POST("repos/{owner}/{repo}/issues")
