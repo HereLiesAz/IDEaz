@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.rememberNavController
 import com.composables.core.rememberBottomSheetState
+import com.composables.core.SheetDetent
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -26,7 +27,10 @@ fun MainScreen(
     val navController = rememberNavController()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val sheetState = rememberBottomSheetState(initialDetent = Halfway)
+    val sheetState = rememberBottomSheetState(
+        initialDetent = Peek,
+        detents = listOf(SheetDetent.Hidden, AlmostHidden, Peek, Halfway)
+    )
 
     val isIdeVisible by viewModel.isTargetAppVisible.collectAsState()
     val isLocalBuildEnabled = viewModel.settingsViewModel.isLocalBuildEnabled()

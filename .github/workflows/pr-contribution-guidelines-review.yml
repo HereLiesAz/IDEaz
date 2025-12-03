@@ -1,0 +1,207 @@
+name: "📐 Enforce Contribution Guidelines"
+
+on:
+  pull_request:
+    types: [opened, synchronize, edited, reopened, ready_for_review]
+
+  pull_request_review_comment:
+    types: [created]
+  
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  validate-pr:
+    if: |
+      github.event_name == 'pull_request' ||
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        contains(github.event.comment.body, '/validate-contribution') &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+      ) ||
+      (
+        github.event_name == 'pull_request_review_comment' &&
+        contains(github.event.comment.body, '/validate-contribution') &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+      )
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # For PR comments, we need to checkout the PR branch
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+
+      - name: Generate GitHub App Token (fork-safe, optional)
+        id: generate_token
+        if: ${{ vars.APP_ID }}
+        uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # ratchet:actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Get PR number
+        id: get_pr
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" == "issue_comment" ]; then
+            echo "number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" == "pull_request_review_comment" ]; then
+            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Collect PR metadata and diff
+        id: pr
+        env:
+          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.get_pr.outputs.number }}
+        run: |
+          set -euo pipefail
+          echo "number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+
+          # Get PR details using gh CLI
+          PR_DATA=$(gh pr view "${PR_NUMBER}" --repo "${REPOSITORY}" --json title,body)
+          TITLE=$(echo "$PR_DATA" | jq -r '.title')
+          BODY=$(echo "$PR_DATA" | jq -r '.body // ""')
+
+          # Safely write PR title (handles quotes and newlines)
+          {
+            echo "title<<EOF"
+            printf "%s\n" "$TITLE"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          # Safely write PR body (handles quotes and newlines)
+          {
+            echo "body<<EOF"
+            printf "%s\n" "$BODY"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          # Safely capture changed files (one per line)
+          {
+            echo "changed_files<<EOF"
+            gh pr diff "${PR_NUMBER}" --name-only --repo "${REPOSITORY}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          # Safely capture full diff
+          {
+            echo "diff<<EOF"
+            gh pr diff "${PR_NUMBER}" --repo "${REPOSITORY}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Validate PR against CONTRIBUTING.md
+        id: gemini
+        uses: google-github-actions/run-gemini-cli@v0
+        env:
+          # gh CLI inside Gemini
+          GH_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          REPOSITORY: ${{ github.repository }}
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          settings: |
+            {
+              "coreTools": [
+                "run_shell_command(cat)",
+                "run_shell_command(printf)",
+                "run_shell_command(gh pr view)",
+                "run_shell_command(gh pr diff)",
+                "run_shell_command(gh pr comment)",
+                "run_shell_command(gh api)"
+              ],
+              "telemetry": { "enabled": false, "target": "gcp" }
+            }
+          prompt: |
+            You are a repository assistant ensuring pull requests follow the repository's contribution guidelines.
+
+            Inputs:
+            - Repository: ${REPOSITORY}
+            - PR Number: ${PR_NUMBER}
+            - Title: ${{ steps.pr.outputs.title }}
+            - Body: ${{ steps.pr.outputs.body }}
+            - Changed files:
+              ${{ steps.pr.outputs.changed_files }}
+            - Diff:
+            ```diff
+            ${{ steps.pr.outputs.diff }}
+            ```
+
+            Required behavior:
+            1. Read the contribution guidelines using: cat CONTRIBUTING.md
+               - If file is missing, set STATUS="PASS" with note "No CONTRIBUTING.md found", and proceed to step 4.
+            2. Compare the PR against the guidelines. Consider (at minimum):
+               - PR title/body formatting and required sections
+               - Branch naming or target branch requirements
+               - Tests, docs, or changelog requirements
+               - Commit message conventions (if specified)
+               - Any checklists or templates to be followed
+            3. Decide STATUS:
+               - If any requirement is not met: STATUS="FAIL" and prepare a concise checklist of actionable items with links to CONTRIBUTING.md anchors.
+               - Else: STATUS="PASS" and prepare a brief confirmation referencing key checks.
+            4. Build exactly one Markdown comment with this marker and structure:
+               <!-- guidelines-check: ${STATUS} -->
+               ## 📐 Contribution Guidelines: ${STATUS}
+               <short summary, 1–2 sentences>
+
+               If STATUS=="FAIL": include a task list:
+               - [ ] <actionable item 1> (see CONTRIBUTING.md#<anchor>)
+               - [ ] <actionable item 2> (see CONTRIBUTING.md#<anchor>)
+
+               If STATUS=="PASS": include:
+               - All required guideline items appear satisfied based on the PR title/body/diff.
+
+
+               - Save the content to /tmp/guidelines_comment.md using a heredoc, then run:
+                 cat > /tmp/guidelines_comment.md <<'EOF'
+                 <the markdown from above>
+                 EOF
+                 gh pr comment "${PR_NUMBER}" --repo "${REPOSITORY}" --body-file /tmp/guidelines_comment.md
+
+            Constraints:
+            - Reference shell variables as "${VAR}".
+            - Keep the comment under ~6,500 characters.
+            - Do not expose secrets.
+            - Post or update exactly one comment per run.
+
+      - name: Detect guideline status from comment
+        id: detect
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        with:
+          github-token: ${{ steps.generate_token.outputs.token || secrets.GITHUB_TOKEN }}
+          script: |
+            const { data } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(process.env.PR_NUMBER),
+              per_page: 100
+            });
+            const marker = /<!--\s*guidelines-check:\s*(PASS|FAIL)\s*-->/i;
+            const found = [...data].reverse().find(c => marker.test(c.body || ''));
+            if (!found) {
+              core.warning('No guidelines-check marker found in PR comments.');
+              core.setOutput('status', 'UNKNOWN');
+            } else {
+              const m = found.body.match(marker);
+              core.setOutput('status', m[1].toUpperCase());
+            }
+
+      - name: Fail workflow on violations (optional)
+        if: steps.detect.outputs.status == 'FAIL' && vars.FAIL_ON_GUIDELINE_VIOLATIONS == 'true'
+        run: |
+          echo "Guideline violations found. Set repository variable FAIL_ON_GUIDELINE_VIOLATIONS=false to disable enforcement." >&2
+          exit 1
