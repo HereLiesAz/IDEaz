@@ -39,6 +39,8 @@ import com.hereliesaz.ideaz.utils.SourceMapParser
 import com.hereliesaz.ideaz.services.ScreenshotService
 import com.hereliesaz.ideaz.api.GeminiApiClient
 import com.hereliesaz.ideaz.api.GitHubApiClient
+import com.hereliesaz.ideaz.api.GitHubRepoResponse
+import com.hereliesaz.ideaz.api.Session
 import com.hereliesaz.ideaz.buildlogic.HttpDependencyResolver
 import com.hereliesaz.ideaz.utils.SourceContextHelper
 import com.hereliesaz.ideaz.models.IdeazProjectConfig
@@ -209,6 +211,58 @@ class MainViewModel(
         val logContext = _buildLog.value.takeLast(2000)
         val fullPrompt = "Context: Build Log (Partial)\n$logContext\n\nUser Request: $prompt"
         startContextualAITask(fullPrompt)
+    }
+
+    // --- New States for Repo & Sessions ---
+    private val _ownedRepos = MutableStateFlow<List<GitHubRepoResponse>>(emptyList())
+    val ownedRepos = _ownedRepos.asStateFlow()
+
+    private val _sessions = MutableStateFlow<List<Session>>(emptyList())
+    val sessions = _sessions.asStateFlow()
+
+    fun fetchGitHubRepos() {
+        viewModelScope.launch {
+            try {
+                _loadingProgress.value = 0 // Indeterminate
+                val token = settingsViewModel.getGithubToken()
+                if (!token.isNullOrBlank()) {
+                    val service = GitHubApiClient.createService(token)
+                    val repos = service.listRepos()
+                    _ownedRepos.value = repos
+                } else {
+                    logToOverlay("Error: No GitHub Token found.")
+                }
+            } catch (e: Exception) {
+                logToOverlay("Error fetching repos: ${e.message}")
+            } finally {
+                _loadingProgress.value = null
+            }
+        }
+    }
+
+    fun fetchSessionsForRepo(repoName: String) {
+        viewModelScope.launch {
+            try {
+                val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
+                val response = JulesApiClient.listSessions(parent)
+                val allSessions = response.sessions ?: emptyList()
+
+                val user = settingsViewModel.getGithubUser() ?: ""
+                val fullRepo = if (repoName.contains("/")) repoName else "$user/$repoName"
+                val targetSource = "sources/github/$fullRepo"
+
+                val filtered = allSessions.filter { session ->
+                    val source = session.sourceContext.source
+                    source.equals(targetSource, ignoreCase = true)
+                }
+
+                _sessions.value = filtered
+            } catch (e: Exception) {
+                Log.e(TAG, "Error fetching sessions", e)
+                // Optionally clear sessions on error
+                _sessions.value = emptyList()
+            }
+        }
     }
 
     init {
