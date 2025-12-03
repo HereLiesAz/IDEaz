@@ -112,14 +112,21 @@ jobs:
               console.log('Error reading build.log', e);
             }
             
-            const body = `Build failed on ${context.eventName === 'pull_request' ? 'PR #' + context.issue.number : context.ref}.\n\n**Log Output:**\n\`\`\`\n${logTail}\n\`\`\`\n\nJules, @google-labs-jules, please debug and fix this build failure.`;
+            const body = `@gemini-code-assist\n\nBuild failed on ${context.eventName === 'pull_request' ? 'PR #' + context.issue.number : context.ref}.\n\n**Log Output:**\n\`\`\`\n${logTail}\n\`\`\``;
             
-            await github.rest.issues.create({
+            const issue = await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: `Build Failure on ${context.eventName === 'pull_request' ? 'PR #' + context.issue.number : context.ref}`,
               body: body,
               labels: ['jules']
+            });
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.data.number,
+              body: "@jules, please debug and fix this build failure. Include the suggestions from the gemini code review."
             });
 
       - name: Fail Job if Build Failed

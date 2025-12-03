@@ -1,14 +1,33 @@
 package com.hereliesaz.ideaz.jules
 
+import com.hereliesaz.ideaz.api.ListSessionsResponse
+import com.hereliesaz.ideaz.api.ListSourcesResponse
 import kotlinx.serialization.Serializable
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface JulesApi {
     @POST("generateresponse")
     suspend fun generateResponse(
         @Body prompt: Prompt
     ): GenerateResponseResponse
+
+    @GET("{parent}/sessions")
+    suspend fun listSessions(
+        @Path(value = "parent", encoded = true) parent: String,
+        @Query("pageSize") pageSize: Int = 100,
+        @Query("pageToken") pageToken: String? = null
+    ): ListSessionsResponse
+
+    @GET("{parent}/sources")
+    suspend fun listSources(
+        @Path(value = "parent", encoded = true) parent: String,
+        @Query("pageSize") pageSize: Int = 100,
+        @Query("pageToken") pageToken: String? = null
+    ): ListSourcesResponse
 }
 
 @Serializable

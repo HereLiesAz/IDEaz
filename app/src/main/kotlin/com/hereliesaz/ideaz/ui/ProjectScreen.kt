@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import com.hereliesaz.aznavrail.AzButton
@@ -113,6 +114,8 @@ fun ProjectScreen(
     var projectToDelete by remember { mutableStateOf<String?>(null) }
 
     val localProjects by settingsViewModel.localProjects.collectAsState()
+    val ownedRepos by viewModel.ownedRepos.collectAsState()
+    val sessions by viewModel.sessions.collectAsState()
 
     val currentTabName = tabs.getOrElse(tabIndex) { "Setup" }
     val isCreateTab = currentTabName == "Create"
@@ -324,6 +327,12 @@ fun ProjectScreen(
                     }
                 }
             } else if (isSetupTab) {
+                if (appName.isNotBlank()) {
+                    LaunchedEffect(appName) {
+                        viewModel.fetchSessionsForRepo(appName)
+                    }
+                }
+
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f)
@@ -514,6 +523,30 @@ fun ProjectScreen(
                         )
                         Spacer(modifier = Modifier.height(24.dp))
                     }
+
+                    if (sessions.isNotEmpty()) {
+                        item {
+                            Text("Available Sessions", style = MaterialTheme.typography.headlineSmall)
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        items(sessions) { session ->
+                            Card(
+                                modifier = Modifier
+                                    .padding(bottom = 8.dp)
+                                    .fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                    contentColor = MaterialTheme.colorScheme.onSurface
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text("Session: ${session.id}", style = MaterialTheme.typography.bodyLarge)
+                                    Text("Prompt: ${session.prompt.take(50)}...", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    }
                 }
             } else if (isCloneTab) {
                 // --- CLONE TAB ---
@@ -546,6 +579,38 @@ fun ProjectScreen(
                                 },
                                 submitButtonContent = { Text("Clone") }
                             )
+                            Spacer(Modifier.width(8.dp))
+                            IconButton(onClick = { viewModel.fetchGitHubRepos() }) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Reload Repos")
+                            }
+                        }
+                    }
+
+                    if (ownedRepos.isNotEmpty()) {
+                        item {
+                            Spacer(Modifier.height(16.dp))
+                            Text("Your Repositories:", style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        items(ownedRepos) { repo ->
+                            Card(
+                                modifier = Modifier
+                                    .padding(bottom = 8.dp)
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        cloneUrl = repo.htmlUrl
+                                    },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                    contentColor = MaterialTheme.colorScheme.onSurface
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(repo.fullName, style = MaterialTheme.typography.bodyLarge)
+                                    Text(repo.htmlUrl, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
                         }
                     }
                 }
