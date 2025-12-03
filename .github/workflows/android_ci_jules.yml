@@ -112,7 +112,7 @@ jobs:
               console.log('Error reading build.log', e);
             }
             
-            const body = `@gemini-code-assist\n\nBuild failed on ${context.eventName === 'pull_request' ? 'PR #' + context.issue.number : context.ref}.\n\n**Log Output:**\n\`\`\`\n${logTail}\n\`\`\``;
+            const body = `@gemini-cli /jules please debug this build error\n\nBuild failed on ${context.eventName === 'pull_request' ? 'PR #' + context.issue.number : context.ref}.\n\n**Log Output:**\n\`\`\`\n${logTail}\n\`\`\``;
             
             const issue = await github.rest.issues.create({
               owner: context.repo.owner,
