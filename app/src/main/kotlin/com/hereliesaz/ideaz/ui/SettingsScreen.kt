@@ -720,6 +720,7 @@ fun SettingsScreen(
 
                 val updateStatus by viewModel.updateStatus.collectAsState()
                 val showUpdateWarning by viewModel.showUpdateWarning.collectAsState()
+                val updateMessage by viewModel.updateMessage.collectAsState()
 
                 if (updateStatus != null) {
                     AlertDialog(
@@ -740,7 +741,7 @@ fun SettingsScreen(
                     AlertDialog(
                         onDismissRequest = { viewModel.dismissUpdateWarning() },
                         title = { Text("Update Ready") },
-                        text = { Text("An update ${if (updateVersion != null) "($updateVersion) " else ""}has been downloaded. The version might be the same as the installed one. Proceed with installation?") },
+                        text = { Text(updateMessage ?: "An update is available. Install?") },
                         confirmButton = {
                             AzButton(onClick = { viewModel.confirmUpdate() }, text = "Install")
                         },
