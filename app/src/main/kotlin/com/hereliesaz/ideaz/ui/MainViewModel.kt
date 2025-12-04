@@ -17,8 +17,6 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.ai.client.generativeai.BuildConfig
-import com.google.ai.client.generativeai.BuildConfig.*
 import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.IBuildService
 import com.hereliesaz.ideaz.jules.JulesApiClient
@@ -857,7 +855,7 @@ class MainViewModel(
 
                     if (pendingUpdateAssetUrl != null) {
                         val remoteVersion = Regex("IDEaz-(.*)-debug\\.apk").find(asset!!.name)?.groupValues?.get(1)
-                        val localVersion = VERSION_NAME
+                        val localVersion = BuildConfig.VERSION_NAME
 
                         if (remoteVersion != null) {
                             val diff = compareVersions(remoteVersion, localVersion)

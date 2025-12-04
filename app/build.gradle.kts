@@ -61,7 +61,7 @@ android {
     }
     buildFeatures {
         compose = true
-
+        buildConfig = true
         aidl = true
     }
 
@@ -196,5 +196,7 @@ dependencies {
     implementation(libs.resolver.maven.resolver.supplier)
 
     implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.lazysodium.android)
+    implementation(libs.lazysodium.android) {
+        exclude(group = "net.java.dev.jna", module = "jna")
+    }
 }
