@@ -1,71 +1,64 @@
 #!/bin/bash
-# A script to correctly set up a basic Android development environment.
+# A script to correctly set up a basic Android development environment with Emulator support.
 
 # Exit on error, print commands
 set -euo pipefail
 set -x
 
-# --- 1. Install Java Development Kit (JDK) 17 ---
-echo "➡️ Installing OpenJDK 17..."
+# --- 1. Install Java (JDK 21) & KVM (Hardware Acceleration) ---
+echo "➡️ Installing OpenJDK 21 and KVM dependencies..."
 sudo apt-get update
-sudo apt-get install -y openjdk-17-jdk
+# openjdk-21-jdk: Required for latest Android SDK tools and Gradle
+# qemu-kvm libvirt...: Required for Hardware Accelerated Emulation
+sudo apt-get install -y openjdk-21-jdk qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils
 
 # Verify Java installation
-JAVA_17_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
-if [ ! -d "$JAVA_17_HOME" ] || [ ! -f "$JAVA_17_HOME/bin/java" ]; then
-    echo "❌ ERROR: OpenJDK 17 installation failed or was not found at the expected path."
-    echo "Please check your system's package manager and Java installation."
+# Standard path for OpenJDK 21 on Debian/Ubuntu systems
+JAVA_21_HOME="/usr/lib/jvm/java-21-openjdk-amd64"
+
+if [ ! -d "$JAVA_21_HOME" ] || [ ! -f "$JAVA_21_HOME/bin/java" ]; then
+    echo "❌ ERROR: OpenJDK 21 installation failed or path not found."
+    echo "Expected location: $JAVA_21_HOME"
     exit 1
 fi
-echo "✅ OpenJDK 17 installed successfully."
+
+# Add user to KVM group to allow running emulator without sudo
+echo "➡️ Adding user to 'kvm' group..."
+sudo adduser "$USER" kvm || true
+echo "✅ Prerequisites installed."
 
 
 # --- 2. Install Android Command Line Tools ---
 echo "➡️ Setting up Android SDK..."
 
-# Define paths
 ANDROID_SDK_ROOT="$HOME/Android/sdk"
-echo "SDK Root will be: $ANDROID_SDK_ROOT"
-
-TOOLS_VERSION="11076708"
+# Using latest command line tools
+TOOLS_VERSION="11076708" 
 TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-linux-${TOOLS_VERSION}_latest.zip"
 TOOLS_ZIP="/tmp/android-tools.zip"
 
-# Create parent directory for cmdline-tools
 mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
-if [ ! -d "$ANDROID_SDK_ROOT/cmdline-tools" ]; then
-    echo "❌ ERROR: Failed to create SDK directory at $ANDROID_SDK_ROOT/cmdline-tools."
-    exit 1
+
+# Download tools if not already present
+if [ ! -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+    echo "Downloading tools from $TOOLS_URL..."
+    wget -q "$TOOLS_URL" -O "$TOOLS_ZIP"
+    
+    rm -rf "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+    unzip -oq "$TOOLS_ZIP" -d "$ANDROID_SDK_ROOT/cmdline-tools"
+    mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+    rm "$TOOLS_ZIP"
+else
+    echo "Tools already downloaded."
 fi
 
-# Download and place the tools in their final destination
-echo "Downloading tools from $TOOLS_URL..."
-wget -q "$TOOLS_URL" -O "$TOOLS_ZIP"
-if [ ! -f "$TOOLS_ZIP" ]; then
-    echo "❌ ERROR: Failed to download Android command line tools."
-    exit 1
-fi
-
-# Unzip and restructure the directory
-echo "Unzipping tools..."
-rm -rf "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-unzip -oq "$TOOLS_ZIP" -d "$ANDROID_SDK_ROOT/cmdline-tools"
-mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-rm "$TOOLS_ZIP"
-
-# Verify tools installation
 SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
-if [ ! -f "$SDKMANAGER" ]; then
-    echo "❌ ERROR: sdkmanager not found after installation."
-    exit 1
-fi
-echo "✅ Android command line tools installed successfully."
+AVDMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager"
 
 
 # --- 3. Set Environment Variables Permanently ---
 echo "➡️ Configuring environment variables..."
 
-# Auto-detect the user's shell configuration file
 if [[ "$SHELL" == */bash ]]; then
     RC_FILE="$HOME/.bashrc"
 elif [[ "$SHELL" == */zsh ]]; then
@@ -73,60 +66,71 @@ elif [[ "$SHELL" == */zsh ]]; then
 else
     RC_FILE="$HOME/.profile"
 fi
-echo "Updating shell configuration at: $RC_FILE"
 
-# Use a function to avoid adding duplicate lines
 append_if_missing() {
     CONTENT="$1"
     FILE="$2"
-    case "$(cat "$FILE")" in
-        *"$CONTENT"*)
-            echo "Content already exists in $FILE: $CONTENT"
-            ;;
-        *)
-            echo "Appending to $FILE: $CONTENT"
-            echo "$CONTENT" >> "$FILE"
-            ;;
-    esac
+    if ! grep -qF "$CONTENT" "$FILE"; then
+        echo "Appending to $FILE: $CONTENT"
+        echo "$CONTENT" >> "$FILE"
+    fi
 }
 
-# Add environment variables
 append_if_missing '' "$RC_FILE"
 append_if_missing '# Android & Java Environment' "$RC_FILE"
-append_if_missing "export JAVA_HOME=$JAVA_17_HOME" "$RC_FILE"
+append_if_missing "export JAVA_HOME=$JAVA_21_HOME" "$RC_FILE"
 append_if_missing 'export ANDROID_SDK_ROOT=$HOME/Android/sdk' "$RC_FILE"
 append_if_missing 'export ANDROID_HOME=$ANDROID_SDK_ROOT' "$RC_FILE"
-append_if_missing 'export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools' "$RC_FILE"
+# IMPORTANT: 'emulator' must come BEFORE 'platform-tools' in PATH to avoid binary conflicts
+append_if_missing 'export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/emulator:$ANDROID_SDK_ROOT/platform-tools' "$RC_FILE"
 append_if_missing 'export PATH=$JAVA_HOME/bin:$PATH' "$RC_FILE"
 echo "✅ Environment variables configured."
 
 
-# --- 4. Install SDK Packages ---
-echo "➡️ Installing SDK packages (platform-tools, build-tools, platforms)..."
-# Export variables for the current session to use sdkmanager
-export JAVA_HOME=$JAVA_17_HOME
+# --- 4. Install SDK Packages & Emulator Images ---
+echo "➡️ Installing SDK packages, Emulator, and System Images..."
+
+# Export variables for current session so sdkmanager works immediately
+export JAVA_HOME=$JAVA_21_HOME
 export ANDROID_HOME=$ANDROID_SDK_ROOT
 export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
 
-# The `yes` command automatically accepts licenses.
+# Accept licenses
 yes | "$SDKMANAGER" --licenses > /dev/null || true
 
-# Install essential packages
-echo "Installing platform-tools..."
-"$SDKMANAGER" "platform-tools" > /dev/null
-echo "Installing build-tools..."
-"$SDKMANAGER" "build-tools;34.0.0" > /dev/null
-echo "Installing Android 36 platform..."
-"$SDKMANAGER" "platforms;android-36" > /dev/null
+# Define System Image: Android 14 (API 34) with Google APIs (Standard for UI testing)
+SYS_IMG="system-images;android-34;google_apis;x86_64"
 
-# Verify installation of platform-tools
-if [ ! -d "$ANDROID_SDK_ROOT/platform-tools" ]; then
-    echo "❌ ERROR: Failed to install platform-tools."
+echo "Installing essential packages..."
+"$SDKMANAGER" "platform-tools" "emulator" "build-tools;34.0.0" "platforms;android-34" > /dev/null
+
+echo "Downloading System Image (This is large ~1.5GB, please wait)..."
+"$SDKMANAGER" "$SYS_IMG" > /dev/null
+
+if [ ! -d "$ANDROID_SDK_ROOT/emulator" ]; then
+    echo "❌ ERROR: Failed to install emulator."
     exit 1
 fi
-echo "✅ SDK packages installed."
+echo "✅ SDK and Emulator packages installed."
 
 
-echo "✅🎉 Android development environment setup complete!"
-echo "Please run 'source $RC_FILE' or restart your terminal to apply the changes."
+# --- 5. Create Android Virtual Device (AVD) ---
+echo "➡️ Creating Android Virtual Device (AVD)..."
+
+AVD_NAME="DebugEmulator"
+
+# Check if AVD already exists
+if "$AVDMANAGER" list avd | grep -q "$AVD_NAME"; then
+    echo "AVD '$AVD_NAME' already exists. Skipping creation."
+else
+    # Create the AVD using the pixel device profile
+    echo "no" | "$AVDMANAGER" create avd -n "$AVD_NAME" -k "$SYS_IMG" --device "pixel" --force
+    echo "✅ AVD '$AVD_NAME' created successfully."
+fi
+
+echo "✅🎉 Android Development Environment (JDK 21) Setup Complete!"
+echo "--------------------------------------------------------"
+echo "1. Apply changes: source $RC_FILE"
+echo "2. Run the emulator: emulator -avd $AVD_NAME"
+echo "--------------------------------------------------------"
 set +x
