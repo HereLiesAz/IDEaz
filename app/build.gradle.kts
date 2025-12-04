@@ -108,6 +108,7 @@ configurations.all {
         }
     }
     exclude(group = "javax.inject", module = "javax.inject")
+    exclude(group = "net.java.dev.jna", module = "jna")
 }
 
 androidComponents.onVariants { variant ->
