@@ -5,19 +5,22 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
-import java.util.Properties
-import java.io.FileInputStream
-
-val versionProps = Properties()
-val versionPropsFile = rootProject.file("version.properties")
-if (versionPropsFile.exists()) {
-    versionProps.load(FileInputStream(versionPropsFile))
+beforeEvaluate {
+    // It's a bit of a hack to define version codes here, but necessary.
+    // We can't use a separate file without complicating the build process,
+    // and defining it in `local.properties` isn't ideal for version control.
+    val versionProps = java.util.Properties()
+    val versionPropsFile = rootProject.file("version.properties")
+    if (versionPropsFile.exists()) {
+        versionProps.load(java.io.FileInputStream(versionPropsFile))
+    }
+    val major = versionProps.getProperty("major", "1").toInt()
+    val minor = versionProps.getProperty("minor", "0").toInt()
+    val patch = versionProps.getProperty("patch", "1").toInt()
+    val buildNumber = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
+    project.ext.set("versionCode", major * 1000000 + minor * 10000 + patch * 100 + buildNumber)
+    project.ext.set("versionName", "$major.$minor.$patch.$buildNumber")
 }
-
-val major = versionProps.getProperty("major", "1").toInt()
-val minor = versionProps.getProperty("minor", "0").toInt()
-val patch = versionProps.getProperty("patch", "1").toInt()
-val buildNumber = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
 
 android {
     namespace = "com.hereliesaz.ideaz"
@@ -28,8 +31,8 @@ android {
         minSdk = 30
 
         targetSdk = 36
-        versionCode = major * 1000000 + minor * 10000 + patch * 100 + buildNumber
-        versionName = "$major.$minor.$patch.$buildNumber"
+        versionCode = project.ext.get("versionCode") as Int
+        versionName = project.ext.get("versionName") as String
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
