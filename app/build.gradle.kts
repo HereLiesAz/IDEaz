@@ -16,7 +16,7 @@ if (versionPropsFile.exists()) {
 
 val major = versionProps.getProperty("major", "1").toInt()
 val minor = versionProps.getProperty("minor", "0").toInt()
-val patch = versionProps.getProperty("patch", "1").toInt()
+val patch = versionProps.getProperty("patch", "2").toInt()
 val buildNumber = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
 
 android {
@@ -77,6 +77,7 @@ android {
             excludes.add("META-INF/ASL2.0")
             excludes.add("META-INF/plexus/components.xml")
             excludes.add("plugin.properties")
+            excludes.add("com/sun/jna/**")
             pickFirsts += "META-INF/sisu/javax.inject.Named"
             pickFirsts += "**/*.so"
             pickFirsts += "**/*.jnilib"
