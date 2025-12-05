@@ -130,6 +130,9 @@ fun ProjectScreen(
                 projectMetadataList = viewModel.getLocalProjectsWithMetadata()
             }
         }
+        if (isCloneTab) {
+            viewModel.fetchGitHubRepos()
+        }
     }
 
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
