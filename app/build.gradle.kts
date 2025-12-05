@@ -66,6 +66,7 @@ android {
     }
 
     packaging {
+        jniLibs.useLegacyPackaging = true
         resources {
             excludes.add("META-INF/DEPENDENCIES")
             excludes.add("META-INF/LICENSE")
@@ -114,6 +115,7 @@ dependencies {
     implementation(libs.guava)
     implementation(libs.kotlinc.android) {
         exclude(group = "javax.inject", module = "javax.inject")
+        exclude(group = "net.java.dev.jna")
     }
     implementation(libs.nb.javac.android)
     implementation(libs.r8)
@@ -180,7 +182,5 @@ dependencies {
     implementation(libs.resolver.maven.resolver.supplier)
 
     implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.lazysodium.android) {
-        exclude(group = "net.java.dev.jna", module = "jna")
-    }
+    implementation(libs.lazysodium.android)
 }
