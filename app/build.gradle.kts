@@ -78,6 +78,8 @@ android {
             excludes.add("META-INF/plexus/components.xml")
             excludes.add("plugin.properties")
             pickFirsts += "META-INF/sisu/javax.inject.Named"
+            pickFirsts += "**/*.so"
+            pickFirsts += "**/*.jnilib"
         }
     }
 }
@@ -181,7 +183,5 @@ dependencies {
     implementation(libs.resolver.maven.resolver.supplier)
 
     implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.lazysodium.android) {
-        exclude(group = "net.java.dev.jna", module = "jna")
-    }
+    implementation(libs.lazysodium.android)
 }
