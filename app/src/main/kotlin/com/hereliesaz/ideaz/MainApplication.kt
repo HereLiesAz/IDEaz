@@ -9,6 +9,7 @@ import org.lsposed.hiddenapibypass.HiddenApiBypass
 
 class MainApplication : Application() {
     override fun onCreate() {
+        System.setProperty("jna.nosys", "true")
         super.onCreate()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             HiddenApiBypass.addHiddenApiExemptions("")
