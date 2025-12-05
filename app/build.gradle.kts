@@ -65,20 +65,7 @@ android {
         aidl = true
     }
 
-    sourceSets {
-        getByName("main") {
-            kotlin.srcDirs("src/main/kotlin")
-            // EXCLUDING LOCAL BUILD TOOLS FROM APK
-            // We want the app to rely solely on GitHub by default.
-            // The tools will be zipped and downloaded separately.
-            jniLibs.setSrcDirs(emptyList<String>())
-        }
-    }
-
     packaging {
-        jniLibs {
-            useLegacyPackaging = true
-        }
         resources {
             excludes.add("META-INF/DEPENDENCIES")
             excludes.add("META-INF/LICENSE")
@@ -90,9 +77,6 @@ android {
             excludes.add("META-INF/plexus/components.xml")
             excludes.add("plugin.properties")
             pickFirsts += "META-INF/sisu/javax.inject.Named"
-
-            // EXCLUDE ASSET TOOLS
-            excludes.add("assets/tools/**")
         }
     }
 }
@@ -108,7 +92,6 @@ configurations.all {
         }
     }
     exclude(group = "javax.inject", module = "javax.inject")
-    exclude(group = "net.java.dev.jna", module = "jna")
 }
 
 androidComponents.onVariants { variant ->
@@ -197,5 +180,7 @@ dependencies {
     implementation(libs.resolver.maven.resolver.supplier)
 
     implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.lazysodium.android)
+    implementation(libs.lazysodium.android) {
+        exclude(group = "net.java.dev.jna", module = "jna")
+    }
 }

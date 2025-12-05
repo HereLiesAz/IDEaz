@@ -154,8 +154,10 @@ class UIInspectionService : AccessibilityService() {
             IDEazTheme(darkTheme = true) {
                 val navController = rememberNavController()
                 val scope = rememberCoroutineScope()
-                // Dummy sheet state for Rail compatibility (it triggers the sheet view logic via VM)
-                val sheetState = rememberBottomSheetState(initialDetent = Peek)
+                val sheetState = rememberBottomSheetState(
+                    initialDetent = Peek,
+                    detents = listOf(Peek, Halfway)
+                )
 
                 IdeNavRail(
                     navController = navController,
