@@ -533,7 +533,11 @@ fun ProjectScreen(
                             Card(
                                 modifier = Modifier
                                     .padding(bottom = 8.dp)
-                                    .fillMaxWidth(),
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        viewModel.resumeSession(session.id)
+                                        Toast.makeText(context, "Resuming session ${session.id}", Toast.LENGTH_SHORT).show()
+                                    },
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surface,
                                     contentColor = MaterialTheme.colorScheme.onSurface
@@ -558,26 +562,21 @@ fun ProjectScreen(
                             AzTextBox(
                                 value = cloneUrl,
                                 onValueChange = { cloneUrl = it },
-                                hint = "https://github.com/user/repo",
+                                hint = "https://github.com/user/repo (to fork)",
                                 modifier = Modifier.weight(1f),
                                 onSubmit = {
                                     if (cloneUrl.isNotBlank() && cloneUrl.startsWith("https://github.com/")) {
-                                        val parts = cloneUrl.split("/")
-                                        if (parts.size >= 5) {
-                                            val owner = parts[3]
-                                            val repo = parts[4]
-                                            viewModel.cloneOrPullProject(owner, repo, "main")
-                                            Toast.makeText(context, "Cloning repository...", Toast.LENGTH_SHORT).show()
-                                        }
+                                        viewModel.forkRepository(cloneUrl)
+                                        Toast.makeText(context, "Forking repository...", Toast.LENGTH_SHORT).show()
                                     } else {
                                         Toast.makeText(
                                             context,
-                                            "Please enter a valid GitHub URL.",
+                                            "Please enter a valid GitHub URL to fork.",
                                             Toast.LENGTH_LONG
                                         ).show()
                                     }
                                 },
-                                submitButtonContent = { Text("Clone") }
+                                submitButtonContent = { Text("Fork") }
                             )
                             Spacer(Modifier.width(8.dp))
                             IconButton(onClick = { viewModel.fetchGitHubRepos() }) {
@@ -598,7 +597,12 @@ fun ProjectScreen(
                                     .padding(bottom = 8.dp)
                                     .fillMaxWidth()
                                     .clickable {
-                                        cloneUrl = repo.htmlUrl
+                                        viewModel.selectRepositoryForSetup(repo) {
+                                            // Switch to Setup tab on success
+                                            val setupIndex = tabs.indexOf("Setup")
+                                            if (setupIndex != -1) tabIndex = setupIndex
+                                        }
+                                        Toast.makeText(context, "Loading project...", Toast.LENGTH_SHORT).show()
                                     },
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surface,
