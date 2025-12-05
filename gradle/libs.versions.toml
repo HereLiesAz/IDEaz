@@ -50,6 +50,7 @@ smali = "2.5.2"
 robolectric = "4.16"
 sodium = "5.2.0"
 jna = "5.13.0"
+hiddenapibypass = "4.3"
 
 [libraries]
 lazysodium-android = { module = "com.goterl:lazysodium-android", version.ref = "sodium" }
@@ -117,6 +118,7 @@ slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4jApi" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4jSimple" }
 generativeai = { module = "com.google.ai.client.generativeai:generativeai", version.ref = "generativeai" }
 haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
+hiddenapibypass = { module = "org.lsposed.hiddenapibypass:hiddenapibypass", version.ref = "hiddenapibypass" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

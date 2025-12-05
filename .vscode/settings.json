@@ -1,3 +1,4 @@
 {
-    "avdmanager.sdkPath": "/home/az/Android/Sdk"
+    "avdmanager.sdkPath": "/home/az/Android/Sdk",
+    "java.configuration.updateBuildConfiguration": "automatic"
 }
