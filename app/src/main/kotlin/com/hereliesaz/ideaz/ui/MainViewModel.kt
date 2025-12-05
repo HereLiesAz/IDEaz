@@ -225,6 +225,10 @@ class MainViewModel(
     private val _sessions = MutableStateFlow<List<Session>>(emptyList())
     val sessions = _sessions.asStateFlow()
 
+    fun resumeSession(sessionId: String) {
+        _currentJulesSessionId.value = sessionId
+    }
+
     fun fetchGitHubRepos() {
         viewModelScope.launch {
             try {
@@ -707,6 +711,78 @@ class MainViewModel(
     fun gitUnstash() { /* ... */ }
     fun switchBranch(branch: String) { /* ... */ }
     fun createGitHubRepository(appName: String, description: String, isPrivate: Boolean, projectType: ProjectType, packageName: String, context: Context, onSuccess: () -> Unit) { /* ... */ }
+
+    fun selectRepositoryForSetup(repo: GitHubRepoResponse, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _loadingProgress.value = 0
+            try {
+                // Populate Settings with Repo Info
+                val owner = repo.fullName.split("/")[0]
+                val appName = repo.name
+                val defaultBranch = repo.defaultBranch ?: "main"
+
+                settingsViewModel.setAppName(appName)
+                settingsViewModel.setGithubUser(owner)
+                settingsViewModel.saveProjectConfig(appName, owner, defaultBranch)
+
+                // "Load" the project (Save data to device / Prepare)
+                // In this "repository-less" model, saving mostly means setting the config.
+                // We might want to trigger `uploadProjectSecrets` here or fetch sessions immediately.
+                uploadProjectSecrets(owner, appName)
+                fetchSessionsForRepo(repo.fullName)
+
+                // Simulate "saving project data to device" if needed, or just marking it as loaded.
+                // The prompt says "running the loading script, populating the configuration fields on the setup tab, and saving the project data to the device."
+                // Since we don't clone files in min-app, "saving project data" essentially means `settingsViewModel.saveProjectConfig`.
+
+                _loadingProgress.value = 100
+                onSuccess()
+            } catch (e: Exception) {
+                logToOverlay("Error loading repository: ${e.message}")
+            } finally {
+                _loadingProgress.value = null
+            }
+        }
+    }
+
+    fun forkRepository(url: String, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            _loadingProgress.value = 0
+            try {
+                val token = settingsViewModel.getGithubToken()
+                if (token.isNullOrBlank()) {
+                    logToOverlay("Cannot fork: No GitHub Token")
+                    return@launch
+                }
+
+                // Expected URL: https://github.com/owner/repo
+                val cleanUrl = url.trim().removeSuffix("/")
+                val parts = cleanUrl.split("/")
+                if (parts.size < 5) {
+                    logToOverlay("Invalid GitHub URL for fork")
+                    return@launch
+                }
+                val owner = parts[parts.size - 2]
+                val repo = parts[parts.size - 1]
+
+                val service = GitHubApiClient.createService(token)
+                val response = service.forkRepo(
+                    owner,
+                    repo,
+                    com.hereliesaz.ideaz.api.ForkRepoRequest()
+                )
+
+                logToOverlay("Fork created: ${response.fullName}")
+                fetchGitHubRepos() // Refresh list
+                onSuccess()
+
+            } catch (e: Exception) {
+                logToOverlay("Fork failed: ${e.message}")
+            } finally {
+                _loadingProgress.value = null
+            }
+        }
+    }
 
     fun uploadProjectSecrets(owner: String, repo: String) {
         viewModelScope.launch(Dispatchers.IO) {

@@ -127,11 +127,24 @@ data class CreateSecretRequest(
     @SerialName("encrypted_value") val encryptedValue: String,
     @SerialName("key_id") val keyId: String
 )
+
+@Serializable
+data class ForkRepoRequest(
+    val name: String? = null,
+    @SerialName("default_branch_only") val defaultBranchOnly: Boolean = true
+)
 // --- END NEW ---
 
 interface GitHubApi {
     @POST("user/repos")
     suspend fun createRepo(@Body request: CreateRepoRequest): GitHubRepoResponse
+
+    @POST("repos/{owner}/{repo}/forks")
+    suspend fun forkRepo(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Body request: ForkRepoRequest
+    ): GitHubRepoResponse
 
     @retrofit2.http.GET("repos/{owner}/{repo}/actions/secrets/public-key")
     suspend fun getRepoPublicKey(
