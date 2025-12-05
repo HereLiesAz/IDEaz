@@ -13,13 +13,12 @@ import android.view.Gravity
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import androidx.navigation.compose.rememberNavController
 import com.composables.core.SheetDetent
 import com.composables.core.rememberBottomSheetState
@@ -33,7 +32,6 @@ import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.ui.inspection.OverlayCanvas
 import com.hereliesaz.ideaz.ui.theme.IDEazTheme
 import com.hereliesaz.ideaz.utils.ComposeLifecycleHelper
-import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 class UIInspectionService : AccessibilityService() {
@@ -61,8 +59,9 @@ class UIInspectionService : AccessibilityService() {
         Log.d(TAG, "UIInspectionService Created")
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
 
-        val factory = MainViewModelFactory(application, SettingsViewModel(application))
-        viewModel = ViewModelProvider.AndroidViewModelFactory.getInstance(application).create(MainViewModel::class.java)
+        val settingsViewModel = SettingsViewModel(application)
+        val factory = MainViewModelFactory(application, settingsViewModel)
+        viewModel = ViewModelProvider(ViewModelStore(), factory)[MainViewModel::class.java]
 
         registerBroadcastReceivers()
     }

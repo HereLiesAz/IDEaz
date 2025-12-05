@@ -17,14 +17,14 @@ interface JulesApi {
 
     @GET("{parent}/sessions")
     suspend fun listSessions(
-        @Path(value = "parent", encoded = true) parent: String,
+        @Path("parent") parent: String,
         @Query("pageSize") pageSize: Int = 100,
         @Query("pageToken") pageToken: String? = null
     ): ListSessionsResponse
 
     @GET("{parent}/sources")
     suspend fun listSources(
-        @Path(value = "parent", encoded = true) parent: String,
+        @Path("parent") parent: String,
         @Query("pageSize") pageSize: Int = 100,
         @Query("pageToken") pageToken: String? = null
     ): ListSourcesResponse
