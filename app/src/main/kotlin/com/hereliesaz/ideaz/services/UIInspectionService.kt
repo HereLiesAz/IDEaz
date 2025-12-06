@@ -73,8 +73,8 @@ class UIInspectionService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "onStartCommand: ${intent?.action}")
 
-        // Ensure we are a foreground service
-        com.hereliesaz.ideaz.utils.BubbleUtils.createBubbleNotification(this)
+        // Ensure we are a foreground service with a standard low-profile notification
+        startForeground(1001, createNotification())
 
         when (intent?.action) {
             ACTION_START_INSPECTION -> {
@@ -90,6 +90,26 @@ class UIInspectionService : Service() {
             }
         }
         return START_NOT_STICKY
+    }
+
+    private fun createNotification(): android.app.Notification {
+        val channelId = "ideaz_overlay_service"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = android.app.NotificationChannel(
+                channelId,
+                "IDEaz Overlay",
+                android.app.NotificationManager.IMPORTANCE_MIN
+            )
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            manager.createNotificationChannel(channel)
+        }
+
+        return androidx.core.app.NotificationCompat.Builder(this, channelId)
+            .setContentTitle("IDEaz Overlay Active")
+            .setContentText("Tap to return to app")
+            .setSmallIcon(com.hereliesaz.ideaz.R.mipmap.ic_launcher)
+            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_MIN)
+            .build()
     }
 
     override fun onBind(intent: Intent?): IBinder? {
