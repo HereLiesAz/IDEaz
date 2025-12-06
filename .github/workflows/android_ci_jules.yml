@@ -45,9 +45,16 @@ jobs:
         # capture output while still failing if build fails (but continue-on-error handles the workflow flow)
         run: |
           set +e
+          # Temporarily change applicationId to avoid install conflicts
+          sed -i 's/applicationId = "com.hereliesaz.ideaz"/applicationId = "com.hereliesaz.ideaz.preview"/g' app/build.gradle.kts
+
           export BUILD_NUMBER=$(git rev-list --count HEAD)
           ./gradlew assembleDebug --build-cache > build.log 2>&1
           EXIT_CODE=$?
+
+          # Revert applicationId change
+          sed -i 's/applicationId = "com.hereliesaz.ideaz.preview"/applicationId = "com.hereliesaz.ideaz"/g' app/build.gradle.kts
+
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
           cat build.log
           exit $EXIT_CODE
