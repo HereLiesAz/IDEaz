@@ -181,11 +181,12 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
-    implementation(libs.dependencyresolverr)
     // https://mvnrepository.com/artifact/org.apache.maven.resolver/maven-resolver-supplier
     implementation(libs.resolver.maven.resolver.supplier)
 
     implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.lazysodium.android)
+    implementation(libs.lazysodium.android) {
+        exclude(group = "net.java.dev.jna")
+    }
     implementation(libs.hiddenapibypass)
 }
