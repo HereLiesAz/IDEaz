@@ -61,7 +61,7 @@ smali = { module = "org.smali:smali", version.ref = "smali" }
 baksmali = { module = "org.smali:baksmali", version.ref = "smali" }
 sora-editor = { module = "io.github.Rosemoe.sora-editor:editor", version.ref = "soraEditor" }
 scala-compiler = { module = "org.scala-lang:scala3-compiler_3", version.ref = "scalaCompiler" }
-kotlinc-android = { module = "com.github.Cosmic-Ide.kotlinc-android:kotlinc-android", version.ref = "kotlincAndroid" }
+#kotlinc-android = { module = "com.github.Cosmic-Ide.kotlinc-android:kotlinc-android", version.ref = "kotlincAndroid" }
 nb-javac-android = { module = "io.github.itsaky:nb-javac-android", version.ref = "nbJavac" }
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
 r8 = { module = "com.android.tools:r8", version.ref = "r8" }

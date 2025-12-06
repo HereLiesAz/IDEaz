@@ -78,9 +78,11 @@ android {
             excludes.add("META-INF/ASL2.0")
             excludes.add("META-INF/plexus/components.xml")
             excludes.add("plugin.properties")
-            pickFirsts += "META-INF/sisu/javax.inject.Named"
-            pickFirsts += "**/*.so"
-            pickFirsts += "**/*.jnilib"
+            pickFirsts.add("META-INF/sisu/javax.inject.Named")
+            pickFirsts.add("**/*.so")
+            pickFirsts.add("**/*.jnilib")
+            pickFirsts.add("**/*.kotlin_builtins")
+            pickFirsts.add("**/*.kotlin_module")
         }
     }
 }
@@ -110,16 +112,17 @@ androidComponents.onVariants { variant ->
 }
 
 dependencies {
+    implementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.2.21")
     implementation(libs.jaxb.api)
     implementation(libs.javax.annotation.api)
     implementation(libs.validation.api)
     implementation(libs.glassfish.el)
     implementation(libs.slf4j.simple)
     implementation(libs.guava)
-    implementation(libs.kotlinc.android) {
-        exclude(group = "javax.inject", module = "javax.inject")
-        exclude(group = "net.java.dev.jna")
-    }
+    //implementation(libs.kotlinc.android) {
+    //    exclude(group = "javax.inject", module = "javax.inject")
+      //  exclude(group = "net.java.dev.jna")
+    //}
     implementation(libs.nb.javac.android)
     implementation(libs.r8)
     implementation(libs.sora.editor)
