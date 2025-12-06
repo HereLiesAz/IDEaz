@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -21,10 +23,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.rememberNavController
 import com.composables.core.SheetDetent
 import com.composables.core.rememberBottomSheetState
+import com.hereliesaz.ideaz.ui.AlmostHidden
+import com.hereliesaz.ideaz.ui.Halfway
+import com.hereliesaz.ideaz.ui.IdeBottomSheet
 import com.hereliesaz.ideaz.ui.IdeNavHost
 import com.hereliesaz.ideaz.ui.IdeNavRail
 import com.hereliesaz.ideaz.ui.MainViewModel
 import com.hereliesaz.ideaz.ui.MainViewModelFactory
+import com.hereliesaz.ideaz.ui.Peek
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.ui.theme.IDEazTheme
 
@@ -72,10 +78,14 @@ fun BubbleScreen(
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
 
-    // Dummy sheet state for IdeNavRail compatibility
+    val supportedDetents = remember {
+        listOf(SheetDetent.Hidden, AlmostHidden, Peek, Halfway)
+    }
     val sheetState = rememberBottomSheetState(
-        initialDetent = SheetDetent.FullyExpanded
+        detents = supportedDetents,
+        initialDetent = SheetDetent.Hidden
     )
+
     val context = LocalContext.current
     var showPromptPopup by remember{ mutableStateOf(false) }
 
@@ -84,37 +94,53 @@ fun BubbleScreen(
 
     val handleActionClick = { action: () -> Unit -> action() }
 
-    Row(modifier = Modifier.fillMaxSize()) {
-        IdeNavRail(
-            navController = navController,
-            viewModel = viewModel,
-            context = context,
-            onShowPromptPopup = { showPromptPopup = true },
-            handleActionClick = handleActionClick,
-            isIdeVisible = true,
-            onLaunchOverlay = {},
-            sheetState = sheetState,
-            scope = scope,
-            initiallyExpanded = true,
-            onUndock = onUndock,
-            isLocalBuildEnabled = isLocalBuildEnabled,
-            isBubbleMode = true,
-            onNavigateToMainApp = { route ->
-                val intent = android.content.Intent(context, MainActivity::class.java).apply {
-                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-                    putExtra("NAV_ROUTE", route)
-                }
-                context.startActivity(intent)
-                onUndock()
-            }
-        )
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val screenHeight = maxHeight
 
-        IdeNavHost(
-            modifier = Modifier.fillMaxSize(),
-            navController = navController,
+        Row(modifier = Modifier.fillMaxSize()) {
+            IdeNavRail(
+                navController = navController,
+                viewModel = viewModel,
+                context = context,
+                onShowPromptPopup = { showPromptPopup = true },
+                handleActionClick = handleActionClick,
+                isIdeVisible = true,
+                onLaunchOverlay = {},
+                sheetState = sheetState,
+                scope = scope,
+                initiallyExpanded = false, // Forced undock state
+                onUndock = onUndock,
+                isLocalBuildEnabled = isLocalBuildEnabled,
+                isBubbleMode = true,
+                onNavigateToMainApp = { route ->
+                    val intent = android.content.Intent(context, MainActivity::class.java).apply {
+                        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                        putExtra("NAV_ROUTE", route)
+                    }
+                    context.startActivity(intent)
+                    onUndock()
+                }
+            )
+
+            IdeNavHost(
+                modifier = Modifier.fillMaxSize(),
+                navController = navController,
+                viewModel = viewModel,
+                settingsViewModel = viewModel.settingsViewModel,
+                onThemeToggle = { }
+            )
+        }
+
+        IdeBottomSheet(
+            sheetState = sheetState,
             viewModel = viewModel,
-            settingsViewModel = viewModel.settingsViewModel,
-            onThemeToggle = { }
+            peekDetent = Peek,
+            halfwayDetent = Halfway,
+            screenHeight = screenHeight,
+            onSendPrompt = {
+                viewModel.sendPrompt(it)
+                // Optionally clear text or close sheet?
+            }
         )
     }
 }
