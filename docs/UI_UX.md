@@ -22,8 +22,7 @@ The interaction model revolves around the **Live App** and the **IDE Overlay**.
 *   **Purpose:** Allow the user to select UI elements to modify.
 *   **State:** `UIInspectionService` is **active** and intercepting touches.
 *   **Visuals:**
-    *   **Tap-to-Select:** Tapping an element highlights it with a bounding box.
-    *   **Drag-to-Select:** Dragging draws a selection rectangle.
+    *   **Drag-to-Select:** Dragging draws a selection rectangle. Tapping does nothing.
     *   **Prompt:** A floating input box appears near the selection.
 *   **Trigger:** User taps "Select" or swipes up the bottom sheet.
 
