@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -94,12 +93,6 @@ fun BubbleScreen(
     val isLocalBuildEnabled = remember { viewModel.settingsViewModel.isLocalBuildEnabled() }
 
     val handleActionClick = { action: () -> Unit -> action() }
-
-    LaunchedEffect(Unit) {
-        navController.navigate("project_settings") { 
-            popUpTo("initial_placeholder") { inclusive = true } 
-        }
-    }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val screenHeight = maxHeight

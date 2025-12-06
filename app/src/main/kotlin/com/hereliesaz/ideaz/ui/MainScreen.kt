@@ -7,7 +7,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -40,13 +39,6 @@ fun MainScreen(
 
     val isIdeVisible by viewModel.isTargetAppVisible.collectAsState()
     val isLocalBuildEnabled = viewModel.settingsViewModel.isLocalBuildEnabled()
-
-    // Navigate to the correct start destination after the NavHost is ready
-    LaunchedEffect(Unit) {
-        navController.navigate("project_settings") { 
-            popUpTo("initial_placeholder") { inclusive = true } 
-        }
-    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),

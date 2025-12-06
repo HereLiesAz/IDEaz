@@ -16,7 +16,7 @@ if (versionPropsFile.exists()) {
 
 val major = versionProps.getProperty("major", "1").toInt()
 val minor = versionProps.getProperty("minor", "0").toInt()
-val patch = versionProps.getProperty("patch", "2").toInt()
+val patch = versionProps.getProperty("patch", "3").toInt()
 val buildNumber = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
 
 android {
@@ -115,7 +115,7 @@ dependencies {
     implementation(libs.kotlin.compiler.embeddable)
     implementation(libs.jaxb.api)
     implementation(libs.javax.annotation.api)
-    implementation(libs.validation.api)
+    implementation(libs.validation..api)
     implementation(libs.glassfish.el)
     implementation(libs.slf4j.simple)
     implementation(libs.guava)
