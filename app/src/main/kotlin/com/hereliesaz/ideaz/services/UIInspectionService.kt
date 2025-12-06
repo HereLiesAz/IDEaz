@@ -29,7 +29,7 @@ class UIInspectionService : AccessibilityService() {
     private var windowManager: WindowManager? = null
 
     // We only need ONE window now: The Selection Overlay.
-    // The NavRail and BottomSheet are handled by BubbleActivity.
+    // The NavRail and BottomSheet are handled by BubbleActivity (or MainActivity).
     private var selectionView: ComposeView? = null
     private var selectionParams: WindowManager.LayoutParams? = null
     private var selectionLifecycle: ComposeLifecycleHelper? = null
@@ -44,11 +44,11 @@ class UIInspectionService : AccessibilityService() {
                     val enable = intent.getBooleanExtra("ENABLE", false)
                     Log.d(TAG, "Received TOGGLE_SELECT_MODE: $enable")
                     // Force update the local service VM state to match Activity
-                    viewModel.toggleSelectMode(enable)
+                    viewModel.setSelectModeInternal(enable)
                 }
                 "com.hereliesaz.ideaz.HIGHLIGHT_RECT" -> {
                     // Optional: If we want to show a specific highlight triggered externally
-                    val rect = intent.getParcelableExtra<Rect>("RECT")
+                    // val rect = intent.getParcelableExtra<Rect>("RECT")
                     // We would update a state in VM here if we want to visualize it
                 }
             }
