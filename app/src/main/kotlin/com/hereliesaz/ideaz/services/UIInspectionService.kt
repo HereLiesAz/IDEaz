@@ -300,8 +300,8 @@ class UIInspectionService : Service() {
         railLifecycle?.onDestroy()
         sheetLifecycle?.onDestroy()
 
-        if (selectionView != null) try { windowManager?.removeView(selectionView) } catch(e:Exception){}
-        if (railView != null) try { windowManager?.removeView(railView) } catch(e:Exception){}
-        if (sheetView != null) try { windowManager?.removeView(sheetView) } catch(e:Exception){}
+        if (selectionView != null) try { windowManager?.removeView(selectionView) } catch(e:Exception){ Log.w(TAG, "Failed to remove selectionView", e) }
+        if (railView != null) try { windowManager?.removeView(railView) } catch(e:Exception){ Log.w(TAG, "Failed to remove railView", e) }
+        if (sheetView != null) try { windowManager?.removeView(sheetView) } catch(e:Exception){ Log.w(TAG, "Failed to remove sheetView", e) }
     }
 }
