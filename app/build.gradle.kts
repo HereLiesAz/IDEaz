@@ -115,7 +115,7 @@ dependencies {
     implementation(libs.kotlin.compiler.embeddable)
     implementation(libs.jaxb.api)
     implementation(libs.javax.annotation.api)
-    implementation(libs.validation..api)
+    implementation(libs.validation.api)
     implementation(libs.glassfish.el)
     implementation(libs.slf4j.simple)
     implementation(libs.guava)
