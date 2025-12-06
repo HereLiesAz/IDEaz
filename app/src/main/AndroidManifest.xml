@@ -3,7 +3,6 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
@@ -11,19 +10,10 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
 
-    <!-- REMOVED: android.permission.BIND_ACCESSIBILITY_SERVICE from uses-permission
-         This caused the "Permission is only granted to system apps" error. -->
-
-    <!-- Required for Android 9+ to use startForeground -->
-    <!-- Required for Android 14+ to use specific foreground types -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
-    <!--
-         Required for Android 11+ (API 30+) to detect installed apps.
-         We query for any app that has a launcher activity, so we can launch
-         the apps we build.
-    -->
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
@@ -60,6 +50,7 @@
             android:allowEmbedded="true"
             android:documentLaunchMode="always"
             android:resizeableActivity="true"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.IDEaz" />
 
         <activity
@@ -68,10 +59,6 @@
             android:label="Web Preview"
             android:theme="@style/Theme.IDEaz" />
 
-        <!--
-             BuildService requires 'dataSync' on Android 14+
-             because it performs long-running processing/compilation.
-        -->
         <service
             android:name=".services.BuildService"
             android:exported="false"
@@ -83,7 +70,16 @@
 
         <service
             android:name=".services.UIInspectionService"
-            android:exported="false" />
+            android:exported="true"
+            android:label="@string/accessibility_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
 
         <service
             android:name=".services.ScreenshotService"

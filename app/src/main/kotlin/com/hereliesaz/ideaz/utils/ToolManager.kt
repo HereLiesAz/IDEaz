@@ -10,9 +10,8 @@ import java.util.zip.ZipInputStream
 
 /**
  * Manages the installation, retrieval, and deletion of external build tools.
- * * Modularized: This manager now strictly looks for tools in a downloadable location.
- * It does NOT fallback to assets/nativeLibraryDir automatically, as those are stripped
- * from the base APK to enforce the "Github-only" base philosophy.
+ * Modularized: This manager now strictly looks for tools in a downloadable location.
+ * It does NOT fallback to assets/nativeLibraryDir automatically.
  */
 object ToolManager {
 
@@ -39,6 +38,20 @@ object ToolManager {
         "apksigner.jar"
     )
 
+    // --- ADDED THIS METHOD TO FIX COMPILATION ERROR ---
+    fun init(context: Context) {
+        val root = File(context.filesDir, ROOT_DIR)
+        if (!root.exists()) {
+            root.mkdirs()
+        }
+
+        if (areToolsInstalled(context)) {
+            Log.i(TAG, "Local build tools verified.")
+        } else {
+            Log.w(TAG, "Local build tools missing or incomplete. Waiting for download.")
+        }
+    }
+
     /**
      * Checks if the local build tools are installed and intact.
      */
@@ -55,6 +68,8 @@ object ToolManager {
         if (!File(toolsDir, "d8.jar").exists()) return false
 
         // Check a few key binaries
+        // Note: In downloadable mode, we look for the file inside the unzipped location
+        // We use startsWith check or specific check depending on extraction logic
         if (!File(nativeDir, "libaapt2.so").exists()) return false
 
         return true
@@ -121,9 +136,6 @@ object ToolManager {
     }
 
     fun getJavaLibsPath(context: Context): String {
-        // Assuming java libs are inside the tools dir or a specific libs dir in the zip.
-        // For simplicity, we assume they are in tools/java_libs if specific, or just tools.
-        // Adapting to previous structure: likely copied to TOOLS_SUBDIR/java_libs if they existed.
         return File(context.filesDir, "$ROOT_DIR/$TOOLS_SUBDIR/java_libs").absolutePath
     }
 
@@ -147,9 +159,7 @@ object ToolManager {
         }
     }
 
-    // Stub for BuildService compatibility if it calls installTools
     fun installTools(context: Context) {
         // No-op. We don't auto-install from assets anymore.
-        // The user must download the extension.
     }
 }

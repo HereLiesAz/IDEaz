@@ -20,15 +20,13 @@ fun IdeNavHost(
 ) {
     NavHost(
         navController = navController,
-        startDestination = "initial_placeholder", // Changed to a placeholder
+        startDestination = "initial_placeholder",
         modifier = modifier
     ) {
         composable("initial_placeholder") {
-            // Empty placeholder to ensure the NavHost is initialized
             Box(modifier = Modifier.fillMaxSize().background(Color.Transparent))
         }
         composable("main") {
-            // Empty placeholder for "Home" state where bottom sheet takes focus
             Box(modifier = Modifier.fillMaxSize().background(Color.Transparent))
         }
         composable("settings") {
@@ -42,7 +40,8 @@ fun IdeNavHost(
             ProjectScreen(
                 viewModel = viewModel,
                 settingsViewModel = settingsViewModel,
-                onBuildTriggered = { navController.navigate("build") }
+                onBuildTriggered = { navController.navigate("build") },
+                navController = navController // PASS NAV CONTROLLER HERE
             )
         }
         composable("file_explorer") {
@@ -70,7 +69,6 @@ fun IdeNavHost(
             }
         }
         composable("build") {
-            // Empty placeholder for Build/Log state
             Box(modifier = Modifier.fillMaxSize().background(Color.Transparent))
         }
     }

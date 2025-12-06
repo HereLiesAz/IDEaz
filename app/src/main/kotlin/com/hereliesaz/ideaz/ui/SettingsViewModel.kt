@@ -8,21 +8,21 @@ import android.util.Log
 import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.saveable.Saver
 import androidx.preference.PreferenceManager
+import com.hereliesaz.ideaz.api.AuthInterceptor
+import com.hereliesaz.ideaz.utils.SecurityUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.hereliesaz.ideaz.api.AuthInterceptor
-import com.hereliesaz.ideaz.utils.SecurityUtils
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
 import java.io.File
 import java.io.FileOutputStream
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.saveable.Saver
 
 // Define AI models and their requirements
 data class AiModel(val id: String, val displayName: String, val requiredKey: String)
@@ -76,65 +76,44 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_JULES_PROJECT_ID = "jules_project_id"
 
         const val KEY_PROJECT_TYPE = "project_type"
-
         const val KEY_TARGET_PACKAGE_NAME = "target_package_name"
         const val ACTION_TARGET_PACKAGE_CHANGED = "com.hereliesaz.ideaz.TARGET_PACKAGE_CHANGED"
 
-        // Repo Permissions & Rules
         const val KEY_REPO_CAN_PUSH = "repo_can_push"
         const val KEY_REPO_IS_ADMIN = "repo_is_admin"
         const val KEY_BRANCH_PROTECTED = "branch_protected"
         const val KEY_PR_REQUIRED = "pr_required"
 
-        // New keys for AI assignments
         const val KEY_AI_ASSIGNMENT_DEFAULT = "ai_assignment_default"
         const val KEY_AI_ASSIGNMENT_INIT = "ai_assignment_init"
         const val KEY_AI_ASSIGNMENT_CONTEXTLESS = "ai_assignment_contextless"
         const val KEY_AI_ASSIGNMENT_OVERLAY = "ai_assignment_overlay"
 
-        // New key for cancel warning
         const val KEY_SHOW_CANCEL_WARNING = "show_cancel_warning"
-
-        // Auto report bugs key
         const val KEY_AUTO_REPORT_BUGS = "auto_report_bugs"
-
-        // MODULAR BUILD SETTINGS
         const val KEY_ENABLE_LOCAL_BUILDS = "enable_local_builds"
 
-        // Theme Keys
         const val KEY_THEME_MODE = "theme_mode"
         const val THEME_AUTO = "auto"
         const val THEME_DARK = "dark"
         const val THEME_LIGHT = "light"
         const val THEME_SYSTEM = "system"
 
-        // Log verbosity levels
         const val KEY_LOG_LEVEL = "log_level"
         const val LOG_LEVEL_INFO = "info"
         const val LOG_LEVEL_DEBUG = "debug"
         const val LOG_LEVEL_VERBOSE = "verbose"
 
-        // --- NEW: Signing Config Keys ---
         const val KEY_KEYSTORE_PATH = "keystore_path"
         const val KEY_KEYSTORE_PASS = "keystore_pass"
         const val KEY_KEY_ALIAS = "key_alias"
         const val KEY_KEY_PASS = "key_pass"
-        // --- END NEW ---
 
         val aiTasks = mapOf(
             KEY_AI_ASSIGNMENT_DEFAULT to "Default",
             KEY_AI_ASSIGNMENT_INIT to "Project Initialization",
             KEY_AI_ASSIGNMENT_CONTEXTLESS to "Contextless Chat",
             KEY_AI_ASSIGNMENT_OVERLAY to "Overlay Chat"
-        )
-
-        // Custom Saver for the SnapshotStateMap
-        val SnapshotStateMapSaver = Saver<
-                androidx.compose.runtime.snapshots.SnapshotStateMap<String, String>,
-                Map<String, String>
-                >(
-            save = { it.toMap() },
-            restore = { mutableStateMapOf<String, String>().apply { putAll(it) } }
         )
     }
 
@@ -171,13 +150,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
 
     init {
-        // Initialize AuthInterceptor with saved API key
         val savedKey = getApiKey()
         if (savedKey != null) {
             AuthInterceptor.apiKey = savedKey
         }
         loadLocalProjects()
-
         _themeMode.value = getThemeMode()
         sharedPreferences.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
     }
@@ -187,119 +164,63 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         sharedPreferences.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
     }
 
-    // --- Cancel Warning ---
-
-    fun getShowCancelWarning(): Boolean {
-        return sharedPreferences.getBoolean(KEY_SHOW_CANCEL_WARNING, true) // Default to true
+    // --- KEYS CHECK ---
+    fun checkRequiredKeys(): List<String> {
+        val missing = mutableListOf<String>()
+        if (getApiKey().isNullOrBlank()) missing.add("Jules API Key")
+        if (getGithubToken().isNullOrBlank()) missing.add("GitHub Token")
+        return missing
     }
 
-    fun setShowCancelWarning(show: Boolean) {
-        sharedPreferences.edit().putBoolean(KEY_SHOW_CANCEL_WARNING, show).apply()
-    }
+    // --- GETTERS/SETTERS ---
 
-    // --- Auto Report Bugs ---
-    fun getAutoReportBugs(): Boolean {
-        return sharedPreferences.getBoolean(KEY_AUTO_REPORT_BUGS, true) // Default to true
-    }
+    fun getShowCancelWarning() = sharedPreferences.getBoolean(KEY_SHOW_CANCEL_WARNING, true)
+    fun setShowCancelWarning(show: Boolean) = sharedPreferences.edit().putBoolean(KEY_SHOW_CANCEL_WARNING, show).apply()
 
-    fun setAutoReportBugs(enabled: Boolean) {
-        sharedPreferences.edit().putBoolean(KEY_AUTO_REPORT_BUGS, enabled).apply()
-    }
+    fun getAutoReportBugs() = sharedPreferences.getBoolean(KEY_AUTO_REPORT_BUGS, true)
+    fun setAutoReportBugs(enabled: Boolean) = sharedPreferences.edit().putBoolean(KEY_AUTO_REPORT_BUGS, enabled).apply()
 
-    // --- Local Builds ---
-    fun isLocalBuildEnabled(): Boolean {
-        return sharedPreferences.getBoolean(KEY_ENABLE_LOCAL_BUILDS, false) // Default FALSE (Cloud only)
-    }
+    fun isLocalBuildEnabled() = sharedPreferences.getBoolean(KEY_ENABLE_LOCAL_BUILDS, false)
+    fun setLocalBuildEnabled(enabled: Boolean) = sharedPreferences.edit().putBoolean(KEY_ENABLE_LOCAL_BUILDS, enabled).apply()
 
-    fun setLocalBuildEnabled(enabled: Boolean) {
-        sharedPreferences.edit().putBoolean(KEY_ENABLE_LOCAL_BUILDS, enabled).apply()
-    }
-
-    // --- Theme ---
-
-    fun getThemeMode(): String {
-        return sharedPreferences.getString(KEY_THEME_MODE, THEME_AUTO) ?: THEME_AUTO
-    }
-
+    fun getThemeMode() = sharedPreferences.getString(KEY_THEME_MODE, THEME_AUTO) ?: THEME_AUTO
     fun setThemeMode(mode: String) {
         sharedPreferences.edit().putString(KEY_THEME_MODE, mode).apply()
         _themeMode.value = mode
     }
 
-    // --- Log Verbosity ---
-
-    fun getLogLevel(): String {
-        return sharedPreferences.getString(KEY_LOG_LEVEL, LOG_LEVEL_INFO) ?: LOG_LEVEL_INFO
-    }
-
+    fun getLogLevel() = sharedPreferences.getString(KEY_LOG_LEVEL, LOG_LEVEL_INFO) ?: LOG_LEVEL_INFO
     fun setLogLevel(level: String) {
         sharedPreferences.edit().putString(KEY_LOG_LEVEL, level).apply()
         _logLevel.value = level
     }
 
+    fun saveGoogleApiKey(apiKey: String) = sharedPreferences.edit().putString(KEY_GOOGLE_API_KEY, apiKey.trim()).apply()
+    fun getGoogleApiKey() = sharedPreferences.getString(KEY_GOOGLE_API_KEY, null)
 
-    // --- API Key Save/Get ---
+    fun saveGithubToken(token: String) = sharedPreferences.edit().putString(KEY_GITHUB_TOKEN, token.trim()).apply()
+    fun getGithubToken() = sharedPreferences.getString(KEY_GITHUB_TOKEN, null)
 
-    fun saveGoogleApiKey(apiKey: String) {
-        sharedPreferences.edit().putString(KEY_GOOGLE_API_KEY, apiKey.trim()).apply()
-    }
-
-    fun getGoogleApiKey(): String? {
-        return sharedPreferences.getString(KEY_GOOGLE_API_KEY, null)
-    }
-
-    fun saveGithubToken(token: String) {
-        sharedPreferences.edit().putString(KEY_GITHUB_TOKEN, token.trim()).apply()
-    }
-
-    fun getGithubToken(): String? {
-        return sharedPreferences.getString(KEY_GITHUB_TOKEN, null)
-    }
-
-    fun saveJulesProjectId(projectId: String) {
-        sharedPreferences.edit().putString(KEY_JULES_PROJECT_ID, projectId.trim()).apply()
-    }
-
-    fun getJulesProjectId(): String? {
-        return sharedPreferences.getString(KEY_JULES_PROJECT_ID, null)
-    }
+    fun saveJulesProjectId(projectId: String) = sharedPreferences.edit().putString(KEY_JULES_PROJECT_ID, projectId.trim()).apply()
+    fun getJulesProjectId() = sharedPreferences.getString(KEY_JULES_PROJECT_ID, null)
 
     fun saveApiKey(apiKey: String) {
         val trimmed = apiKey.trim()
         sharedPreferences.edit().putString(KEY_API_KEY, trimmed).apply()
-
-        // Also update the interceptor immediately
         AuthInterceptor.apiKey = trimmed
         _apiKey.value = trimmed
     }
+    fun getApiKey() = sharedPreferences.getString(KEY_API_KEY, null)
+    fun getApiKey(keyName: String) = sharedPreferences.getString(keyName, null)
 
-    fun getApiKey(): String? {
-        return sharedPreferences.getString(KEY_API_KEY, null)
-    }
-
-    fun getApiKey(keyName: String): String? {
-        return sharedPreferences.getString(keyName, null)
-    }
-
-    // --- AI Assignment Save/Get ---
-
-    fun saveAiAssignment(taskKey: String, modelId: String) {
-        sharedPreferences.edit().putString(taskKey, modelId).apply()
-    }
-
+    fun saveAiAssignment(taskKey: String, modelId: String) = sharedPreferences.edit().putString(taskKey, modelId).apply()
     fun getAiAssignment(taskKey: String): String? {
         val defaultModelId = sharedPreferences.getString(KEY_AI_ASSIGNMENT_DEFAULT, AiModels.JULES_DEFAULT)
-
-        if (taskKey == KEY_AI_ASSIGNMENT_DEFAULT) {
-            return defaultModelId
-        }
-
-        // Fallback logic: Use specific, or if null, use default
+        if (taskKey == KEY_AI_ASSIGNMENT_DEFAULT) return defaultModelId
         return sharedPreferences.getString(taskKey, defaultModelId)
     }
 
-    // --- NEW: Signing Config ---
-
+    // --- SIGNING ---
     fun importKeystore(context: Context, uri: Uri): String? {
         return try {
             val destFile = File(context.filesDir, "user_release.keystore")
@@ -316,32 +237,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             null
         }
     }
-
     fun saveSigningCredentials(storePass: String, alias: String, keyPass: String) {
-        sharedPreferences.edit()
-            .putString(KEY_KEYSTORE_PASS, storePass)
-            .putString(KEY_KEY_ALIAS, alias)
-            .putString(KEY_KEY_PASS, keyPass)
-            .apply()
+        sharedPreferences.edit().putString(KEY_KEYSTORE_PASS, storePass).putString(KEY_KEY_ALIAS, alias).putString(KEY_KEY_PASS, keyPass).apply()
     }
+    fun getKeystorePath() = sharedPreferences.getString(KEY_KEYSTORE_PATH, null)
+    fun getKeystorePass() = sharedPreferences.getString(KEY_KEYSTORE_PASS, "android") ?: "android"
+    fun getKeyAlias() = sharedPreferences.getString(KEY_KEY_ALIAS, "androiddebugkey") ?: "androiddebugkey"
+    fun getKeyPass() = sharedPreferences.getString(KEY_KEY_PASS, "android") ?: "android"
+    fun clearSigningConfig() = sharedPreferences.edit().remove(KEY_KEYSTORE_PATH).remove(KEY_KEYSTORE_PASS).remove(KEY_KEY_ALIAS).remove(KEY_KEY_PASS).apply()
 
-    fun getKeystorePath(): String? = sharedPreferences.getString(KEY_KEYSTORE_PATH, null)
-    fun getKeystorePass(): String = sharedPreferences.getString(KEY_KEYSTORE_PASS, "android") ?: "android"
-    fun getKeyAlias(): String = sharedPreferences.getString(KEY_KEY_ALIAS, "androiddebugkey") ?: "androiddebugkey"
-    fun getKeyPass(): String = sharedPreferences.getString(KEY_KEY_PASS, "android") ?: "android"
-
-    fun clearSigningConfig() {
-        sharedPreferences.edit()
-            .remove(KEY_KEYSTORE_PATH)
-            .remove(KEY_KEYSTORE_PASS)
-            .remove(KEY_KEY_ALIAS)
-            .remove(KEY_KEY_PASS)
-            .apply()
-    }
-    // --- END NEW ---
-
-    // --- Export/Import ---
-
+    // --- EXPORT/IMPORT ---
     fun exportSettings(context: Context, uri: Uri, password: String) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -368,8 +273,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         }
                     }
                 }
-
-                // Handle Keystore
                 var keystoreData: KeystoreData? = null
                 val keystorePath = getKeystorePath()
                 if (keystorePath != null) {
@@ -380,23 +283,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         keystoreData = KeystoreData(file.name, base64)
                     }
                 }
-
                 val export = SettingsExport(strings, booleans, ints, longs, floats, stringSets, keystoreData)
+                val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
                 val jsonString = json.encodeToString(export)
                 val encrypted = SecurityUtils.encrypt(jsonString, password)
 
-                context.contentResolver.openOutputStream(uri)?.use {
-                    it.write(encrypted.toByteArray(Charsets.UTF_8))
-                }
-
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Settings exported successfully", Toast.LENGTH_SHORT).show()
-                }
+                context.contentResolver.openOutputStream(uri)?.use { it.write(encrypted.toByteArray(Charsets.UTF_8)) }
+                withContext(Dispatchers.Main) { Toast.makeText(context, "Settings exported successfully", Toast.LENGTH_SHORT).show() }
             } catch (e: Exception) {
                 Log.e(TAG, "Export failed", e)
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
-                }
+                withContext(Dispatchers.Main) { Toast.makeText(context, "Export failed: ${e.message}", Toast.LENGTH_LONG).show() }
             }
         }
     }
@@ -404,11 +300,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun importSettings(context: Context, uri: Uri, password: String) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val encrypted = context.contentResolver.openInputStream(uri)?.use {
-                    it.readBytes().toString(Charsets.UTF_8)
-                } ?: throw Exception("Failed to read file")
-
+                val encrypted = context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: throw Exception("Failed to read file")
                 val jsonString = SecurityUtils.decrypt(encrypted, password)
+                val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
                 val export = json.decodeFromString<SettingsExport>(jsonString)
 
                 sharedPreferences.edit().apply {
@@ -420,204 +314,108 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     export.stringSets.forEach { (k, v) -> putStringSet(k, v) }
                 }.apply()
 
-                // Restore Keystore
                 if (export.keystore != null) {
                     val bytes = android.util.Base64.decode(export.keystore.contentBase64, android.util.Base64.NO_WRAP)
                     val destFile = File(context.filesDir, export.keystore.filename)
                     FileOutputStream(destFile).use { it.write(bytes) }
-
                     sharedPreferences.edit().putString(KEY_KEYSTORE_PATH, destFile.absolutePath).apply()
                 }
 
-                // Refresh state flows
                 withContext(Dispatchers.Main) {
                     _apiKey.value = getApiKey()
                     _currentAppName.value = getAppName()
                     _targetPackageName.value = getTargetPackageName()
                     _localProjects.value = getProjectList().toList()
                     _logLevel.value = getLogLevel()
-
                     val key = getApiKey()
                     if (key != null) AuthInterceptor.apiKey = key
-
                     _settingsVersion.value++
-
                     Toast.makeText(context, "Settings imported successfully", Toast.LENGTH_SHORT).show()
                 }
-
             } catch (e: Exception) {
                 Log.e(TAG, "Import failed", e)
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Import failed: ${e.message} (Wrong password?)", Toast.LENGTH_LONG).show()
-                }
+                withContext(Dispatchers.Main) { Toast.makeText(context, "Import failed: ${e.message} (Wrong password?)", Toast.LENGTH_LONG).show() }
             }
         }
     }
 
-    // --- Target Package Name ---
-
+    // --- PACKAGE ---
     fun saveTargetPackageName(packageName: String) {
         sharedPreferences.edit().putString(KEY_TARGET_PACKAGE_NAME, packageName).apply()
         _targetPackageName.value = packageName
-
-        // Send a broadcast to notify the running service of the change
         val intent = Intent(ACTION_TARGET_PACKAGE_CHANGED).apply {
             putExtra("PACKAGE_NAME", packageName)
             setPackage(getApplication<Application>().packageName)
         }
         getApplication<Application>().sendBroadcast(intent)
     }
+    fun getTargetPackageName() = sharedPreferences.getString(KEY_TARGET_PACKAGE_NAME, "com.example.helloworld")
 
-    fun getTargetPackageName(): String? {
-        // Default to the template package name if nothing is set
-        return sharedPreferences.getString(KEY_TARGET_PACKAGE_NAME, "com.example.helloworld")
-    }
-
-    fun getInstalledSha(packageName: String): String? {
-        return sharedPreferences.getString("installed_sha_$packageName", null)
-    }
-
-    fun setInstalledSha(packageName: String, sha: String) {
-        sharedPreferences.edit().putString("installed_sha_$packageName", sha).apply()
-    }
-
-
-    // --- Project Config ---
-
-    private fun loadLocalProjects() {
-        _localProjects.value = getProjectList().toList()
-    }
-
+    // --- PROJECTS ---
+    private fun loadLocalProjects() { _localProjects.value = getProjectList().toList() }
     fun addProject(projectName: String) {
         if (projectName.isBlank()) return
         val projects = getProjectList().toMutableSet()
         projects.add(projectName)
         sharedPreferences.edit().putStringSet(KEY_PROJECT_LIST, projects).apply()
-        loadLocalProjects() // Refresh the flow
+        loadLocalProjects()
     }
-
     fun removeProject(projectName: String) {
         if (projectName.isBlank()) return
         val projects = getProjectList().toMutableSet()
         projects.remove(projectName)
         sharedPreferences.edit().putStringSet(KEY_PROJECT_LIST, projects).apply()
-        removeProjectPath(projectName)
         loadLocalProjects()
     }
+    fun getProjectList() = sharedPreferences.getStringSet(KEY_PROJECT_LIST, emptySet()) ?: emptySet()
 
     private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
-
     private fun getProjectPaths(): Map<String, String> {
         val jsonStr = sharedPreferences.getString(KEY_PROJECT_PATHS, "{}")
-        return try {
-            json.decodeFromString<Map<String, String>>(jsonStr ?: "{}")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse project paths JSON", e)
-            emptyMap()
-        }
+        return try { json.decodeFromString<Map<String, String>>(jsonStr ?: "{}") } catch (e: Exception) { emptyMap() }
     }
-
     fun saveProjectPath(name: String, path: String) {
         val paths = getProjectPaths().toMutableMap()
         paths[name] = path
-        val jsonStr = json.encodeToString(paths)
-        sharedPreferences.edit().putString(KEY_PROJECT_PATHS, jsonStr).apply()
+        sharedPreferences.edit().putString(KEY_PROJECT_PATHS, json.encodeToString(paths)).apply()
     }
-
     fun getProjectPath(name: String): File {
         val path = getProjectPaths()[name]
-        if (!path.isNullOrBlank()) {
-            return File(path)
-        }
+        if (!path.isNullOrBlank()) return File(path)
         return getApplication<Application>().filesDir.resolve(name)
     }
-
     fun removeProjectPath(name: String) {
         val paths = getProjectPaths().toMutableMap()
         if (paths.remove(name) != null) {
-            val jsonStr = json.encodeToString(paths)
-            sharedPreferences.edit().putString(KEY_PROJECT_PATHS, jsonStr).apply()
+            sharedPreferences.edit().putString(KEY_PROJECT_PATHS, json.encodeToString(paths)).apply()
         }
     }
-
     fun saveProjectConfig(appName: String, githubUser: String, branchName: String) {
-        sharedPreferences.edit()
-            .putString(KEY_APP_NAME, appName)
-            .putString(KEY_GITHUB_USER, githubUser)
-            .putString(KEY_BRANCH_NAME, branchName)
-            .apply()
-
-        // Also add this project to the list
-        if (appName.isNotBlank()) {
-            addProject(appName)
-        }
+        sharedPreferences.edit().putString(KEY_APP_NAME, appName).putString(KEY_GITHUB_USER, githubUser).putString(KEY_BRANCH_NAME, branchName).apply()
+        if (appName.isNotBlank()) addProject(appName)
     }
-
-    fun getProjectList(): Set<String> {
-        return sharedPreferences.getStringSet(KEY_PROJECT_LIST, emptySet()) ?: emptySet()
-    }
-
-    fun getAppName(): String? {
-        return sharedPreferences.getString(KEY_APP_NAME, null)
-    }
+    fun getAppName() = sharedPreferences.getString(KEY_APP_NAME, null)
     fun setAppName(appName: String) {
         sharedPreferences.edit().putString(KEY_APP_NAME, appName).apply()
         _currentAppName.value = appName
     }
-
-    fun getGithubUser(): String? {
-        return sharedPreferences.getString(KEY_GITHUB_USER, null)
-    }
-    fun setGithubUser(githubUser: String) {
-        sharedPreferences.edit().putString(KEY_GITHUB_USER, githubUser).apply()
-    }
-
-    fun getBranchName(): String {
-        // Default to "main" if nothing is saved
-        return sharedPreferences.getString(KEY_BRANCH_NAME, "main")!!
-    }
-
-    fun saveBranchName(branchName: String) {
-        sharedPreferences.edit().putString(KEY_BRANCH_NAME, branchName).apply()
-    }
-
-    fun getProjectType(): String {
-        return sharedPreferences.getString(KEY_PROJECT_TYPE, "UNKNOWN") ?: "UNKNOWN"
-    }
-
+    fun getGithubUser() = sharedPreferences.getString(KEY_GITHUB_USER, null)
+    fun setGithubUser(githubUser: String) = sharedPreferences.edit().putString(KEY_GITHUB_USER, githubUser).apply()
+    fun getBranchName() = sharedPreferences.getString(KEY_BRANCH_NAME, "main")!!
+    fun saveBranchName(branchName: String) = sharedPreferences.edit().putString(KEY_BRANCH_NAME, branchName).apply()
+    fun getProjectType() = sharedPreferences.getString(KEY_PROJECT_TYPE, "UNKNOWN") ?: "UNKNOWN"
     fun setProjectType(type: String) {
         sharedPreferences.edit().putString(KEY_PROJECT_TYPE, type).apply()
         _projectType.value = type
     }
 
-    // --- Repo Permissions & Rules ---
-
-    fun saveRepoPermissions(canPush: Boolean, isAdmin: Boolean) {
-        sharedPreferences.edit()
-            .putBoolean(KEY_REPO_CAN_PUSH, canPush)
-            .putBoolean(KEY_REPO_IS_ADMIN, isAdmin)
-            .apply()
-    }
-
-    fun saveBranchProtection(isProtected: Boolean, prRequired: Boolean) {
-        sharedPreferences.edit()
-            .putBoolean(KEY_BRANCH_PROTECTED, isProtected)
-            .putBoolean(KEY_PR_REQUIRED, prRequired)
-            .apply()
-    }
-
-    fun canPushToRepo(): Boolean = sharedPreferences.getBoolean(KEY_REPO_CAN_PUSH, true)
-    fun isRepoAdmin(): Boolean = sharedPreferences.getBoolean(KEY_REPO_IS_ADMIN, false)
-    fun isBranchProtected(): Boolean = sharedPreferences.getBoolean(KEY_BRANCH_PROTECTED, false)
-    fun isPrRequired(): Boolean = sharedPreferences.getBoolean(KEY_PR_REQUIRED, false)
-
+    // --- REPO & VERSION ---
+    fun saveRepoPermissions(canPush: Boolean, isAdmin: Boolean) = sharedPreferences.edit().putBoolean(KEY_REPO_CAN_PUSH, canPush).putBoolean(KEY_REPO_IS_ADMIN, isAdmin).apply()
+    fun canPushToRepo() = sharedPreferences.getBoolean(KEY_REPO_CAN_PUSH, true)
     fun getAppVersion(): String {
         return try {
             val pInfo = getApplication<Application>().packageManager.getPackageInfo(getApplication<Application>().packageName, 0)
-            val versionName = pInfo.versionName
-            "v$versionName"
-        } catch (e: Exception) {
-            "Unknown"
-        }
+            "v${pInfo.versionName}"
+        } catch (e: Exception) { "Unknown" }
     }
 }
