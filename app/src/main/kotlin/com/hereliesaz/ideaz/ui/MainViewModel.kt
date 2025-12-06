@@ -109,7 +109,7 @@ class MainViewModel(
 
     val filteredLog: StateFlow<List<String>> = combine(buildLog, aiLog) { b, a ->
         (b.lines() + a.lines()).filter { it.isNotBlank() }
-    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private var buildService: IBuildService? = null
     private var isBuildServiceBound = false

@@ -97,7 +97,6 @@ configurations.all {
 
         }
     }
-    exclude(group = "javax.inject", module = "javax.inject")
 }
 
 androidComponents.onVariants { variant ->
@@ -119,10 +118,7 @@ dependencies {
     implementation(libs.glassfish.el)
     implementation(libs.slf4j.simple)
     implementation(libs.guava)
-    //implementation(libs.kotlinc.android) {
-    //    exclude(group = "javax.inject", module = "javax.inject")
-      //  exclude(group = "net.java.dev.jna")
-    //}
+    implementation(libs.kotlinc.android)
     implementation(libs.nb.javac.android)
     implementation(libs.r8)
     implementation(libs.sora.editor)
@@ -188,8 +184,6 @@ dependencies {
     implementation(libs.resolver.maven.resolver.supplier)
 
     implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.lazysodium.android) {
-        exclude(group = "net.java.dev.jna")
-    }
+    implementation(libs.lazysodium.android)
     implementation(libs.hiddenapibypass)
 }
