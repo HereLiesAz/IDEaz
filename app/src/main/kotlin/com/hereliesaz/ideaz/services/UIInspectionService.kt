@@ -1,6 +1,6 @@
 package com.hereliesaz.ideaz.services
 
-import android.accessibilityservice.AccessibilityService
+import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -8,11 +8,10 @@ import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.os.Build
+import android.os.IBinder
 import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
-import android.view.accessibility.AccessibilityEvent
-import android.view.accessibility.AccessibilityNodeInfo
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
@@ -34,7 +33,7 @@ import com.hereliesaz.ideaz.ui.theme.IDEazTheme
 import com.hereliesaz.ideaz.utils.ComposeLifecycleHelper
 import kotlin.math.roundToInt
 
-class UIInspectionService : AccessibilityService() {
+class UIInspectionService : Service() {
 
     private val TAG = "UIInspectionService"
     private var windowManager: WindowManager? = null
@@ -54,6 +53,11 @@ class UIInspectionService : AccessibilityService() {
 
     private lateinit var viewModel: MainViewModel
 
+    companion object {
+        const val ACTION_START_INSPECTION = "com.hereliesaz.ideaz.action.START_INSPECTION"
+        const val ACTION_STOP_INSPECTION = "com.hereliesaz.ideaz.action.STOP_INSPECTION"
+    }
+
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "UIInspectionService Created")
@@ -63,25 +67,40 @@ class UIInspectionService : AccessibilityService() {
         val factory = MainViewModelFactory(application, settingsViewModel)
         viewModel = ViewModelProvider(ViewModelStore(), factory)[MainViewModel::class.java]
 
-        registerBroadcastReceivers()
+        setupWindows()
     }
 
-    override fun onServiceConnected() {
-        super.onServiceConnected()
-        Log.d(TAG, "Accessibility Service Connected")
-        setupWindows()
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d(TAG, "onStartCommand: ${intent?.action}")
+
+        // Ensure we are a foreground service
+        com.hereliesaz.ideaz.utils.BubbleUtils.createBubbleNotification(this)
+
+        when (intent?.action) {
+            ACTION_START_INSPECTION -> {
+                // Avoid calling toggleSelectMode directly to prevent loops if we are already in sync
+                // but we need to ensure local view model reflects the intent.
+                // Since MainViewModel prevents the loop, this is safe.
+                viewModel.toggleSelectMode(true)
+            }
+            ACTION_STOP_INSPECTION -> {
+                viewModel.toggleSelectMode(false)
+                stopForeground(true)
+                stopSelf()
+            }
+        }
+        return START_NOT_STICKY
+    }
+
+    override fun onBind(intent: Intent?): IBinder? {
+        return null
     }
 
     private fun setupWindows() {
         if (selectionView != null) return
 
-        // 1. Setup Selection Layer (Backmost)
         setupSelectionLayer()
-
-        // 2. Setup Rail Layer (Left Strip)
         setupRailLayer()
-
-        // 3. Setup Sheet Layer (Bottom Strip)
         setupSheetLayer()
     }
 
@@ -92,49 +111,43 @@ class UIInspectionService : AccessibilityService() {
         selectionLifecycle?.onStart()
 
         selectionView?.setContent {
-            // We do NOT use IDEazTheme here to avoid drawing backgrounds
             val isSelectMode by viewModel.isSelectMode.collectAsState()
             val selectionRect by viewModel.activeSelectionRect.collectAsState()
 
-            // Pass-through logic handled by updating WindowFlags below
             OverlayCanvas(
                 isSelectMode = isSelectMode,
                 selectionRect = selectionRect,
-                onTap = { x, y -> inspectNodeAt(x.toInt(), y.toInt()) },
+                onTap = { _, _ -> /* Tapping does nothing. User must drag to select. */ },
                 onDragSelection = { rect ->
                     viewModel.onSelectionMade(rect, "custom_selection")
                 }
             )
 
-            // Effect to toggle window flags based on mode
             LaunchedEffect(isSelectMode) {
                 updateSelectionWindowFlags(isSelectMode)
             }
         }
 
-        // IMPORTANT: We do NOT use FLAG_LAYOUT_IN_SCREEN here.
-        // This ensures the window sits *between* the Status Bar and Nav Bar.
-        // This guarantees we don't block system touches.
         selectionParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or // Default to pass-through
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, // Standard Overlay
+            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         )
         selectionParams?.gravity = Gravity.TOP or Gravity.START
 
-        windowManager?.addView(selectionView, selectionParams)
+        try {
+            windowManager?.addView(selectionView, selectionParams)
+        } catch (e: Exception) { Log.e(TAG, "Error adding selection view", e) }
     }
 
     private fun updateSelectionWindowFlags(isSelectMode: Boolean) {
         selectionParams?.let { params ->
             if (isSelectMode) {
-                // Enable touching (remove NOT_TOUCHABLE)
                 params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
             } else {
-                // Disable touching (Pass-through to app)
                 params.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
             }
@@ -166,12 +179,15 @@ class UIInspectionService : AccessibilityService() {
                     onShowPromptPopup = {},
                     handleActionClick = { it() },
                     isIdeVisible = true,
-                    onLaunchOverlay = { viewModel.toggleSelectMode(!viewModel.isSelectMode.value) },
+                    onLaunchOverlay = {
+                        val newMode = !viewModel.isSelectMode.value
+                        viewModel.toggleSelectMode(newMode)
+                    },
                     sheetState = sheetState,
                     scope = scope,
-                    onUndock = { /* Dragging not fully supported in split-window mode yet */ },
+                    onUndock = { },
                     isBubbleMode = true,
-                    enableRailDraggingOverride = false, // Disable FAB dragging to prevent clipping
+                    enableRailDraggingOverride = false,
                     isLocalBuildEnabled = viewModel.settingsViewModel.isLocalBuildEnabled()
                 )
             }
@@ -180,14 +196,16 @@ class UIInspectionService : AccessibilityService() {
         railParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, // Standard Overlay
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN, // Rail can go behind bars visually
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         )
         railParams?.gravity = Gravity.TOP or Gravity.START
 
-        windowManager?.addView(railView, railParams)
+        try {
+            windowManager?.addView(railView, railParams)
+        } catch (e: Exception) { Log.e(TAG, "Error adding rail view", e) }
     }
 
     private fun setupSheetLayer() {
@@ -207,7 +225,6 @@ class UIInspectionService : AccessibilityService() {
                     detents = listOf(Peek, Halfway)
                 )
 
-                // Monitor detent to resize window
                 val currentDetent = sheetState.currentDetent
                 LaunchedEffect(currentDetent) {
                     updateSheetWindowHeight(currentDetent, screenHeightPixels)
@@ -224,28 +241,27 @@ class UIInspectionService : AccessibilityService() {
             }
         }
 
-        // Start with Peek height approximation (20% of screen)
         val initialHeight = (screenHeightPixels * 0.25).toInt()
 
         sheetParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             initialHeight,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, // Allow touches
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, // Standard Overlay
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         )
         sheetParams?.gravity = Gravity.BOTTOM
 
-        windowManager?.addView(sheetView, sheetParams)
+        try {
+            windowManager?.addView(sheetView, sheetParams)
+        } catch (e: Exception) { Log.e(TAG, "Error adding sheet view", e) }
     }
 
     private fun updateSheetWindowHeight(detent: SheetDetent, screenHeight: Int) {
         sheetParams?.let { params ->
-            // Calculate height based on logic in IdeBottomSheet (Peek=0.25, Halfway=0.5)
-            // Ideally we'd get the exact px from the composable, but mapping detent ID is cleaner here.
             val newHeight = when(detent.identifier) {
                 "peek" -> (screenHeight * 0.25).toInt()
-                "halfway" -> (screenHeight * 0.55).toInt() // slightly more to fit shadows/handles
+                "halfway" -> (screenHeight * 0.55).toInt()
                 else -> WindowManager.LayoutParams.WRAP_CONTENT
             }
 
@@ -267,52 +283,5 @@ class UIInspectionService : AccessibilityService() {
         if (selectionView != null) try { windowManager?.removeView(selectionView) } catch(e:Exception){}
         if (railView != null) try { windowManager?.removeView(railView) } catch(e:Exception){}
         if (sheetView != null) try { windowManager?.removeView(sheetView) } catch(e:Exception){}
-
-        try { unregisterReceiver(commandReceiver) } catch (e: Exception) {}
-    }
-
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
-    override fun onInterrupt() {}
-
-    private val commandReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) { }
-    }
-
-    private fun registerBroadcastReceivers() {
-        // Keep for legacy
-    }
-
-    private fun inspectNodeAt(x: Int, y: Int) {
-        val root = rootInActiveWindow ?: return
-        val node = findNodeAt(root, x, y)
-        if (node != null) {
-            val rect = Rect()
-            node.getBoundsInScreen(rect)
-
-            val desc = node.contentDescription?.toString()
-            val id = if (desc != null && desc.contains("__source:")) {
-                desc
-            } else {
-                node.viewIdResourceName?.substringAfterLast(":id/")
-                    ?: node.text?.toString()?.take(20)
-                    ?: "Unknown"
-            }
-
-            viewModel.onSelectionMade(rect, id)
-        }
-    }
-
-    private fun findNodeAt(root: AccessibilityNodeInfo, x: Int, y: Int): AccessibilityNodeInfo? {
-        val rect = Rect()
-        root.getBoundsInScreen(rect)
-        if (!rect.contains(x, y)) return null
-        for (i in root.childCount - 1 downTo 0) {
-            val child = root.getChild(i)
-            if (child != null) {
-                val found = findNodeAt(child, x, y)
-                if (found != null) return found
-            }
-        }
-        return root
     }
 }
