@@ -20,9 +20,13 @@ fun IdeNavHost(
 ) {
     NavHost(
         navController = navController,
-        startDestination = "project_settings",
+        startDestination = "initial_placeholder", // Changed to a placeholder
         modifier = modifier
     ) {
+        composable("initial_placeholder") {
+            // Empty placeholder to ensure the NavHost is initialized
+            Box(modifier = Modifier.fillMaxSize().background(Color.Transparent))
+        }
         composable("main") {
             // Empty placeholder for "Home" state where bottom sheet takes focus
             Box(modifier = Modifier.fillMaxSize().background(Color.Transparent))
