@@ -47,3 +47,4 @@ gha-creds-*.json
 
 # GitHub App credentials
 gha-creds-*.json
+/.vscode/
