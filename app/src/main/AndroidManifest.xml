@@ -10,6 +10,9 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
 
+    <!-- Required for TYPE_APPLICATION_OVERLAY windows -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <!-- REMOVED: android.permission.BIND_ACCESSIBILITY_SERVICE from uses-permission
          This caused the "Permission is only granted to system apps" error. -->
 
@@ -81,22 +84,9 @@
             </intent-filter>
         </service>
 
-        <!--
-             UIInspectionService is the real Accessibility Service.
-             It needs the permission and intent filter to receive events.
-        -->
         <service
             android:name=".services.UIInspectionService"
-            android:exported="false"
-            android:label="@string/accessibility_service_label"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service>
+            android:exported="false" />
 
         <service
             android:name=".services.ScreenshotService"
