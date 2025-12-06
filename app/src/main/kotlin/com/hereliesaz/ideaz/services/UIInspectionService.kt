@@ -100,7 +100,7 @@ class UIInspectionService : AccessibilityService() {
             OverlayCanvas(
                 isSelectMode = isSelectMode,
                 selectionRect = selectionRect,
-                onTap = { x, y -> inspectNodeAt(x.toInt(), y.toInt()) },
+                onTap = { _, _ -> /* Tapping does nothing. User must drag to select. */ },
                 onDragSelection = { rect ->
                     viewModel.onSelectionMade(rect, "custom_selection")
                 }
@@ -282,37 +282,5 @@ class UIInspectionService : AccessibilityService() {
         // Keep for legacy
     }
 
-    private fun inspectNodeAt(x: Int, y: Int) {
-        val root = rootInActiveWindow ?: return
-        val node = findNodeAt(root, x, y)
-        if (node != null) {
-            val rect = Rect()
-            node.getBoundsInScreen(rect)
-
-            val desc = node.contentDescription?.toString()
-            val id = if (desc != null && desc.contains("__source:")) {
-                desc
-            } else {
-                node.viewIdResourceName?.substringAfterLast(":id/")
-                    ?: node.text?.toString()?.take(20)
-                    ?: "Unknown"
-            }
-
-            viewModel.onSelectionMade(rect, id)
-        }
-    }
-
-    private fun findNodeAt(root: AccessibilityNodeInfo, x: Int, y: Int): AccessibilityNodeInfo? {
-        val rect = Rect()
-        root.getBoundsInScreen(rect)
-        if (!rect.contains(x, y)) return null
-        for (i in root.childCount - 1 downTo 0) {
-            val child = root.getChild(i)
-            if (child != null) {
-                val found = findNodeAt(child, x, y)
-                if (found != null) return found
-            }
-        }
-        return root
-    }
+    // Removed inspectNodeAt and findNodeAt as interaction is now strictly drag-to-select.
 }
