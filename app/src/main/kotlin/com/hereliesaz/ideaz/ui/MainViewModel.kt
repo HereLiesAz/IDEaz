@@ -392,7 +392,6 @@ class MainViewModel(
                             Context (Element $resourceId):
                             File: ${contextResult.file}
                             Line: ${contextResult.line}
-                            Snippet: ${contextResult.snippet}
                             """.trimIndent()
                     } else {
                         pendingContextInfo = "Context: Element ID $resourceId"
