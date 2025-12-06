@@ -43,18 +43,18 @@ fun IdeNavRail(
 
         // ... (rest of items unchanged)
         azRailItem(id = "project_settings", text = "Project", onClick = { onNavigateToMainApp("project_settings") })
-        azMenuItem(id = "git",  text = "Git", onClick = { navController.navigate("git") })
+        azMenuItem(id = "git",  text = "Git", onClick = { onNavigateToMainApp("git") })
 
         if (isLocalBuildEnabled) {
-            azMenuItem(id = "libraries", text = "Libs", onClick = { navController.navigate("libraries") })
+            azMenuItem(id = "libraries", text = "Libs", onClick = { onNavigateToMainApp("libraries") })
         }
 
-        azRailHostItem(id = "main", text = "IDEaz", onClick = { handleActionClick { navController.navigate("main") } })
+        azRailHostItem(id = "main", text = "IDEaz", onClick = { handleActionClick { onNavigateToMainApp("main") } })
         azRailSubItem(id = "prompt", hostId = "main", text = "Prompt", onClick = { handleActionClick { onShowPromptPopup() } })
 
         azRailSubItem(id = "build", hostId = "main", text = "Build", onClick = {
             handleActionClick {
-                navController.navigate("build")
+                onNavigateToMainApp("build")
                 scope.launch {
                     sheetState.animateTo(Halfway)
                 }
@@ -75,7 +75,7 @@ fun IdeNavRail(
             }
         )
 
-        azMenuItem(id = "file_explorer",  text = "Files", onClick = { navController.navigate("file_explorer") })
+        azMenuItem(id = "file_explorer",  text = "Files", onClick = { onNavigateToMainApp("file_explorer") })
         azRailItem(id = "settings", text = "Settings", onClick = { onNavigateToMainApp("settings") })
     }
 }

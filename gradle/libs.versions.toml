@@ -3,8 +3,8 @@ agp = "8.13.1"
 aetherTransportFile = "2.0.13"
 aznavrail = "4.22"
 coreKtx = "1.17.0"
-dependencyresolver = "main-SNAPSHOT"
 googleGenai = "1.28.0"
+kotlinCompilerEmbeddable = "2.2.21"
 kotlinxCoroutinesCore = "1.10.2"
 kxml2 = "2.3.0"
 mockwebserver = "5.3.2"
@@ -40,7 +40,6 @@ composeUnstyledCore = "1.49.3"
 documentfile = "1.1.0"
 generativeai = "0.9.0"
 haze = "1.7.1"
-kotlincAndroid = "fce2462f00"
 nbJavac = "17.0.0.3"
 guava = "33.5.0-android"
 r8 = "8.13.17"
@@ -54,6 +53,7 @@ hiddenapibypass = "4.3"
 loggingInterceptor = "5.3.2"
 
 [libraries]
+kotlin-compiler-embeddable = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlinCompilerEmbeddable" }
 lazysodium-android = { module = "com.goterl:lazysodium-android", version.ref = "sodium" }
 jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
@@ -61,12 +61,10 @@ smali = { module = "org.smali:smali", version.ref = "smali" }
 baksmali = { module = "org.smali:baksmali", version.ref = "smali" }
 sora-editor = { module = "io.github.Rosemoe.sora-editor:editor", version.ref = "soraEditor" }
 scala-compiler = { module = "org.scala-lang:scala3-compiler_3", version.ref = "scalaCompiler" }
-kotlinc-android = { module = "com.github.Cosmic-Ide.kotlinc-android:kotlinc-android", version.ref = "kotlincAndroid" }
 nb-javac-android = { module = "io.github.itsaky:nb-javac-android", version.ref = "nbJavac" }
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
 r8 = { module = "com.android.tools:r8", version.ref = "r8" }
 aether-transport-file = { group = "org.apache.maven.resolver", name = "maven-resolver-transport-file", version.ref = "aetherTransportFile" }
-dependencyresolverr = { module = "com.github.Cosmic-Ide:DependencyResolver", version.ref = "dependencyresolver" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutinesCore" }
 kxml2 = { module = "net.sf.kxml:kxml2", version.ref = "kxml2" }
 maven-resolver-api = { group = "org.apache.maven.resolver", name = "maven-resolver-api", version.ref = "mavenResolver" }
