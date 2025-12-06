@@ -154,14 +154,28 @@ class MainViewModel(
     val isSelectMode = _isSelectMode.asStateFlow()
 
     fun toggleSelectMode(enable: Boolean) {
+        if (enable && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(getApplication())) {
+            val intent = Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${getApplication<Application>().packageName}")).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            getApplication<Application>().startActivity(intent)
+            logToOverlay("Please grant overlay permission.")
+            return
+        }
+
+        if (_isSelectMode.value == enable) return // Prevent loop
         _isSelectMode.value = enable
 
-        // Broadcast to UIInspectionService to update WindowManager flags
-        val intent = Intent("com.hereliesaz.ideaz.TOGGLE_SELECT_MODE").apply {
-            putExtra("ENABLE", enable)
-            setPackage(getApplication<Application>().packageName)
+        val action = if (enable) "com.hereliesaz.ideaz.action.START_INSPECTION" else "com.hereliesaz.ideaz.action.STOP_INSPECTION"
+        val intent = Intent(getApplication(), com.hereliesaz.ideaz.services.UIInspectionService::class.java).apply {
+            setAction(action)
         }
-        getApplication<Application>().sendBroadcast(intent)
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            getApplication<Application>().startForegroundService(intent)
+        } else {
+            getApplication<Application>().startService(intent)
+        }
 
         if (enable && !hasScreenCapturePermission()) {
             requestScreenCapturePermission()
