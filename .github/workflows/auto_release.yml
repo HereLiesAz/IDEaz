@@ -27,38 +27,6 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
-   
-
-            console.log(`Checking status for commit ${ref}`);
-
-            const { data: checks } = await github.rest.checks.listForRef({
-              owner,
-              repo,
-              ref,
-              per_page: 100
-            });
-
-            const failures = checks.check_runs.filter(c => c.conclusion === 'failure' || c.conclusion === 'timed_out');
-            if (failures.length > 0) {
-              const names = failures.map(c => c.name).join(', ');
-              core.setFailed(`The following checks failed: ${names}`);
-              return;
-            }
-
-            // Filter out self (this new run might show up as queued/in_progress)
-            const pending = checks.check_runs.filter(c =>
-                (c.status === 'in_progress' || c.status === 'queued') &&
-                c.name !== 'release' && // This job name
-                !c.name.includes('Auto Release') // This workflow name
-            );
-
-            if (pending.length > 0) {
-               console.log("Pending checks: " + pending.map(c => c.name).join(', '));
-               core.setFailed("Other workflows are still pending. Release aborted.");
-            } else {
-               console.log("All checks passed!");
-            }
-
       - name: set up JDK 17
         uses: actions/setup-java@v5
         with:

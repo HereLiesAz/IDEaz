@@ -254,7 +254,11 @@ class MainViewModel(
     fun fetchSessionsForRepo(repoName: String) {
         viewModelScope.launch {
             try {
-                val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
+                val parent = settingsViewModel.getJulesProjectId()
+                if (parent.isNullOrBlank()) {
+                    _sessions.value = emptyList()
+                    return@launch
+                }
                 val response = JulesApiClient.listSessions(parent)
                 val allSessions = response.sessions ?: emptyList()
 
@@ -532,7 +536,13 @@ class MainViewModel(
                         val appName = settingsViewModel.getAppName() ?: "project"
                         val user = settingsViewModel.getGithubUser() ?: "user"
                         val branch = settingsViewModel.getBranchName()
-                        val parent = settingsViewModel.getJulesProjectId() ?: "projects/ideaz-336316"
+                        val parent = settingsViewModel.getJulesProjectId()
+
+                        if (parent.isNullOrBlank()) {
+                            logToOverlay("Error: Jules Project ID not configured.")
+                            _isLoadingJulesResponse.value = false
+                            return@launch
+                        }
 
                         val currentSourceContext = Prompt.SourceContext(
                             name = "sources/github/$user/$appName",
