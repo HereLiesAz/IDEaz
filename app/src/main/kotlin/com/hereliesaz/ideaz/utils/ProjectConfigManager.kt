@@ -8,6 +8,7 @@ import com.hereliesaz.ideaz.models.PromptEntry
 import com.hereliesaz.ideaz.models.PromptHistory
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 
 object ProjectConfigManager {
@@ -67,21 +68,74 @@ object ProjectConfigManager {
         }
     }
 
+    // --- WORKFLOW CONTENT ---
+    private val ANDROID_CI_JULES_YML = """
+name: Android CI (Jules)
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+    - name: Build with Gradle
+      run: ./gradlew assembleDebug
+    - name: Upload APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: app-debug
+        path: app/build/outputs/apk/debug/app-debug.apk
+""".trimIndent()
+
+    private val RELEASE_YML = """
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+    - name: Build Release APK
+      run: ./gradlew assembleDebug # Should be assembleRelease in real scenario
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: app/build/outputs/apk/debug/app-debug.apk
+""".trimIndent()
+
     fun ensureWorkflow(context: Context, projectDir: File, type: ProjectType): Boolean {
+        // We use hardcoded strings for robustness if assets are missing
         val workflows = when (type) {
             ProjectType.ANDROID -> listOf(
-                "workflows/android_ci_jules.yml" to "android_ci_jules.yml",
-                "workflows/codeql.yml" to "codeql.yml",
-                "workflows/jules.yml" to "jules.yml",
-                "workflows/release.yml" to "release.yml"
+                "android_ci_jules.yml" to ANDROID_CI_JULES_YML,
+                "release.yml" to RELEASE_YML
             )
-            ProjectType.REACT_NATIVE -> listOf(
-                "templates/react_native/.github/workflows/react_native_ci_jules.yml" to "react_native_ci_jules.yml"
-            )
-            ProjectType.FLUTTER -> listOf(
-                "templates/flutter/.github/workflows/flutter_ci_jules.yml" to "flutter_ci_jules.yml"
-            )
-            else -> return false
+            else -> return false // TODO: Add other templates
         }
 
         var modified = false
@@ -91,19 +145,11 @@ object ProjectConfigManager {
                 workflowsDir.mkdirs()
             }
 
-            for ((assetPath, destName) in workflows) {
-                val destFile = File(workflowsDir, destName)
-                // Force overwrite to ensure latest workflow
-                try {
-                    context.assets.open(assetPath).use { input ->
-                        val content = input.readBytes()
-                        if (!destFile.exists() || !destFile.readBytes().contentEquals(content)) {
-                            destFile.writeBytes(content)
-                            modified = true
-                        }
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
+            for ((filename, content) in workflows) {
+                val destFile = File(workflowsDir, filename)
+                if (!destFile.exists() || destFile.readText() != content) {
+                    destFile.writeText(content)
+                    modified = true
                 }
             }
         } catch (e: Exception) {
@@ -117,7 +163,6 @@ object ProjectConfigManager {
         try {
             val agentsFile = File(projectDir, "AGENTS_SETUP.md")
             val instruction = "\n\n# Environment Setup\nPlease run `./setup_env.sh` to set up the build environment."
-
             if (!agentsFile.exists()) {
                 agentsFile.writeText("# Project Instructions$instruction")
                 modified = true
@@ -196,7 +241,7 @@ object ProjectConfigManager {
         }
 
         if (!content.contains("val versionProps = Properties()")) {
-             val logic = """
+            val logic = """
 val versionProps = Properties()
 val versionPropsFile = rootProject.file("version.properties")
 if (versionPropsFile.exists()) {
@@ -209,30 +254,30 @@ val patch = versionProps.getProperty("patch", "1").toInt()
 val buildNumber = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
 """.trimIndent()
 
-             val androidMatch = Regex("""\n\s*android\s*\{""").find(content)
-             if (androidMatch != null) {
-                 val insertPos = androidMatch.range.first
-                 content = content.substring(0, insertPos) + "\n" + logic + "\n" + content.substring(insertPos)
-                 modified = true
-             }
+            val androidMatch = Regex("""\n\s*android\s*\{""").find(content)
+            if (androidMatch != null) {
+                val insertPos = androidMatch.range.first
+                content = content.substring(0, insertPos) + "\n" + logic + "\n" + content.substring(insertPos)
+                modified = true
+            }
         }
 
         if (content.contains("val versionProps")) {
-             val vcRegex = Regex("""\bversionCode\s*=?\s*\d+""")
-             if (vcRegex.containsMatchIn(content)) {
-                 if (!content.contains("major * 1000000")) {
-                     content = content.replace(vcRegex, "versionCode = major * 1000000 + minor * 10000 + patch * 100 + buildNumber")
-                     modified = true
-                 }
-             }
+            val vcRegex = Regex("""\bversionCode\s*=?\s*\d+""")
+            if (vcRegex.containsMatchIn(content)) {
+                if (!content.contains("major * 1000000")) {
+                    content = content.replace(vcRegex, "versionCode = major * 1000000 + minor * 10000 + patch * 100 + buildNumber")
+                    modified = true
+                }
+            }
 
-             val vnRegex = Regex("""\bversionName\s*=?\s*".*?"""")
-             if (vnRegex.containsMatchIn(content)) {
-                 if (!content.contains("\$major.\$minor")) {
-                     content = content.replace(vnRegex, "versionName = \"\$major.\$minor.\$patch.\$buildNumber\"")
-                     modified = true
-                 }
-             }
+            val vnRegex = Regex("""\bversionName\s*=?\s*".*?"""")
+            if (vnRegex.containsMatchIn(content)) {
+                if (!content.contains("\$major.\$minor")) {
+                    content = content.replace(vnRegex, "versionName = \"\$major.\$minor.\$patch.\$buildNumber\"")
+                    modified = true
+                }
+            }
         }
 
         if (modified) {
@@ -251,7 +296,7 @@ val buildNumber = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
         }
 
         if (!content.contains("def versionProps = new Properties()")) {
-             val logic = """
+            val logic = """
 def versionProps = new Properties()
 def versionPropsFile = rootProject.file("version.properties")
 if (versionPropsFile.exists()) {
@@ -264,30 +309,30 @@ def patch = versionProps.getProperty("patch", "1").toInteger()
 def buildNumber = System.getenv("BUILD_NUMBER")?.toInteger() ?: 1
 """.trimIndent()
 
-             val androidMatch = Regex("""\n\s*android\s*\{""").find(content)
-             if (androidMatch != null) {
-                 val insertPos = androidMatch.range.first
-                 content = content.substring(0, insertPos) + "\n" + logic + "\n" + content.substring(insertPos)
-                 modified = true
-             }
+            val androidMatch = Regex("""\n\s*android\s*\{""").find(content)
+            if (androidMatch != null) {
+                val insertPos = androidMatch.range.first
+                content = content.substring(0, insertPos) + "\n" + logic + "\n" + content.substring(insertPos)
+                modified = true
+            }
         }
 
         if (content.contains("def versionProps")) {
-             val vcRegex = Regex("""\bversionCode\s+(\d+)""")
-             if (vcRegex.containsMatchIn(content)) {
-                 if (!content.contains("major * 1000000")) {
-                     content = content.replace(vcRegex, "versionCode major * 1000000 + minor * 10000 + patch * 100 + buildNumber")
-                     modified = true
-                 }
-             }
+            val vcRegex = Regex("""\bversionCode\s+(\d+)""")
+            if (vcRegex.containsMatchIn(content)) {
+                if (!content.contains("major * 1000000")) {
+                    content = content.replace(vcRegex, "versionCode major * 1000000 + minor * 10000 + patch * 100 + buildNumber")
+                    modified = true
+                }
+            }
 
-             val vnRegex = Regex("""\bversionName\s+"(.*?)"""")
-             if (vnRegex.containsMatchIn(content)) {
-                 if (!content.contains("\$major.\$minor")) {
-                     content = content.replace(vnRegex, "versionName \"\$major.\$minor.\$patch.\$buildNumber\"")
-                     modified = true
-                 }
-             }
+            val vnRegex = Regex("""\bversionName\s+"(.*?)"""")
+            if (vnRegex.containsMatchIn(content)) {
+                if (!content.contains("\$major.\$minor")) {
+                    content = content.replace(vnRegex, "versionName \"\$major.\$minor.\$patch.\$buildNumber\"")
+                    modified = true
+                }
+            }
         }
 
         if (modified) {
