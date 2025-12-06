@@ -107,7 +107,9 @@ class MainViewModel(
     private val _aiLog = MutableStateFlow("")
     private val aiLog = _aiLog.asStateFlow()
 
-    lateinit var filteredLog: StateFlow<List<String>>
+    val filteredLog: StateFlow<List<String>> = combine(buildLog, aiLog) { b, a ->
+        (b.lines() + a.lines()).filter { it.isNotBlank() }
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private var buildService: IBuildService? = null
     private var isBuildServiceBound = false
@@ -621,8 +623,6 @@ class MainViewModel(
     fun bindBuildService(context: Context) {
         if (isServiceRegistered) return
 
-        filteredLog = combine(buildLog, aiLog) { b, a -> (b.lines() + a.lines()).filter { it.isNotBlank() } }
-            .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
         val intent = Intent(context, BuildService::class.java)
         context.applicationContext.bindService(intent, buildServiceConnection, Context.BIND_AUTO_CREATE)
         isServiceRegistered = true
@@ -724,6 +724,11 @@ class MainViewModel(
                 settingsViewModel.setAppName(appName)
                 settingsViewModel.setGithubUser(owner)
                 settingsViewModel.saveProjectConfig(appName, owner, defaultBranch)
+
+                val sanitizedUser = owner.replace(Regex("[^a-zA-Z0-9]"), "").lowercase()
+                val sanitizedApp = appName.replace(Regex("[^a-zA-Z0-9]"), "").lowercase()
+                val generatedPackage = "com.$sanitizedUser.$sanitizedApp"
+                settingsViewModel.saveTargetPackageName(generatedPackage)
 
                 // "Load" the project (Save data to device / Prepare)
                 // In this "repository-less" model, saving mostly means setting the config.
