@@ -83,6 +83,7 @@ android {
             pickFirsts.add("**/*.jnilib")
             pickFirsts.add("**/*.kotlin_builtins")
             pickFirsts.add("**/*.kotlin_module")
+            pickFirsts.add("misc/registry.properties")
         }
     }
 }
@@ -94,8 +95,8 @@ configurations.all {
                 useTarget("org.slf4j:jcl-over-slf4j:1.7.30")
                 because("Avoids duplicate classes with jcl-over-slf4j")
             }
-
         }
+        force(libs.jna)
     }
 }
 
@@ -111,14 +112,13 @@ androidComponents.onVariants { variant ->
 }
 
 dependencies {
-    implementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.2.21")
+    implementation(libs.kotlin.compiler.embeddable)
     implementation(libs.jaxb.api)
     implementation(libs.javax.annotation.api)
     implementation(libs.validation.api)
     implementation(libs.glassfish.el)
     implementation(libs.slf4j.simple)
     implementation(libs.guava)
-    implementation(libs.kotlinc.android)
     implementation(libs.nb.javac.android)
     implementation(libs.r8)
     implementation(libs.sora.editor)
