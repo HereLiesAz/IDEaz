@@ -11,7 +11,7 @@ class MainApplication : Application() {
     override fun onCreate() {
         System.setProperty("jna.nosys", "true")
         super.onCreate()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && !isRobolectric()) {
             HiddenApiBypass.addHiddenApiExemptions("")
         }
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
@@ -19,5 +19,9 @@ class MainApplication : Application() {
         if (apiKey != null) {
             AuthInterceptor.apiKey = apiKey
         }
+    }
+
+    private fun isRobolectric(): Boolean {
+        return System.getProperty("robolectric.properties") != null
     }
 }
