@@ -166,7 +166,7 @@ class MainViewModel(
         if (_isSelectMode.value == enable) return // Prevent loop
         _isSelectMode.value = enable
 
-        val action = if (enable) com.hereliesaz.ideaz.services.UIInspectionService.ACTION_START_INSPECTION else com.hereliesaz.ideaz.services.UIInspectionService.ACTION_STOP_INSPECTION
+        val action = if (enable) "com.hereliesaz.ideaz.action.START_INSPECTION" else "com.hereliesaz.ideaz.action.STOP_INSPECTION"
         val intent = Intent(getApplication(), com.hereliesaz.ideaz.services.UIInspectionService::class.java).apply {
             setAction(action)
         }
