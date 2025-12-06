@@ -1,27 +1,25 @@
 package com.hereliesaz.ideaz
 
 import android.app.Application
-import android.os.Build
-import androidx.preference.PreferenceManager
-import com.hereliesaz.ideaz.api.AuthInterceptor
-import com.hereliesaz.ideaz.ui.SettingsViewModel
-import org.lsposed.hiddenapibypass.HiddenApiBypass
+import com.hereliesaz.ideaz.utils.CrashHandler
+import com.hereliesaz.ideaz.utils.ToolManager
 
 class MainApplication : Application() {
-    override fun onCreate() {
-        System.setProperty("jna.nosys", "true")
-        super.onCreate()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && !isRobolectric()) {
-            HiddenApiBypass.addHiddenApiExemptions("")
-        }
-        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
-        val apiKey = sharedPreferences.getString(SettingsViewModel.KEY_API_KEY, null)
-        if (apiKey != null) {
-            AuthInterceptor.apiKey = apiKey
-        }
-    }
 
-    private fun isRobolectric(): Boolean {
-        return System.getProperty("robolectric.properties") != null
+    override fun onCreate() {
+        super.onCreate()
+
+        // CRITICAL: Force JNA to use the bundled library, NOT the system one.
+        // This fixes the java.lang.Error crash on startup.
+        System.setProperty("jna.nosys", "true")
+
+        try {
+            System.setProperty("jna.boot.library.path", applicationInfo.nativeLibraryDir)
+        } catch (e: Exception) {
+            // Ignore
+        }
+
+        CrashHandler.init(this)
+        ToolManager.init(this)
     }
 }

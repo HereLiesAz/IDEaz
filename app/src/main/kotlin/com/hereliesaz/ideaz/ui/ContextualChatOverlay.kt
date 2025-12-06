@@ -24,7 +24,8 @@ fun ContextualChatOverlay(
     onClose: () -> Unit
 ) {
     val density = LocalDensity.current
-    val logs by viewModel.filteredLog.collectAsState()
+    // FIX: Added initial = emptyList() as filteredLog is a Flow
+    val logs by viewModel.filteredLog.collectAsState(initial = emptyList())
     val scrollState = androidx.compose.foundation.lazy.rememberLazyListState()
 
     // Auto-scroll to bottom
@@ -37,7 +38,6 @@ fun ContextualChatOverlay(
     Box(modifier = Modifier.fillMaxSize()) {
 
         // Close Button (Above)
-        // Ensure it doesn't go off-screen top
         val closeButtonY = (rect.top - (50 * density.density).toInt()).coerceAtLeast(0)
 
         AzButton(
@@ -45,7 +45,7 @@ fun ContextualChatOverlay(
             text = "X",
             shape = AzButtonShape.CIRCLE,
             modifier = Modifier
-                .offset { IntOffset(rect.right - (40 * density.density).toInt(), closeButtonY) } // Top Right of rect
+                .offset { IntOffset(rect.right - (40 * density.density).toInt(), closeButtonY) }
         )
 
         // Chat Display (Inside Rect)
@@ -58,23 +58,21 @@ fun ContextualChatOverlay(
                 .border(2.dp, Color.Green)
                 .padding(4.dp)
         ) {
-             LazyColumn(
-                 state = scrollState,
-                 modifier = Modifier.fillMaxSize()
-             ) {
-                 items(logs) { log ->
-                     Text(
-                         text = log,
-                         color = Color.White,
-                         modifier = Modifier.padding(vertical = 2.dp)
-                     )
-                 }
-             }
+            LazyColumn(
+                state = scrollState,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(logs) { log ->
+                    Text(
+                        text = log,
+                        color = Color.White,
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
+                }
+            }
         }
 
         // Input Field (Below)
-        // Ensure it doesn't go off-screen bottom?
-        // AzTextBox handles its own height?
         AzTextBox(
             modifier = Modifier
                 .offset { IntOffset(rect.left, rect.bottom) }
