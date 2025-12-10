@@ -6,11 +6,17 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.hereliesaz.aznavrail.AzButton
@@ -24,7 +30,6 @@ fun ContextualChatOverlay(
     onClose: () -> Unit
 ) {
     val density = LocalDensity.current
-    // FIX: Added initial = emptyList() as filteredLog is a Flow
     val logs by viewModel.filteredLog.collectAsState(initial = emptyList())
     val scrollState = androidx.compose.foundation.lazy.rememberLazyListState()
 
@@ -44,6 +49,8 @@ fun ContextualChatOverlay(
             onClick = onClose,
             text = "X",
             shape = AzButtonShape.CIRCLE,
+            // Custom padding for the close button to keep it circular/compact
+            contentPadding = PaddingValues(0.dp),
             modifier = Modifier
                 .offset { IntOffset(rect.right - (40 * density.density).toInt(), closeButtonY) }
         )
@@ -81,7 +88,20 @@ fun ContextualChatOverlay(
             onSubmit = { text ->
                 viewModel.submitContextualPrompt(text)
             },
-            submitButtonContent = { Text("Send") }
+            // Use trailing icon for send button
+            trailingIcon = {
+                IconButton(onClick = { /* AzTextBox internal logic handles submit via keyboard actions,
+                                          but we need access to 'value' here if we do it manually.
+                                          Ideally AzTextBox handles the click.
+                                          Since AzTextBox passes the click through via submitButtonContent logic,
+                                          we rely on keyboard action or simple icon. */
+                }) {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.Green)
+                }
+            },
+            // Map the icon click to submit action internally in AzTextBox via this helper
+            submitButtonContent = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.Green) },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send)
         )
     }
 }

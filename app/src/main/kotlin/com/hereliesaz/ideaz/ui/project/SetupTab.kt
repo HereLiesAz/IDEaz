@@ -6,9 +6,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.hereliesaz.aznavrail.AzButton
 import com.hereliesaz.aznavrail.AzTextBox
@@ -31,6 +36,13 @@ fun ProjectSetupTab(
 ) {
     val currentAppNameState by settingsViewModel.currentAppName.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
+    val loadingProgress by viewModel.loadingProgress.collectAsState()
+
+    // NEW STATE: Tracks if the user has dismissed the mandatory warning about manual secrets.
+    var showManualSecretWarning by remember { mutableStateOf(true) }
+
+    // Derived state for button loading
+    val isBusy = loadingProgress != null
 
     var appName by remember { mutableStateOf("") }
     var githubUser by remember { mutableStateOf("") }
@@ -38,7 +50,6 @@ fun ProjectSetupTab(
     var packageName by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf(ProjectType.ANDROID) }
 
-    // Create Mode specific fields
     var repoDescription by remember { mutableStateOf("Created with IDEaz") }
     var initialPrompt by remember { mutableStateOf("") }
 
@@ -50,10 +61,17 @@ fun ProjectSetupTab(
             packageName = settingsViewModel.getTargetPackageName() ?: "com.example"
             selectedType = ProjectType.fromString(settingsViewModel.getProjectType())
             if (appName.isNotBlank()) viewModel.fetchSessionsForRepo(appName)
+            // If viewing a project, we assume secrets were handled.
+            showManualSecretWarning = false
         } else {
             if (appName == "IDEazProject") appName = ""
+            // Show warning only in creation mode
+            showManualSecretWarning = true
         }
     }
+
+    // Derived state for button enablement
+    val isReadyToCreate = initialPrompt.isNotBlank() && appName.isNotBlank() && !showManualSecretWarning
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         item {
@@ -64,24 +82,26 @@ fun ProjectSetupTab(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // If user clicks Create here, we enter Create Mode on this same tab
                 AzButton(
                     modifier = Modifier.weight(1f),
                     onClick = { onCreateModeChanged(true) },
                     text = "Create",
-                    shape = AzButtonShape.RECTANGLE
+                    shape = AzButtonShape.RECTANGLE,
+                    enabled = !isBusy && !isCreateMode
                 )
                 AzButton(
                     modifier = Modifier.weight(1f),
                     onClick = { onNavigateToTab("Clone") },
                     text = "Clone",
-                    shape = AzButtonShape.RECTANGLE
+                    shape = AzButtonShape.RECTANGLE,
+                    enabled = !isBusy
                 )
                 AzButton(
                     modifier = Modifier.weight(1f),
                     onClick = { onNavigateToTab("Load") },
                     text = "Load",
-                    shape = AzButtonShape.RECTANGLE
+                    shape = AzButtonShape.RECTANGLE,
+                    enabled = !isBusy
                 )
             }
             Spacer(modifier = Modifier.height(24.dp))
@@ -90,38 +110,43 @@ fun ProjectSetupTab(
             Text(headerText, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
             Spacer(Modifier.height(16.dp))
 
-            // --- WORKAROUND: Logical Read-Only ---
-            // Since AzTextBox lacks 'enabled' param, we guard the onValueChange.
-
             AzTextBox(
                 value = appName,
-                onValueChange = { if (isCreateMode) appName = it },
+                onValueChange = { appName = it },
                 hint = "App Name",
-                onSubmit = {}
+                onSubmit = {},
+                enabled = isCreateMode,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
             )
             Spacer(Modifier.height(8.dp))
 
             AzTextBox(
                 value = githubUser,
-                onValueChange = { if (isCreateMode) githubUser = it },
+                onValueChange = { githubUser = it },
                 hint = "GitHub User",
-                onSubmit = {}
+                onSubmit = {},
+                enabled = isCreateMode,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
             )
             Spacer(Modifier.height(8.dp))
 
             AzTextBox(
                 value = branchName,
-                onValueChange = { if (isCreateMode) branchName = it },
+                onValueChange = { branchName = it },
                 hint = "Branch",
-                onSubmit = {}
+                onSubmit = {},
+                enabled = isCreateMode,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
             )
             Spacer(Modifier.height(8.dp))
 
             AzTextBox(
                 value = packageName,
-                onValueChange = { if (isCreateMode) packageName = it },
+                onValueChange = { packageName = it },
                 hint = "Package Name",
-                onSubmit = {}
+                onSubmit = {},
+                enabled = isCreateMode,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
             )
 
             Spacer(Modifier.height(8.dp))
@@ -170,55 +195,89 @@ fun ProjectSetupTab(
                 )
 
                 Spacer(Modifier.height(24.dp))
-                // MANDATORY INITIAL PROMPT
+
+                // Prompt Text Box
+                val isPromptError = initialPrompt.isBlank()
                 AzTextBox(
                     value = initialPrompt,
                     onValueChange = { initialPrompt = it },
-                    hint = "Initial Prompt (Mandatory)",
+                hint = "Initial Prompt (Mandatory)",
                     onSubmit = {},
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = isPromptError,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
                 )
-                if (initialPrompt.isBlank()) {
+                if (isPromptError) {
                     Text(
-                        text = "* Initial Prompt is required to create a project.",
+                        text = "* Required to initialize the AI agent.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.padding(start = 4.dp, top = 4.dp)
                     )
                 }
+
+                Spacer(Modifier.height(24.dp))
+
+                // NEW MANUAL SECRET WARNING
+                if (showManualSecretWarning) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Warning, contentDescription = "Warning", tint = MaterialTheme.colorScheme.onErrorContainer)
+                                Spacer(Modifier.width(8.dp))
+                                Text("CRITICAL MANUAL STEP REQUIRED", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Automated secret encryption is disabled for stability. The remote build will fail without the following secrets added manually to your GitHub repo settings:",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Text(
+                                "GEMINI_API_KEY, GOOGLE_API_KEY, JULES_PROJECT_ID",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+                            )
+                            AzButton(
+                                onClick = { showManualSecretWarning = false },
+                                text = "I understand (Disable Warning)",
+                                shape = AzButtonShape.RECTANGLE,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
             }
 
             Spacer(Modifier.height(24.dp))
 
-            // --- ACTION BUTTON ---
             if (isCreateMode) {
-                // CREATE & SAVE
                 AzButton(
                     onClick = {
-                        // Workaround: Logical disable check since button doesn't support 'enabled' prop yet
-                        if (initialPrompt.isNotBlank() && appName.isNotBlank()) {
-                            if (onCheckRequirements()) {
-                                viewModel.createGitHubRepository(
-                                    appName, repoDescription, false, selectedType, packageName, context
-                                ) {
-                                    onCreateModeChanged(false)
-                                    if (initialPrompt.isNotBlank()) {
-                                        viewModel.sendPrompt(initialPrompt)
-                                    }
-                                    onBuildTriggered()
+                        if (onCheckRequirements()) {
+                            viewModel.createGitHubRepository(
+                                appName, repoDescription, false, selectedType, packageName, context
+                            ) {
+                                viewModel.uploadProjectSecrets(githubUser, appName) // This now just logs instructions
+                                onCreateModeChanged(false)
+                                if (initialPrompt.isNotBlank()) {
+                                    viewModel.sendPrompt(initialPrompt)
                                 }
-                                Toast.makeText(context, "Creating Repository...", Toast.LENGTH_SHORT).show()
+                                onBuildTriggered()
                             }
-                        } else {
-                            Toast.makeText(context, "Please fill in App Name and Initial Prompt", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    text = "Create & Save",
+                    text = if (showManualSecretWarning) "ACTION BLOCKED" else "Create & Save",
                     shape = AzButtonShape.RECTANGLE,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = isReadyToCreate, // Disabled if warning is visible
+                    isLoading = isBusy
                 )
             } else {
-                // SAVE & INITIALIZE
                 AzButton(
                     onClick = {
                         if (onCheckRequirements()) {
@@ -226,12 +285,12 @@ fun ProjectSetupTab(
                                 appName, githubUser, branchName, packageName, selectedType, context, null
                             )
                             onBuildTriggered()
-                            Toast.makeText(context, "Initializing...", Toast.LENGTH_SHORT).show()
                         }
                     },
                     text = "Save & Initialize",
                     shape = AzButtonShape.RECTANGLE,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    isLoading = isBusy
                 )
             }
         }
@@ -249,7 +308,7 @@ fun ProjectSetupTab(
                         .fillMaxWidth()
                         .clickable {
                             viewModel.resumeSession(session.id)
-                            Toast.makeText(context, "Resuming session ${session.id}", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Resumed: ${session.id}", Toast.LENGTH_SHORT).show()
                         },
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surface,

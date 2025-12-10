@@ -4,11 +4,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -17,9 +18,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.navigation.compose.rememberNavController
 import com.composables.core.SheetDetent
 import com.composables.core.rememberBottomSheetState
@@ -34,7 +39,6 @@ import com.hereliesaz.ideaz.ui.MainViewModelFactory
 import com.hereliesaz.ideaz.ui.Peek
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.ui.theme.IDEazTheme
-import kotlinx.coroutines.launch
 
 class BubbleActivity : ComponentActivity() {
 
@@ -48,18 +52,8 @@ class BubbleActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            val themeMode by viewModel.settingsViewModel.themeMode.collectAsState()
-
-            val useDarkTheme = when (themeMode) {
-                SettingsViewModel.THEME_LIGHT -> false
-                SettingsViewModel.THEME_DARK -> true
-                SettingsViewModel.THEME_SYSTEM -> isSystemInDarkTheme()
-                SettingsViewModel.THEME_AUTO -> !isSystemInDarkTheme() // Opposite for Overlay (High Contrast)
-                else -> !isSystemInDarkTheme()
-            }
-
-            IDEazTheme(darkTheme = useDarkTheme) {
-                // CRITICAL: Surface must be transparent to see the app behind
+            // HUD is always Dark Mode for contrast
+            IDEazTheme(darkTheme = true) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = Color.Transparent
@@ -90,9 +84,8 @@ fun BubbleScreen(
     )
 
     val context = LocalContext.current
-    var showPromptPopup by remember{ mutableStateOf(false) }
+    var showPromptPopup by remember { mutableStateOf(false) }
 
-    // Read capability & state
     val isLocalBuildEnabled = remember { viewModel.settingsViewModel.isLocalBuildEnabled() }
 
     val isSelectMode by viewModel.isSelectMode.collectAsState()
@@ -103,8 +96,39 @@ fun BubbleScreen(
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val screenHeight = maxHeight
+        val railWidth = 80.dp
 
-        Row(modifier = Modifier.fillMaxSize()) {
+        // LAYER 1: Bottom Sheet & Content (Z=1)
+        // Padded so it sits to the RIGHT of the rail
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = railWidth)
+                .zIndex(1f)
+        ) {
+            IdeNavHost(
+                modifier = Modifier.fillMaxSize(),
+                navController = navController,
+                viewModel = viewModel,
+                settingsViewModel = viewModel.settingsViewModel,
+                onThemeToggle = { }
+            )
+
+            IdeBottomSheet(
+                sheetState = sheetState,
+                viewModel = viewModel,
+                peekDetent = Peek,
+                halfwayDetent = Halfway,
+                screenHeight = LocalConfiguration.current.screenHeightDp.dp,
+                onSendPrompt = { viewModel.sendPrompt(it) }
+            )
+        }
+
+        // LAYER 2: Navigation Rail (Z=100)
+        // ABSOLUTELY UNCONSTRAINED. Floating freely.
+        Box(
+            modifier = Modifier.zIndex(100f)
+        ) {
             IdeNavRail(
                 navController = navController,
                 viewModel = viewModel,
@@ -112,17 +136,14 @@ fun BubbleScreen(
                 onShowPromptPopup = { showPromptPopup = true },
                 handleActionClick = handleActionClick,
                 isIdeVisible = isSelectMode,
-                onLaunchOverlay = {
-                    viewModel.toggleSelectMode(!isSelectMode)
-                },
+                onLaunchOverlay = { viewModel.toggleSelectMode(!isSelectMode) },
                 sheetState = sheetState,
                 scope = scope,
-                initiallyExpanded = false, // Forced undock state
+                initiallyExpanded = false,
                 onUndock = onUndock,
                 isLocalBuildEnabled = isLocalBuildEnabled,
-                isBubbleMode = true,
+                isBubbleMode = false, // Standard Mode
                 onNavigateToMainApp = { route ->
-                    // Clear selection context when leaving bubble logic
                     viewModel.clearSelection()
                     val intent = android.content.Intent(context, MainActivity::class.java).apply {
                         flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
@@ -132,38 +153,17 @@ fun BubbleScreen(
                     onUndock()
                 }
             )
-
-            // In Bubble/Overlay mode, we do NOT show the full IdeNavHost content (Settings/Project)
-            // unless explicitly requested. Usually, the overlay is just the Rail + Chat.
-            // If you want Settings in the overlay, keep this. But usually, settings are opaque.
-            // We keep it here, but relies on the Surface transparency above.
-            IdeNavHost(
-                modifier = Modifier.fillMaxSize(),
-                navController = navController,
-                viewModel = viewModel,
-                settingsViewModel = viewModel.settingsViewModel,
-                onThemeToggle = { }
-            )
         }
 
-        IdeBottomSheet(
-            sheetState = sheetState,
-            viewModel = viewModel,
-            peekDetent = Peek,
-            halfwayDetent = Halfway,
-            screenHeight = screenHeight,
-            onSendPrompt = {
-                viewModel.sendPrompt(it)
-            }
-        )
-
-        // Draw the chat OVER everything if active
+        // LAYER 3: Contextual Chat (Z=200)
         if (isContextualChatVisible && activeSelectionRect != null) {
-            ContextualChatOverlay(
-                rect = activeSelectionRect!!,
-                viewModel = viewModel,
-                onClose = { viewModel.closeContextualChat() }
-            )
+            Box(modifier = Modifier.fillMaxSize().zIndex(200f)) {
+                ContextualChatOverlay(
+                    rect = activeSelectionRect!!,
+                    viewModel = viewModel,
+                    onClose = { viewModel.closeContextualChat() }
+                )
+            }
         }
     }
 }

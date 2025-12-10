@@ -1,7 +1,7 @@
 [versions]
 agp = "8.13.1"
 aetherTransportFile = "2.0.13"
-aznavrail = "4.22"
+aznavrail = "4.47"
 coreKtx = "1.17.0"
 googleGenai = "1.29.0"
 kotlinCompilerEmbeddable = "2.2.21"

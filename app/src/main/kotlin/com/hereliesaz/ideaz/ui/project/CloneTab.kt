@@ -6,17 +6,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.hereliesaz.aznavrail.AzButton
 import com.hereliesaz.aznavrail.AzTextBox
@@ -34,6 +32,9 @@ fun ProjectCloneTab(
     onCreateNewSelected: () -> Unit
 ) {
     val ownedRepos by viewModel.ownedRepos.collectAsState()
+    val loadingProgress by viewModel.loadingProgress.collectAsState()
+    val isBusy = loadingProgress != null
+
     var cloneUrl by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
@@ -42,17 +43,19 @@ fun ProjectCloneTab(
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         item {
-            // Row 1: Fork URL
+            // Row 1: Fork URL with Link Icon
             AzTextBox(
                 value = cloneUrl,
                 onValueChange = { cloneUrl = it },
                 hint = "https://github.com/user/repo (to fork)",
                 modifier = Modifier.fillMaxWidth(),
+                leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
                 onSubmit = {
                     viewModel.forkRepository(cloneUrl)
                     Toast.makeText(context, "Forking...", Toast.LENGTH_SHORT).show()
                 },
-                submitButtonContent = { Text("Fork") }
+                submitButtonContent = { Text("Fork") },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send)
             )
             Spacer(Modifier.height(8.dp))
 
@@ -62,11 +65,16 @@ fun ProjectCloneTab(
                     modifier = Modifier.weight(1f),
                     onClick = onCreateNewSelected,
                     text = "Create New Repository",
-                    shape = AzButtonShape.RECTANGLE
+                    shape = AzButtonShape.RECTANGLE,
+                    enabled = !isBusy
                 )
                 Spacer(Modifier.width(8.dp))
-                IconButton(onClick = { viewModel.fetchGitHubRepos() }) {
-                    Icon(Icons.Default.Refresh, "Refresh")
+                IconButton(onClick = { viewModel.fetchGitHubRepos() }, enabled = !isBusy) {
+                    if (isBusy) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Default.Refresh, "Refresh")
+                    }
                 }
             }
 
