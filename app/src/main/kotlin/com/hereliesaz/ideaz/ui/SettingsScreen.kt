@@ -61,6 +61,7 @@ import com.hereliesaz.aznavrail.AzTextBox
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import androidx.compose.foundation.background
 import com.hereliesaz.ideaz.utils.ToolManager
+import com.hereliesaz.ideaz.utils.isAccessibilityServiceEnabled
 import java.io.File
 import android.app.AppOpsManager
 
@@ -774,13 +775,6 @@ fun SettingsScreen(
         }
     }
 }
-
-fun isAccessibilityServiceEnabled(context: Context, serviceName: String): Boolean {
-    val prefString = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
-    return prefString?.contains(context.packageName + serviceName) ?: false
-}
-
-
 
 @Composable
 fun PermissionCheckRow(
