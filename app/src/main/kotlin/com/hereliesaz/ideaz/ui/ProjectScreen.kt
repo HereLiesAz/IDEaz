@@ -26,6 +26,7 @@ import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.ideaz.ui.project.ProjectCloneTab
 import com.hereliesaz.ideaz.ui.project.ProjectLoadTab
 import com.hereliesaz.ideaz.ui.project.ProjectSetupTab
+import com.hereliesaz.ideaz.utils.isAccessibilityServiceEnabled
 import android.os.Build
 import android.provider.Settings
 import android.net.Uri
@@ -138,7 +139,7 @@ fun ProjectScreen(
         return true
     }
 
-    LaunchedEffect(Unit) { checkKeys() }
+    LaunchedEffect(Unit) { checkLoadRequirements() }
 
     // --- UI ---
     if (showRequirementDialog) {
