@@ -104,12 +104,12 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
         lifecycleHelper?.onCreate()
         lifecycleHelper?.onStart()
 
-        // Initial State: Docked (WRAP_CONTENT)
+        // Initial Layout: Wrap content (Rail only), Non-Focusable so you can use the target app
         layoutParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, // Start non-focusable so app behind is usable
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -122,22 +122,20 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
         if (overlayView == null) return
 
         if (isExpandedMode) {
-            // Expanded Mode (Chat or Bottom Sheet open)
-            // We need full screen to render the sheet at the bottom and chat in the middle.
+            // Expanded Mode (Chat or Console Open):
+            // 1. MATCH_PARENT to allow the bottom sheet and chat bubble to render anywhere.
+            // 2. FLAG_NOT_TOUCH_MODAL allow touches to status bar/nav bar to pass through.
+            // 3. REMOVE FLAG_NOT_FOCUSABLE so the user can type in the chat box.
             layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
             layoutParams.height = WindowManager.LayoutParams.MATCH_PARENT
-
-            // FLAG_NOT_TOUCH_MODAL: Allows touches outside this window (like status bar) to pass through.
-            // We REMOVE FLAG_NOT_FOCUSABLE so the user can type in the chat box.
             layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                     WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
         } else {
-            // Docked Mode (Rail Only)
-            // Shrink window to just the rail content so the user can interact with their app.
+            // Docked Mode (Rail Only):
+            // 1. WRAP_CONTENT to shrink the window to just the rail.
+            // 2. FLAG_NOT_FOCUSABLE so all touches outside the rail go to the Target App.
             layoutParams.width = WindowManager.LayoutParams.WRAP_CONTENT
-            layoutParams.height = WindowManager.LayoutParams.WRAP_CONTENT
-
-            // FLAG_NOT_FOCUSABLE: Essential so keys/touches go to the app behind us.
+            layoutParams.height = WindowManager.LayoutParams.MATCH_PARENT
             layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
         }
 
@@ -169,27 +167,34 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
 
         val isContextualChatVisible by viewModel.isContextualChatVisible.collectAsState()
         val activeSelectionRect by viewModel.activeSelectionRect.collectAsState()
+
+        // This is the CRITICAL part: Get the USER'S PROJECT package name
         val targetPackage by settingsViewModel.targetPackageName.collectAsState()
+        val isSelectMode by viewModel.isSelectMode.collectAsState()
 
         // --- AUTO-LAUNCH LOGIC ---
+        // Automatically launch the TARGET APP (not IDEaz) when the overlay starts
         LaunchedEffect(Unit) {
             if (!targetPackage.isNullOrBlank()) {
-                try {
-                    val launchIntent = context.packageManager.getLaunchIntentForPackage(targetPackage!!)
-                    if (launchIntent != null) {
-                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        context.startActivity(launchIntent)
-                    } else {
-                        Toast.makeText(context, "App not installed: $targetPackage", Toast.LENGTH_LONG).show()
+                // If we are "dogfooding" (IDEaz building IDEaz), this is effectively a no-op
+                // as we are already foreground. But for any other app, this brings it to front.
+                if (targetPackage != context.packageName) {
+                    try {
+                        val launchIntent = context.packageManager.getLaunchIntentForPackage(targetPackage!!)
+                        if (launchIntent != null) {
+                            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(launchIntent)
+                        } else {
+                            Toast.makeText(context, "Project app not installed yet: $targetPackage", Toast.LENGTH_LONG).show()
+                        }
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Error launching project: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
-                } catch (e: Exception) {
-                    Toast.makeText(context, "Failed to launch app: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             }
         }
 
         // --- WINDOW RESIZING LOGIC ---
-        // Expand window if Chat is visible OR Bottom Sheet is active (Peek or Halfway)
         val isSheetOpen = sheetState.currentDetent == Peek || sheetState.currentDetent == Halfway
         val isExpandedMode = isContextualChatVisible || isSheetOpen
 
@@ -200,21 +205,23 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
         IDEazTheme {
             Box(modifier = Modifier.fillMaxSize()) {
 
-                // 1. Navigation Rail (Always docked on left)
+                // 1. Navigation Rail (Docked)
                 IdeNavRail(
                     navController = navController,
                     viewModel = viewModel,
                     context = context,
                     onShowPromptPopup = { },
                     handleActionClick = { action -> action() },
-                    isIdeVisible = true,
-                    onLaunchOverlay = { },
+                    isIdeVisible = true, // Force visible in overlay
+                    // Wire up the toggle button to actually switch modes
+                    onLaunchOverlay = { viewModel.toggleSelectMode(!isSelectMode) },
                     sheetState = sheetState,
                     scope = scope,
                     initiallyExpanded = false,
                     onUndock = { stopSelf() },
-                    enableRailDraggingOverride = true, // Allows dragging inside the window
+                    enableRailDraggingOverride = true,
                     isLocalBuildEnabled = false,
+                    // Navigate BACK to the IDE app for settings/management
                     onNavigateToMainApp = { route ->
                         val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
                         intent?.putExtra("route", route)
