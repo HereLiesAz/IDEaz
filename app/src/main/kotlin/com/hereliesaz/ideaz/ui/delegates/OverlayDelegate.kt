@@ -5,7 +5,7 @@ import android.app.Application
 import android.content.Intent
 import android.graphics.Rect
 import android.net.Uri
-import com.hereliesaz.ideaz.BubbleActivity
+import com.hereliesaz.ideaz.services.IdeazOverlayService
 import com.hereliesaz.ideaz.models.SourceMapEntry
 import com.hereliesaz.ideaz.services.ScreenshotService
 import com.hereliesaz.ideaz.ui.SettingsViewModel
@@ -154,12 +154,17 @@ class OverlayDelegate(
         pendingBase64Screenshot = base64
         _isContextualChatVisible.value = true
 
-        val appIntent = Intent(application, BubbleActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        // Launch overlay service if not running, or update it
+        if (android.provider.Settings.canDrawOverlays(application)) {
+            val serviceIntent = Intent(application, IdeazOverlayService::class.java)
+            androidx.core.content.ContextCompat.startForegroundService(application, serviceIntent)
+        } else {
+            val intent = Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${application.packageName}")).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            application.startActivity(intent)
+            onOverlayLog("Please grant overlay permission.")
         }
-        application.startActivity(appIntent)
     }
 
     fun hasScreenCapturePermission() = screenCaptureData != null
