@@ -168,14 +168,15 @@ jobs:
           TAG_NAME="latest-debug-v${MAJOR}.${MINOR}"
           echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
           # Find APK
-          APK_FOUND=$(find downloaded_apk -name "GraffitiXR-*-debug.apk" | head -n 1)
+          APK_FOUND=$(find downloaded_apk -name "*.apk" | head -n 1)
           if [ -z "$APK_FOUND" ]; then
             echo "Error: No APK file found in downloaded_apk/"
             ls -R downloaded_apk/
             exit 1
           fi
           # Enforce naming convention
-          TARGET_NAME="IDEaz-${VERSION_NAME}-debug.apk"
+          REPO_NAME=${GITHUB_REPOSITORY#*/}
+          TARGET_NAME="${REPO_NAME}-${VERSION_NAME}-debug.apk"
           echo "Renaming $APK_FOUND to $TARGET_NAME"
           mv "$APK_FOUND" "$TARGET_NAME"
           echo "APK_FILE=$TARGET_NAME" >> $GITHUB_ENV
