@@ -35,12 +35,10 @@ class UpdateDelegate(
 
     fun checkForExperimentalUpdates() {
         scope.launch {
-            val user = settingsViewModel.getGithubUser()
-            val appName = settingsViewModel.getAppName()
             val token = settingsViewModel.getGithubToken()
 
-            if (user.isNullOrBlank() || appName.isNullOrBlank() || token.isNullOrBlank()) {
-                onOverlayLog("Cannot check for updates: Missing Project/Auth info.")
+            if (token.isNullOrBlank()) {
+                onOverlayLog("Cannot check for updates: Missing GitHub Token.")
                 return@launch
             }
 
@@ -48,13 +46,12 @@ class UpdateDelegate(
 
             try {
                 val service = GitHubApiClient.createService(token)
-                val releases = service.getReleases(user, appName)
-                val branch = settingsViewModel.getBranchName()
-                val sanitizedBranch = branch.replace("/", "-")
-                val targetTagPrefix = "debug-$sanitizedBranch-v"
+                // Hardcoded to the official repo for IDEaz updates
+                val releases = service.getReleases("HereLiesAz", "IDEaz")
 
+                // We check for general debug builds
                 val update = releases.firstOrNull {
-                    it.tagName.startsWith(targetTagPrefix) || it.tagName.startsWith("latest-debug-")
+                    it.tagName.startsWith("latest-debug-")
                 }
 
                 if (update != null) {
@@ -83,7 +80,7 @@ class UpdateDelegate(
                         onOverlayLog("Update found but no APK asset.")
                     }
                 } else {
-                    onOverlayLog("No updates found for branch $branch.")
+                    onOverlayLog("No updates found.")
                 }
             } catch (e: Exception) {
                 onOverlayLog("Update check failed: ${e.message}")
