@@ -20,9 +20,22 @@ jobs:
       issues: write
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Generate google-services.json
+        env:
+          GOOGLE_SERVICES_API_KEY: ${{ secrets.GOOGLE_SERVICES_API_KEY }}
+          PROJECT_ID: ${{ secrets.PROJECT_ID }}
+        run: |
+          if [ -f "app/google-services.json.template" ]; then
+            echo "Template found. Injecting secrets..."
+            sed -e 's/{{\([^}]*\)}}/${\1}/g' app/google-services.json.template | envsubst > app/google-services.json
+            echo "google-services.json created successfully."
+          else
+            echo "google-services.json.template not found! Skipping generation."
+          fi
 
       - name: set up JDK 17
         uses: actions/setup-java@v5
@@ -45,16 +58,9 @@ jobs:
         # capture output while still failing if build fails (but continue-on-error handles the workflow flow)
         run: |
           set +e
-          # Temporarily change applicationId to avoid install conflicts
-          sed -i 's/applicationId = "com.hereliesaz.ideaz"/applicationId = "com.hereliesaz.ideaz.preview"/g' app/build.gradle.kts
-
           export BUILD_NUMBER=$(git rev-list --count HEAD)
           ./gradlew assembleDebug --build-cache > build.log 2>&1
           EXIT_CODE=$?
-
-          # Revert applicationId change
-          sed -i 's/applicationId = "com.hereliesaz.ideaz.preview"/applicationId = "com.hereliesaz.ideaz"/g' app/build.gradle.kts
-
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
           cat build.log
           exit $EXIT_CODE
@@ -65,7 +71,7 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: app-debug
-          path: app/build/outputs/apk/debug/IDEaz-*-debug.apk
+          path: app/build/outputs/apk/debug/GraffitiXR-*-debug.apk
 
       # Update the release (or create it) without deleting it first to avoid downtime
       - name: Update Release
@@ -78,7 +84,7 @@ jobs:
           TAG_NAME="latest-debug-v${MAJOR}.${MINOR}"
           echo "Using tag: $TAG_NAME"
           
-          APK_FILE=$(ls app/build/outputs/apk/debug/IDEaz-*-debug.apk | head -n 1)
+          APK_FILE=$(ls app/build/outputs/apk/debug/GraffitiXR-*-debug.apk | head -n 1)
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           
@@ -103,7 +109,6 @@ jobs:
               --notes "Automatic build from commit $GITHUB_SHA" \
               --target $GITHUB_SHA
           fi
-
       - name: Report Failure to Jules
         if: steps.gradle-build.outcome == 'failure'
         uses: actions/github-script@v8
@@ -128,14 +133,12 @@ jobs:
               body: body,
               labels: ['jules']
             });
-
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issue.data.number,
               body: "@jules, please debug and fix this build failure. Include the suggestions from the gemini code review."
             });
-
       - name: Fail Job if Build Failed
         if: steps.gradle-build.outcome == 'failure'
         run: exit 1
