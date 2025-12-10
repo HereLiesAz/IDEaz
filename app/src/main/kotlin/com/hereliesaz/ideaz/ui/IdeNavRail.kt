@@ -7,7 +7,6 @@ import com.composables.core.BottomSheetState
 import com.hereliesaz.aznavrail.AzNavRail
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.aznavrail.model.AzHeaderIconShape
-import com.hereliesaz.ideaz.BubbleActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -24,9 +23,8 @@ fun IdeNavRail(
     scope: CoroutineScope,
     initiallyExpanded: Boolean = false,
     onUndock: (() -> Unit)? = null,
-    enableRailDraggingOverride: Boolean? = null,
+    enableRailDraggingOverride: Boolean? = null, // NEW
     isLocalBuildEnabled: Boolean = false,
-    isBubbleMode: Boolean = false,
     onNavigateToMainApp: (String) -> Unit = { navController.navigate(it) }
 ) {
     AzNavRail(
@@ -36,11 +34,12 @@ fun IdeNavRail(
         azSettings(
             packRailButtons = true,
             defaultShape = AzButtonShape.RECTANGLE,
-            enableRailDragging = enableRailDraggingOverride ?: true,
+            enableRailDragging = enableRailDraggingOverride ?: true, // Default true unless override
             onUndock = onUndock,
-            headerIconShape = AzHeaderIconShape.NONE,
+            headerIconShape = AzHeaderIconShape.NONE
         )
 
+        // ... (rest of items unchanged)
         azRailItem(id = "project_settings", text = "Project", onClick = { onNavigateToMainApp("project_settings") })
         azMenuItem(id = "git",  text = "Git", onClick = { onNavigateToMainApp("git") })
 
@@ -53,9 +52,7 @@ fun IdeNavRail(
             text = "IDEaz",
             onClick = {
                 handleActionClick {
-                    if (!isBubbleMode) {
-                        onLaunchOverlay()
-                    }
+                    onLaunchOverlay()
                 }
             }
         )
@@ -65,11 +62,7 @@ fun IdeNavRail(
             text = "Prompt",
             onClick = {
                 handleActionClick {
-                    if (!isBubbleMode) {
-                        onLaunchOverlay()
-                    } else {
-                        onShowPromptPopup()
-                    }
+                    onShowPromptPopup()
                 }
             }
         )
@@ -80,12 +73,8 @@ fun IdeNavRail(
             text = "Build",
             onClick = {
                 handleActionClick {
-                    if (!isBubbleMode) {
-                        onLaunchOverlay()
-                    } else {
-                        scope.launch {
-                            sheetState.animateTo(Halfway)
-                        }
+                    scope.launch {
+                        sheetState.animateTo(Halfway)
                     }
                 }
             }
@@ -100,11 +89,7 @@ fun IdeNavRail(
             shape = AzButtonShape.NONE,
             onClick = {
                 handleActionClick {
-                    if (!isBubbleMode) {
-                        onLaunchOverlay()
-                    } else {
-                        onLaunchOverlay()
-                    }
+                    onLaunchOverlay()
                 }
             }
         )

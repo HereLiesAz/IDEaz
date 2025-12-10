@@ -19,6 +19,7 @@ import androidx.core.app.NotificationCompat
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.navigation.compose.rememberNavController
 import com.composables.core.SheetDetent
 import com.composables.core.rememberBottomSheetState
@@ -77,6 +78,7 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
 
     private fun setupOverlay() {
         overlayView = ComposeView(this).apply {
+            setViewTreeViewModelStoreOwner(this@IdeazOverlayService)
             setContent {
                 OverlayContent()
             }
