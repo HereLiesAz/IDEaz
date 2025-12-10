@@ -124,6 +124,41 @@ fun ProjectSetupTab(
                 onSubmit = {}
             )
 
+            Spacer(Modifier.height(8.dp))
+
+            // Project Type Dropdown
+            var expanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = !expanded },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                TextField(
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    readOnly = true,
+                    value = selectedType.displayName,
+                    onValueChange = {},
+                    label = { Text("Project Type") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    colors = ExposedDropdownMenuDefaults.textFieldColors()
+                )
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    ProjectType.values().forEach { type ->
+                        DropdownMenuItem(
+                            text = { Text(type.displayName) },
+                            onClick = {
+                                selectedType = type
+                                expanded = false
+                            },
+                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                        )
+                    }
+                }
+            }
+
             // --- CREATE MODE SPECIFIC FIELDS ---
             if (isCreateMode) {
                 Spacer(Modifier.height(8.dp))
@@ -133,41 +168,6 @@ fun ProjectSetupTab(
                     hint = "Description",
                     onSubmit = {}
                 )
-
-                Spacer(Modifier.height(8.dp))
-
-                // Project Type Dropdown
-                var expanded by remember { mutableStateOf(false) }
-                ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = !expanded },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    TextField(
-                        modifier = Modifier.menuAnchor().fillMaxWidth(),
-                        readOnly = true,
-                        value = selectedType.displayName,
-                        onValueChange = {},
-                        label = { Text("Project Type") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        colors = ExposedDropdownMenuDefaults.textFieldColors()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        ProjectType.values().forEach { type ->
-                            DropdownMenuItem(
-                                text = { Text(type.displayName) },
-                                onClick = {
-                                    selectedType = type
-                                    expanded = false
-                                },
-                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
-                            )
-                        }
-                    }
-                }
 
                 Spacer(Modifier.height(24.dp))
                 // MANDATORY INITIAL PROMPT
