@@ -2,14 +2,14 @@
 
 ## 1. The Overlay ("Invisible Screen")
 *   **Role:** The primary interface for "Post-Code" development.
-*   **Implementation:** `UIInspectionService` (Accessibility Service) + `BubbleActivity`.
+*   **Implementation:** `UIInspectionService` (Accessibility Service) + `IdeazOverlayService`.
 *   **Context:** Visible *only* over the target application.
 *   **Modes:**
     *   **Interact:** Pass-through to target app.
     *   **Select:** Blocks interaction to allow Element Tap or Rect Drag selection.
 *   **Components:**
     *   **Selection Highlight:** Visual border around selected nodes or drawn rects (managed by `UIInspectionService`).
-    *   **Contextual Chat:** Inline chat display + input anchored to the selection (managed by `BubbleActivity`).
+    *   **Contextual Chat:** Inline chat display + input anchored to the selection (managed by `IdeazOverlayService`).
     *   **Update Popup:** "Updating, gimme a sec" toast/dialog.
 
 ## 2. Main Host Screen (`MainScreen.kt`)
@@ -63,11 +63,3 @@
 ## 7. Web Runtime (`WebRuntimeActivity.kt`)
 *   **Role:** Host for Web projects.
 *   **Component:** `WebView` loading the generated `index.html`.
-
-## 8. Bubble Overlay (`BubbleActivity.kt`)
-*   **Role:** Provides a persistent, system-managed overlay for quick access to IDE features while using other apps. The "IDE Screen".
-*   **Implementation:** Android Bubbles API via `BubbleActivity`.
-*   **Components:**
-    *   `IdeNavRail`: Navigation bar.
-    *   `IdeNavHost`: Content area for IDE screens within the bubble.
-    *   `ContextualChatOverlay`: The chat interface displayed over a selection.
