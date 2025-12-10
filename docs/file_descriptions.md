@@ -16,7 +16,6 @@
 ### app/src/main/kotlin/com/hereliesaz/ideaz/
 *   `MainActivity.kt`: The main entry point and UI host.
 *   `MainApplication.kt`: Application subclass for global initialization.
-*   `BubbleActivity.kt`: Activity that runs inside the Android Bubble overlay.
 
 #### api/
 *   `ApiClient.kt`: Retrofit client builder.
@@ -57,7 +56,6 @@
 *   `ToolManager.kt`: Installs and locates native tools (`aapt2`, `java`, etc.).
 *   `ProjectAnalyzer.kt`: Detects project types and configurations.
 *   `ProcessExecutor.kt`: Helper to run native shell commands.
-*   `BubbleUtils.kt`: Utility to create and manage Android Bubble notifications.
 
 ## docs/
 (See `AGENTS.md` for index)
