@@ -4,7 +4,6 @@ import android.app.Application
 import android.content.Context
 import android.util.Log
 import com.hereliesaz.ideaz.api.CreateRepoRequest
-import com.hereliesaz.ideaz.api.CreateSecretRequest
 import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.api.GitHubRepoResponse
 import com.hereliesaz.ideaz.git.GitManager
@@ -12,8 +11,6 @@ import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.ProjectMetadata
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.utils.ProjectConfigManager
-import com.goterl.lazysodium.LazySodiumAndroid
-import com.goterl.lazysodium.SodiumAndroid
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -156,63 +153,12 @@ class RepoDelegate(
     }
 
     fun uploadProjectSecrets(owner: String, repo: String) {
-        scope.launch(Dispatchers.IO) {
-            try {
-                val token = settingsViewModel.getGithubToken()
-                if (token.isNullOrBlank()) {
-                    onOverlayLog("Cannot upload secrets: No GitHub Token")
-                    return@launch
-                }
-
-                // FIX: Force JNA to use the bundled library, NOT the system one.
-                // This fixes the "Incompatible JNA native library" crash.
-                System.setProperty("jna.nosys", "true")
-                try {
-                    System.setProperty("jna.boot.library.path", application.applicationInfo.nativeLibraryDir)
-                } catch (e: Exception) {
-                    Log.w("RepoDelegate", "Failed to set JNA path", e)
-                }
-
-                val service = GitHubApiClient.createService(token)
-
-                // CRITICAL: Wrap Encryption logic in a broad catch block to prevent crashes
-                try {
-                    val publicKey = service.getRepoPublicKey(owner, repo)
-                    val keyId = publicKey.keyId
-                    val keyBytes = android.util.Base64.decode(publicKey.key, android.util.Base64.DEFAULT)
-
-                    // This line triggers JNA loading. If it fails, we catch Throwable.
-                    val lazySodium = LazySodiumAndroid(SodiumAndroid())
-                    val sealBytes = 48
-
-                    suspend fun encryptAndUpload(name: String, value: String) {
-                        try {
-                            val valueBytes = value.toByteArray(Charsets.UTF_8)
-                            val encryptedBytes = ByteArray(sealBytes + valueBytes.size)
-                            lazySodium.cryptoBoxSeal(encryptedBytes, valueBytes, valueBytes.size.toLong(), keyBytes)
-                            val encryptedBase64 = android.util.Base64.encodeToString(encryptedBytes, android.util.Base64.NO_WRAP)
-                            service.createSecret(owner, repo, name, CreateSecretRequest(encryptedBase64, keyId))
-                            onOverlayLog("Uploaded secret: $name")
-                        } catch (e: Exception) {
-                            onOverlayLog("Failed to upload secret $name")
-                        }
-                    }
-
-                    val geminiKey = settingsViewModel.getApiKey()
-                    if (!geminiKey.isNullOrBlank()) encryptAndUpload("GEMINI_API_KEY", geminiKey)
-
-                    val googleKey = settingsViewModel.getGoogleApiKey()
-                    if (!googleKey.isNullOrBlank()) encryptAndUpload("GOOGLE_API_KEY", googleKey)
-
-                } catch (t: Throwable) {
-                    // CATCH JNA/Sodium Errors here so the app doesn't die.
-                    onOverlayLog("Warning: Secrets upload skipped (Encryption unavailable on this device).")
-                    Log.e("RepoDelegate", "JNA/Sodium Error", t)
-                }
-
-            } catch (e: Exception) {
-                onOverlayLog("Error uploading secrets: ${e.message}")
-            }
+        // MANUAL COMPLIANCE: JNA/Sodium automation is disabled for stability.
+        scope.launch {
+            onOverlayLog("CRITICAL: Manual secret upload is required.")
+            onOverlayLog("1. Go to your repo settings on GitHub.")
+            onOverlayLog("2. Add secrets: GEMINI_API_KEY, GOOGLE_API_KEY, JULES_PROJECT_ID.")
+            onOverlayLog("The remote build will fail without them.")
         }
     }
 

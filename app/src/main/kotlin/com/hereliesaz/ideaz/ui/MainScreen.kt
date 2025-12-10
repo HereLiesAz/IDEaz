@@ -1,14 +1,13 @@
 package com.hereliesaz.ideaz.ui
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -17,13 +16,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.navigation.compose.rememberNavController
-import com.composables.core.rememberBottomSheetState
 import com.composables.core.SheetDetent
-import com.hereliesaz.aznavrail.AzButton
-import com.hereliesaz.aznavrail.model.AzButtonShape
+import com.composables.core.rememberBottomSheetState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,42 +45,15 @@ fun MainScreen(
         initialDetent = Halfway
     )
 
-    val isIdeVisible by viewModel.isTargetAppVisible.collectAsState() // Used for rail toggle visual state
+    val isIdeVisible by viewModel.isTargetAppVisible.collectAsState()
     val isLocalBuildEnabled = viewModel.settingsViewModel.isLocalBuildEnabled()
 
     val isContextualChatVisible by viewModel.isContextualChatVisible.collectAsState()
     val activeSelectionRect by viewModel.activeSelectionRect.collectAsState()
 
-    var showApiKeyAlert by remember { mutableStateOf(false) }
-    var missingKeys by remember { mutableStateOf<List<String>>(emptyList()) }
-
-    // Startup Check
+    // Startup Logic
     LaunchedEffect(Unit) {
-        missingKeys = viewModel.checkRequiredKeys()
-        if (missingKeys.isNotEmpty()) {
-            showApiKeyAlert = true
-        } else {
-            // Navigate to Project Settings by default on startup if keys are good
-            navController.navigate("project_settings")
-        }
-    }
-
-    if (showApiKeyAlert) {
-        AlertDialog(
-            onDismissRequest = { /* Force user to address it */ },
-            title = { Text("Missing Configuration") },
-            text = { Text("The following keys are required for IDEaz to function:\n\n${missingKeys.joinToString("\n")}") },
-            confirmButton = {
-                AzButton(
-                    onClick = {
-                        showApiKeyAlert = false
-                        navController.navigate("settings")
-                    },
-                    text = "Go to Settings",
-                    shape = AzButtonShape.RECTANGLE
-                )
-            }
-        )
+        navController.navigate("project_settings")
     }
 
     Scaffold(
@@ -88,7 +61,30 @@ fun MainScreen(
         containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-            Row(modifier = Modifier.fillMaxSize()) {
+
+            val railWidth = 80.dp
+
+            // LAYER 1: Content (Padded Left)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(start = railWidth)
+                    .zIndex(1f)
+            ) {
+                IdeNavHost(
+                    modifier = Modifier.fillMaxSize(),
+                    navController = navController,
+                    viewModel = viewModel,
+                    settingsViewModel = viewModel.settingsViewModel,
+                    onThemeToggle = onThemeToggle
+                )
+            }
+
+            // LAYER 2: Navigation Rail (Highest Z-Index)
+            // UNCONSTRAINED
+            Box(
+                modifier = Modifier.zIndex(100f)
+            ) {
                 IdeNavRail(
                     navController = navController,
                     viewModel = viewModel,
@@ -108,22 +104,17 @@ fun MainScreen(
                         }
                     }
                 )
-                IdeNavHost(
-                    modifier = Modifier.weight(1f),
-                    navController = navController,
-                    viewModel = viewModel,
-                    settingsViewModel = viewModel.settingsViewModel,
-                    onThemeToggle = onThemeToggle
-                )
             }
 
-            // Overlay Contextual Chat on MainScreen (if not in bubble mode)
+            // LAYER 3: Contextual Chat Overlay
             if (isContextualChatVisible && activeSelectionRect != null) {
-                ContextualChatOverlay(
-                    rect = activeSelectionRect!!,
-                    viewModel = viewModel,
-                    onClose = { viewModel.closeContextualChat() }
-                )
+                Box(modifier = Modifier.fillMaxSize().zIndex(200f)) {
+                    ContextualChatOverlay(
+                        rect = activeSelectionRect!!,
+                        viewModel = viewModel,
+                        onClose = { viewModel.closeContextualChat() }
+                    )
+                }
             }
         }
     }

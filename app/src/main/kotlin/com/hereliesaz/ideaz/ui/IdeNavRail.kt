@@ -7,6 +7,7 @@ import com.composables.core.BottomSheetState
 import com.hereliesaz.aznavrail.AzNavRail
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.aznavrail.model.AzHeaderIconShape
+import com.hereliesaz.ideaz.BubbleActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -23,7 +24,7 @@ fun IdeNavRail(
     scope: CoroutineScope,
     initiallyExpanded: Boolean = false,
     onUndock: (() -> Unit)? = null,
-    enableRailDraggingOverride: Boolean? = null, // NEW
+    enableRailDraggingOverride: Boolean? = null,
     isLocalBuildEnabled: Boolean = false,
     isBubbleMode: Boolean = false,
     onNavigateToMainApp: (String) -> Unit = { navController.navigate(it) }
@@ -35,13 +36,11 @@ fun IdeNavRail(
         azSettings(
             packRailButtons = true,
             defaultShape = AzButtonShape.RECTANGLE,
-            enableRailDragging = enableRailDraggingOverride ?: true, // Default true unless override
+            enableRailDragging = enableRailDraggingOverride ?: true,
             onUndock = onUndock,
             headerIconShape = AzHeaderIconShape.NONE,
-            bubbleMode = isBubbleMode
         )
 
-        // ... (rest of items unchanged)
         azRailItem(id = "project_settings", text = "Project", onClick = { onNavigateToMainApp("project_settings") })
         azMenuItem(id = "git",  text = "Git", onClick = { onNavigateToMainApp("git") })
 
@@ -57,7 +56,6 @@ fun IdeNavRail(
                     if (!isBubbleMode) {
                         onLaunchOverlay()
                     }
-                    // In overlay, clicking "IDEaz" (header) just keeps us there / does nothing
                 }
             }
         )
@@ -85,7 +83,6 @@ fun IdeNavRail(
                     if (!isBubbleMode) {
                         onLaunchOverlay()
                     } else {
-                        // In overlay, Build opens the bottom sheet
                         scope.launch {
                             sheetState.animateTo(Halfway)
                         }
@@ -106,11 +103,6 @@ fun IdeNavRail(
                     if (!isBubbleMode) {
                         onLaunchOverlay()
                     } else {
-                        // In overlay, this toggles mode. We assume the toggle logic
-                        // is handled by the component's state or a separate callback if needed,
-                        // but `onLaunchOverlay` here seems to be used as a toggle trigger in MainScreen.
-                        // If `onLaunchOverlay` is safe to call in bubble (e.g. toggles visibility), keep it.
-                        // However, assuming standard behavior:
                         onLaunchOverlay()
                     }
                 }
