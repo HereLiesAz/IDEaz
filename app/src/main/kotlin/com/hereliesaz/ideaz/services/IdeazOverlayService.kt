@@ -104,12 +104,12 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
         lifecycleHelper?.onCreate()
         lifecycleHelper?.onStart()
 
-        // Initial Layout: Wrap content (Rail only)
+        // Initial State: Docked (WRAP_CONTENT)
         layoutParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.MATCH_PARENT, // Rail is vertical
+            WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, // Start non-focusable so app behind is usable
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -122,16 +122,22 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
         if (overlayView == null) return
 
         if (isExpandedMode) {
-            // Full screen mode (Chat or Bottom Sheet open)
+            // Expanded Mode (Chat or Bottom Sheet open)
+            // We need full screen to render the sheet at the bottom and chat in the middle.
             layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
             layoutParams.height = WindowManager.LayoutParams.MATCH_PARENT
-            // Remove NOT_FOCUSABLE to allow typing in Chat/Prompt inputs
-            layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+
+            // FLAG_NOT_TOUCH_MODAL: Allows touches outside this window (like status bar) to pass through.
+            // We REMOVE FLAG_NOT_FOCUSABLE so the user can type in the chat box.
+            layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
         } else {
-            // Docked mode (Rail only)
+            // Docked Mode (Rail Only)
+            // Shrink window to just the rail content so the user can interact with their app.
             layoutParams.width = WindowManager.LayoutParams.WRAP_CONTENT
-            layoutParams.height = WindowManager.LayoutParams.MATCH_PARENT
-            // Restore NOT_FOCUSABLE to let touches pass through to the app behind
+            layoutParams.height = WindowManager.LayoutParams.WRAP_CONTENT
+
+            // FLAG_NOT_FOCUSABLE: Essential so keys/touches go to the app behind us.
             layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
         }
 
@@ -183,7 +189,7 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
         }
 
         // --- WINDOW RESIZING LOGIC ---
-        // Expand window if Chat is visible OR Bottom Sheet is open (Peek or Halfway)
+        // Expand window if Chat is visible OR Bottom Sheet is active (Peek or Halfway)
         val isSheetOpen = sheetState.currentDetent == Peek || sheetState.currentDetent == Halfway
         val isExpandedMode = isContextualChatVisible || isSheetOpen
 
@@ -207,7 +213,7 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
                     scope = scope,
                     initiallyExpanded = false,
                     onUndock = { stopSelf() },
-                    enableRailDraggingOverride = true,
+                    enableRailDraggingOverride = true, // Allows dragging inside the window
                     isLocalBuildEnabled = false,
                     onNavigateToMainApp = { route ->
                         val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
