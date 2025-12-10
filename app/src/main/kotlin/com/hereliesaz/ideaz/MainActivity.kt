@@ -18,6 +18,11 @@ import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.ui.theme.IDEazTheme
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import com.hereliesaz.ideaz.services.IdeazOverlayService
+import androidx.core.content.ContextCompat
+import android.provider.Settings
+import android.widget.Toast
+import android.net.Uri
 
 class MainActivity : ComponentActivity() {
 
@@ -45,7 +50,7 @@ class MainActivity : ComponentActivity() {
                     viewModel = viewModel,
                     onRequestScreenCapture = { viewModel.requestScreenCapturePermission() },
                     onThemeToggle = { recreate() },
-                    onLaunchOverlay = { launchBubble() }
+                    onLaunchOverlay = { launchOverlay() }
                 )
             }
         }
@@ -60,8 +65,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun launchBubble() {
-        val intent = Intent(this, BubbleActivity::class.java)
-        startActivity(intent)
+    private fun launchOverlay() {
+        if (Settings.canDrawOverlays(this)) {
+            val intent = Intent(this, IdeazOverlayService::class.java)
+            ContextCompat.startForegroundService(this, intent)
+        } else {
+             Toast.makeText(this, "Please grant overlay permission", Toast.LENGTH_SHORT).show()
+             val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+             startActivity(intent)
+        }
     }
 }
