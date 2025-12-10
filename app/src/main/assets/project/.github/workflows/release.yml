@@ -2,7 +2,7 @@ name: Auto Release (Consolidated)
 
 on:
   workflow_run:
-    workflows: ["Android CI with Jules AI Debugging"]
+    workflows: ["Android CI with Jules AI Debugging", "Secure Google Services JSON Injection"]
     types:
       - completed
 
@@ -22,134 +22,206 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
       - name: Verify other workflows
-        uses: actions/github-script@v7
+        id: verify
+        uses: actions/github-script@v8
         with:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const ref = "${{ github.event.workflow_run.head_sha }}";
-
             console.log(`Checking status for commit ${ref}`);
-
             const { data: checks } = await github.rest.checks.listForRef({
               owner,
               repo,
               ref,
               per_page: 100
             });
-
-            const failures = checks.check_runs.filter(c => c.conclusion === 'failure' || c.conclusion === 'timed_out');
+            // Group by name and find the latest run for each job
+            const latestRunsMap = new Map();
+            for (const check of checks.check_runs) {
+                const name = check.name;
+                const currentLatest = latestRunsMap.get(name);
+                // If we haven't seen this job name yet, or this run started later than the stored one
+                if (!currentLatest || new Date(check.started_at) > new Date(currentLatest.started_at)) {
+                    latestRunsMap.set(name, check);
+                }
+            }
+            const latestRuns = Array.from(latestRunsMap.values());
+            console.log("Latest check runs found:");
+            latestRuns.forEach(r => console.log(`- ${r.name}: ${r.status} (${r.conclusion}) [${r.started_at}]`));
+            const failures = latestRuns.filter(c => c.conclusion === 'failure' || c.conclusion === 'timed_out');
             if (failures.length > 0) {
               const names = failures.map(c => c.name).join(', ');
               core.setFailed(`The following checks failed: ${names}`);
               return;
             }
-
             // Filter out self (this new run might show up as queued/in_progress)
-            const pending = checks.check_runs.filter(c =>
+            const pending = latestRuns.filter(c =>
                 (c.status === 'in_progress' || c.status === 'queued') &&
                 c.name !== 'release' && // This job name
                 !c.name.includes('Auto Release') // This workflow name
             );
-
             if (pending.length > 0) {
                console.log("Pending checks: " + pending.map(c => c.name).join(', '));
-               core.setFailed("Other workflows are still pending. Release aborted.");
-            } else {
-               console.log("All checks passed!");
+               console.log("Skipping release until all workflows complete.");
+               core.setOutput("proceed", "false");
+               return;
             }
-
+            console.log("All checks passed!");
+            core.setOutput("proceed", "true");
+      - name: Check Verification Result
+        if: steps.verify.outputs.proceed == 'false'
+        run: |
+           echo "Verification step decided to skip release. Exiting successfully."
+           exit 0
       - name: set up JDK 17
-        uses: actions/setup-java@v4
+        if: steps.verify.outputs.proceed == 'true'
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Download Debug APK Artifact
+        if: steps.verify.outputs.proceed == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: app-debug
+          run-id: ${{ github.event.workflow_run.id }} # This might be wrong if triggered by Google Services!
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: downloaded_apk
+        continue-on-error: true # In case we triggered from Google Services and Artifact is in Android CI
 
-      - name: Build Release APK
+      - name: Resolve Artifact (Cross-Workflow)
+        if: steps.verify.outputs.proceed == 'true'
+        uses: actions/github-script@v8
+        with:
+            github-token: ${{ secrets.GITHUB_TOKEN }}
+            script: |
+              const fs = require('fs');
+              // Check if download failed (folder empty or non-existent)
+              let found = false;
+              if (fs.existsSync('downloaded_apk')) {
+                 const files = fs.readdirSync('downloaded_apk');
+                 if (files.length > 0) found = true;
+              }
+              if (!found) {
+                 console.log("Artifact not found in current workflow run (likely triggered by non-build workflow). Searching for Android CI run...");
+                 // Find the Android CI run for this commit
+                 const runs = await github.rest.actions.listWorkflowRunsForRepo({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    head_sha: "${{ github.event.workflow_run.head_sha }}",
+                    status: "success" // We assume it succeeded if verify passed
+                 });
+                 const ciRun = runs.data.workflow_runs.find(r => r.name === "Android CI with Jules AI Debugging");
+                 if (ciRun) {
+                    console.log(`Found Android CI run: ${ciRun.id}. Downloading artifact...`);
+                    const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        run_id: ciRun.id
+                    });
+                    const match = artifacts.data.artifacts.find(a => a.name === "app-debug");
+                    if (match) {
+                        const download = await github.rest.actions.downloadArtifact({
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            artifact_id: match.id,
+                            archive_format: 'zip'
+                        });
+                        fs.mkdirSync('downloaded_apk', { recursive: true });
+                        fs.writeFileSync('downloaded_apk/app-debug.zip', Buffer.from(download.data));
+                        // We need to unzip it. Using exec for simplicity if possible, or another step.
+                        // Since we are in JS, we can't easily unzip without a lib.
+                        // We will write it and let the next bash step unzip it if it ends in .zip
+                        console.log("Downloaded app-debug.zip");
+                    } else {
+                        core.setFailed("No app-debug artifact found in Android CI run.");
+                    }
+                 } else {
+                    core.setFailed("Could not find successful Android CI run for this commit.");
+                 }
+              }
+      - name: Unzip Artifact if needed
+        if: steps.verify.outputs.proceed == 'true'
         run: |
-          chmod +x gradlew
+           if [ -f "downloaded_apk/app-debug.zip" ]; then
+              unzip downloaded_apk/app-debug.zip -d downloaded_apk/
+              rm downloaded_apk/app-debug.zip
+           fi
+      - name: Prepare Release Variables
+        if: steps.verify.outputs.proceed == 'true'
+        run: |
+          # Calculate Version
           export BUILD_NUMBER=$(git rev-list --count HEAD)
-          ./gradlew assembleRelease
-
-          APK_FILE=$(ls app/build/outputs/apk/release/*.apk | head -n 1)
-          echo "APK_FILE=$APK_FILE" >> $GITHUB_ENV
-
           MAJOR=$(grep 'major=' version.properties | cut -d'=' -f2)
           MINOR=$(grep 'minor=' version.properties | cut -d'=' -f2)
           PATCH=$(grep 'patch=' version.properties | cut -d'=' -f2)
           VERSION_NAME="$MAJOR.$MINOR.$PATCH.$BUILD_NUMBER"
           echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
-
-      - name: Sign APK
-        uses: r0adkll/sign-android-release@v1
-        id: sign_app
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-        continue-on-error: true
-
+          TAG_NAME="latest-debug-v${MAJOR}.${MINOR}"
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+          # Find APK
+          APK_FOUND=$(find downloaded_apk -name "GraffitiXR-*-debug.apk" | head -n 1)
+          if [ -z "$APK_FOUND" ]; then
+            echo "Error: No APK file found in downloaded_apk/"
+            ls -R downloaded_apk/
+            exit 1
+          fi
+          # Enforce naming convention
+          TARGET_NAME="IDEaz-${VERSION_NAME}-debug.apk"
+          echo "Renaming $APK_FOUND to $TARGET_NAME"
+          mv "$APK_FOUND" "$TARGET_NAME"
+          echo "APK_FILE=$TARGET_NAME" >> $GITHUB_ENV
       - name: Package Local Build Tools
+        if: steps.verify.outputs.proceed == 'true'
         run: |
           mkdir -p build_tools_package/tools
           mkdir -p build_tools_package/native
-
           if [ -d "app/src/main/assets/tools" ]; then
             cp -r app/src/main/assets/tools/* build_tools_package/tools/
           fi
-
           if [ -d "app/src/main/jniLibs/arm64-v8a" ]; then
             cp -r app/src/main/jniLibs/arm64-v8a/* build_tools_package/native/
           fi
-
           cd build_tools_package
           zip -r ../build-tools.zip .
           cd ..
-
       - name: Publish Release
+        if: steps.verify.outputs.proceed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: v${{ env.VERSION_NAME }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git tag -fa $TAG_NAME -m "Release $TAG_NAME"
           git push origin $TAG_NAME --force
-
-          FILES="$APK_FILE"
-
-          # Check for signed APK
-          SIGNED_APK=$(ls app/build/outputs/apk/release/*-signed.apk 2>/dev/null | head -n 1)
-          if [ ! -z "$SIGNED_APK" ]; then
-             FILES="$SIGNED_APK"
-          fi
-
-          # Check for build tools
-          if [ -f "build-tools.zip" ]; then
-             FILES="$FILES build-tools.zip"
-          fi
-
+          BUILD_TOOLS_FILE="build-tools.zip"
           if gh release view $TAG_NAME > /dev/null 2>&1; then
+             echo "Release $TAG_NAME already exists, editing..."
              gh release edit $TAG_NAME \
-               --title "Release $TAG_NAME" \
-               --notes "Release build $TAG_NAME" \
-               --target ${{ github.event.workflow_run.head_sha }}
-             gh release upload $TAG_NAME $FILES --clobber
+               --title "Latest Debug Build ($TAG_NAME)" \
+               --notes "Debug build $TAG_NAME" \
+               --target ${{ github.event.workflow_run.head_sha }} \
+               --prerelease
+             gh release upload $TAG_NAME "$APK_FILE" --clobber
+             if [ -f "$BUILD_TOOLS_FILE" ]; then
+                gh release upload $TAG_NAME "$BUILD_TOOLS_FILE" --clobber
+             fi
           else
-             gh release create $TAG_NAME $FILES \
-               --title "Release $TAG_NAME" \
-               --notes "Release build $TAG_NAME" \
-               --target ${{ github.event.workflow_run.head_sha }}
+             echo "Creating new release $TAG_NAME..."
+             gh release create $TAG_NAME "$APK_FILE" \
+               --title "Latest Debug Build ($TAG_NAME)" \
+               --notes "Debug build $TAG_NAME" \
+               --target ${{ github.event.workflow_run.head_sha }} \
+               --prerelease
+             if [ -f "$BUILD_TOOLS_FILE" ]; then
+                gh release upload $TAG_NAME "$BUILD_TOOLS_FILE" --clobber
+             fi
           fi
