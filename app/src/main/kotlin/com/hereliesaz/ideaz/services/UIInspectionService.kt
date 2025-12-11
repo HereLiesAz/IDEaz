@@ -1,8 +1,8 @@
 package com.hereliesaz.ideaz.services
 
-import android.accessibilityservice.AccessibilityService
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -10,10 +10,10 @@ import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.os.Build
+import android.os.IBinder
 import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
-import android.view.accessibility.AccessibilityEvent
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.app.NotificationCompat
@@ -22,7 +22,7 @@ import com.hereliesaz.ideaz.R
 import com.hereliesaz.ideaz.ui.inspection.OverlayCanvas
 import com.hereliesaz.ideaz.utils.ComposeLifecycleHelper
 
-class UIInspectionService : AccessibilityService() {
+class UIInspectionService : Service() {
 
     private val TAG = "UIInspectionService"
     private var windowManager: WindowManager? = null
@@ -56,11 +56,14 @@ class UIInspectionService : AccessibilityService() {
         }
     }
 
+    override fun onBind(intent: Intent?): IBinder? = null
+
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         registerBroadcastReceivers()
         createNotificationChannel()
+        setupSelectionLayer()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -77,7 +80,7 @@ class UIInspectionService : AccessibilityService() {
             Log.e(TAG, "Failed to start foreground", e)
         }
 
-        return super.onStartCommand(intent, flags, startId)
+        return START_STICKY
     }
 
     private fun createNotificationChannel() {
@@ -92,14 +95,14 @@ class UIInspectionService : AccessibilityService() {
         }
     }
 
-    override fun onServiceConnected() {
-        super.onServiceConnected()
-        Log.d(TAG, "Accessibility Service Connected")
-        setupSelectionLayer()
-    }
-
     private fun setupSelectionLayer() {
         if (selectionView != null) return
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(this)) {
+            Log.e(TAG, "Overlay permission not granted. Stopping service.")
+            stopSelf()
+            return
+        }
 
         selectionView = ComposeView(this)
         selectionLifecycle = ComposeLifecycleHelper(selectionView!!)
@@ -133,7 +136,7 @@ class UIInspectionService : AccessibilityService() {
         selectionParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
@@ -179,7 +182,4 @@ class UIInspectionService : AccessibilityService() {
         }
         try { unregisterReceiver(commandReceiver) } catch (e: Exception) {}
     }
-
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
-    override fun onInterrupt() {}
 }
