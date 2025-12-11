@@ -146,6 +146,14 @@ object ToolManager {
             var entry: ZipEntry? = zis.nextEntry
             while (entry != null) {
                 val file = File(targetDir, entry.name)
+                // --- Prevent Zip Slip: ensure destination is within targetDir ---
+                val destPath = file.toPath().normalize()
+                val basePath = targetDir.toPath().normalize()
+                if (!destPath.startsWith(basePath)) {
+                    Log.w(TAG, "Skipping potentially malicious zip entry: ${entry.name}")
+                    entry = zis.nextEntry
+                    continue
+                }
                 if (entry.isDirectory) {
                     file.mkdirs()
                 } else {
