@@ -18,8 +18,17 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
+      actions: write # Required to cancel other workflows
 
     steps:
+      - name: Cancel Active Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Cancelling any active or queued Auto Release runs..."
+          gh run list --workflow auto-release.yml --status in_progress --json databaseId --jq '.[].databaseId' | xargs -r -I {} gh run cancel {}
+          gh run list --workflow auto-release.yml --status queued --json databaseId --jq '.[].databaseId' | xargs -r -I {} gh run cancel {}
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -38,13 +47,13 @@ jobs:
           fi
 
       - name: set up JDK 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v5
+        uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
 
@@ -68,7 +77,7 @@ jobs:
 
       - name: Upload APK
         if: steps.gradle-build.outcome == 'success'
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v4
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/*.apk
@@ -79,8 +88,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          MAJOR=$(grep 'major=' version.properties | cut -d'=' -f2)
-          MINOR=$(grep 'minor=' version.properties | cut -d'=' -f2)
+          MAJOR=$(grep 'versionMajor' version.properties | cut -d'=' -f2)
+          MINOR=$(grep 'versionMinor' version.properties | cut -d'=' -f2)
           TAG_NAME="latest-debug-v${MAJOR}.${MINOR}"
           echo "Using tag: $TAG_NAME"
           
