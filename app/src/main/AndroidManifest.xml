@@ -63,6 +63,14 @@
         <service
             android:name=".services.UIInspectionService"
             android:exported="true"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.property.FOREGROUND_SERVICE_TYPE_SPECIAL_USE_DESCRIPTION"
+                      android:value="Overlay for inspection"/>
+        </service>
+
+        <service
+            android:name=".services.IdeazAccessibilityService"
+            android:exported="true"
             android:label="@string/accessibility_service_label"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
