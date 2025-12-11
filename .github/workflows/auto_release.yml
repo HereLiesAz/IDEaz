@@ -22,67 +22,80 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
       - name: Verify other workflows
         id: verify
-        uses: actions/github-script@v8
+        uses: actions/github-script@v7
         with:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const ref = "${{ github.event.workflow_run.head_sha }}";
+
             console.log(`Checking status for commit ${ref}`);
+
             const { data: checks } = await github.rest.checks.listForRef({
               owner,
               repo,
               ref,
               per_page: 100
             });
+
             // Group by name and find the latest run for each job
             const latestRunsMap = new Map();
+
             for (const check of checks.check_runs) {
                 const name = check.name;
                 const currentLatest = latestRunsMap.get(name);
+
                 // If we haven't seen this job name yet, or this run started later than the stored one
                 if (!currentLatest || new Date(check.started_at) > new Date(currentLatest.started_at)) {
                     latestRunsMap.set(name, check);
                 }
             }
+
             const latestRuns = Array.from(latestRunsMap.values());
+
             console.log("Latest check runs found:");
             latestRuns.forEach(r => console.log(`- ${r.name}: ${r.status} (${r.conclusion}) [${r.started_at}]`));
+
             const failures = latestRuns.filter(c => c.conclusion === 'failure' || c.conclusion === 'timed_out');
             if (failures.length > 0) {
               const names = failures.map(c => c.name).join(', ');
               core.setFailed(`The following checks failed: ${names}`);
               return;
             }
+
             // Filter out self (this new run might show up as queued/in_progress)
             const pending = latestRuns.filter(c =>
                 (c.status === 'in_progress' || c.status === 'queued') &&
                 c.name !== 'release' && // This job name
                 !c.name.includes('Auto Release') // This workflow name
             );
+
             if (pending.length > 0) {
                console.log("Pending checks: " + pending.map(c => c.name).join(', '));
                console.log("Skipping release until all workflows complete.");
                core.setOutput("proceed", "false");
                return;
             }
+
             console.log("All checks passed!");
             core.setOutput("proceed", "true");
+
       - name: Check Verification Result
         if: steps.verify.outputs.proceed == 'false'
         run: |
            echo "Verification step decided to skip release. Exiting successfully."
            exit 0
+
       - name: set up JDK 17
         if: steps.verify.outputs.proceed == 'true'
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
@@ -99,7 +112,7 @@ jobs:
 
       - name: Resolve Artifact (Cross-Workflow)
         if: steps.verify.outputs.proceed == 'true'
-        uses: actions/github-script@v8
+        uses: actions/github-script@v7
         with:
             github-token: ${{ secrets.GITHUB_TOKEN }}
             script: |
@@ -110,8 +123,10 @@ jobs:
                  const files = fs.readdirSync('downloaded_apk');
                  if (files.length > 0) found = true;
               }
+
               if (!found) {
                  console.log("Artifact not found in current workflow run (likely triggered by non-build workflow). Searching for Android CI run...");
+
                  // Find the Android CI run for this commit
                  const runs = await github.rest.actions.listWorkflowRunsForRepo({
                     owner: context.repo.owner,
@@ -119,14 +134,18 @@ jobs:
                     head_sha: "${{ github.event.workflow_run.head_sha }}",
                     status: "success" // We assume it succeeded if verify passed
                  });
+
                  const ciRun = runs.data.workflow_runs.find(r => r.name === "Android CI with Jules AI Debugging");
+
                  if (ciRun) {
                     console.log(`Found Android CI run: ${ciRun.id}. Downloading artifact...`);
+
                     const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
                         owner: context.repo.owner,
                         repo: context.repo.repo,
                         run_id: ciRun.id
                     });
+
                     const match = artifacts.data.artifacts.find(a => a.name === "app-debug");
                     if (match) {
                         const download = await github.rest.actions.downloadArtifact({
@@ -137,6 +156,7 @@ jobs:
                         });
                         fs.mkdirSync('downloaded_apk', { recursive: true });
                         fs.writeFileSync('downloaded_apk/app-debug.zip', Buffer.from(download.data));
+
                         // We need to unzip it. Using exec for simplicity if possible, or another step.
                         // Since we are in JS, we can't easily unzip without a lib.
                         // We will write it and let the next bash step unzip it if it ends in .zip
@@ -148,6 +168,7 @@ jobs:
                     core.setFailed("Could not find successful Android CI run for this commit.");
                  }
               }
+
       - name: Unzip Artifact if needed
         if: steps.verify.outputs.proceed == 'true'
         run: |
@@ -155,45 +176,66 @@ jobs:
               unzip downloaded_apk/app-debug.zip -d downloaded_apk/
               rm downloaded_apk/app-debug.zip
            fi
+
       - name: Prepare Release Variables
         if: steps.verify.outputs.proceed == 'true'
         run: |
           # Calculate Version
           export BUILD_NUMBER=$(git rev-list --count HEAD)
-          MAJOR=$(grep 'major=' version.properties | cut -d'=' -f2)
-          MINOR=$(grep 'minor=' version.properties | cut -d'=' -f2)
-          PATCH=$(grep 'patch=' version.properties | cut -d'=' -f2)
+
+          # Use correct property names from version.properties
+          MAJOR=$(grep 'versionMajor=' version.properties | cut -d'=' -f2)
+          MINOR=$(grep 'versionMinor=' version.properties | cut -d'=' -f2)
+          PATCH=$(grep 'versionPatch=' version.properties | cut -d'=' -f2)
           VERSION_NAME="$MAJOR.$MINOR.$PATCH.$BUILD_NUMBER"
           echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
+
           TAG_NAME="latest-debug-v${MAJOR}.${MINOR}"
           echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
-          # Find APK
+
+          # Dynamically Extract App Name from settings.gradle or settings.gradle.kts
+          if [ -f "settings.gradle.kts" ]; then
+             APP_NAME=$(grep 'rootProject.name' settings.gradle.kts | sed -E "s/.*=.*[\"'](.*)[\"']/\1/")
+          elif [ -f "settings.gradle" ]; then
+             APP_NAME=$(grep 'rootProject.name' settings.gradle | sed -E "s/.*=.*[\"'](.*)[\"']/\1/")
+          else
+             APP_NAME="App" # Fallback if not found
+          fi
+          echo "Detected App Name: $APP_NAME"
+
+          # Find APK - default gradle build output is usually app-debug.apk
           APK_FOUND=$(find downloaded_apk -name "*.apk" | head -n 1)
           if [ -z "$APK_FOUND" ]; then
             echo "Error: No APK file found in downloaded_apk/"
             ls -R downloaded_apk/
             exit 1
           fi
-          # Enforce naming convention
-          REPO_NAME=${GITHUB_REPOSITORY#*/}
-          TARGET_NAME="${REPO_NAME}-${VERSION_NAME}-debug.apk"
+
+          # Enforce naming convention using dynamic APP_NAME
+          TARGET_NAME="${APP_NAME}-${VERSION_NAME}-debug.apk"
           echo "Renaming $APK_FOUND to $TARGET_NAME"
           mv "$APK_FOUND" "$TARGET_NAME"
+
           echo "APK_FILE=$TARGET_NAME" >> $GITHUB_ENV
+
       - name: Package Local Build Tools
         if: steps.verify.outputs.proceed == 'true'
         run: |
           mkdir -p build_tools_package/tools
           mkdir -p build_tools_package/native
+
           if [ -d "app/src/main/assets/tools" ]; then
             cp -r app/src/main/assets/tools/* build_tools_package/tools/
           fi
+
           if [ -d "app/src/main/jniLibs/arm64-v8a" ]; then
             cp -r app/src/main/jniLibs/arm64-v8a/* build_tools_package/native/
           fi
+
           cd build_tools_package
           zip -r ../build-tools.zip .
           cd ..
+
       - name: Publish Release
         if: steps.verify.outputs.proceed == 'true'
         env:
@@ -201,9 +243,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git tag -fa $TAG_NAME -m "Release $TAG_NAME"
           git push origin $TAG_NAME --force
+
           BUILD_TOOLS_FILE="build-tools.zip"
+
           if gh release view $TAG_NAME > /dev/null 2>&1; then
              echo "Release $TAG_NAME already exists, editing..."
              gh release edit $TAG_NAME \
