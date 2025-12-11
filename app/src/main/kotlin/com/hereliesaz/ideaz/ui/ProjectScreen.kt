@@ -103,9 +103,9 @@ fun ProjectScreen(
             showRequirementDialog = true
             return false
         }
-        if (!isAccessibilityServiceEnabled(context, ".services.UIInspectionService")) {
+        if (!isAccessibilityServiceEnabled(context, ".services.IdeazAccessibilityService")) {
             requirementTitle = "Service Required"
-            requirementMessage = "Enable 'IDEaz Inspection Service' (Accessibility)."
+            requirementMessage = "Enable 'IDEaz Accessibility' service."
             requirementBtnText = "Enable"
             requirementAction = {
                 showRequirementDialog = false
