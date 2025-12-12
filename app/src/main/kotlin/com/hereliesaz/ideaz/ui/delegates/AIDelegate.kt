@@ -2,8 +2,6 @@ package com.hereliesaz.ideaz.ui.delegates
 
 import com.hereliesaz.ideaz.api.*
 import com.hereliesaz.ideaz.jules.JulesApiClient
-import com.hereliesaz.ideaz.api.GeminiApiClient
-import com.hereliesaz.ideaz.jules.*
 import com.hereliesaz.ideaz.ui.AiModels
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -13,14 +11,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+data class Message(val role: String, val content: String)
+
 /**
  * Delegate responsible for handling AI interactions, including session management,
  * fetching sessions from Jules API, and executing contextual AI tasks.
- *
- * @param settingsViewModel ViewModel for accessing user settings (API keys, project ID).
- * @param scope CoroutineScope for launching background tasks.
- * @param onOverlayLog Callback to log messages to the UI overlay.
- * @param onPatchReceived Callback to apply patches received from the AI.
  */
 class AIDelegate(
     private val settingsViewModel: SettingsViewModel,
@@ -179,18 +174,26 @@ class AIDelegate(
         }
     }
 
+    private suspend fun getAllActivities(sessionId: String): List<Activity> {
+        val allActivities = mutableListOf<Activity>()
+        var pageToken: String? = null
+        do {
+            val response = JulesApiClient.listActivities(sessionId, pageToken = pageToken)
+            response.activities?.let { allActivities.addAll(it) }
+            pageToken = response.nextPageToken
+        } while (pageToken != null)
+        return allActivities
+    }
+
     private suspend fun pollForResponse(sessionId: String) {
         // Poll listActivities for a response
         var attempts = 0
         while (attempts < 15) { // 45 seconds max
             delay(3000)
-            val response = JulesApiClient.listActivities(sessionId)
-            val activities = response.activities ?: emptyList()
+            val activities = getAllActivities(sessionId)
 
             // Check for Agent Message
-            val latestAgentMessage = activities
-                .filter { it.agentMessaged != null }
-                .maxByOrNull { it.createTime } // Assuming createTime is a sortable string like ISO 8601
+            val latestAgentMessage = activities.find { it.agentMessaged != null } // Find latest? list usually ordered?
             // Docs don't specify order. Assuming newest first or last?
             // Usually REST lists are newest first or oldest first.
             // I'll check all.
