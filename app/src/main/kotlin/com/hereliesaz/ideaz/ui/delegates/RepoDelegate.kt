@@ -19,6 +19,21 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
+/**
+ * Delegate responsible for repository management:
+ * - Fetching/Creating GitHub repositories.
+ * - Initializing local projects.
+ * - Scanning/Managing local project directories.
+ * - Uploading secrets (currently stubbed).
+ *
+ * @param application The Application context.
+ * @param settingsViewModel ViewModel for accessing settings.
+ * @param scope CoroutineScope for background tasks.
+ * @param onLog Callback for general logs.
+ * @param onOverlayLog Callback for overlay logs.
+ * @param onLoadingProgress Callback to show loading indicator.
+ * @param onGitProgress Callback to show Git operation progress.
+ */
 class RepoDelegate(
     private val application: Application,
     private val settingsViewModel: SettingsViewModel,
@@ -30,8 +45,12 @@ class RepoDelegate(
 ) {
 
     private val _ownedRepos = MutableStateFlow<List<GitHubRepoResponse>>(emptyList())
+    /** List of repositories owned by the authenticated GitHub user. */
     val ownedRepos = _ownedRepos.asStateFlow()
 
+    /**
+     * Fetches the list of repositories from GitHub.
+     */
     fun fetchGitHubRepos() {
         scope.launch {
             onLoadingProgress(0)
@@ -52,6 +71,9 @@ class RepoDelegate(
         }
     }
 
+    /**
+     * Creates a new repository on GitHub and initializes the local project state.
+     */
     fun createGitHubRepository(
         appName: String,
         description: String,
@@ -98,6 +120,9 @@ class RepoDelegate(
         }
     }
 
+    /**
+     * Selects an existing repository for setup, inferring settings from metadata.
+     */
     fun selectRepositoryForSetup(repo: GitHubRepoResponse, onSuccess: (owner: String, branch: String) -> Unit) {
         scope.launch {
             onLoadingProgress(0)
@@ -124,6 +149,9 @@ class RepoDelegate(
         }
     }
 
+    /**
+     * Forces the regeneration and push of initialization files (CI workflows, setup script).
+     */
     fun forceUpdateInitFiles() {
         scope.launch(Dispatchers.IO) {
             val appName = settingsViewModel.getAppName() ?: return@launch
@@ -152,6 +180,10 @@ class RepoDelegate(
         }
     }
 
+    /**
+     * Stub for uploading project secrets.
+     * Automated upload (using Sodium/JNA) is currently disabled due to stability issues.
+     */
     fun uploadProjectSecrets(owner: String, repo: String) {
         // MANUAL COMPLIANCE: JNA/Sodium automation is disabled for stability.
         scope.launch {
@@ -162,6 +194,9 @@ class RepoDelegate(
         }
     }
 
+    /**
+     * Scans the app's internal files directory for project folders and updates settings.
+     */
     fun scanLocalProjects() {
         scope.launch(Dispatchers.IO) {
             val root = application.filesDir
@@ -174,6 +209,9 @@ class RepoDelegate(
         }
     }
 
+    /**
+     * Returns a list of local projects with metadata (e.g., size).
+     */
     fun getLocalProjectsWithMetadata(): List<ProjectMetadata> {
         val root = application.filesDir
         val projects = settingsViewModel.getProjectList()
