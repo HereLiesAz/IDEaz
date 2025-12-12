@@ -54,4 +54,59 @@ class SimpleJsBundlerTest {
         assertTrue(content.contains("AppRegistry.registerComponent"))
         assertTrue(content.contains("function App()")) // export default stripped
     }
+
+    @Test
+    fun bundle_readsAppNameFromRootJson() {
+        val projectDir = tempFolder.newFolder("rn_project_root")
+        File(projectDir, "App.js").writeText("export default function App() {}")
+        File(projectDir, "app.json").writeText("""
+            {
+                "name": "RootAppName"
+            }
+        """.trimIndent())
+
+        val bundler = SimpleJsBundler()
+        val outputDir = tempFolder.newFolder("output_root")
+        val result = bundler.bundle(projectDir, outputDir)
+
+        assertTrue(result.success)
+        val bundleContent = File(outputDir, "index.android.bundle").readText()
+        assertTrue("Should contain RootAppName", bundleContent.contains("AppRegistry.registerComponent('RootAppName'"))
+    }
+
+    @Test
+    fun bundle_readsAppNameFromExpoJson() {
+        val projectDir = tempFolder.newFolder("rn_project_expo")
+        File(projectDir, "App.js").writeText("export default function App() {}")
+        File(projectDir, "app.json").writeText("""
+            {
+                "expo": {
+                    "name": "ExpoAppName"
+                }
+            }
+        """.trimIndent())
+
+        val bundler = SimpleJsBundler()
+        val outputDir = tempFolder.newFolder("output_expo")
+        val result = bundler.bundle(projectDir, outputDir)
+
+        assertTrue(result.success)
+        val bundleContent = File(outputDir, "index.android.bundle").readText()
+        assertTrue("Should contain ExpoAppName", bundleContent.contains("AppRegistry.registerComponent('ExpoAppName'"))
+    }
+
+    @Test
+    fun bundle_fallbacksToDefaultWhenMissing() {
+        val projectDir = tempFolder.newFolder("rn_project_missing")
+        File(projectDir, "App.js").writeText("export default function App() {}")
+        // No app.json
+
+        val bundler = SimpleJsBundler()
+        val outputDir = tempFolder.newFolder("output_missing")
+        val result = bundler.bundle(projectDir, outputDir)
+
+        assertTrue(result.success)
+        val bundleContent = File(outputDir, "index.android.bundle").readText()
+        assertTrue("Should contain default MyReactNativeApp", bundleContent.contains("AppRegistry.registerComponent('MyReactNativeApp'"))
+    }
 }

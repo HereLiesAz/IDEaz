@@ -180,6 +180,7 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.haze)
     testImplementation(libs.junit)
+    testImplementation(libs.org.json)
     testImplementation(libs.mockwebserver)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.compose.ui.test.junit4)
