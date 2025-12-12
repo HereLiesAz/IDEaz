@@ -61,6 +61,8 @@ fun MainScreen(
     val isContextualChatVisible by viewModel.isContextualChatVisible.collectAsState()
     val activeSelectionRect by viewModel.activeSelectionRect.collectAsState()
 
+    var isPromptPopupVisible by remember { mutableStateOf(false) }
+
     // Startup Logic
     LaunchedEffect(Unit) {
         navController.navigate("project_settings")
@@ -116,7 +118,7 @@ fun MainScreen(
                     navController = navController,
                     viewModel = viewModel,
                     context = context,
-                    onShowPromptPopup = { /*TODO*/ },
+                    onShowPromptPopup = { isPromptPopupVisible = true },
                     handleActionClick = { it() },
                     isIdeVisible = isIdeVisible,
                     onLaunchOverlay = {
@@ -166,6 +168,16 @@ fun MainScreen(
                     halfwayDetent = Halfway,
                     screenHeight = screenHeight,
                     onSendPrompt = { viewModel.sendPrompt(it) }
+                )
+            }
+
+            if (isPromptPopupVisible) {
+                PromptPopup(
+                    onDismiss = { isPromptPopupVisible = false },
+                    onSubmit = { prompt ->
+                        viewModel.sendPrompt(prompt)
+                        isPromptPopupVisible = false
+                    }
                 )
             }
         }
