@@ -262,6 +262,38 @@ class MainViewModel(
     fun deleteProject(n: String) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
+                val dir = settingsViewModel.getProjectPath(n)
+                if (dir.exists()) {
+                    if (dir.deleteRecursively()) {
+                        withContext(Dispatchers.Main) {
+                            settingsViewModel.removeProject(n)
+                            settingsViewModel.removeProjectPath(n)
+                            if (settingsViewModel.getAppName() == n) {
+                                settingsViewModel.setAppName("")
+                            }
+                            repoDelegate.scanLocalProjects()
+                            stateDelegate.appendAiLog("Project '$n' deleted successfully.")
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            stateDelegate.appendAiLog("Failed to delete project '$n'. Check permissions.")
+                        }
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        settingsViewModel.removeProject(n)
+                        settingsViewModel.removeProjectPath(n)
+                        repoDelegate.scanLocalProjects()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    stateDelegate.appendAiLog("Error deleting project '$n': ${e.message}")
+                }
+            }
+        }
+    }
+    fun syncAndDeleteProject(n: String) { /* TODO */ }
                 performLocalDeletion(n)
                 logHandler.onBuildLog("Project '$n' deleted locally.\n")
             } catch (e: Exception) {
