@@ -24,6 +24,7 @@ fun IdeNavRail(
     initiallyExpanded: Boolean = false,
     onUndock: (() -> Unit)? = null,
     enableRailDraggingOverride: Boolean? = null, // NEW
+    onOverlayDrag: ((Float, Float) -> Unit)? = null, // NEW: Manual drag handler
     isLocalBuildEnabled: Boolean = false,
     onNavigateToMainApp: (String) -> Unit = { navController.navigate(it) }
 ) {
@@ -36,6 +37,7 @@ fun IdeNavRail(
             defaultShape = AzButtonShape.RECTANGLE,
             enableRailDragging = enableRailDraggingOverride ?: true, // Default true unless override
             onUndock = onUndock,
+            onOverlayDrag = onOverlayDrag,
             headerIconShape = AzHeaderIconShape.NONE
         )
 
