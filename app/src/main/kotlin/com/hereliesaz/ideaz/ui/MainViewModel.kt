@@ -202,7 +202,7 @@ class MainViewModel(
     // MISC
     fun clearLog() = stateDelegate.clearLog()
     fun launchTargetApp(c: Context) { /* TODO */ }
-    fun downloadDependencies() { /* TODO */ }
+    fun downloadDependencies() = buildDelegate.downloadDependencies()
 
     fun checkRequiredKeys(): List<String> {
         val missing = mutableListOf<String>()
