@@ -14,6 +14,7 @@ import android.view.WindowManager
 import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -55,6 +56,10 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
     private var lifecycleHelper: ComposeLifecycleHelper? = null
     private val store = ViewModelStore()
     private lateinit var layoutParams: WindowManager.LayoutParams
+
+    private var lastX = 0
+    private var lastY = 0
+    private var wasExpanded = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -122,30 +127,30 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
     private fun updateWindowLayout(isExpandedMode: Boolean, isSelectMode: Boolean) {
         if (overlayView == null) return
 
-        if (isSelectMode) {
-            // Select Mode: Full Screen, consume touches to allow dragging
-            layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
-            layoutParams.height = WindowManager.LayoutParams.MATCH_PARENT
-            // Ensure we can receive touch events (default behavior without FLAG_NOT_TOUCHABLE)
-            // We remove FLAG_NOT_FOCUSABLE so we can potentially capture keys if needed,
-            // or just to ensure standard behavior.
-            layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
-        } else if (isExpandedMode) {
-            // Expanded Mode (Chat or Console Open):
-            // 1. MATCH_PARENT to allow the bottom sheet and chat bubble to render anywhere.
-            // 2. FLAG_NOT_TOUCH_MODAL allow touches to status bar/nav bar to pass through.
-            // 3. REMOVE FLAG_NOT_FOCUSABLE so the user can type in the chat box.
+        if (isExpandedMode || isSelectMode) {
+            if (!wasExpanded) {
+                lastX = layoutParams.x
+                lastY = layoutParams.y
+                wasExpanded = true
+            }
+            // Expanded/Select Mode: Full Screen
+            layoutParams.x = 0
+            layoutParams.y = 0
             layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
             layoutParams.height = WindowManager.LayoutParams.MATCH_PARENT
             layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                     WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
         } else {
+            if (wasExpanded) {
+                layoutParams.x = lastX
+                layoutParams.y = lastY
+                wasExpanded = false
+            }
             // Docked Mode (Rail Only):
             // 1. WRAP_CONTENT to shrink the window to just the rail.
             // 2. FLAG_NOT_FOCUSABLE so all touches outside the rail go to the Target App.
             layoutParams.width = WindowManager.LayoutParams.WRAP_CONTENT
-            layoutParams.height = WindowManager.LayoutParams.MATCH_PARENT
+            layoutParams.height = WindowManager.LayoutParams.WRAP_CONTENT
             layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
         }
 
@@ -243,7 +248,9 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
         }
 
         IDEazTheme {
-            Box(modifier = Modifier.fillMaxSize()) {
+            // Use wrapContentSize when docked to ensure we don't take up full window space if window expands (though window should be WRAP_CONTENT too)
+            // Use fillMaxSize when expanded to cover screen for overlays.
+            Box(modifier = if (isExpandedMode || isSelectMode) Modifier.fillMaxSize() else Modifier.wrapContentSize()) {
 
                 // 1. Navigation Rail (Docked)
                 IdeNavRail(
@@ -261,7 +268,8 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
                     onUndock = { stopSelf() },
                     // NEW: Pass manual drag handler for overlay movement
                     onOverlayDrag = { x, y -> updatePosition(x, y) },
-                    enableRailDraggingOverride = true,
+                    // Disable dragging when expanded to avoid shifting the fullscreen window
+                    enableRailDraggingOverride = !isExpandedMode && !isSelectMode,
                     isLocalBuildEnabled = false,
                     // Navigate BACK to the IDE app for settings/management
                     onNavigateToMainApp = { route ->

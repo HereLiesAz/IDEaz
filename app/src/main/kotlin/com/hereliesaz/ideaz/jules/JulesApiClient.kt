@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.jules
 
+import com.hereliesaz.ideaz.api.*
 import com.hereliesaz.ideaz.api.AuthInterceptor
 import com.hereliesaz.ideaz.api.RetryInterceptor
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -38,13 +39,18 @@ object JulesApiClient {
         return retrofit.create(JulesApi::class.java)
     }
 
-    suspend fun generateResponse(prompt: Prompt): GenerateResponseResponse {
-        return getClient().generateResponse(prompt)
-    }
+    suspend fun listSessions(pageSize: Int = 100, pageToken: String? = null) =
+        getClient().listSessions(pageSize, pageToken)
 
-    suspend fun listSessions(parent: String, pageSize: Int = 100, pageToken: String? = null) =
-        getClient().listSessions(parent, pageSize, pageToken)
+    suspend fun createSession(request: CreateSessionRequest): Session =
+        getClient().createSession(request)
 
-    suspend fun listSources(parent: String, pageSize: Int = 100, pageToken: String? = null) =
-        getClient().listSources(parent, pageSize, pageToken)
+    suspend fun sendMessage(sessionId: String, request: SendMessageRequest) =
+        getClient().sendMessage(sessionId, request)
+
+    suspend fun listActivities(sessionId: String, pageSize: Int = 100, pageToken: String? = null) =
+        getClient().listActivities(sessionId, pageSize, pageToken)
+
+    suspend fun listSources(pageSize: Int = 100, pageToken: String? = null) =
+        getClient().listSources(pageSize, pageToken)
 }

@@ -3,23 +3,19 @@ package com.hereliesaz.ideaz.ui
 import android.app.Application
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.graphics.Rect
 import android.net.Uri
 import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.api.GitHubRepoResponse
-import com.hereliesaz.ideaz.jules.Patch
+import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.delegates.*
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ToolManager
-import com.hereliesaz.ideaz.api.GitHubApiClient
-import com.hereliesaz.ideaz.git.GitManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import java.io.File
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -28,6 +24,16 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
+/**
+ * The central ViewModel for the application, orchestrating UI state, build processes,
+ * Git operations, and AI interactions.
+ *
+ * This ViewModel delegates specific responsibilities to helper classes (Delegates)
+ * to maintain separation of concerns and reduce code size.
+ *
+ * @param application The Android Application context.
+ * @param settingsViewModel The ViewModel for accessing and modifying user settings.
+ */
 class MainViewModel(
     application: Application,
     val settingsViewModel: SettingsViewModel
@@ -49,9 +55,12 @@ class MainViewModel(
             stateDelegate.setLoadingProgress(if (p >= 100) null else p)
             stateDelegate.appendBuildLog("[GIT] $t\n")
         }
+        override fun onOverlayLog(msg: String) {
+             stateDelegate.appendAiLog(msg) // Fallback to AI log for now if overlay log isn't distinct
+        }
     }
 
-    val aiDelegate = AIDelegate(settingsViewModel, viewModelScope, logHandler::onAiLog) { patch -> applyPatchInternal(patch) }
+    val aiDelegate = AIDelegate(settingsViewModel, viewModelScope, logHandler::onAiLog) { diff -> applyUnidiffPatchInternal(diff) }
     val overlayDelegate = OverlayDelegate(application, settingsViewModel, viewModelScope, logHandler::onAiLog)
 
     val gitDelegate = GitDelegate(settingsViewModel, viewModelScope, logHandler::onBuildLog, logHandler::onProgress)
@@ -125,10 +134,23 @@ class MainViewModel(
     // --- PROXY METHODS ---
 
     // BUILD
+
+    /** Binds the BuildService to the given context. */
     fun bindBuildService(c: Context) = buildDelegate.bindService(c)
+
+    /** Unbinds the BuildService from the given context. */
     fun unbindBuildService(c: Context) = buildDelegate.unbindService(c)
+
+    /** Starts a build for the specified project path (or current project if null). */
     fun startBuild(c: Context, p: File? = null) = buildDelegate.startBuild(p)
+
+    /** Clears local build caches (TODO). */
     fun clearBuildCaches(c: Context) { /* TODO */ }
+
+    /**
+     * Downloads and installs the build tools (aapt2, d8, kotlinc) from the latest GitHub release.
+     * This is required for local builds to function.
+     */
     fun downloadBuildTools() {
         viewModelScope.launch {
             val token = settingsViewModel.getGithubToken()
@@ -194,47 +216,99 @@ class MainViewModel(
     }
 
     // GIT
+
+    /** Refreshes Git status, branches, and commit history. */
     fun refreshGitData() = gitDelegate.refreshGitData()
+
+    /** Performs a 'git fetch' operation. */
     fun gitFetch() = gitDelegate.fetch()
+
+    /** Performs a 'git pull' operation. */
     fun gitPull() = gitDelegate.pull()
+
+    /** Performs a 'git push' operation. */
     fun gitPush() = gitDelegate.push()
+
+    /** Stashes changes with an optional message. */
     fun gitStash(m: String?) = gitDelegate.stash(m)
+
+    /** Pops the latest stash. */
     fun gitUnstash() = gitDelegate.unstash()
+
+    /** Switches to the specified branch. */
     fun switchBranch(b: String) = gitDelegate.switchBranch(b)
 
     // AI
+
+    /** Sends a prompt to the active AI session. */
     fun sendPrompt(p: String?) { if(!p.isNullOrBlank()) aiDelegate.startContextualAITask(p) }
+
+    /** Submits a prompt along with context (screen capture, selection) from the overlay. */
     fun submitContextualPrompt(p: String) {
         val context = overlayDelegate.pendingContextInfo ?: "No context"
         val base64 = overlayDelegate.pendingBase64Screenshot
         val richPrompt = if (base64 != null) "$context\n\n$p\n\n[IMAGE: data:image/png;base64,$base64]" else "$context\n\n$p"
         aiDelegate.startContextualAITask(richPrompt)
     }
+
+    /** Resumes a specific Jules session. */
     fun resumeSession(id: String) = aiDelegate.resumeSession(id)
+
+    /** Fetches available Jules sessions for the given repository. */
     fun fetchSessionsForRepo(r: String) = aiDelegate.fetchSessionsForRepo(r)
 
     // OVERLAY
+
+    /** Toggles the screen selection mode. */
     fun toggleSelectMode(b: Boolean) = overlayDelegate.toggleSelectMode(b)
+
+    /** Clears the current screen selection. */
     fun clearSelection() = overlayDelegate.clearSelection()
+
+    /** Closes the contextual chat and clears selection. */
     fun closeContextualChat() = overlayDelegate.clearSelection()
+
+    /** Requests permission to capture the screen (MediaProjection). */
     fun requestScreenCapturePermission() = overlayDelegate.requestScreenCapturePermission()
+
+    /** Signals that the screen capture request has been handled. */
     fun screenCaptureRequestHandled() = overlayDelegate.screenCaptureRequestHandled()
+
+    /** Sets the result of the screen capture permission request. */
     fun setScreenCapturePermission(c: Int, d: Intent?) = overlayDelegate.setScreenCapturePermission(c, d)
+
+    /** Checks if screen capture permission is granted. */
     fun hasScreenCapturePermission() = overlayDelegate.hasScreenCapturePermission()
+
+    /** Sets a pending navigation route to be handled by the UI. */
     fun setPendingRoute(r: String?) = stateDelegate.setPendingRoute(r)
 
     // REPO
+
+    /** Fetches the list of repositories owned by the user from GitHub. */
     fun fetchGitHubRepos() = repoDelegate.fetchGitHubRepos()
+
+    /** Scans the local filesystem for imported projects. */
     fun scanLocalProjects() = repoDelegate.scanLocalProjects()
+
+    /** Returns a list of local projects with their metadata. */
     fun getLocalProjectsWithMetadata() = repoDelegate.getLocalProjectsWithMetadata()
+
+    /** Forces an update of the initialization files (workflows, setup scripts) in the project. */
     fun forceUpdateInitFiles() = repoDelegate.forceUpdateInitFiles()
+
+    /** Uploads project secrets (API keys, Keystore) to GitHub Actions secrets. */
     fun uploadProjectSecrets(o: String, r: String) = repoDelegate.uploadProjectSecrets(o, r)
+
+    /** Creates a new GitHub repository and initializes it with the project template. */
     fun createGitHubRepository(name: String, desc: String, priv: Boolean, type: ProjectType, pkg: String, ctx: Context, onSuccess: () -> Unit) {
         repoDelegate.createGitHubRepository(name, desc, priv, type, pkg, ctx) { owner, branch ->
             saveAndInitialize(name, owner, branch, pkg, type, ctx)
             onSuccess()
         }
     }
+
+    /** Selects an existing repository for setup and loads its sessions. */
     fun selectRepositoryForSetup(repo: GitHubRepoResponse, onSuccess: () -> Unit) {
         repoDelegate.selectRepositoryForSetup(repo) { owner, branch ->
             repoDelegate.uploadProjectSecrets(owner, repo.name)
@@ -243,6 +317,8 @@ class MainViewModel(
             onSuccess()
         }
     }
+
+    /** Saves project configuration and triggers the initial build/setup. */
     fun saveAndInitialize(appName: String, user: String, branch: String, pkg: String, type: ProjectType, context: Context, initialPrompt: String? = null) {
         viewModelScope.launch {
             settingsViewModel.saveProjectConfig(appName, user, branch)
@@ -253,6 +329,8 @@ class MainViewModel(
             buildDelegate.startBuild(context.filesDir.resolve(appName))
         }
     }
+
+    /** Loads a local project by name. */
     fun loadProject(name: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
             settingsViewModel.setAppName(name)
@@ -261,8 +339,14 @@ class MainViewModel(
             onSuccess()
         }
     }
+
+    /** Forks a repository (TODO). */
     fun forkRepository(u: String, onSuccess: () -> Unit = {}) { /* TODO */ }
 
+    /**
+     * Imports an external project folder via Storage Access Framework URI.
+     * Copies the folder to the app's internal storage for read/write access.
+     */
     fun registerExternalProject(u: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -337,43 +421,12 @@ class MainViewModel(
         }
     }
 
-    fun deleteProject(n: String) { /* TODO */ }
-    fun registerExternalProject(u: Uri) { /* TODO */ }
+    /**
+     * Deletes a local project by name.
+     */
     fun deleteProject(n: String) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val dir = settingsViewModel.getProjectPath(n)
-                if (dir.exists()) {
-                    if (dir.deleteRecursively()) {
-                        withContext(Dispatchers.Main) {
-                            settingsViewModel.removeProject(n)
-                            settingsViewModel.removeProjectPath(n)
-                            if (settingsViewModel.getAppName() == n) {
-                                settingsViewModel.setAppName("")
-                            }
-                            repoDelegate.scanLocalProjects()
-                            stateDelegate.appendAiLog("Project '$n' deleted successfully.")
-                        }
-                    } else {
-                        withContext(Dispatchers.Main) {
-                            stateDelegate.appendAiLog("Failed to delete project '$n'. Check permissions.")
-                        }
-                    }
-                } else {
-                    withContext(Dispatchers.Main) {
-                        settingsViewModel.removeProject(n)
-                        settingsViewModel.removeProjectPath(n)
-                        repoDelegate.scanLocalProjects()
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    stateDelegate.appendAiLog("Error deleting project '$n': ${e.message}")
-                }
-            }
-        }
-    }
-    fun syncAndDeleteProject(n: String) { /* TODO */ }
                 performLocalDeletion(n)
                 logHandler.onBuildLog("Project '$n' deleted locally.\n")
             } catch (e: Exception) {
@@ -382,6 +435,9 @@ class MainViewModel(
         }
     }
 
+    /**
+     * Syncs changes to remote repository (if configured) before deleting the local project.
+     */
     fun syncAndDeleteProject(n: String) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -429,12 +485,24 @@ class MainViewModel(
     }
 
     // UPDATE
+
+    /** Checks for experimental updates via the UpdateDelegate. */
     fun checkForExperimentalUpdates() = updateDelegate.checkForExperimentalUpdates()
+
+    /** Confirms and installs a pending update. */
     fun confirmUpdate() = updateDelegate.confirmUpdate()
+
+    /** Dismisses the update warning. */
     fun dismissUpdateWarning() = updateDelegate.dismissUpdateWarning()
 
     // MISC
+
+    /** Clears the build log. */
     fun clearLog() = stateDelegate.clearLog()
+
+    /**
+     * Launches the target application (APK or Web).
+     */
     fun launchTargetApp(c: Context) {
         val appName = settingsViewModel.getAppName() ?: return
         val projectTypeStr = settingsViewModel.getProjectType()
@@ -480,8 +548,11 @@ class MainViewModel(
             }
         }
     }
+
+    /** Downloads project dependencies (TODO). */
     fun downloadDependencies() { /* TODO */ }
 
+    /** Checks for required API keys and returns a list of missing ones. */
     fun checkRequiredKeys(): List<String> {
         val missing = mutableListOf<String>()
         if (settingsViewModel.getApiKey().isNullOrBlank()) missing.add("Jules API Key")
@@ -524,38 +595,18 @@ class MainViewModel(
         }
     }
 
-    private suspend fun applyPatchInternal(patch: Patch): Boolean {
-        return withContext(Dispatchers.IO) {
-            try {
-                val appName = settingsViewModel.getAppName() ?: return@withContext false
-                val projectDir = settingsViewModel.getProjectPath(appName)
-                patch.actions.forEach { action ->
-                    val file = File(projectDir, action.filePath)
-                    when (action.type) {
-                        "CREATE_FILE" -> {
-                            file.parentFile?.mkdirs()
-                            file.writeText(action.content)
-                        }
-                        "UPDATE_FILE" -> {
-                            if (file.exists()) file.writeText(action.content)
-                        }
-                        "DELETE_FILE" -> {
-                            if (file.exists()) file.delete()
-                        }
-                    }
-                }
-                gitDelegate.refreshGitData()
-                true
-            } catch (e: Exception) {
-                false
-            }
-        }
+    private suspend fun applyUnidiffPatchInternal(diff: String): Boolean {
+        return gitDelegate.applyUnidiffPatch(diff)
     }
 }
 
+/**
+ * Interface for handling log events from delegates.
+ */
 interface LogHandler {
     fun onBuildLog(msg: String)
     fun onAiLog(msg: String)
     fun onProgress(p: Int?)
     fun onGitProgress(p: Int, t: String)
+    fun onOverlayLog(msg: String)
 }
