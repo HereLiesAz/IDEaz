@@ -60,6 +60,6 @@
     5.  **Permissions:** System permission status/requests.
     6.  **Preferences/Theme/Logs/Updates/Debug.**
 
-## 7. Web Runtime (`WebRuntimeActivity.kt`)
+## 7. Web Runtime (Embedded in `MainScreen.kt`)
 *   **Role:** Host for Web projects.
-*   **Component:** `WebView` loading the generated `index.html`.
+*   **Component:** `WebProjectHost` (WebView) integrated directly into `MainScreen` as the bottom layer.

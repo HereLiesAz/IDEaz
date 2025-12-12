@@ -24,6 +24,13 @@ import androidx.compose.ui.zIndex
 import androidx.navigation.compose.rememberNavController
 import com.composables.core.SheetDetent
 import com.composables.core.rememberBottomSheetState
+import com.hereliesaz.ideaz.ui.web.WebProjectHost
+import androidx.compose.ui.platform.LocalConfiguration
+
+const val Z_INDEX_WEB_VIEW = 0f
+const val Z_INDEX_IDE_CONTENT = 1f
+const val Z_INDEX_NAV_RAIL = 100f
+const val Z_INDEX_OVERLAY = 200f
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,6 +43,8 @@ fun MainScreen(
     val navController = rememberNavController()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val config = LocalConfiguration.current
+    val screenHeight = config.screenHeightDp.dp
 
     val supportedDetents = remember {
         listOf(SheetDetent.Hidden, AlmostHidden, Peek, Halfway)
@@ -46,6 +55,7 @@ fun MainScreen(
     )
 
     val isIdeVisible by viewModel.isTargetAppVisible.collectAsState()
+    val currentWebUrl by viewModel.currentWebUrl.collectAsState()
     val isLocalBuildEnabled = viewModel.settingsViewModel.isLocalBuildEnabled()
 
     val isContextualChatVisible by viewModel.isContextualChatVisible.collectAsState()
@@ -64,26 +74,43 @@ fun MainScreen(
 
             val railWidth = 80.dp
 
-            // LAYER 1: Content (Padded Left)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(start = railWidth)
-                    .zIndex(1f)
-            ) {
-                IdeNavHost(
-                    modifier = Modifier.fillMaxSize(),
-                    navController = navController,
-                    viewModel = viewModel,
-                    settingsViewModel = viewModel.settingsViewModel,
-                    onThemeToggle = onThemeToggle
-                )
+            // LAYER 1: Content (Padded Left) or WebView
+            if (currentWebUrl != null && isIdeVisible) {
+                // Web Mode: Show WebView at bottom layer
+                currentWebUrl?.let { webUrl ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .zIndex(Z_INDEX_WEB_VIEW)
+                    ) {
+                        WebProjectHost(
+                            url = webUrl,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+            } else {
+                // IDE Mode: Show Settings/Project screens
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(start = railWidth)
+                        .zIndex(Z_INDEX_IDE_CONTENT)
+                ) {
+                    IdeNavHost(
+                        modifier = Modifier.fillMaxSize(),
+                        navController = navController,
+                        viewModel = viewModel,
+                        settingsViewModel = viewModel.settingsViewModel,
+                        onThemeToggle = onThemeToggle
+                    )
+                }
             }
 
             // LAYER 2: Navigation Rail (Highest Z-Index)
             // UNCONSTRAINED
             Box(
-                modifier = Modifier.zIndex(100f)
+                modifier = Modifier.zIndex(Z_INDEX_NAV_RAIL)
             ) {
                 IdeNavRail(
                     navController = navController,
@@ -92,12 +119,25 @@ fun MainScreen(
                     onShowPromptPopup = { /*TODO*/ },
                     handleActionClick = { it() },
                     isIdeVisible = isIdeVisible,
-                    onLaunchOverlay = onLaunchOverlay,
+                    onLaunchOverlay = {
+                        // For Web, "Overlay" just means toggle selection mode or something similar,
+                        // but since we are already IN the "overlay" (simulated), this button might need to behave differently
+                        // or just do nothing/toggle internal state.
+                        if (currentWebUrl != null) {
+                             viewModel.toggleSelectMode(!viewModel.isSelectMode.value)
+                        } else {
+                             onLaunchOverlay()
+                        }
+                    },
                     sheetState = sheetState,
                     scope = scope,
                     isLocalBuildEnabled = isLocalBuildEnabled,
                     onNavigateToMainApp = { route ->
                         viewModel.clearSelection()
+                        // If we are in Web Mode, we need to "Exit" it to go back to settings
+                        if (currentWebUrl != null) {
+                             viewModel.stateDelegate.setTargetAppVisible(false)
+                        }
                         navController.navigate(route) {
                             launchSingleTop = true
                             restoreState = true
@@ -108,13 +148,25 @@ fun MainScreen(
 
             // LAYER 3: Contextual Chat Overlay
             if (isContextualChatVisible && activeSelectionRect != null) {
-                Box(modifier = Modifier.fillMaxSize().zIndex(200f)) {
+                Box(modifier = Modifier.fillMaxSize().zIndex(Z_INDEX_OVERLAY)) {
                     ContextualChatOverlay(
                         rect = activeSelectionRect!!,
                         viewModel = viewModel,
                         onClose = { viewModel.closeContextualChat() }
                     )
                 }
+            }
+
+            // LAYER 4: Bottom Sheet (Console)
+            if (currentWebUrl != null && isIdeVisible) {
+                IdeBottomSheet(
+                    sheetState = sheetState,
+                    viewModel = viewModel,
+                    peekDetent = Peek,
+                    halfwayDetent = Halfway,
+                    screenHeight = screenHeight,
+                    onSendPrompt = { viewModel.sendPrompt(it) }
+                )
             }
         }
     }
