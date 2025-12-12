@@ -16,6 +16,20 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.io.File
 
+/**
+ * Manages interactions with the background BuildService.
+ * Handles binding, unbinding, and invoking build operations via AIDL.
+ *
+ * @param application The Application context.
+ * @param settingsViewModel ViewModel to access project settings.
+ * @param scope CoroutineScope for handling callbacks on the main thread.
+ * @param onLog Callback for general build logs.
+ * @param onOverlayLog Callback for high-priority overlay logs.
+ * @param onSourceMapUpdated Callback when a new SourceMap is generated after a successful build.
+ * @param onWebBuildFailure Callback to trigger AI assistance on web build failures.
+ * @param onWebBuildSuccess Callback when a web build succeeds (to load the WebView).
+ * @param gitDelegate Delegate to handle Git operations (e.g., pushing after a web build).
+ */
 class BuildDelegate(
     private val application: Application,
     private val settingsViewModel: SettingsViewModel,
@@ -93,6 +107,10 @@ class BuildDelegate(
         }
     }
 
+    /**
+     * Binds the BuildService to the application context.
+     * Ensures the service is started and connected.
+     */
     fun bindService(context: Context) {
         if (isServiceRegistered) return
         val intent = Intent(context, BuildService::class.java)
@@ -100,6 +118,10 @@ class BuildDelegate(
         isServiceRegistered = true
     }
 
+    /**
+     * Unbinds the BuildService.
+     * Should be called when the ViewModel is cleared.
+     */
     fun unbindService(context: Context) {
         if (isServiceRegistered) {
             try {
@@ -110,6 +132,11 @@ class BuildDelegate(
         }
     }
 
+    /**
+     * Initiates a build process.
+     * Checks if local build is enabled and if the service is bound.
+     * @param projectDir Optional specific project directory. Defaults to current project.
+     */
     fun startBuild(projectDir: File? = null) {
         scope.launch {
             val typeStr = settingsViewModel.getProjectType()
@@ -134,6 +161,9 @@ class BuildDelegate(
         }
     }
 
+    /**
+     * Initiates dependency download process via the BuildService.
+     */
     fun downloadDependencies(projectDir: File? = null) {
         scope.launch {
             if (isBuildServiceBound) {

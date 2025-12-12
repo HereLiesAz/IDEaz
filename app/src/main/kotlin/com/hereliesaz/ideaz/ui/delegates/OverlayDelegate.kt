@@ -18,6 +18,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * Delegate responsible for managing the UI Overlay, Selection Mode, and Screen Capture.
+ * Coordinates with `UIInspectionService`, `IdeazOverlayService`, and `ScreenshotService`.
+ *
+ * @param application The Application context.
+ * @param settingsViewModel ViewModel to access project path/name.
+ * @param scope CoroutineScope for background operations.
+ * @param onOverlayLog Callback to log messages to the UI.
+ */
 class OverlayDelegate(
     private val application: Application,
     private val settingsViewModel: SettingsViewModel,
@@ -26,29 +35,42 @@ class OverlayDelegate(
 ) {
 
     private val _isSelectMode = MutableStateFlow(false)
+    /** Whether the "Select" (inspection) mode is active. */
     val isSelectMode = _isSelectMode.asStateFlow()
 
     private val _isContextualChatVisible = MutableStateFlow(false)
+    /** Whether the contextual chat bubble/window is visible. */
     val isContextualChatVisible = _isContextualChatVisible.asStateFlow()
 
     private val _activeSelectionRect = MutableStateFlow<Rect?>(null)
+    /** The currently selected screen area rectangle. */
     val activeSelectionRect = _activeSelectionRect.asStateFlow()
 
     private val _requestScreenCapture = MutableStateFlow(false)
+    /** Signal to UI to request screen capture permission from the user. */
     val requestScreenCapture = _requestScreenCapture.asStateFlow()
 
     private var screenCaptureResultCode: Int? = null
     private var screenCaptureData: Intent? = null
 
+    /** Context information derived from the selected element (e.g., file, line). */
     var pendingContextInfo: String? = null
         private set
+
+    /** Base64 encoded screenshot of the selected area. */
     var pendingBase64Screenshot: String? = null
         private set
+
     private var pendingRect: Rect? = null
 
     // This must be set by MainViewModel when sourceMap is updated
+    /** Map of view IDs to source file locations. */
     var sourceMap: Map<String, SourceMapEntry> = emptyMap()
 
+    /**
+     * Toggles the selection mode.
+     * Starts the `UIInspectionService` and requests necessary permissions.
+     */
     fun toggleSelectMode(enable: Boolean) {
         if (enable && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(application)) {
             val intent = Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${application.packageName}")).apply {
@@ -79,6 +101,9 @@ class OverlayDelegate(
         }
     }
 
+    /**
+     * Clears the current selection and hides the chat.
+     */
     fun clearSelection() {
         _activeSelectionRect.value = null
         _isContextualChatVisible.value = false
@@ -90,6 +115,11 @@ class OverlayDelegate(
         application.sendBroadcast(intent)
     }
 
+    /**
+     * Called when a user makes a selection (drag or tap).
+     * Resolves the context (source file) if a resource ID is provided.
+     * Triggers a screenshot of the selected area.
+     */
     fun onSelectionMade(rect: Rect, resourceId: String? = null) {
         pendingRect = rect
         _activeSelectionRect.value = rect
@@ -144,6 +174,10 @@ class OverlayDelegate(
         }
     }
 
+    /**
+     * Called when the screenshot is ready.
+     * Shows the context chat and restores the highlight overlay.
+     */
     fun onScreenshotTaken(base64: String) {
         val intent = Intent("com.hereliesaz.ideaz.HIGHLIGHT_RECT").apply {
             setPackage(application.packageName)
