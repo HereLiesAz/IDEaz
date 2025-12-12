@@ -45,11 +45,6 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".ui.web.WebRuntimeActivity"
-            android:exported="false"
-            android:label="Web Preview"
-            android:theme="@style/Theme.IDEaz" />
 
         <service
             android:name=".services.BuildService"
