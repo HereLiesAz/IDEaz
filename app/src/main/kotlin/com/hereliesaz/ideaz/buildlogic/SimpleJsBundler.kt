@@ -11,7 +11,8 @@ class SimpleJsBundler {
             return BuildResult(false, "App.js not found in ${projectDir.absolutePath}")
         }
 
-        val appName = readAppNameFromConfig(projectDir)
+        // 1. Get App Name
+        val appName = getAppName(projectDir)
         val bundleContent = StringBuilder()
 
         // 1. Vendor Bundle (React + React Native Core)
@@ -24,36 +25,36 @@ class SimpleJsBundler {
         // 2. Process User Code
         val lines = appJs.readLines()
         val processedCode = processSource(lines, "App.js")
-        bundleContent.append(processedCode)
-        bundleContent.append("\n")
 
         // 3. Entry Point Registration
-        // We assume the user code exports 'App' or defines it.
-        // To be safe, we might need to modify the user code to assign to a variable we know.
-        // For the template 'export default function App()', parsing is tricky without AST.
-        // Hack: Append a register call that assumes 'App' is in scope or default export.
-        // If 'App.js' is an ES module, we can't just concat. We need a module system.
-        // MVP: We assume 'App.js' is written as a script or we strip 'export default'.
+        // Replace 'export default' with a variable assignment to capture the component
+        val entryPointVar = "__IdeazApp"
+        val (finalizedCode, foundExport) = rewriteExportDefault(processedCode, entryPointVar)
 
-        // This is a complex part. For the MVP to work "conceptually" with the provided template:
-        // Template: export default function App() { ... }
-        // We replace 'export default function App' with 'function App'
-        // Then register it.
+        bundleContent.append(finalizedCode)
+        bundleContent.append("\n")
 
-        val finalizedCode = processedCode.replace("export default function App", "function App")
-
-        val bundleWithRegistration = """
-            $finalizedCode
-
-            // Mock AppRegistry for MVP if not in vendor
+        val registerCode = if (foundExport) {
+             """
+            // Register the captured default export
             if (typeof AppRegistry !== 'undefined') {
-                AppRegistry.registerComponent('$appName', () => App);
+                AppRegistry.registerComponent('$appName', () => $entryPointVar);
             } else {
                 console.log("AppRegistry not found, skipping registration");
             }
-        """.trimIndent()
+            """.trimIndent()
+        } else {
+            // Fallback: Assume 'App' is global (legacy behavior)
+             """
+            if (typeof AppRegistry !== 'undefined' && typeof App !== 'undefined') {
+                AppRegistry.registerComponent('$appName', () => App);
+            } else {
+                console.log("AppRegistry not found or App global missing, skipping registration");
+            }
+            """.trimIndent()
+        }
 
-        bundleContent.append(bundleWithRegistration)
+        bundleContent.append(registerCode)
 
         val outFile = File(outputDir, "index.android.bundle")
         outFile.parentFile?.let { if (!it.exists()) it.mkdirs() }
@@ -62,32 +63,57 @@ class SimpleJsBundler {
         return BuildResult(true, "Bundled successfully to ${outFile.absolutePath}")
     }
 
-    private fun readAppNameFromConfig(projectDir: File): String {
-        val appJsonFile = File(projectDir, "app.json")
-        if (appJsonFile.exists()) {
+    private fun getAppName(projectDir: File): String {
+        val appJson = File(projectDir, "app.json")
+        if (appJson.exists()) {
             try {
-                val jsonContent = appJsonFile.readText()
-                val jsonObject = JSONObject(jsonContent)
-
-                // Check root level "name" (Standard RN)
-                val name = jsonObject.optString("name")
-                if (name.isNotEmpty()) {
-                    return name
+                val json = JSONObject(appJson.readText())
+                val expo = json.optJSONObject("expo")
+                if (expo != null && expo.has("name")) {
+                    return expo.getString("name")
                 }
-
-                // Check "expo" -> "name" (Expo RN)
-                val expoObject = jsonObject.optJSONObject("expo")
-                val expoName = expoObject?.optString("name")
-                if (!expoName.isNullOrEmpty()) {
-                    return expoName
+                if (json.has("name")) {
+                    return json.getString("name")
                 }
-
+                if (json.has("displayName")) {
+                    return json.getString("displayName")
+                }
             } catch (e: Exception) {
-                // Log warning or ignore, fallback to default
-                println("Error parsing app.json: ${e.message}")
+                // Ignore parse errors, fallback
             }
         }
         return "MyReactNativeApp"
+    }
+
+    private fun rewriteExportDefault(code: String, varName: String): Pair<String, Boolean> {
+        // Strategy: Replace "export default" with "const varName ="
+        // This works for:
+        // export default function App() {}  -> const varName = function App() {}
+        // export default class App {}       -> const varName = class App {}
+        // export default () => {}           -> const varName = () => {}
+        // export default Something;         -> const varName = Something;
+
+        // Regex looks for "export default" at the start of a line (ignoring whitespace)
+        // We use MULTILINE mode to match ^ at start of lines.
+        val regex = Regex("^\\s*export\\s+default\\s+", RegexOption.MULTILINE)
+
+        if (regex.containsMatchIn(code)) {
+            // Replace only the first occurrence to be safe
+            val newCode = regex.replaceFirst(code, "const $varName = ")
+            return Pair(newCode, true)
+        }
+
+        // Handle "export { Name as default }"
+        val namedDefaultRegex = Regex("export\\s+\\{\s*([a-zA-Z0-9_\$]+)\s+as\s+default\s*\\};?")
+        if (namedDefaultRegex.containsMatchIn(code)) {
+            val newCode = namedDefaultRegex.replaceFirst(code) { matchResult ->
+                val exportedName = matchResult.groupValues[1]
+                "const $varName = $exportedName;"
+            }
+            return Pair(newCode, true)
+        }
+
+        return Pair(code, false)
     }
 
     fun processSource(lines: List<String>, fileName: String): String {
