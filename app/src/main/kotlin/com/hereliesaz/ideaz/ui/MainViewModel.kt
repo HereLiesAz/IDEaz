@@ -44,6 +44,8 @@ class MainViewModel(
     val aiDelegate = AIDelegate(settingsViewModel, viewModelScope, logHandler::onAiLog) { patch -> applyPatchInternal(patch) }
     val overlayDelegate = OverlayDelegate(application, settingsViewModel, viewModelScope, logHandler::onAiLog)
 
+    val gitDelegate = GitDelegate(settingsViewModel, viewModelScope, logHandler::onBuildLog, logHandler::onProgress)
+
     val buildDelegate = BuildDelegate(
         application,
         settingsViewModel,
@@ -51,10 +53,13 @@ class MainViewModel(
         logHandler::onBuildLog,
         logHandler::onAiLog,
         { map -> overlayDelegate.sourceMap = map },
-        { log -> aiDelegate.startContextualAITask("Web Build Failed. Fix this:\n$log") }
+        { log -> aiDelegate.startContextualAITask("Web Build Failed. Fix this:\n$log") },
+        { path ->
+            stateDelegate.setCurrentWebUrl("file://$path")
+            stateDelegate.setTargetAppVisible(true) // Switch to "App View"
+        },
+        gitDelegate
     )
-
-    val gitDelegate = GitDelegate(settingsViewModel, viewModelScope, logHandler::onBuildLog, logHandler::onProgress)
 
     val repoDelegate = RepoDelegate(
         application,
@@ -74,6 +79,7 @@ class MainViewModel(
     // --- PUBLIC STATE EXPOSURE (Delegated) ---
     val loadingProgress = stateDelegate.loadingProgress
     val isTargetAppVisible = stateDelegate.isTargetAppVisible
+    val currentWebUrl = stateDelegate.currentWebUrl
     val buildLog = stateDelegate.buildLog
     val filteredLog = stateDelegate.filteredLog
     val pendingRoute = stateDelegate.pendingRoute

@@ -20,7 +20,6 @@ import com.hereliesaz.ideaz.utils.ToolManager
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.SettingsViewModel
-import com.hereliesaz.ideaz.ui.web.WebRuntimeActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -261,13 +260,6 @@ class BuildService : Service() {
                     if (result.success && isActive) {
                         val indexHtml = File(outputDir, "index.html")
                         callback.onSuccess(indexHtml.absolutePath)
-
-                        val intent = Intent(this@BuildService, WebRuntimeActivity::class.java).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            putExtra("URL", indexHtml.toURI().toString())
-                            putExtra("TIMESTAMP", System.currentTimeMillis())
-                        }
-                        startActivity(intent)
                     } else if (isActive) {
                         callback.onFailure(result.output)
                     }

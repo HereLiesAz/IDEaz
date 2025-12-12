@@ -24,6 +24,9 @@ class StateDelegate {
     private val _pendingRoute = MutableStateFlow<String?>(null)
     val pendingRoute = _pendingRoute.asStateFlow()
 
+    private val _currentWebUrl = MutableStateFlow<String?>(null)
+    val currentWebUrl = _currentWebUrl.asStateFlow()
+
     // Derived
     val filteredLog = combine(_buildLog, _aiLog) { b, a ->
         (b.lines() + a.lines()).filter { it.isNotBlank() }
@@ -34,5 +37,6 @@ class StateDelegate {
     fun setLoadingProgress(p: Int?) { _loadingProgress.value = p }
     fun setTargetAppVisible(v: Boolean) { _isTargetAppVisible.value = v }
     fun setPendingRoute(r: String?) { _pendingRoute.value = r }
+    fun setCurrentWebUrl(url: String?) { _currentWebUrl.value = url }
     fun clearLog() { _buildLog.value = ""; _aiLog.value = "" }
 }
