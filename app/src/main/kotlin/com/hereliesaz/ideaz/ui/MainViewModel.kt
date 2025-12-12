@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.api.GitHubRepoResponse
 import com.hereliesaz.ideaz.git.GitManager
+import com.hereliesaz.ideaz.jules.Patch
 import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.delegates.*
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer

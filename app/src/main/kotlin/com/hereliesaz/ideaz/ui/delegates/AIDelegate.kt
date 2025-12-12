@@ -2,6 +2,8 @@ package com.hereliesaz.ideaz.ui.delegates
 
 import com.hereliesaz.ideaz.api.*
 import com.hereliesaz.ideaz.jules.JulesApiClient
+import com.hereliesaz.ideaz.api.GeminiApiClient
+import com.hereliesaz.ideaz.jules.*
 import com.hereliesaz.ideaz.ui.AiModels
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -11,11 +13,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-data class Message(val role: String, val content: String)
-
 /**
  * Delegate responsible for handling AI interactions, including session management,
  * fetching sessions from Jules API, and executing contextual AI tasks.
+ *
+ * @param settingsViewModel ViewModel for accessing user settings (API keys, project ID).
+ * @param scope CoroutineScope for launching background tasks.
+ * @param onOverlayLog Callback to log messages to the UI overlay.
+ * @param onPatchReceived Callback to apply patches received from the AI.
  */
 class AIDelegate(
     private val settingsViewModel: SettingsViewModel,
