@@ -7,7 +7,6 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
-# ⚡ Concurrency: Cancels the entire job (build AND release) if a new push comes in.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -16,11 +15,9 @@ jobs:
   build-and-release:
     runs-on: ubuntu-latest
     
-    # 🐳 Docker Strategy: Run inside a pre-baked environment.
     # cimg/android:2025.12.1-ndk includes Android 36, NDK 29, and JDK 21.
     container:
       image: cimg/android:2025.12.1-ndk
-      # Run as root to ensure we can write to the GitHub workspace volume
       options: --user root
 
     permissions:
@@ -34,9 +31,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      # Java 21, Android SDK 36, and NDK 29 are already installed in the image.
-      # No setup steps needed.
 
       - name: Inject Google Services
         env:
@@ -58,10 +52,8 @@ jobs:
         id: gradle-build
         run: |
           set +e
-          # The Docker image handles SDK/NDK location automatically via environment variables
           export BUILD_NUMBER=$(git rev-list --count HEAD)
           
-          # Build the APK
           ./gradlew assembleDebug --build-cache > build.log 2>&1
           
           EXIT_CODE=$?
@@ -70,7 +62,7 @@ jobs:
           exit $EXIT_CODE
 
       # ------------------------------------------------------------------
-      # FAILURE HANDLING
+      # FAILURE HANDLING (With Assignment Fix)
       # ------------------------------------------------------------------
       - name: Report Failure to Jules
         if: failure() && steps.gradle-build.outcome == 'failure'
@@ -82,16 +74,30 @@ jobs:
             let logTail = 'Log file not found.';
             try { logTail = fs.readFileSync('build.log', 'utf8').slice(-4000); } catch (e) {}
             
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `Build Failure on ${context.eventName === 'pull_request' ? 'PR #' + context.issue.number : context.ref}`,
-              body: `@gemini-cli /jules debug this build error\n\n**Log:**\n\`\`\`\n${logTail}\n\`\`\``,
-              labels: ['jules']
-            });
+            const assignee = 'gemini-cli';
+            
+            try {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `Build Failure on ${context.eventName === 'pull_request' ? 'PR #' + context.issue.number : context.ref}`,
+                body: `@${assignee} /jules debug this build error\n\n**Log:**\n\`\`\`\n${logTail}\n\`\`\``,
+                labels: ['jules', 'bug'],
+                assignees: [assignee]
+              });
+            } catch (error) {
+              console.log("Failed to create issue with assignee. Retrying without assignee. (Ensure " + assignee + " is a collaborator)");
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `Build Failure on ${context.eventName === 'pull_request' ? 'PR #' + context.issue.number : context.ref}`,
+                body: `@${assignee} /jules debug this build error\n\n**Log:**\n\`\`\`\n${logTail}\n\`\`\``,
+                labels: ['jules', 'bug']
+              });
+            }
 
       # ------------------------------------------------------------------
-      # RELEASE STEPS (Only run on PUSH, not Pull Requests)
+      # RELEASE STEPS
       # ------------------------------------------------------------------
       - name: Prepare Release Variables
         if: success() && github.event_name == 'push'
@@ -99,7 +105,6 @@ jobs:
         run: |
           export BUILD_NUMBER=$(git rev-list --count HEAD)
           
-          # Extract version info
           MAJOR=$(grep 'versionMajor=' version.properties | cut -d'=' -f2)
           MINOR=$(grep 'versionMinor=' version.properties | cut -d'=' -f2)
           PATCH=$(grep 'versionPatch=' version.properties | cut -d'=' -f2)
@@ -107,7 +112,6 @@ jobs:
           
           TAG_NAME="latest-debug-v${MAJOR}.${MINOR}"
           
-          # Dynamic App Name
           if [ -f "settings.gradle.kts" ]; then
              APP_NAME=$(grep 'rootProject.name' settings.gradle.kts | sed -E "s/.*=.*[\"'](.*)[\"']/\1/")
           elif [ -f "settings.gradle" ]; then
@@ -116,7 +120,6 @@ jobs:
              APP_NAME="App"
           fi
           
-          # Locate built APK (It is already here!)
           APK_ORIGINAL=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
           
           if [ -z "$APK_ORIGINAL" ]; then
@@ -131,7 +134,6 @@ jobs:
           echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
           echo "APK_FILE=$TARGET_NAME" >> $GITHUB_ENV
           
-          # Package Build Tools
           mkdir -p build_tools_package/tools build_tools_package/native
           [ -d "app/src/main/assets/tools" ] && cp -r app/src/main/assets/tools/* build_tools_package/tools/ || true
           [ -d "app/src/main/jniLibs/arm64-v8a" ] && cp -r app/src/main/jniLibs/arm64-v8a/* build_tools_package/native/ || true
@@ -142,13 +144,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Use specific git config for the bot
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Safe directory config for git inside docker
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-          # Force update tag
           git tag -fa $TAG_NAME -m "Latest Debug Build"
           git push origin $TAG_NAME --force
 
