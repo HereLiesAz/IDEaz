@@ -5,6 +5,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 import java.nio.charset.StandardCharsets
 import javax.crypto.SecretKeyFactory
@@ -12,10 +13,10 @@ import javax.crypto.spec.PBEKeySpec
 
 object SecurityUtils {
 
-    private const val ALGORITHM = "AES/CBC/PKCS5Padding"
+    private const val ALGORITHM = "AES/GCM/NoPadding"
     private const val KEY_ALGORITHM = "AES"
     private const val SALT_SIZE = 16
-    private const val IV_SIZE = 16
+    private const val IV_SIZE = 12 // 12 bytes is recommended for GCM
     private const val KEY_SIZE_BYTES = 32 // 256 bits
 
     data class EncryptedData(val salt: String, val iv: String, val ciphertext: String)
@@ -29,10 +30,10 @@ object SecurityUtils {
 
         val key = deriveKey(password, salt)
         val secretKeySpec = SecretKeySpec(key, KEY_ALGORITHM)
-        val ivSpec = IvParameterSpec(iv)
+        val gcmSpec = GCMParameterSpec(128, iv) // 128-bit authentication tag
 
         val cipher = Cipher.getInstance(ALGORITHM)
-        cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec, ivSpec)
+        cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec, gcmSpec)
 
         val encryptedBytes = cipher.doFinal(plainText.toByteArray(StandardCharsets.UTF_8))
 
@@ -41,12 +42,12 @@ object SecurityUtils {
         val cipherStr = Base64.encodeToString(encryptedBytes, Base64.NO_WRAP)
 
         // Format: version:salt:iv:ciphertext
-        return "v1:$saltStr:$ivStr:$cipherStr"
+        return "v2:$saltStr:$ivStr:$cipherStr"
     }
 
     fun decrypt(encryptedPayload: String, password: String): String {
         val parts = encryptedPayload.split(":")
-        if (parts.size != 4 || parts[0] != "v1") {
+        if (parts.size != 4 || parts[0] != "v2") {
             throw IllegalArgumentException("Invalid encrypted data format")
         }
 
@@ -56,10 +57,10 @@ object SecurityUtils {
 
         val key = deriveKey(password, salt)
         val secretKeySpec = SecretKeySpec(key, KEY_ALGORITHM)
-        val ivSpec = IvParameterSpec(iv)
+        val gcmSpec = GCMParameterSpec(128, iv)
 
         val cipher = Cipher.getInstance(ALGORITHM)
-        cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, ivSpec)
+        cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, gcmSpec)
 
         val decryptedBytes = cipher.doFinal(ciphertext)
         return String(decryptedBytes, StandardCharsets.UTF_8)
