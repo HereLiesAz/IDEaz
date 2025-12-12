@@ -146,6 +146,18 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
         }
     }
 
+    // Manual dragging support
+    private fun updatePosition(x: Float, y: Float) {
+        if (overlayView == null) return
+        layoutParams.x += x.toInt()
+        layoutParams.y += y.toInt()
+        try {
+            windowManager.updateViewLayout(overlayView, layoutParams)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     @Composable
     fun OverlayContent() {
         val context = LocalContext.current
@@ -219,6 +231,8 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
                     scope = scope,
                     initiallyExpanded = false,
                     onUndock = { stopSelf() },
+                    // NEW: Pass manual drag handler for overlay movement
+                    onOverlayDrag = { x, y -> updatePosition(x, y) },
                     enableRailDraggingOverride = true,
                     isLocalBuildEnabled = false,
                     // Navigate BACK to the IDE app for settings/management
