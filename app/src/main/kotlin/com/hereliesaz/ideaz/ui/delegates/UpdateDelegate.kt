@@ -17,6 +17,15 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.math.max
 
+/**
+ * Manages application self-updates by checking GitHub Releases.
+ * Downloads and installs APKs directly from the 'HereLiesAz/IDEaz' repository.
+ *
+ * @param application The Application context.
+ * @param settingsViewModel ViewModel to access GitHub token.
+ * @param scope CoroutineScope for background network operations.
+ * @param onOverlayLog Callback to log messages to the UI.
+ */
 class UpdateDelegate(
     private val application: Application,
     private val settingsViewModel: SettingsViewModel,
@@ -24,15 +33,27 @@ class UpdateDelegate(
     private val onOverlayLog: (String) -> Unit
 ) {
     private val _updateStatus = MutableStateFlow<String?>(null)
+    /** Current status message of the update process (e.g., "Downloading..."). */
     val updateStatus = _updateStatus.asStateFlow()
+
     private val _updateVersion = MutableStateFlow<String?>(null)
+    /** The version string of the detected update. */
     val updateVersion = _updateVersion.asStateFlow()
+
     private val _showUpdateWarning = MutableStateFlow<Boolean>(false)
+    /** Whether to show the update confirmation dialog. */
     val showUpdateWarning = _showUpdateWarning.asStateFlow()
+
     private val _updateMessage = MutableStateFlow<String?>(null)
+    /** Detailed message explaining the update (Upgrade/Downgrade/Reinstall). */
     val updateMessage = _updateMessage.asStateFlow()
+
     private var pendingUpdateAssetUrl: String? = null
 
+    /**
+     * Checks for experimental updates (pre-releases or debug builds) on GitHub.
+     * Updates [updateMessage] and [showUpdateWarning] if an update is found.
+     */
     fun checkForExperimentalUpdates() {
         scope.launch {
             val token = settingsViewModel.getGithubToken()
@@ -90,6 +111,9 @@ class UpdateDelegate(
         }
     }
 
+    /**
+     * Confirms the pending update and initiates download and installation.
+     */
     fun confirmUpdate() {
         _showUpdateWarning.value = false
         val url = pendingUpdateAssetUrl ?: return
@@ -107,6 +131,9 @@ class UpdateDelegate(
         }
     }
 
+    /**
+     * Dismisses the update warning dialog.
+     */
     fun dismissUpdateWarning() {
         _showUpdateWarning.value = false
         pendingUpdateAssetUrl = null
