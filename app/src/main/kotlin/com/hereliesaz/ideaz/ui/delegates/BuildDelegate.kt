@@ -23,7 +23,9 @@ class BuildDelegate(
     private val onLog: (String) -> Unit,
     private val onOverlayLog: (String) -> Unit,
     private val onSourceMapUpdated: (Map<String, com.hereliesaz.ideaz.models.SourceMapEntry>) -> Unit,
-    private val onWebBuildFailure: (String) -> Unit
+    private val onWebBuildFailure: (String) -> Unit,
+    private val onWebBuildSuccess: (String) -> Unit,
+    private val gitDelegate: GitDelegate
 ) {
 
     private var buildService: IBuildService? = null
@@ -53,12 +55,27 @@ class BuildDelegate(
         override fun onSuccess(apkPath: String) {
             scope.launch {
                 onLog("\n[IDE] Build successful: $apkPath\n")
-                onOverlayLog("Build successful. Updating...")
-                application.sendBroadcast(Intent("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP"))
-                val buildDir = File(apkPath).parentFile
-                if (buildDir != null) {
-                    val parser = SourceMapParser(buildDir)
-                    onSourceMapUpdated(parser.parse())
+
+                val type = ProjectType.fromString(settingsViewModel.getProjectType())
+
+                // Check if this is a web build
+                if (type == ProjectType.WEB) {
+                    onLog("[IDE] Web Project ready. Loading WebView...\n")
+                    onWebBuildSuccess(apkPath)
+
+                    // Web Projects: Push to GitHub if enabled to trigger remote build/deploy
+                    if (!settingsViewModel.getGithubToken().isNullOrBlank()) {
+                         onLog("[IDE] Triggering remote Web Build (Pushing to GitHub)...\n")
+                         gitDelegate.push()
+                    }
+                } else {
+                    onOverlayLog("Build successful. Updating...")
+                    application.sendBroadcast(Intent("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP"))
+                    val buildDir = File(apkPath).parentFile
+                    if (buildDir != null) {
+                        val parser = SourceMapParser(buildDir)
+                        onSourceMapUpdated(parser.parse())
+                    }
                 }
             }
         }
