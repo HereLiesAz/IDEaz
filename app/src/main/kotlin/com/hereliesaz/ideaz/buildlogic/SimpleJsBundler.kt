@@ -1,6 +1,7 @@
 package com.hereliesaz.ideaz.buildlogic
 
 import java.io.File
+import org.json.JSONObject
 
 class SimpleJsBundler {
 
@@ -10,7 +11,7 @@ class SimpleJsBundler {
             return BuildResult(false, "App.js not found in ${projectDir.absolutePath}")
         }
 
-        val appName = "MyReactNativeApp" // TODO: Read from app.json
+        val appName = readAppNameFromConfig(projectDir)
         val bundleContent = StringBuilder()
 
         // 1. Vendor Bundle (React + React Native Core)
@@ -59,6 +60,34 @@ class SimpleJsBundler {
         outFile.writeText(bundleContent.toString())
 
         return BuildResult(true, "Bundled successfully to ${outFile.absolutePath}")
+    }
+
+    private fun readAppNameFromConfig(projectDir: File): String {
+        val appJsonFile = File(projectDir, "app.json")
+        if (appJsonFile.exists()) {
+            try {
+                val jsonContent = appJsonFile.readText()
+                val jsonObject = JSONObject(jsonContent)
+
+                // Check root level "name" (Standard RN)
+                val name = jsonObject.optString("name")
+                if (name.isNotEmpty()) {
+                    return name
+                }
+
+                // Check "expo" -> "name" (Expo RN)
+                val expoObject = jsonObject.optJSONObject("expo")
+                val expoName = expoObject?.optString("name")
+                if (!expoName.isNullOrEmpty()) {
+                    return expoName
+                }
+
+            } catch (e: Exception) {
+                // Log warning or ignore, fallback to default
+                println("Error parsing app.json: ${e.message}")
+            }
+        }
+        return "MyReactNativeApp"
     }
 
     fun processSource(lines: List<String>, fileName: String): String {
