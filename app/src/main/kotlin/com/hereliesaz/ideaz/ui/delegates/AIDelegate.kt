@@ -195,7 +195,7 @@ class AIDelegate(
             // Check for Agent Message
             // We log the latest message if found.
             // A more robust implementation would track seen message IDs.
-            val latestAgentMessage = activities.firstOrNull { it.agentMessaged != null }
+            val latestAgentMessage = activities.findLast { it.agentMessaged != null }
 
             if (latestAgentMessage != null) {
                 val msg = latestAgentMessage.agentMessaged?.agentMessage
