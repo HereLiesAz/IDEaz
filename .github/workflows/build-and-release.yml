@@ -68,6 +68,9 @@ jobs:
         id: gradle-build
         run: |
           set +e
+          # FIX: Allow git commands to run on this directory inside the container
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          
           # The Docker image handles SDK/NDK location automatically via environment variables
           export BUILD_NUMBER=$(git rev-list --count HEAD)
           
@@ -121,6 +124,9 @@ jobs:
         if: success() && github.event_name == 'push'
         id: release_vars
         run: |
+          # Ensure git is safe here too (though it should persist from previous step, good to be safe)
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          
           export BUILD_NUMBER=$(git rev-list --count HEAD)
           
           # Extract version info
@@ -169,7 +175,6 @@ jobs:
           # Use specific git config for the bot
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Safe directory config for git inside docker
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
           # Force update tag
