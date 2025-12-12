@@ -43,6 +43,7 @@ import com.hereliesaz.ideaz.ui.IdeNavRail
 import com.hereliesaz.ideaz.ui.MainViewModel
 import com.hereliesaz.ideaz.ui.MainViewModelFactory
 import com.hereliesaz.ideaz.ui.Peek
+import com.hereliesaz.ideaz.ui.SelectionOverlay
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.ui.theme.IDEazTheme
 import com.hereliesaz.ideaz.utils.ComposeLifecycleHelper
@@ -118,10 +119,19 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
         windowManager.addView(overlayView, layoutParams)
     }
 
-    private fun updateWindowLayout(isExpandedMode: Boolean) {
+    private fun updateWindowLayout(isExpandedMode: Boolean, isSelectMode: Boolean) {
         if (overlayView == null) return
 
-        if (isExpandedMode) {
+        if (isSelectMode) {
+            // Select Mode: Full Screen, consume touches to allow dragging
+            layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
+            layoutParams.height = WindowManager.LayoutParams.MATCH_PARENT
+            // Ensure we can receive touch events (default behavior without FLAG_NOT_TOUCHABLE)
+            // We remove FLAG_NOT_FOCUSABLE so we can potentially capture keys if needed,
+            // or just to ensure standard behavior.
+            layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+        } else if (isExpandedMode) {
             // Expanded Mode (Chat or Console Open):
             // 1. MATCH_PARENT to allow the bottom sheet and chat bubble to render anywhere.
             // 2. FLAG_NOT_TOUCH_MODAL allow touches to status bar/nav bar to pass through.
@@ -139,6 +149,18 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
             layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
         }
 
+        try {
+            windowManager.updateViewLayout(overlayView, layoutParams)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    // Manual dragging support
+    private fun updatePosition(x: Float, y: Float) {
+        if (overlayView == null) return
+        layoutParams.x += x.toInt()
+        layoutParams.y += y.toInt()
         try {
             windowManager.updateViewLayout(overlayView, layoutParams)
         } catch (e: Exception) {
@@ -198,8 +220,8 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
         val isSheetOpen = sheetState.currentDetent == Peek || sheetState.currentDetent == Halfway
         val isExpandedMode = isContextualChatVisible || isSheetOpen
 
-        LaunchedEffect(isExpandedMode) {
-            updateWindowLayout(isExpandedMode)
+        LaunchedEffect(isExpandedMode, isSelectMode) {
+            updateWindowLayout(isExpandedMode, isSelectMode)
         }
 
         IDEazTheme {
@@ -219,6 +241,8 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
                     scope = scope,
                     initiallyExpanded = false,
                     onUndock = { stopSelf() },
+                    // NEW: Pass manual drag handler for overlay movement
+                    onOverlayDrag = { x, y -> updatePosition(x, y) },
                     enableRailDraggingOverride = true,
                     isLocalBuildEnabled = false,
                     // Navigate BACK to the IDE app for settings/management
@@ -231,7 +255,20 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
                     }
                 )
 
-                // 2. Contextual Chat Overlay
+                // 2. Selection Overlay (When in Select Mode)
+                if (isSelectMode) {
+                    SelectionOverlay(
+                        modifier = Modifier.fillMaxSize(),
+                        onTap = { x, y ->
+                            // Optional: Single tap selection
+                        },
+                        onDragEnd = { rect ->
+                            viewModel.overlayDelegate.onSelectionMade(android.graphics.Rect(rect.left, rect.top, rect.right, rect.bottom))
+                        }
+                    )
+                }
+
+                // 3. Contextual Chat Overlay
                 if (isContextualChatVisible && activeSelectionRect != null) {
                     ContextualChatOverlay(
                         rect = activeSelectionRect!!,
@@ -240,7 +277,7 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
                     )
                 }
 
-                // 3. Bottom Sheet (Console)
+                // 4. Bottom Sheet (Console)
                 IdeBottomSheet(
                     sheetState = sheetState,
                     viewModel = viewModel,
