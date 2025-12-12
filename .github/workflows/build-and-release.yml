@@ -61,7 +61,7 @@ jobs:
           export BUILD_NUMBER=$(git rev-list --count HEAD)
           
           # Build the APK
-          ./gradlew assembleDebug --build-cache > build.log 2>&1
+          ./gradlew assembleDebug -PversionBuild=$BUILD_NUMBER --build-cache > build.log 2>&1
           
           EXIT_CODE=$?
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
@@ -115,7 +115,15 @@ jobs:
           # Extract version info from properties file
           MAJOR=$(grep 'versionMajor=' version.properties | cut -d'=' -f2)
           MINOR=$(grep 'versionMinor=' version.properties | cut -d'=' -f2)
-          PATCH=$(grep 'versionPatch=' version.properties | cut -d'=' -f2)
+
+          # Calculate Patch version programmatically based on commits since Minor update
+          MINOR_COMMIT=$(git blame -L '/versionMinor=/',+1 version.properties | awk '{print $1}' | tr -d '^')
+          if [ -n "$MINOR_COMMIT" ]; then
+            PATCH=$(git rev-list --count $MINOR_COMMIT..HEAD)
+          else
+            PATCH=$(grep 'versionPatch=' version.properties | cut -d'=' -f2)
+          fi
+
           VERSION_NAME="$MAJOR.$MINOR.$PATCH.$BUILD_NUMBER"
           
           TAG_NAME="latest-debug-v${MAJOR}.${MINOR}"
