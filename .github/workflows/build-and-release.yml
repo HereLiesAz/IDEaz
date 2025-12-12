@@ -81,7 +81,7 @@ jobs:
             let logTail = 'Log file not found.';
             try { logTail = fs.readFileSync('build.log', 'utf8').slice(-4000); } catch (e) {}
             
-            const assignee = 'gemini-cli';
+            const assignee = 'gemini-code-assist';
             
             try {
               await github.rest.issues.create({
