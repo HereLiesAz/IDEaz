@@ -9,6 +9,16 @@ import android.graphics.Rect
 import android.os.Build
 import androidx.core.content.ContextCompat
 
+/**
+ * Handles system-wide events via BroadcastReceivers.
+ * Listens for AI prompts from notifications, selection events from the overlay service,
+ * screenshot captures, and target app visibility changes.
+ *
+ * @param application The Application context.
+ * @param aiDelegate Delegate to trigger AI tasks.
+ * @param overlayDelegate Delegate to handle UI overlay updates.
+ * @param stateDelegate Delegate to update shared UI state.
+ */
 class SystemEventDelegate(
     private val application: Application,
     private val aiDelegate: AIDelegate,
@@ -78,6 +88,9 @@ class SystemEventDelegate(
         }
     }
 
+    /**
+     * Unregisters receivers to prevent memory leaks.
+     */
     fun cleanup() {
         try { application.unregisterReceiver(promptReceiver) } catch (e: Exception) {}
         try { application.unregisterReceiver(visibilityReceiver) } catch (e: Exception) {}
