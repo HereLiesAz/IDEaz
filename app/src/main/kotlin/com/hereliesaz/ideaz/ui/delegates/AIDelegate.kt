@@ -10,6 +10,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+/**
+ * Delegate responsible for handling AI interactions, including session management,
+ * fetching sessions from Jules API, and executing contextual AI tasks.
+ *
+ * @param settingsViewModel ViewModel for accessing user settings (API keys, project ID).
+ * @param scope CoroutineScope for launching background tasks.
+ * @param onOverlayLog Callback to log messages to the UI overlay.
+ * @param onPatchReceived Callback to apply patches received from the AI.
+ */
 class AIDelegate(
     private val settingsViewModel: SettingsViewModel,
     private val scope: CoroutineScope,
@@ -18,29 +27,42 @@ class AIDelegate(
 ) {
 
     private val _currentJulesSessionId = MutableStateFlow<String?>(null)
+    /** The ID of the currently active Jules session. */
     val currentJulesSessionId = _currentJulesSessionId.asStateFlow()
 
     private val _julesResponse = MutableStateFlow<GenerateResponseResponse?>(null)
+    /** The most recent response from the Jules API. */
     val julesResponse = _julesResponse.asStateFlow()
 
     private val _julesHistory = MutableStateFlow<List<Message>>(emptyList())
+    /** The history of messages in the current AI conversation. */
     val julesHistory = _julesHistory.asStateFlow()
 
     private val _isLoadingJulesResponse = MutableStateFlow(false)
+    /** Indicates whether an AI request is currently in progress. */
     val isLoadingJulesResponse = _isLoadingJulesResponse.asStateFlow()
 
     private val _julesError = MutableStateFlow<String?>(null)
+    /** Holds any error message from the last AI operation. */
     val julesError = _julesError.asStateFlow()
 
     private val _sessions = MutableStateFlow<List<com.hereliesaz.ideaz.api.Session>>(emptyList())
+    /** The list of available Jules sessions for the current repository. */
     val sessions = _sessions.asStateFlow()
 
     private var contextualTaskJob: Job? = null
 
+    /**
+     * Resumes an existing Jules session by its ID.
+     */
     fun resumeSession(sessionId: String) {
         _currentJulesSessionId.value = sessionId
     }
 
+    /**
+     * Fetches the list of active sessions associated with the specified repository.
+     * Filters sessions based on the 'source' context.
+     */
     fun fetchSessionsForRepo(repoName: String) {
         scope.launch {
             try {
@@ -72,6 +94,10 @@ class AIDelegate(
         }
     }
 
+    /**
+     * Starts a contextual AI task with the given prompt.
+     * Uses the AI model selected in settings (Jules or Gemini).
+     */
     fun startContextualAITask(richPrompt: String) {
         onOverlayLog("Thinking...")
         _isLoadingJulesResponse.value = true
