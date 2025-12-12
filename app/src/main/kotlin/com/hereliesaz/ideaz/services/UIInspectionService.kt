@@ -67,11 +67,26 @@ class UIInspectionService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d(TAG, "onStartCommand: action=${intent?.action}")
+        if (intent?.action == "STOP_SERVICE") {
+            Log.d(TAG, "Stopping UIInspectionService via notification action")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        val stopIntent = Intent(this, UIInspectionService::class.java).apply {
+            action = "STOP_SERVICE"
+        }
+        val stopPendingIntent = android.app.PendingIntent.getService(
+            this, 0, stopIntent, android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(this, "ideaz_inspection_channel")
-            .setContentTitle("IDEaz Overlay")
+            .setContentTitle("IDEaz Inspector")
             .setContentText("Ready to inspect")
             .setSmallIcon(R.mipmap.ic_launcher)
             .setPriority(NotificationCompat.PRIORITY_MIN)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop Inspector", stopPendingIntent)
             .build()
 
         try {
