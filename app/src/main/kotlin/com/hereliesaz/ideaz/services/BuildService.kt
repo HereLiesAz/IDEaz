@@ -53,6 +53,7 @@ class BuildService : Service() {
 
     private val binder = object : IBuildService.Stub() {
         override fun startBuild(projectPath: String, callback: IBuildCallback) = this@BuildService.startBuild(projectPath, callback)
+        override fun downloadDependencies(projectPath: String, callback: IBuildCallback) = this@BuildService.downloadDependencies(projectPath, callback)
         override fun updateNotification(message: String) = this@BuildService.updateNotification(message)
         override fun cancelBuild() = this@BuildService.cancelBuild()
     }
@@ -229,6 +230,55 @@ class BuildService : Service() {
             updateNotification("Build cancelled.")
         } catch (e: Exception) {
             Log.e(TAG, "Error cancelling build", e)
+        }
+    }
+
+    private fun downloadDependencies(projectPath: String, callback: IBuildCallback) {
+        cancelBuild()
+        buildJob = serviceScope.launch(Dispatchers.IO) {
+            try {
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+                currentProjectPath = projectPath
+                synchronized(logBuffer) {
+                    logBuffer.clear()
+                }
+                updateNotification("Downloading dependencies...")
+
+                val projectDir = File(projectPath)
+                if (!projectDir.exists()) {
+                    callback.onFailure("Project directory not found: $projectPath")
+                    return@launch
+                }
+                val localRepoDir = File(filesDir, "local-repo").apply { mkdirs() }
+
+                val type = ProjectAnalyzer.detectProjectType(projectDir)
+
+                if (type == ProjectType.ANDROID) {
+                    val resolver = HttpDependencyResolver(projectDir, File(projectDir, "dependencies.toml"), localRepoDir, callback)
+                    val resolverResult = resolver.execute()
+                    if (resolverResult.success && isActive) {
+                        callback.onLog("\n[IDE] Dependencies downloaded successfully.")
+                        updateNotification("Dependencies downloaded.")
+                    } else if (isActive) {
+                        callback.onFailure("Dependency resolution failed: ${resolverResult.output}")
+                    }
+                } else if (type == ProjectType.WEB) {
+                     if (File(projectDir, "package.json").exists()) {
+                         callback.onLog("\n[IDE] 'package.json' detected. 'npm install' is not currently supported on device.")
+                     } else {
+                         callback.onLog("\n[IDE] No dependency file detected for Web project.")
+                     }
+                     updateNotification("Download finished (Web).")
+                } else {
+                     callback.onLog("\n[IDE] Dependency download not supported for $type projects.")
+                     updateNotification("Download finished ($type).")
+                }
+            } catch (e: Throwable) {
+                Log.e(TAG, "Download dependencies failed", e)
+                if (isActive) {
+                    callback.onFailure("[IDE] Failed: ${e.message}")
+                }
+            }
         }
     }
 
