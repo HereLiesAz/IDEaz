@@ -104,9 +104,9 @@ class SimpleJsBundler {
         }
 
         // Handle "export { Name as default }"
-        val namedDefaultRegex = Regex("export\\s+\\{\s*([a-zA-Z0-9_\$]+)\s+as\s+default\s*\\};?")
+        val namedDefaultRegex = Regex("export\\s+\\{\\s*([a-zA-Z0-9_\\$]+)\\s+as\\s+default\\s*\\};?")
         if (namedDefaultRegex.containsMatchIn(code)) {
-            val newCode = namedDefaultRegex.replaceFirst(code) { matchResult ->
+            val newCode = namedDefaultRegex.replace(code) { matchResult ->
                 val exportedName = matchResult.groupValues[1]
                 "const $varName = $exportedName;"
             }
