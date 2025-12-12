@@ -74,6 +74,10 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == "STOP_SERVICE") {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         return START_STICKY
     }
 
@@ -90,11 +94,19 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
     }
 
     private fun getNotification(): Notification {
+        val stopIntent = Intent(this, IdeazOverlayService::class.java).apply {
+            action = "STOP_SERVICE"
+        }
+        val stopPendingIntent = android.app.PendingIntent.getService(
+            this, 0, stopIntent, android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("IDEaz Overlay")
             .setContentText("Tap to open navigation")
             .setSmallIcon(R.mipmap.ic_launcher)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop Overlay", stopPendingIntent)
             .build()
     }
 
