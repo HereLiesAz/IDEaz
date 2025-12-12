@@ -56,8 +56,10 @@ class BuildDelegate(
             scope.launch {
                 onLog("\n[IDE] Build successful: $apkPath\n")
 
+                val type = ProjectType.fromString(settingsViewModel.getProjectType())
+
                 // Check if this is a web build
-                if (apkPath.endsWith("index.html")) {
+                if (type == ProjectType.WEB) {
                     onLog("[IDE] Web Project ready. Loading WebView...\n")
                     onWebBuildSuccess(apkPath)
 
