@@ -21,6 +21,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import java.io.File
 
+const val ACTION_AI_LOG = "com.hereliesaz.ideaz.AI_LOG"
+const val EXTRA_MESSAGE = "MESSAGE"
+
 @Composable
 fun WebProjectHost(
     url: String,
@@ -43,8 +46,8 @@ fun WebProjectHost(
                 override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
                     consoleMessage?.let {
                         val msg = "[WEB] ${it.message()} (${it.sourceId()}:${it.lineNumber()})"
-                        val intent = Intent("com.hereliesaz.ideaz.AI_LOG").apply {
-                            putExtra("MESSAGE", msg)
+                        val intent = Intent(ACTION_AI_LOG).apply {
+                            putExtra(EXTRA_MESSAGE, msg)
                         }
                         context.sendBroadcast(intent)
                     }
@@ -55,8 +58,8 @@ fun WebProjectHost(
             webViewClient = object : WebViewClient() {
                 override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                     val msg = "[WEB] Error loading ${request?.url}: ${error?.description}"
-                    val intent = Intent("com.hereliesaz.ideaz.AI_LOG").apply {
-                        putExtra("MESSAGE", msg)
+                    val intent = Intent(ACTION_AI_LOG).apply {
+                        putExtra(EXTRA_MESSAGE, msg)
                     }
                     context.sendBroadcast(intent)
                 }
