@@ -1,0 +1,172 @@
+name: Build & Release (Docker Optimized)
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+# ⚡ Concurrency: Cancels the entire job (build AND release) if a new push comes in.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    # 🐳 Docker Strategy: Run inside a pre-baked environment.
+    # cimg/android:2025.12.1-ndk includes Android 36, NDK 29, and JDK 21.
+    container:
+      image: cimg/android:2025.12.1-ndk
+      # Run as root to ensure we can write to the GitHub workspace volume
+      options: --user root
+
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      checks: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Java 21, Android SDK 36, and NDK 29 are already installed in the image.
+      # No setup steps needed.
+
+      - name: Inject Google Services
+        env:
+          GOOGLE_SERVICES_API_KEY: ${{ secrets.GOOGLE_SERVICES_API_KEY }}
+          PROJECT_ID: ${{ secrets.PROJECT_ID }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+        run: |
+          if [ -f "app/google-services.json.template" ]; then
+            echo "Template found. Injecting secrets..."
+            sed -e 's/{{\([^}]*\)}}/${\1}/g' app/google-services.json.template | envsubst > app/google-services.json
+          else
+            echo "Warning: google-services.json.template not found. Skipping injection."
+          fi
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        id: gradle-build
+        run: |
+          set +e
+          # The Docker image handles SDK/NDK location automatically via environment variables
+          export BUILD_NUMBER=$(git rev-list --count HEAD)
+          
+          # Build the APK
+          ./gradlew assembleDebug --build-cache > build.log 2>&1
+          
+          EXIT_CODE=$?
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          cat build.log
+          exit $EXIT_CODE
+
+      # ------------------------------------------------------------------
+      # FAILURE HANDLING
+      # ------------------------------------------------------------------
+      - name: Report Failure to Jules
+        if: failure() && steps.gradle-build.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            let logTail = 'Log file not found.';
+            try { logTail = fs.readFileSync('build.log', 'utf8').slice(-4000); } catch (e) {}
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Build Failure on ${context.eventName === 'pull_request' ? 'PR #' + context.issue.number : context.ref}`,
+              body: `@gemini-cli /jules debug this build error\n\n**Log:**\n\`\`\`\n${logTail}\n\`\`\``,
+              labels: ['jules']
+            });
+
+      # ------------------------------------------------------------------
+      # RELEASE STEPS (Only run on PUSH, not Pull Requests)
+      # ------------------------------------------------------------------
+      - name: Prepare Release Variables
+        if: success() && github.event_name == 'push'
+        id: release_vars
+        run: |
+          export BUILD_NUMBER=$(git rev-list --count HEAD)
+          
+          # Extract version info
+          MAJOR=$(grep 'versionMajor=' version.properties | cut -d'=' -f2)
+          MINOR=$(grep 'versionMinor=' version.properties | cut -d'=' -f2)
+          PATCH=$(grep 'versionPatch=' version.properties | cut -d'=' -f2)
+          VERSION_NAME="$MAJOR.$MINOR.$PATCH.$BUILD_NUMBER"
+          
+          TAG_NAME="latest-debug-v${MAJOR}.${MINOR}"
+          
+          # Dynamic App Name
+          if [ -f "settings.gradle.kts" ]; then
+             APP_NAME=$(grep 'rootProject.name' settings.gradle.kts | sed -E "s/.*=.*[\"'](.*)[\"']/\1/")
+          elif [ -f "settings.gradle" ]; then
+             APP_NAME=$(grep 'rootProject.name' settings.gradle | sed -E "s/.*=.*[\"'](.*)[\"']/\1/")
+          else
+             APP_NAME="App"
+          fi
+          
+          # Locate built APK (It is already here!)
+          APK_ORIGINAL=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          
+          if [ -z "$APK_ORIGINAL" ]; then
+             echo "Error: No APK found to release!"
+             exit 1
+          fi
+
+          TARGET_NAME="${APP_NAME}-${VERSION_NAME}-debug.apk"
+          
+          mv "$APK_ORIGINAL" "$TARGET_NAME"
+          
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+          echo "APK_FILE=$TARGET_NAME" >> $GITHUB_ENV
+          
+          # Package Build Tools
+          mkdir -p build_tools_package/tools build_tools_package/native
+          [ -d "app/src/main/assets/tools" ] && cp -r app/src/main/assets/tools/* build_tools_package/tools/ || true
+          [ -d "app/src/main/jniLibs/arm64-v8a" ] && cp -r app/src/main/jniLibs/arm64-v8a/* build_tools_package/native/ || true
+          cd build_tools_package && zip -r ../build-tools.zip . && cd ..
+
+      - name: Publish Release
+        if: success() && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Use specific git config for the bot
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Safe directory config for git inside docker
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+          # Force update tag
+          git tag -fa $TAG_NAME -m "Latest Debug Build"
+          git push origin $TAG_NAME --force
+
+          BUILD_TOOLS="build-tools.zip"
+
+          if gh release view $TAG_NAME > /dev/null 2>&1; then
+             echo "Updating existing release..."
+             gh release edit $TAG_NAME --prerelease \
+               --title "Latest Debug Build ($TAG_NAME)" \
+               --notes "Auto-build from commit $GITHUB_SHA" \
+               --target $GITHUB_SHA
+             gh release upload $TAG_NAME "$APK_FILE" --clobber
+             [ -f "$BUILD_TOOLS" ] && gh release upload $TAG_NAME "$BUILD_TOOLS" --clobber
+          else
+             echo "Creating new release..."
+             gh release create $TAG_NAME "$APK_FILE" --prerelease \
+               --title "Latest Debug Build ($TAG_NAME)" \
+               --notes "Auto-build from commit $GITHUB_SHA" \
+               --target $GITHUB_SHA
+             [ -f "$BUILD_TOOLS" ] && gh release upload $TAG_NAME "$BUILD_TOOLS" --clobber
+          fi
