@@ -190,7 +190,81 @@ class MainViewModel(
         }
     }
     fun forkRepository(u: String, onSuccess: () -> Unit = {}) { /* TODO */ }
-    fun registerExternalProject(u: Uri) { /* TODO */ }
+
+    fun registerExternalProject(u: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                try {
+                    val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    getApplication<Application>().contentResolver.takePersistableUriPermission(u, takeFlags)
+                } catch (e: Exception) {
+                    // Ignore if persistence is not supported
+                }
+
+                val documentFile = androidx.documentfile.provider.DocumentFile.fromTreeUri(getApplication(), u)
+                if (documentFile == null || !documentFile.isDirectory) {
+                    logHandler.onOverlayLog("Invalid project directory selected.")
+                    return@launch
+                }
+
+                var projectName = documentFile.name ?: "Imported_${System.currentTimeMillis()}"
+                var destDir = getApplication<Application>().filesDir.resolve(projectName)
+
+                var counter = 1
+                while (destDir.exists()) {
+                    projectName = "${documentFile.name ?: "Imported"}_$counter"
+                    destDir = getApplication<Application>().filesDir.resolve(projectName)
+                    counter++
+                }
+
+                logHandler.onOverlayLog("Importing project '$projectName'...")
+                logHandler.onProgress(0)
+
+                copyDocumentFileToLocal(documentFile, destDir)
+
+                logHandler.onOverlayLog("Import complete.")
+                logHandler.onProgress(null)
+
+                // Analyze and Load
+                val projectType = com.hereliesaz.ideaz.utils.ProjectAnalyzer.detectProjectType(destDir)
+                val packageName = com.hereliesaz.ideaz.utils.ProjectAnalyzer.detectPackageName(destDir)
+                    ?: "com.ideaz.imported.${projectName.filter { it.isLetterOrDigit() }.lowercase()}"
+
+                val owner = settingsViewModel.getGithubUser() ?: "local"
+                val branch = "main"
+
+                withContext(Dispatchers.Main) {
+                    saveAndInitialize(projectName, owner, branch, packageName, projectType, getApplication())
+                }
+
+            } catch (e: Exception) {
+                logHandler.onOverlayLog("Failed to import project: ${e.message}")
+                e.printStackTrace()
+            } finally {
+                logHandler.onProgress(null)
+            }
+        }
+    }
+
+    private fun copyDocumentFileToLocal(src: androidx.documentfile.provider.DocumentFile, dest: File) {
+        if (src.isDirectory) {
+            if (!dest.exists()) dest.mkdirs()
+            src.listFiles().forEach { file ->
+                val destFile = File(dest, file.name ?: "unknown")
+                copyDocumentFileToLocal(file, destFile)
+            }
+        } else {
+            if (src.name != null) {
+                getApplication<Application>().contentResolver.openInputStream(src.uri)?.use { input ->
+                    dest.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+            }
+        }
+    }
+
     fun deleteProject(n: String) { /* TODO */ }
     fun syncAndDeleteProject(n: String) { /* TODO */ }
 
