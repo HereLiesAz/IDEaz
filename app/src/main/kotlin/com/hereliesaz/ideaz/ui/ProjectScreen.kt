@@ -47,7 +47,7 @@ fun ProjectScreen(
     // --- TABS LOGIC ---
     // Removed "Create" tab. It is now a state within "Setup".
     val tabs = remember(hasToken) {
-        listOf("Setup", "Clone", "Load")
+        listOf("Setup", "Load", "Clone")
     }
     var tabIndex by remember { mutableStateOf(0) }
     val currentTabName = tabs.getOrElse(tabIndex) { "Setup" }

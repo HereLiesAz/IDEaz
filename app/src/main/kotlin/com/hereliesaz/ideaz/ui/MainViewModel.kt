@@ -61,7 +61,7 @@ class MainViewModel(
         }
     }
 
-    val aiDelegate = AIDelegate(settingsViewModel, viewModelScope, logHandler::onAiLog) { patch -> applyPatchInternal(patch) }
+    val aiDelegate = AIDelegate(settingsViewModel, viewModelScope, logHandler::onAiLog) { diff -> applyUnidiffPatchInternal(diff) }
     val overlayDelegate = OverlayDelegate(application, settingsViewModel, viewModelScope, logHandler::onAiLog)
 
     val gitDelegate = GitDelegate(settingsViewModel, viewModelScope, logHandler::onBuildLog, logHandler::onProgress)
@@ -596,32 +596,8 @@ class MainViewModel(
         }
     }
 
-    private suspend fun applyPatchInternal(patch: Patch): Boolean {
-        return withContext(Dispatchers.IO) {
-            try {
-                val appName = settingsViewModel.getAppName() ?: return@withContext false
-                val projectDir = settingsViewModel.getProjectPath(appName)
-                patch.actions.forEach { action ->
-                    val file = File(projectDir, action.filePath)
-                    when (action.type) {
-                        "CREATE_FILE" -> {
-                            file.parentFile?.mkdirs()
-                            file.writeText(action.content)
-                        }
-                        "UPDATE_FILE" -> {
-                            if (file.exists()) file.writeText(action.content)
-                        }
-                        "DELETE_FILE" -> {
-                            if (file.exists()) file.delete()
-                        }
-                    }
-                }
-                gitDelegate.refreshGitData()
-                true
-            } catch (e: Exception) {
-                false
-            }
-        }
+    private suspend fun applyUnidiffPatchInternal(diff: String): Boolean {
+        return gitDelegate.applyUnidiffPatch(diff)
     }
 }
 

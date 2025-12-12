@@ -1,7 +1,6 @@
 package com.hereliesaz.ideaz.ui.delegates
 
 import com.hereliesaz.ideaz.git.GitManager
-import com.hereliesaz.ideaz.jules.Patch
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -69,38 +68,22 @@ class GitDelegate(
     }
 
     /**
-     * Applies a patch (list of file actions) to the local repository.
-     * Note: This method seems redundant if MainViewModel handles patching directly.
+     * Applies a unified diff patch to the local repository using JGit.
      */
-    suspend fun applyPatch(patch: Patch): Boolean {
+    suspend fun applyUnidiffPatch(diff: String): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                val appName = settingsViewModel.getAppName() ?: return@withContext false
-                val projectDir = settingsViewModel.getProjectPath(appName)
-
-                patch.actions.forEach { action ->
-                    val file = File(projectDir, action.filePath)
-                    when (action.type) {
-                        "CREATE_FILE" -> {
-                            file.parentFile?.mkdirs()
-                            file.writeText(action.content)
-                        }
-                        "UPDATE_FILE" -> {
-                            if (file.exists()) file.writeText(action.content)
-                        }
-                        "DELETE_FILE" -> {
-                            if (file.exists()) file.delete()
-                        }
-                    }
-                }
+                getGitManager()?.applyPatch(diff)
                 refreshGitData()
+                onLog("[GIT] Unidiff patch applied successfully.\n")
                 true
             } catch (e: Exception) {
-                onLog("[GIT] Patch failed: ${e.message}\n")
+                onLog("[GIT] Unidiff patch failed: ${e.message}\n")
                 false
             }
         }
     }
+
 
     /**
      * Fetches changes from the remote repository.

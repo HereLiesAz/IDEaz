@@ -292,6 +292,24 @@ fun ProjectSetupTab(
                     modifier = Modifier.fillMaxWidth(),
                     isLoading = isBusy
                 )
+
+                Spacer(Modifier.height(8.dp))
+
+                AzButton(
+                    onClick = {
+                        if (onCheckRequirements()) {
+                            // Ensure init first
+                            viewModel.saveAndInitialize(
+                                appName, githubUser, branchName, packageName, selectedType, context, null
+                            )
+                            viewModel.sendPrompt("Add documentation to this project")
+                        }
+                    },
+                    text = "Add Docs",
+                    shape = AzButtonShape.RECTANGLE,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isBusy
+                )
             }
         }
 
