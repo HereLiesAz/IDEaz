@@ -3,19 +3,23 @@ package com.hereliesaz.ideaz.ui
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Rect
 import android.net.Uri
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hereliesaz.ideaz.api.GitHubRepoResponse
 import com.hereliesaz.ideaz.jules.Patch
 import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.delegates.*
+import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ToolManager
 import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.git.GitManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import java.io.File
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -431,8 +435,52 @@ class MainViewModel(
 
     // MISC
     fun clearLog() = stateDelegate.clearLog()
-    fun launchTargetApp(c: Context) { /* TODO */ }
-    fun downloadDependencies() = buildDelegate.downloadDependencies()
+    fun launchTargetApp(c: Context) {
+        val appName = settingsViewModel.getAppName() ?: return
+        val projectTypeStr = settingsViewModel.getProjectType()
+        val projectType = ProjectType.fromString(projectTypeStr)
+
+        if (projectType == ProjectType.WEB) {
+            if (stateDelegate.currentWebUrl.value == null) {
+                val projectDir = settingsViewModel.getProjectPath(appName)
+                val indexFile = File(projectDir, "index.html")
+                if (indexFile.exists()) {
+                    stateDelegate.setCurrentWebUrl("file://${indexFile.absolutePath}")
+                }
+            }
+            stateDelegate.setTargetAppVisible(true)
+        } else {
+            // Android, Flutter, React Native (assume APK)
+            var packageName = settingsViewModel.targetPackageName.value
+            if (packageName.isNullOrBlank()) {
+                 packageName = "com.example.helloworld" // fallback
+            }
+
+            try {
+                val intent = c.packageManager.getLaunchIntentForPackage(packageName)
+                if (intent != null) {
+                    c.startActivity(intent)
+                } else {
+                    // Try to detect package name again as fallback
+                    val projectDir = settingsViewModel.getProjectPath(appName)
+                    val detectedPackage = ProjectAnalyzer.detectPackageName(projectDir)
+
+                    if (!detectedPackage.isNullOrBlank() && detectedPackage != packageName) {
+                        settingsViewModel.saveTargetPackageName(detectedPackage)
+                        val newIntent = c.packageManager.getLaunchIntentForPackage(detectedPackage)
+                        if (newIntent != null) {
+                            c.startActivity(newIntent)
+                            return
+                        }
+                    }
+                    Toast.makeText(c, "App not installed. Please build first.", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(c, "Failed to launch app: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    fun downloadDependencies() { /* TODO */ }
 
     fun checkRequiredKeys(): List<String> {
         val missing = mutableListOf<String>()
