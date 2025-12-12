@@ -11,6 +11,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
+/**
+ * Delegate responsible for Git operations (fetch, pull, push, stash)
+ * and managing Git state (history, branches, status).
+ *
+ * @param settingsViewModel ViewModel to access Git credentials and project path.
+ * @param scope CoroutineScope for background Git operations.
+ * @param onLog Callback to pipe Git logs to the UI.
+ * @param onProgress Callback to report operation progress.
+ */
 class GitDelegate(
     private val settingsViewModel: SettingsViewModel,
     private val scope: CoroutineScope,
@@ -19,12 +28,15 @@ class GitDelegate(
 ) {
 
     private val _commitHistory = MutableStateFlow<List<String>>(emptyList())
+    /** List of recent commits in the current branch. */
     val commitHistory = _commitHistory.asStateFlow()
 
     private val _branches = MutableStateFlow<List<String>>(emptyList())
+    /** List of available local/remote branches. */
     val branches = _branches.asStateFlow()
 
     private val _gitStatus = MutableStateFlow<List<String>>(emptyList())
+    /** Current status of the working directory (modified files). */
     val gitStatus = _gitStatus.asStateFlow()
 
     private fun getGitManager(): GitManager? {
@@ -40,6 +52,9 @@ class GitDelegate(
         }
     }
 
+    /**
+     * Refreshes the Git data (history, branches, status) from the repository.
+     */
     fun refreshGitData() {
         scope.launch(Dispatchers.IO) {
             val git = getGitManager() ?: return@launch
@@ -53,6 +68,10 @@ class GitDelegate(
         }
     }
 
+    /**
+     * Applies a patch (list of file actions) to the local repository.
+     * Note: This method seems redundant if MainViewModel handles patching directly.
+     */
     suspend fun applyPatch(patch: Patch): Boolean {
         return withContext(Dispatchers.IO) {
             try {
@@ -83,6 +102,9 @@ class GitDelegate(
         }
     }
 
+    /**
+     * Fetches changes from the remote repository.
+     */
     fun fetch() {
         scope.launch(Dispatchers.IO) {
             try {
@@ -97,6 +119,9 @@ class GitDelegate(
         }
     }
 
+    /**
+     * Pulls changes from the remote repository.
+     */
     fun pull() {
         scope.launch(Dispatchers.IO) {
             try {
@@ -111,6 +136,9 @@ class GitDelegate(
         }
     }
 
+    /**
+     * Pushes local changes to the remote repository.
+     */
     fun push() {
         scope.launch(Dispatchers.IO) {
             try {
@@ -130,6 +158,9 @@ class GitDelegate(
         }
     }
 
+    /**
+     * Stashes current changes.
+     */
     fun stash(message: String?) {
         scope.launch(Dispatchers.IO) {
             getGitManager()?.stash(message)
@@ -138,6 +169,9 @@ class GitDelegate(
         }
     }
 
+    /**
+     * Applies the latest stash.
+     */
     fun unstash() {
         scope.launch(Dispatchers.IO) {
             getGitManager()?.unstash()
@@ -146,6 +180,9 @@ class GitDelegate(
         }
     }
 
+    /**
+     * Switches to the specified branch.
+     */
     fun switchBranch(branch: String) {
         scope.launch(Dispatchers.IO) {
             getGitManager()?.checkout(branch)

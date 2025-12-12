@@ -35,6 +35,7 @@
 *   `ApkBuild.kt` / `ApkSign.kt`: APK packaging and signing.
 *   `HttpDependencyResolver.kt`: Resolves and downloads Maven dependencies.
 *   `WebBuildStep.kt`: Builds Web projects.
+*   `SimpleJsBundler.kt`: Basic bundler for React Native projects.
 
 #### git/
 *   `GitManager.kt`: Wrapper around JGit for version control operations.
@@ -42,6 +43,8 @@
 #### services/
 *   `BuildService.kt`: Background service running the build toolchain.
 *   `UIInspectionService.kt`: Accessibility Service for UI inspection and overlay.
+*   `IdeazOverlayService.kt`: Foreground Service for the main visual overlay.
+*   `ScreenshotService.kt`: Service for capturing screenshots.
 *   `IBuildService.aidl`: IPC interface for the Build Service.
 
 #### ui/
@@ -52,10 +55,23 @@
 *   `IdeBottomSheet.kt`: The global log and chat console.
 *   `IdeNavRail.kt`: Navigation component.
 
+#### ui/delegates/
+*   `AIDelegate.kt`: Manages AI sessions and Jules interaction.
+*   `BuildDelegate.kt`: Manages BuildService binding and execution.
+*   `GitDelegate.kt`: Manages Git operations and state.
+*   `OverlayDelegate.kt`: Manages the visual overlay and selection mode.
+*   `RepoDelegate.kt`: Manages repository fetching and creation.
+*   `StateDelegate.kt`: Centralizes shared UI state (logs, progress).
+*   `SystemEventDelegate.kt`: Handles BroadcastReceivers for system events.
+*   `UpdateDelegate.kt`: Handles application self-updates.
+
 #### utils/
 *   `ToolManager.kt`: Installs and locates native tools (`aapt2`, `java`, etc.).
 *   `ProjectAnalyzer.kt`: Detects project types and configurations.
 *   `ProcessExecutor.kt`: Helper to run native shell commands.
+*   `SourceMapParser.kt`: Parses R8 mapping files.
+*   `SourceContextHelper.kt`: Resolves source locations from view IDs.
+*   `ApkInstaller.kt`: Helper to install APKs.
 
 ## docs/
 (See `AGENTS.md` for index)
