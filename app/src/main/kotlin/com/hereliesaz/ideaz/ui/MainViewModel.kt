@@ -11,6 +11,7 @@ import com.hereliesaz.ideaz.api.GitHubRepoResponse
 import com.hereliesaz.ideaz.jules.Patch
 import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.delegates.*
+import com.hereliesaz.ideaz.git.GitManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -191,8 +192,62 @@ class MainViewModel(
     }
     fun forkRepository(u: String, onSuccess: () -> Unit = {}) { /* TODO */ }
     fun registerExternalProject(u: Uri) { /* TODO */ }
-    fun deleteProject(n: String) { /* TODO */ }
-    fun syncAndDeleteProject(n: String) { /* TODO */ }
+    fun deleteProject(n: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                performLocalDeletion(n)
+                logHandler.onBuildLog("Project '$n' deleted locally.\n")
+            } catch (e: Exception) {
+                logHandler.onBuildLog("Error deleting project: ${e.message}\n")
+            }
+        }
+    }
+
+    fun syncAndDeleteProject(n: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val projectDir = settingsViewModel.getProjectPath(n)
+                if (projectDir.exists()) {
+                    logHandler.onBuildLog("Syncing project '$n' before deletion...\n")
+                    val git = GitManager(projectDir)
+
+                    if (git.hasChanges()) {
+                        git.addAll()
+                        git.commit("Sync before delete")
+                    }
+
+                    val token = settingsViewModel.getGithubToken()
+                    val user = settingsViewModel.getGithubUser() ?: "git"
+
+                    if (!token.isNullOrBlank()) {
+                        git.push(user, token) { p, t -> logHandler.onGitProgress(p, t) }
+                        logHandler.onBuildLog("Project synced successfully.\n")
+                    } else {
+                        logHandler.onBuildLog("Warning: No GitHub token found. Skipping push.\n")
+                    }
+                }
+                performLocalDeletion(n)
+                logHandler.onBuildLog("Project '$n' deleted.\n")
+            } catch (e: Exception) {
+                logHandler.onBuildLog("Error syncing/deleting project: ${e.message}\n")
+            }
+        }
+    }
+
+    private suspend fun performLocalDeletion(n: String) {
+        val projectDir = settingsViewModel.getProjectPath(n)
+        if (projectDir.exists()) {
+            projectDir.deleteRecursively()
+        }
+        withContext(Dispatchers.Main) {
+            settingsViewModel.removeProject(n)
+            settingsViewModel.removeProjectPath(n)
+            if (settingsViewModel.getAppName() == n) {
+                settingsViewModel.setAppName("")
+            }
+            scanLocalProjects()
+        }
+    }
 
     // UPDATE
     fun checkForExperimentalUpdates() = updateDelegate.checkForExperimentalUpdates()
