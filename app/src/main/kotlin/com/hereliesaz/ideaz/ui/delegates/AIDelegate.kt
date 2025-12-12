@@ -188,7 +188,9 @@ class AIDelegate(
             val activities = response.activities ?: emptyList()
 
             // Check for Agent Message
-            val latestAgentMessage = activities.find { it.agentMessaged != null } // Find latest? list usually ordered?
+            val latestAgentMessage = activities
+                .filter { it.agentMessaged != null }
+                .maxByOrNull { it.createTime } // Assuming createTime is a sortable string like ISO 8601
             // Docs don't specify order. Assuming newest first or last?
             // Usually REST lists are newest first or oldest first.
             // I'll check all.
