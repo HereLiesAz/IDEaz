@@ -193,16 +193,15 @@ class AIDelegate(
             val activities = getAllActivities(sessionId)
 
             // Check for Agent Message
-            val latestAgentMessage = activities.find { it.agentMessaged != null } // Find latest? list usually ordered?
-            // Docs don't specify order. Assuming newest first or last?
-            // Usually REST lists are newest first or oldest first.
-            // I'll check all.
+            // We log the latest message if found.
+            // A more robust implementation would track seen message IDs.
+            val latestAgentMessage = activities.findLast { it.agentMessaged != null }
 
             if (latestAgentMessage != null) {
-                // onOverlayLog("Agent: ${latestAgentMessage.agentMessaged?.agentMessage}")
-                // Break if we processed it?
-                // For now, just log the first one found that is new?
-                // This logic is simple/naive.
+                val msg = latestAgentMessage.agentMessaged?.agentMessage
+                if (!msg.isNullOrBlank()) {
+                     onOverlayLog("Jules: $msg")
+                }
             }
 
             // Check for Artifacts (Patches)
