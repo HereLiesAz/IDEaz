@@ -61,7 +61,7 @@ jobs:
           export BUILD_NUMBER=$(git rev-list --count HEAD)
           
           # Build the APK
-          ./gradlew assembleDebug --build-cache > build.log 2>&1
+          ./gradlew assembleDebug -PversionBuild=$BUILD_NUMBER --build-cache > build.log 2>&1
           
           EXIT_CODE=$?
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
