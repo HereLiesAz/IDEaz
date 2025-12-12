@@ -14,6 +14,9 @@ import com.hereliesaz.ideaz.jules.Patch
 import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.delegates.*
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
+import com.hereliesaz.ideaz.utils.ToolManager
+import com.hereliesaz.ideaz.api.GitHubApiClient
+import com.hereliesaz.ideaz.git.GitManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
@@ -21,6 +24,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 
 class MainViewModel(
     application: Application,
@@ -123,7 +129,69 @@ class MainViewModel(
     fun unbindBuildService(c: Context) = buildDelegate.unbindService(c)
     fun startBuild(c: Context, p: File? = null) = buildDelegate.startBuild(p)
     fun clearBuildCaches(c: Context) { /* TODO */ }
-    fun downloadBuildTools() { /* TODO */ }
+    fun downloadBuildTools() {
+        viewModelScope.launch {
+            val token = settingsViewModel.getGithubToken()
+            if (token.isNullOrBlank()) {
+                logHandler.onBuildLog("Error: GitHub Token required to download tools.")
+                return@launch
+            }
+
+            stateDelegate.setLoadingProgress(0)
+            logHandler.onBuildLog("Checking for build tools...")
+
+            var zipFile: File? = null
+            try {
+                // Fetch releases on IO thread
+                val releases = withContext(Dispatchers.IO) {
+                    val service = GitHubApiClient.createService(token)
+                    service.getReleases("HereLiesAz", "IDEaz")
+                }
+
+                // Look for 'tools.zip' in assets
+                val toolAsset = releases.asSequence()
+                    .flatMap { it.assets }
+                    .firstOrNull { it.name == "tools.zip" }
+
+                if (toolAsset == null) {
+                    logHandler.onBuildLog("Error: 'tools.zip' not found in recent releases.")
+                    stateDelegate.setLoadingProgress(null)
+                    return@launch
+                }
+
+                logHandler.onBuildLog("Downloading tools from ${toolAsset.name}...")
+                zipFile = File(getApplication<Application>().cacheDir, "tools.zip")
+
+                val success = downloadFile(toolAsset.browserDownloadUrl, zipFile) { progress ->
+                    stateDelegate.setLoadingProgress(progress)
+                }
+
+                if (success) {
+                    logHandler.onBuildLog("Installing tools...")
+                    val installed = withContext(Dispatchers.IO) {
+                        ToolManager.installToolsFromZip(getApplication(), zipFile)
+                    }
+                    if (installed) {
+                        logHandler.onBuildLog("Build tools installed successfully.")
+                        settingsViewModel.setLocalBuildEnabled(true)
+                    } else {
+                        logHandler.onBuildLog("Error: Failed to install tools.")
+                        settingsViewModel.setLocalBuildEnabled(false)
+                    }
+                } else {
+                    logHandler.onBuildLog("Error: Download failed.")
+                    settingsViewModel.setLocalBuildEnabled(false)
+                }
+            } catch (e: Exception) {
+                logHandler.onBuildLog("Error downloading tools: ${e.message}")
+                e.printStackTrace()
+                settingsViewModel.setLocalBuildEnabled(false)
+            } finally {
+                zipFile?.delete()
+                stateDelegate.setLoadingProgress(null)
+            }
+        }
+    }
 
     // GIT
     fun refreshGitData() = gitDelegate.refreshGitData()
@@ -194,9 +262,171 @@ class MainViewModel(
         }
     }
     fun forkRepository(u: String, onSuccess: () -> Unit = {}) { /* TODO */ }
-    fun registerExternalProject(u: Uri) { /* TODO */ }
+
+    fun registerExternalProject(u: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                try {
+                    val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    getApplication<Application>().contentResolver.takePersistableUriPermission(u, takeFlags)
+                } catch (e: Exception) {
+                    // Ignore if persistence is not supported
+                }
+
+                val documentFile = androidx.documentfile.provider.DocumentFile.fromTreeUri(getApplication(), u)
+                if (documentFile == null || !documentFile.isDirectory) {
+                    logHandler.onOverlayLog("Invalid project directory selected.")
+                    return@launch
+                }
+
+                var projectName = documentFile.name ?: "Imported_${System.currentTimeMillis()}"
+                var destDir = getApplication<Application>().filesDir.resolve(projectName)
+
+                var counter = 1
+                while (destDir.exists()) {
+                    projectName = "${documentFile.name ?: "Imported"}_$counter"
+                    destDir = getApplication<Application>().filesDir.resolve(projectName)
+                    counter++
+                }
+
+                logHandler.onOverlayLog("Importing project '$projectName'...")
+                logHandler.onProgress(0)
+
+                copyDocumentFileToLocal(documentFile, destDir)
+
+                logHandler.onOverlayLog("Import complete.")
+                logHandler.onProgress(null)
+
+                // Analyze and Load
+                val projectType = com.hereliesaz.ideaz.utils.ProjectAnalyzer.detectProjectType(destDir)
+                val packageName = com.hereliesaz.ideaz.utils.ProjectAnalyzer.detectPackageName(destDir)
+                    ?: "com.ideaz.imported.${projectName.filter { it.isLetterOrDigit() }.lowercase()}"
+
+                val owner = settingsViewModel.getGithubUser() ?: "local"
+                val branch = "main"
+
+                withContext(Dispatchers.Main) {
+                    saveAndInitialize(projectName, owner, branch, packageName, projectType, getApplication())
+                }
+
+            } catch (e: Exception) {
+                logHandler.onOverlayLog("Failed to import project: ${e.message}")
+                e.printStackTrace()
+            } finally {
+                logHandler.onProgress(null)
+            }
+        }
+    }
+
+    private fun copyDocumentFileToLocal(src: androidx.documentfile.provider.DocumentFile, dest: File) {
+        if (src.isDirectory) {
+            if (!dest.exists()) dest.mkdirs()
+            src.listFiles().forEach { file ->
+                val destFile = File(dest, file.name ?: "unknown")
+                copyDocumentFileToLocal(file, destFile)
+            }
+        } else {
+            if (src.name != null) {
+                getApplication<Application>().contentResolver.openInputStream(src.uri)?.use { input ->
+                    dest.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+            }
+        }
+    }
+
     fun deleteProject(n: String) { /* TODO */ }
+    fun registerExternalProject(u: Uri) { /* TODO */ }
+    fun deleteProject(n: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val dir = settingsViewModel.getProjectPath(n)
+                if (dir.exists()) {
+                    if (dir.deleteRecursively()) {
+                        withContext(Dispatchers.Main) {
+                            settingsViewModel.removeProject(n)
+                            settingsViewModel.removeProjectPath(n)
+                            if (settingsViewModel.getAppName() == n) {
+                                settingsViewModel.setAppName("")
+                            }
+                            repoDelegate.scanLocalProjects()
+                            stateDelegate.appendAiLog("Project '$n' deleted successfully.")
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            stateDelegate.appendAiLog("Failed to delete project '$n'. Check permissions.")
+                        }
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        settingsViewModel.removeProject(n)
+                        settingsViewModel.removeProjectPath(n)
+                        repoDelegate.scanLocalProjects()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    stateDelegate.appendAiLog("Error deleting project '$n': ${e.message}")
+                }
+            }
+        }
+    }
     fun syncAndDeleteProject(n: String) { /* TODO */ }
+                performLocalDeletion(n)
+                logHandler.onBuildLog("Project '$n' deleted locally.\n")
+            } catch (e: Exception) {
+                logHandler.onBuildLog("Error deleting project: ${e.message}\n")
+            }
+        }
+    }
+
+    fun syncAndDeleteProject(n: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val projectDir = settingsViewModel.getProjectPath(n)
+                if (projectDir.exists()) {
+                    logHandler.onBuildLog("Syncing project '$n' before deletion...\n")
+                    val git = GitManager(projectDir)
+
+                    if (git.hasChanges()) {
+                        git.addAll()
+                        git.commit("Sync before delete")
+                    }
+
+                    val token = settingsViewModel.getGithubToken()
+                    val user = settingsViewModel.getGithubUser() ?: "git"
+
+                    if (!token.isNullOrBlank()) {
+                        git.push(user, token) { p, t -> logHandler.onGitProgress(p, t) }
+                        logHandler.onBuildLog("Project synced successfully.\n")
+                    } else {
+                        logHandler.onBuildLog("Warning: No GitHub token found. Skipping push.\n")
+                    }
+                }
+                performLocalDeletion(n)
+                logHandler.onBuildLog("Project '$n' deleted.\n")
+            } catch (e: Exception) {
+                logHandler.onBuildLog("Error syncing/deleting project: ${e.message}\n")
+            }
+        }
+    }
+
+    private suspend fun performLocalDeletion(n: String) {
+        val projectDir = settingsViewModel.getProjectPath(n)
+        if (projectDir.exists()) {
+            projectDir.deleteRecursively()
+        }
+        withContext(Dispatchers.Main) {
+            settingsViewModel.removeProject(n)
+            settingsViewModel.removeProjectPath(n)
+            if (settingsViewModel.getAppName() == n) {
+                settingsViewModel.setAppName("")
+            }
+            scanLocalProjects()
+        }
+    }
 
     // UPDATE
     fun checkForExperimentalUpdates() = updateDelegate.checkForExperimentalUpdates()
@@ -257,6 +487,41 @@ class MainViewModel(
         if (settingsViewModel.getApiKey().isNullOrBlank()) missing.add("Jules API Key")
         if (settingsViewModel.getGithubToken().isNullOrBlank()) missing.add("GitHub Token")
         return missing
+    }
+
+    private suspend fun downloadFile(urlStr: String, destination: File, onProgress: (Int) -> Unit): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val url = URL(urlStr)
+                val connection = url.openConnection() as HttpURLConnection
+                connection.connect()
+
+                if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                    return@withContext false
+                }
+
+                val fileLength = connection.contentLength
+                val input = connection.inputStream
+                val output = FileOutputStream(destination)
+
+                val data = ByteArray(4096)
+                var total: Long = 0
+                var count: Int
+                while (input.read(data).also { count = it } != -1) {
+                    total += count
+                    if (fileLength > 0) {
+                        onProgress((total * 100 / fileLength).toInt())
+                    }
+                    output.write(data, 0, count)
+                }
+                output.close()
+                input.close()
+                true
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
+        }
     }
 
     private suspend fun applyPatchInternal(patch: Patch): Boolean {
