@@ -74,6 +74,7 @@ class MainViewModel(
     // --- PUBLIC STATE EXPOSURE (Delegated) ---
     val loadingProgress = stateDelegate.loadingProgress
     val isTargetAppVisible = stateDelegate.isTargetAppVisible
+    val currentWebUrl = stateDelegate.currentWebUrl
     val buildLog = stateDelegate.buildLog
     val filteredLog = stateDelegate.filteredLog
     val pendingRoute = stateDelegate.pendingRoute
