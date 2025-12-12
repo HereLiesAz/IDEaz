@@ -49,6 +49,7 @@ class AIDelegate(
     val sessions = _sessions.asStateFlow()
 
     private var contextualTaskJob: Job? = null
+    private val processedActivityIds = mutableSetOf<String>()
 
     /**
      * Resumes an existing Jules session by its ID.
@@ -195,7 +196,7 @@ class AIDelegate(
             // Check for Agent Message
             // We log the latest message if found.
             // A more robust implementation would track seen message IDs.
-            val latestAgentMessage = activities.findLast { it.agentMessaged != null }
+            val latestAgentMessage = activities.firstOrNull { it.agentMessaged != null }
 
             if (latestAgentMessage != null) {
                 val msg = latestAgentMessage.agentMessaged?.agentMessage
@@ -206,17 +207,23 @@ class AIDelegate(
 
             // Check for Artifacts (Patches)
             activities.forEach { activity ->
-                activity.artifacts?.forEach { artifact ->
-                    val patch = artifact.changeSet?.gitPatch?.unidiffPatch
-                    if (!patch.isNullOrBlank()) {
-                        onOverlayLog("Patch received via Activity ${activity.id}. Applying...")
-                        val success = onUnidiffPatchReceived(patch)
-                        if (success) {
-                            onOverlayLog("Patch applied.")
-                            return // Exit polling after success?
-                        } else {
-                            onOverlayLog("Patch failed.")
+                if (activity.id !in processedActivityIds) {
+                    var activityProcessed = false
+                    activity.artifacts?.forEach { artifact ->
+                        val patch = artifact.changeSet?.gitPatch?.unidiffPatch
+                        if (!patch.isNullOrBlank()) {
+                            onOverlayLog("Patch received via Activity ${activity.id}. Applying...")
+                            val success = onUnidiffPatchReceived(patch)
+                            if (success) {
+                                onOverlayLog("Patch applied.")
+                                activityProcessed = true
+                            } else {
+                                onOverlayLog("Patch failed.")
+                            }
                         }
+                    }
+                    if (activityProcessed) {
+                        processedActivityIds.add(activity.id)
                     }
                 }
             }
