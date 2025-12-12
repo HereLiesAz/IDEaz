@@ -234,6 +234,9 @@ fun ProjectScreen(
             )
             "Load" -> ProjectLoadTab(viewModel, settingsViewModel, context) {
                 if(checkLoadRequirements()) {
+                    // Reset web state when loading a project (it might be Android)
+                    viewModel.stateDelegate.setCurrentWebUrl(null)
+                    viewModel.stateDelegate.setTargetAppVisible(false)
                     viewModel.loadProject(it) {
                         isCreateMode = false
                         tabIndex = tabs.indexOf("Setup")
