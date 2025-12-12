@@ -133,4 +133,15 @@ class BuildDelegate(
             }
         }
     }
+
+    fun downloadDependencies(projectDir: File? = null) {
+        scope.launch {
+            if (isBuildServiceBound) {
+                val dir = projectDir ?: settingsViewModel.getProjectPath(settingsViewModel.getAppName() ?: "")
+                buildService?.downloadDependencies(dir.absolutePath, buildCallback)
+            } else {
+                onLog("Error: Build Service not bound.\n")
+            }
+        }
+    }
 }
