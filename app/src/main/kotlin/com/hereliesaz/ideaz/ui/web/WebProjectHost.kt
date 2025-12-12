@@ -79,18 +79,13 @@ fun WebProjectHost(
             when (event) {
                 Lifecycle.Event.ON_RESUME -> webView.onResume()
                 Lifecycle.Event.ON_PAUSE -> webView.onPause()
-                Lifecycle.Event.ON_DESTROY -> webView.destroy()
                 else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            // Note: We don't call destroy() here because the WebView might be reused or
-            // the composable might be recomposed. ON_DESTROY handles final cleanup.
-            // But if the composable leaves the screen, we should probably destroy it if we created it in remember.
-            // However, remember { WebView } keeps it alive across recompositions, but onDispose means it's gone from UI.
-            // Ideally, we should destroy it on dispose to avoid leaks.
+            // Destroy the WebView to prevent memory leaks when the composable is disposed.
             webView.destroy()
         }
     }

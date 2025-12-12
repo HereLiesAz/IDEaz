@@ -158,13 +158,31 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
 
     // Manual dragging support
     private fun updatePosition(x: Float, y: Float) {
-        if (overlayView == null) return
-        layoutParams.x += x.toInt()
-        layoutParams.y += y.toInt()
+        val view = overlayView ?: return
+
+        val metrics = windowManager.currentWindowMetrics
+        val bounds = metrics.bounds
+        val screenWidth = bounds.width()
+        val screenHeight = bounds.height()
+
+        val viewWidth = if (view.width > 0) view.width else 0
+        val viewHeight = if (view.height > 0) view.height else 0
+
+        // Calculate new position
+        val newX = layoutParams.x + x.toInt()
+        val newY = layoutParams.y + y.toInt()
+
+        // Clamp to screen bounds
+        val maxX = (screenWidth - viewWidth).coerceAtLeast(0)
+        val maxY = (screenHeight - viewHeight).coerceAtLeast(0)
+
+        layoutParams.x = newX.coerceIn(0, maxX)
+        layoutParams.y = newY.coerceIn(0, maxY)
+
         try {
-            windowManager.updateViewLayout(overlayView, layoutParams)
+            windowManager.updateViewLayout(view, layoutParams)
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("IdeazOverlayService", "Failed to update overlay position", e)
         }
     }
 
