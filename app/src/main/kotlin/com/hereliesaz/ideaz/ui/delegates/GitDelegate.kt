@@ -58,6 +58,12 @@ class GitDelegate(
         scope.launch(Dispatchers.IO) {
             val git = getGitManager() ?: return@launch
             try {
+                // Sync current branch to settings
+                val currentBranch = git.getCurrentBranch()
+                if (currentBranch != null) {
+                    settingsViewModel.saveBranchName(currentBranch)
+                }
+
                 _commitHistory.value = git.getCommitHistory()
                 _branches.value = git.getBranches()
                 _gitStatus.value = git.getStatus()
