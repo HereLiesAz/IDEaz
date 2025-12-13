@@ -113,9 +113,9 @@ jobs:
           export BUILD_NUMBER=$(git rev-list --count HEAD)
           
           # Extract version info from properties file
-          MAJOR=$(grep 'versionMajor=' version.properties | cut -d'=' -f2)
-          MINOR=$(grep 'versionMinor=' version.properties | cut -d'=' -f2)
-          PATCH=$(grep 'versionPatch=' version.properties | cut -d'=' -f2)
+          MAJOR=$(grep 'major=' version.properties | cut -d'=' -f2)
+          MINOR=$(grep 'minor=' version.properties | cut -d'=' -f2)
+          PATCH=$(grep 'patch=' version.properties | cut -d'=' -f2)
           VERSION_NAME="$MAJOR.$MINOR.$PATCH.$BUILD_NUMBER"
           
           TAG_NAME="latest-debug-v${MAJOR}.${MINOR}"

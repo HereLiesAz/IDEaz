@@ -9,6 +9,16 @@ import android.graphics.Rect
 import android.os.Build
 import androidx.core.content.ContextCompat
 
+/**
+ * Handles system-wide events via BroadcastReceivers.
+ * Listens for AI prompts from notifications, selection events from the overlay service,
+ * screenshot captures, and target app visibility changes.
+ *
+ * @param application The Application context.
+ * @param aiDelegate Delegate to trigger AI tasks.
+ * @param overlayDelegate Delegate to handle UI overlay updates.
+ * @param stateDelegate Delegate to update shared UI state.
+ */
 class SystemEventDelegate(
     private val application: Application,
     private val aiDelegate: AIDelegate,
@@ -19,6 +29,10 @@ class SystemEventDelegate(
     private val promptReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
+                "com.hereliesaz.ideaz.TOGGLE_SELECT_MODE" -> {
+                    val enable = intent.getBooleanExtra("ENABLE", false)
+                    overlayDelegate.setInternalSelectMode(enable)
+                }
                 "com.hereliesaz.ideaz.AI_PROMPT" -> {
                     val prompt = intent.getStringExtra("PROMPT")
                     if (!prompt.isNullOrBlank()) aiDelegate.startContextualAITask(prompt)
@@ -61,6 +75,7 @@ class SystemEventDelegate(
 
     init {
         val promptFilter = IntentFilter().apply {
+            addAction("com.hereliesaz.ideaz.TOGGLE_SELECT_MODE")
             addAction("com.hereliesaz.ideaz.AI_PROMPT")
             addAction("com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE")
             addAction("com.hereliesaz.ideaz.SELECTION_MADE")
@@ -78,6 +93,9 @@ class SystemEventDelegate(
         }
     }
 
+    /**
+     * Unregisters receivers to prevent memory leaks.
+     */
     fun cleanup() {
         try { application.unregisterReceiver(promptReceiver) } catch (e: Exception) {}
         try { application.unregisterReceiver(visibilityReceiver) } catch (e: Exception) {}
