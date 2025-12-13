@@ -1,22 +1,19 @@
 package com.hereliesaz.ideaz.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.Dp
@@ -40,6 +37,31 @@ fun IdeBottomSheet(
     val clipboardManager = LocalClipboardManager.current
     val coroutineScope = rememberCoroutineScope()
 
+    // Theming Logic
+    val themeMode by viewModel.settingsViewModel.themeMode.collectAsState()
+    val isSystemDark = isSystemInDarkTheme()
+    val isDark = when (themeMode) {
+        SettingsViewModel.THEME_DARK -> true
+        SettingsViewModel.THEME_LIGHT -> false
+        else -> isSystemDark
+    }
+
+    val customColorScheme = if (isDark) {
+        darkColorScheme(
+            surface = Color(0xFF1E1E1E),
+            onSurface = Color.White,
+            background = Color(0xFF1E1E1E),
+            onBackground = Color.White
+        )
+    } else {
+        lightColorScheme(
+            surface = Color(0xFFEEEEEE),
+            onSurface = Color.Black,
+            background = Color(0xFFEEEEEE),
+            onBackground = Color.Black
+        )
+    }
+
     val contentHeight = when (sheetState.currentDetent) {
         halfwayDetent -> screenHeight * 0.5f
         peekDetent -> screenHeight * 0.25f
@@ -48,64 +70,104 @@ fun IdeBottomSheet(
 
     val bottomBufferHeight = screenHeight * 0.075f
 
-    BottomSheet(
-        state = sheetState,
-        modifier = Modifier
-            .fillMaxSize()
-            .background(androidx.compose.ui.graphics.Color(0xFF1E1E1E))
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+    // Tabs
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val tabs = listOf("All", "Build", "Git", "AI")
 
-            if (contentHeight > 0.dp) {
-                Column(modifier = Modifier.height(contentHeight)) {
+    val filteredMessages = remember(logMessages, selectedTab) {
+        when (selectedTab) {
+            1 -> logMessages.filter { !it.contains("[AI]") && !it.contains("[GIT]") }
+            2 -> logMessages.filter { it.contains("[GIT]") }
+            3 -> logMessages.filter { it.contains("[AI]") }
+            else -> logMessages
+        }
+    }
 
-                    LazyColumn(
+    MaterialTheme(colorScheme = customColorScheme) {
+        BottomSheet(
+            state = sheetState,
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+
+                if (contentHeight > 0.dp) {
+                    Column(modifier = Modifier.height(contentHeight)) {
+
+                        if (isHalfwayExpanded) {
+                            TabRow(
+                                selectedTabIndex = selectedTab,
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                                divider = {},
+                                indicator = { tabPositions ->
+                                    if (selectedTab < tabPositions.size) {
+                                        TabRowDefaults.Indicator(
+                                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            ) {
+                                tabs.forEachIndexed { index, title ->
+                                    Tab(
+                                        selected = selectedTab == index,
+                                        onClick = { selectedTab = index },
+                                        text = { Text(title, color = MaterialTheme.colorScheme.onSurface) }
+                                    )
+                                }
+                            }
+                        }
+
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            items(filteredMessages) { message ->
+                                Text(
+                                    text = message,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        ContextlessChatInput(
+                            modifier = Modifier.fillMaxWidth(),
+                            onSend = onSendPrompt
+                        )
+
+                        Spacer(modifier = Modifier.height(bottomBufferHeight))
+                    }
+                }
+
+                if (isHalfwayExpanded) {
+                    Row(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .padding(horizontal = 16.dp)
+                            .align(Alignment.TopEnd)
+                            .padding(top = 48.dp, end = 16.dp) // Adjusted top padding to clear Tabs
                     ) {
-                        items(logMessages) { message ->
-                            Text(
-                                text = message,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = androidx.compose.ui.graphics.Color.White
+                        IconButton(onClick = {
+                            coroutineScope.launch {
+                                clipboardManager.setText(AnnotatedString(filteredMessages.joinToString("\n")))
+                            }
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "Copy Log",
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
-                    }
-
-                    ContextlessChatInput(
-                        modifier = Modifier.fillMaxWidth(),
-                        onSend = onSendPrompt
-                    )
-
-                    Spacer(modifier = Modifier.height(bottomBufferHeight))
-                }
-            }
-
-            if (isHalfwayExpanded) {
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 16.dp, end = 16.dp)
-                ) {
-                    IconButton(onClick = {
-                        coroutineScope.launch {
-                            clipboardManager.setText(AnnotatedString(logMessages.joinToString("\n")))
+                        IconButton(onClick = { viewModel.clearLog() }) {
+                            Icon(
+                                imageVector = Icons.Default.Clear,
+                                contentDescription = "Clear Log",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
                         }
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = "Copy Log",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    IconButton(onClick = { viewModel.clearLog() }) {
-                        Icon(
-                            imageVector = Icons.Default.Clear,
-                            contentDescription = "Clear Log",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
                     }
                 }
             }
