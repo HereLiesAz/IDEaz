@@ -11,40 +11,54 @@ import android.os.Build
 import android.os.IBinder
 import android.view.Gravity
 import android.view.WindowManager
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.*
+import android.widget.Toast
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
 import androidx.core.app.NotificationCompat
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
+import com.composables.core.SheetDetent
 import com.composables.core.rememberBottomSheetState
 import com.hereliesaz.ideaz.R
-import com.hereliesaz.ideaz.ui.*
+import com.hereliesaz.ideaz.ui.AlmostHidden
+import com.hereliesaz.ideaz.ui.ContextualChatOverlay
+import com.hereliesaz.ideaz.ui.Halfway
+import com.hereliesaz.ideaz.ui.IdeBottomSheet
+import com.hereliesaz.ideaz.ui.IdeNavRail
+import com.hereliesaz.ideaz.ui.MainViewModel
+import com.hereliesaz.ideaz.ui.MainViewModelFactory
+import com.hereliesaz.ideaz.ui.Peek
+import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.ui.theme.IDEazTheme
-import com.hereliesaz.ideaz.ui.web.WebProjectHost
 import com.hereliesaz.ideaz.utils.ComposeLifecycleHelper
-import kotlinx.coroutines.launch
 
-class IdeazOverlayService : Service() {
+class IdeazOverlayService : Service(), ViewModelStoreOwner {
 
     private val windowManager by lazy { getSystemService(WindowManager::class.java) }
     private var overlayView: ComposeView? = null
     private var lifecycleHelper: ComposeLifecycleHelper? = null
+    private val store = ViewModelStore()
     private lateinit var layoutParams: WindowManager.LayoutParams
 
-    private var lastX = 0
-    private var lastY = 0
-    private var wasExpanded = false
-
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override val viewModelStore: ViewModelStore
+        get() = store
 
     override fun onCreate() {
         super.onCreate()
@@ -54,10 +68,6 @@ class IdeazOverlayService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == "STOP_SERVICE") {
-            stopSelf()
-            return START_NOT_STICKY
-        }
         return START_STICKY
     }
 
@@ -68,63 +78,36 @@ class IdeazOverlayService : Service() {
                 "IDEaz Overlay",
                 NotificationManager.IMPORTANCE_LOW
             )
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
         }
     }
 
     private fun getNotification(): Notification {
-        val stopIntent = Intent(this, IdeazOverlayService::class.java).apply {
-            action = "STOP_SERVICE"
-        }
-        val stopPendingIntent = android.app.PendingIntent.getService(
-            this, 0, stopIntent, android.app.PendingIntent.FLAG_IMMUTABLE
-        )
-
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("IDEaz Overlay")
             .setContentText("Tap to open navigation")
             .setSmallIcon(R.mipmap.ic_launcher)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop Overlay", stopPendingIntent)
             .build()
-    }
-
-    private fun updateNotification(messages: List<String>) {
-        val stopIntent = Intent(this, IdeazOverlayService::class.java).apply {
-            action = "STOP_SERVICE"
-        }
-        val stopPendingIntent = android.app.PendingIntent.getService(
-            this, 0, stopIntent, android.app.PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val collapsed = messages.takeLast(3).joinToString("\n")
-        val expanded = messages.takeLast(10).joinToString("\n")
-        val contentText = if (collapsed.isBlank()) "IDEaz Active" else collapsed
-
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("IDEaz")
-            .setContentText(contentText)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(expanded))
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop Overlay", stopPendingIntent)
-            .build()
-
-        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification)
     }
 
     private fun setupOverlay() {
-        overlayView = ComposeView(this)
+        // 1. Create the view
+        val view = ComposeView(this)
+        overlayView = view
 
-        // Create and attach the lifecycle helper BEFORE setContent
-        lifecycleHelper = ComposeLifecycleHelper(overlayView!!)
+        // 2. Initialize LifecycleHelper and attach owners *BEFORE* setContent
+        lifecycleHelper = ComposeLifecycleHelper(view)
         lifecycleHelper?.onCreate()
         lifecycleHelper?.onStart()
 
-        overlayView!!.setContent {
+        // 3. Set Content (Owners are now present)
+        view.setContent {
             OverlayContent()
         }
 
+        // 4. Create Layout Params
         layoutParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.MATCH_PARENT,
@@ -135,32 +118,23 @@ class IdeazOverlayService : Service() {
             gravity = Gravity.TOP or Gravity.START
         }
 
-        windowManager.addView(overlayView, layoutParams)
+        // 5. Add to Window Manager
+        windowManager.addView(view, layoutParams)
     }
 
-    private fun updateWindowLayout(shouldBeFullscreen: Boolean) {
+    private fun updateWindowLayout(isExpandedMode: Boolean) {
         if (overlayView == null) return
 
-        if (shouldBeFullscreen) {
-            if (!wasExpanded) {
-                lastX = layoutParams.x
-                lastY = layoutParams.y
-                wasExpanded = true
-            }
-            layoutParams.x = 0
-            layoutParams.y = 0
+        if (isExpandedMode) {
+            // Expanded Mode (Chat or Console Open):
             layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
             layoutParams.height = WindowManager.LayoutParams.MATCH_PARENT
             layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                     WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
         } else {
-            if (wasExpanded) {
-                layoutParams.x = lastX
-                layoutParams.y = lastY
-                wasExpanded = false
-            }
+            // Docked Mode (Rail Only):
             layoutParams.width = WindowManager.LayoutParams.WRAP_CONTENT
-            layoutParams.height = WindowManager.LayoutParams.WRAP_CONTENT
+            layoutParams.height = WindowManager.LayoutParams.MATCH_PARENT
             layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
         }
 
@@ -168,28 +142,6 @@ class IdeazOverlayService : Service() {
             windowManager.updateViewLayout(overlayView, layoutParams)
         } catch (e: Exception) {
             e.printStackTrace()
-        }
-    }
-
-    private fun updatePosition(x: Float, y: Float) {
-        val view = overlayView ?: return
-        val metrics = windowManager.currentWindowMetrics
-        val bounds = metrics.bounds
-        val viewWidth = if (view.width > 0) view.width else 0
-        val viewHeight = if (view.height > 0) view.height else 0
-
-        val newX = layoutParams.x + x.toInt()
-        val newY = layoutParams.y + y.toInt()
-        val maxX = (bounds.width() - viewWidth).coerceAtLeast(0)
-        val maxY = (bounds.height() - viewHeight).coerceAtLeast(0)
-
-        layoutParams.x = newX.coerceIn(0, maxX)
-        layoutParams.y = newY.coerceIn(0, maxY)
-
-        try {
-            windowManager.updateViewLayout(view, layoutParams)
-        } catch (e: Exception) {
-            android.util.Log.e("IdeazOverlayService", "Failed to update overlay position", e)
         }
     }
 
@@ -201,6 +153,7 @@ class IdeazOverlayService : Service() {
         val config = LocalConfiguration.current
         val screenHeight = config.screenHeightDp.dp
 
+        // Setup Bottom Sheet State
         val supportedDetents = remember { listOf(AlmostHidden, Peek, Halfway) }
         val sheetState = rememberBottomSheetState(
             detents = supportedDetents,
@@ -211,129 +164,83 @@ class IdeazOverlayService : Service() {
         val settingsViewModel = remember { SettingsViewModel(app) }
         val viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(app, settingsViewModel))
 
-        val isTargetAppVisible by viewModel.isTargetAppVisible.collectAsState()
-        val currentWebUrl by viewModel.currentWebUrl.collectAsState()
         val isContextualChatVisible by viewModel.isContextualChatVisible.collectAsState()
         val activeSelectionRect by viewModel.activeSelectionRect.collectAsState()
-        val isSelectMode by viewModel.isSelectMode.collectAsState()
-        val pendingRoute by viewModel.pendingRoute.collectAsState()
-        val logMessages by viewModel.filteredLog.collectAsState(initial = emptyList())
-
-        var isPromptPopupVisible by remember { mutableStateOf(false) }
-
-        LaunchedEffect(pendingRoute) {
-            pendingRoute?.let {
-                navController.navigate(it) { launchSingleTop = true; restoreState = true }
-                viewModel.setPendingRoute(null)
-            }
-        }
-
-        LaunchedEffect(logMessages) {
-            updateNotification(logMessages)
-        }
-
         val targetPackage by settingsViewModel.targetPackageName.collectAsState()
+
+        // --- AUTO-LAUNCH LOGIC ---
         LaunchedEffect(Unit) {
-            if (!targetPackage.isNullOrBlank() && targetPackage != context.packageName) {
-                try {
-                    context.packageManager.getLaunchIntentForPackage(targetPackage!!)?.let {
-                        it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        context.startActivity(it)
+            if (!targetPackage.isNullOrBlank()) {
+                // Prevent self-launch loop if IDEaz IS the target (development mode)
+                if (targetPackage != context.packageName) {
+                    try {
+                        val launchIntent = context.packageManager.getLaunchIntentForPackage(targetPackage!!)
+                        if (launchIntent != null) {
+                            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(launchIntent)
+                        } else {
+                            Toast.makeText(context, "Project app not installed yet: $targetPackage", Toast.LENGTH_LONG).show()
+                        }
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Error launching project: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
-                } catch (e: Exception) { /* ignore */ }
+                }
             }
-            navController.navigate("project_settings")
         }
 
+        // --- WINDOW RESIZING LOGIC ---
         val isSheetOpen = sheetState.currentDetent == Peek || sheetState.currentDetent == Halfway
-        val isWebMode = currentWebUrl != null && isTargetAppVisible
-        val shouldBeFullscreen = !isTargetAppVisible || isWebMode || isSelectMode || isContextualChatVisible || isSheetOpen || isPromptPopupVisible
-        val isTitleVisible = (isTargetAppVisible || isSelectMode) && !isPromptPopupVisible && !isSheetOpen
+        val isExpandedMode = isContextualChatVisible || isSheetOpen
 
-        LaunchedEffect(shouldBeFullscreen) {
-            updateWindowLayout(shouldBeFullscreen)
+        LaunchedEffect(isExpandedMode) {
+            updateWindowLayout(isExpandedMode)
         }
 
         IDEazTheme {
-            val backgroundColor = if (!isTargetAppVisible) MaterialTheme.colorScheme.background else Color.Transparent
+            Box(modifier = Modifier.fillMaxSize()) {
 
-            Box(modifier = Modifier.fillMaxSize().background(backgroundColor)) {
-                if (isWebMode) {
-                    currentWebUrl?.let {
-                        Box(modifier = Modifier.fillMaxSize().zIndex(0f)) {
-                            WebProjectHost(url = it, modifier = Modifier.fillMaxSize())
-                        }
+                // 1. Navigation Rail (Docked)
+                IdeNavRail(
+                    navController = navController,
+                    viewModel = viewModel,
+                    context = context,
+                    onShowPromptPopup = { },
+                    handleActionClick = { action -> action() },
+                    isIdeVisible = true,
+                    onLaunchOverlay = { viewModel.toggleSelectMode(true) }, // Fixed: Correctly toggle select mode
+                    sheetState = sheetState,
+                    scope = scope,
+                    initiallyExpanded = false,
+                    onUndock = { stopSelf() },
+                    enableRailDraggingOverride = true,
+                    isLocalBuildEnabled = false,
+                    onNavigateToMainApp = { route ->
+                        val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                        intent?.putExtra("route", route)
+                        intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                        stopSelf()
                     }
-                }
-
-                if (!isTargetAppVisible) {
-                    Box(modifier = Modifier.fillMaxSize().padding(start = 80.dp).zIndex(1f)) {
-                        IdeNavHost(
-                            modifier = Modifier.fillMaxSize(),
-                            navController = navController,
-                            viewModel = viewModel,
-                            settingsViewModel = settingsViewModel,
-                            onThemeToggle = { /* handled by state */ }
-                        )
-                    }
-                }
-
-                Box(modifier = Modifier.zIndex(100f)) {
-                    IdeNavRail(
-                        navController = navController, viewModel = viewModel, context = context,
-                        onShowPromptPopup = { isPromptPopupVisible = true },
-                        handleActionClick = { it() },
-                        isIdeVisible = isTargetAppVisible, isTitleVisible = isTitleVisible,
-                        onLaunchOverlay = { viewModel.toggleSelectMode(!isSelectMode) },
-                        sheetState = sheetState, scope = scope, initiallyExpanded = false,
-                        onUndock = { }, onOverlayDrag = { x, y -> updatePosition(x, y) },
-                        enableRailDraggingOverride = !shouldBeFullscreen,
-                        isLocalBuildEnabled = settingsViewModel.isLocalBuildEnabled(),
-                        onNavigateToMainApp = { route ->
-                            viewModel.clearSelection()
-                            if (currentWebUrl != null || isTargetAppVisible) {
-                                viewModel.stateDelegate.setTargetAppVisible(false)
-                            }
-                            navController.navigate(route) { launchSingleTop = true; restoreState = true }
-                        }
-                    )
-                }
-
-                if (isSelectMode) {
-                    Box(modifier = Modifier.fillMaxSize().zIndex(200f)) {
-                        SelectionOverlay(
-                            modifier = Modifier.fillMaxSize(),
-                            onTap = { _, _ -> },
-                            onDragEnd = { rect ->
-                                viewModel.overlayDelegate.onSelectionMade(android.graphics.Rect(rect.left, rect.top, rect.right, rect.bottom))
-                            }
-                        )
-                    }
-                }
-
-                if (isContextualChatVisible && activeSelectionRect != null) {
-                    Box(modifier = Modifier.fillMaxSize().zIndex(300f)) {
-                        ContextualChatOverlay(
-                            rect = activeSelectionRect!!, viewModel = viewModel,
-                            onClose = { viewModel.closeContextualChat() }
-                        )
-                    }
-                }
-
-                IdeBottomSheet(
-                    sheetState = sheetState, viewModel = viewModel, peekDetent = Peek, halfwayDetent = Halfway,
-                    screenHeight = screenHeight, onSendPrompt = { viewModel.sendPrompt(it) }
                 )
 
-                if (isPromptPopupVisible) {
-                    PromptPopup(
-                        onDismiss = { isPromptPopupVisible = false },
-                        onSubmit = { prompt ->
-                            viewModel.sendPrompt(prompt)
-                            isPromptPopupVisible = false
-                        }
+                // 2. Contextual Chat Overlay
+                if (isContextualChatVisible && activeSelectionRect != null) {
+                    ContextualChatOverlay(
+                        rect = activeSelectionRect!!,
+                        viewModel = viewModel,
+                        onClose = { viewModel.closeContextualChat() }
                     )
                 }
+
+                // 3. Bottom Sheet (Console)
+                IdeBottomSheet(
+                    sheetState = sheetState,
+                    viewModel = viewModel,
+                    peekDetent = Peek,
+                    halfwayDetent = Halfway,
+                    screenHeight = screenHeight,
+                    onSendPrompt = { viewModel.sendPrompt(it) }
+                )
             }
         }
     }
@@ -344,6 +251,7 @@ class IdeazOverlayService : Service() {
         if (overlayView != null) {
             windowManager.removeView(overlayView)
         }
+        store.clear()
     }
 
     companion object {
