@@ -35,12 +35,11 @@ import com.hereliesaz.ideaz.ui.web.WebProjectHost
 import com.hereliesaz.ideaz.utils.ComposeLifecycleHelper
 import kotlinx.coroutines.launch
 
-class IdeazOverlayService : Service(), ViewModelStoreOwner {
+class IdeazOverlayService : Service() {
 
     private val windowManager by lazy { getSystemService(WindowManager::class.java) }
     private var overlayView: ComposeView? = null
     private var lifecycleHelper: ComposeLifecycleHelper? = null
-    private val store = ViewModelStore()
     private lateinit var layoutParams: WindowManager.LayoutParams
 
     private var lastX = 0
@@ -48,9 +47,6 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
     private var wasExpanded = false
 
     override fun onBind(intent: Intent?): IBinder? = null
-
-    override val viewModelStore: ViewModelStore
-        get() = store
 
     override fun onCreate() {
         super.onCreate()
@@ -124,7 +120,6 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
 
     private fun setupOverlay() {
         overlayView = ComposeView(this).apply {
-            setViewTreeViewModelStoreOwner(this@IdeazOverlayService)
             setContent {
                 OverlayContent()
             }
@@ -401,7 +396,6 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
         if (overlayView != null) {
             windowManager.removeView(overlayView)
         }
-        store.clear()
     }
 
     companion object {
