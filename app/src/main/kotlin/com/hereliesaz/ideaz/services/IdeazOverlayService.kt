@@ -11,7 +11,6 @@ import android.os.Build
 import android.os.IBinder
 import android.view.Gravity
 import android.view.WindowManager
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
@@ -24,7 +23,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.core.app.NotificationCompat
-import androidx.lifecycle.*
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
 import com.composables.core.rememberBottomSheetState
@@ -70,8 +68,7 @@ class IdeazOverlayService : Service() {
                 "IDEaz Overlay",
                 NotificationManager.IMPORTANCE_LOW
             )
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }
 
@@ -102,7 +99,6 @@ class IdeazOverlayService : Service() {
 
         val collapsed = messages.takeLast(3).joinToString("\n")
         val expanded = messages.takeLast(10).joinToString("\n")
-
         val contentText = if (collapsed.isBlank()) "IDEaz Active" else collapsed
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
@@ -114,22 +110,21 @@ class IdeazOverlayService : Service() {
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop Overlay", stopPendingIntent)
             .build()
 
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID, notification)
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification)
     }
 
     private fun setupOverlay() {
-        overlayView = ComposeView(this).apply {
-            setContent {
-                OverlayContent()
-            }
-        }
+        overlayView = ComposeView(this)
 
+        // Create and attach the lifecycle helper BEFORE setContent
         lifecycleHelper = ComposeLifecycleHelper(overlayView!!)
         lifecycleHelper?.onCreate()
         lifecycleHelper?.onStart()
 
-        // Initial Layout
+        overlayView!!.setContent {
+            OverlayContent()
+        }
+
         layoutParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.MATCH_PARENT,
@@ -156,7 +151,6 @@ class IdeazOverlayService : Service() {
             layoutParams.y = 0
             layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
             layoutParams.height = WindowManager.LayoutParams.MATCH_PARENT
-
             layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                     WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
         } else {
@@ -181,15 +175,13 @@ class IdeazOverlayService : Service() {
         val view = overlayView ?: return
         val metrics = windowManager.currentWindowMetrics
         val bounds = metrics.bounds
-        val screenWidth = bounds.width()
-        val screenHeight = bounds.height()
         val viewWidth = if (view.width > 0) view.width else 0
         val viewHeight = if (view.height > 0) view.height else 0
 
         val newX = layoutParams.x + x.toInt()
         val newY = layoutParams.y + y.toInt()
-        val maxX = (screenWidth - viewWidth).coerceAtLeast(0)
-        val maxY = (screenHeight - viewHeight).coerceAtLeast(0)
+        val maxX = (bounds.width() - viewWidth).coerceAtLeast(0)
+        val maxY = (bounds.height() - viewHeight).coerceAtLeast(0)
 
         layoutParams.x = newX.coerceIn(0, maxX)
         layoutParams.y = newY.coerceIn(0, maxY)
@@ -229,45 +221,33 @@ class IdeazOverlayService : Service() {
 
         var isPromptPopupVisible by remember { mutableStateOf(false) }
 
-        // Navigation Handling
         LaunchedEffect(pendingRoute) {
-            pendingRoute?.let { route ->
-                navController.navigate(route) {
-                    launchSingleTop = true
-                    restoreState = true
-                }
+            pendingRoute?.let {
+                navController.navigate(it) { launchSingleTop = true; restoreState = true }
                 viewModel.setPendingRoute(null)
             }
         }
 
-        // Notification Updates
         LaunchedEffect(logMessages) {
             updateNotification(logMessages)
         }
 
-        // Auto-Launch Target Logic
         val targetPackage by settingsViewModel.targetPackageName.collectAsState()
         LaunchedEffect(Unit) {
             if (!targetPackage.isNullOrBlank() && targetPackage != context.packageName) {
                 try {
-                    val launchIntent = context.packageManager.getLaunchIntentForPackage(targetPackage!!)
-                    if (launchIntent != null) {
-                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        context.startActivity(launchIntent)
+                    context.packageManager.getLaunchIntentForPackage(targetPackage!!)?.let {
+                        it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(it)
                     }
                 } catch (e: Exception) { /* ignore */ }
             }
             navController.navigate("project_settings")
         }
 
-        // Window Layout Logic
         val isSheetOpen = sheetState.currentDetent == Peek || sheetState.currentDetent == Halfway
         val isWebMode = currentWebUrl != null && isTargetAppVisible
         val shouldBeFullscreen = !isTargetAppVisible || isWebMode || isSelectMode || isContextualChatVisible || isSheetOpen || isPromptPopupVisible
-
-        // Requirement #7 Logic: Title visible only in Select/Interact, disabled in Overlay/Build/Popup
-        // isTargetAppVisible covers Interact. isSelectMode covers Select.
-        // !isPromptPopupVisible && !isSheetOpen (Build/Logs) ensures it's hidden when those are active.
         val isTitleVisible = (isTargetAppVisible || isSelectMode) && !isPromptPopupVisible && !isSheetOpen
 
         LaunchedEffect(shouldBeFullscreen) {
@@ -277,27 +257,17 @@ class IdeazOverlayService : Service() {
         IDEazTheme {
             val backgroundColor = if (!isTargetAppVisible) MaterialTheme.colorScheme.background else Color.Transparent
 
-            Box(modifier = Modifier
-                .fillMaxSize()
-                .background(backgroundColor)
-            ) {
-
-                // LAYER 0: Web View (if Web Mode)
+            Box(modifier = Modifier.fillMaxSize().background(backgroundColor)) {
                 if (isWebMode) {
-                    currentWebUrl?.let { url ->
+                    currentWebUrl?.let {
                         Box(modifier = Modifier.fillMaxSize().zIndex(0f)) {
-                            WebProjectHost(url = url, modifier = Modifier.fillMaxSize())
+                            WebProjectHost(url = it, modifier = Modifier.fillMaxSize())
                         }
                     }
                 }
 
-                // LAYER 1: IDE Content (Settings, Project)
                 if (!isTargetAppVisible) {
-                    Box(modifier = Modifier
-                        .fillMaxSize()
-                        .padding(start = 80.dp)
-                        .zIndex(1f)
-                    ) {
+                    Box(modifier = Modifier.fillMaxSize().padding(start = 80.dp).zIndex(1f)) {
                         IdeNavHost(
                             modifier = Modifier.fillMaxSize(),
                             navController = navController,
@@ -308,46 +278,32 @@ class IdeazOverlayService : Service() {
                     }
                 }
 
-                // LAYER 2: Rail
                 Box(modifier = Modifier.zIndex(100f)) {
                     IdeNavRail(
-                        navController = navController,
-                        viewModel = viewModel,
-                        context = context,
+                        navController = navController, viewModel = viewModel, context = context,
                         onShowPromptPopup = { isPromptPopupVisible = true },
                         handleActionClick = { it() },
-                        isIdeVisible = isTargetAppVisible,
-                        isTitleVisible = isTitleVisible,
+                        isIdeVisible = isTargetAppVisible, isTitleVisible = isTitleVisible,
                         onLaunchOverlay = { viewModel.toggleSelectMode(!isSelectMode) },
-                        sheetState = sheetState,
-                        scope = scope,
-                        initiallyExpanded = false,
-                        onUndock = { },
-                        onOverlayDrag = { x, y -> updatePosition(x, y) },
+                        sheetState = sheetState, scope = scope, initiallyExpanded = false,
+                        onUndock = { }, onOverlayDrag = { x, y -> updatePosition(x, y) },
                         enableRailDraggingOverride = !shouldBeFullscreen,
                         isLocalBuildEnabled = settingsViewModel.isLocalBuildEnabled(),
                         onNavigateToMainApp = { route ->
                             viewModel.clearSelection()
-                            if (currentWebUrl != null) {
+                            if (currentWebUrl != null || isTargetAppVisible) {
                                 viewModel.stateDelegate.setTargetAppVisible(false)
                             }
-                            if (isTargetAppVisible) {
-                                viewModel.stateDelegate.setTargetAppVisible(false)
-                            }
-                            navController.navigate(route) {
-                                launchSingleTop = true
-                                restoreState = true
-                            }
+                            navController.navigate(route) { launchSingleTop = true; restoreState = true }
                         }
                     )
                 }
 
-                // LAYER 3: Selection Overlay
                 if (isSelectMode) {
                     Box(modifier = Modifier.fillMaxSize().zIndex(200f)) {
                         SelectionOverlay(
                             modifier = Modifier.fillMaxSize(),
-                            onTap = { x, y -> },
+                            onTap = { _, _ -> },
                             onDragEnd = { rect ->
                                 viewModel.overlayDelegate.onSelectionMade(android.graphics.Rect(rect.left, rect.top, rect.right, rect.bottom))
                             }
@@ -355,30 +311,22 @@ class IdeazOverlayService : Service() {
                     }
                 }
 
-                // LAYER 4: Contextual Chat
                 if (isContextualChatVisible && activeSelectionRect != null) {
                     Box(modifier = Modifier.fillMaxSize().zIndex(300f)) {
                         ContextualChatOverlay(
-                            rect = activeSelectionRect!!,
-                            viewModel = viewModel,
+                            rect = activeSelectionRect!!, viewModel = viewModel,
                             onClose = { viewModel.closeContextualChat() }
                         )
                     }
                 }
 
-                // LAYER 5: Bottom Sheet
                 IdeBottomSheet(
-                    sheetState = sheetState,
-                    viewModel = viewModel,
-                    peekDetent = Peek,
-                    halfwayDetent = Halfway,
-                    screenHeight = screenHeight,
-                    onSendPrompt = { viewModel.sendPrompt(it) }
+                    sheetState = sheetState, viewModel = viewModel, peekDetent = Peek, halfwayDetent = Halfway,
+                    screenHeight = screenHeight, onSendPrompt = { viewModel.sendPrompt(it) }
                 )
 
-                // LAYER 6: Prompt Popup
                 if (isPromptPopupVisible) {
-                     PromptPopup(
+                    PromptPopup(
                         onDismiss = { isPromptPopupVisible = false },
                         onSubmit = { prompt ->
                             viewModel.sendPrompt(prompt)

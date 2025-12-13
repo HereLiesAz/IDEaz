@@ -1,8 +1,9 @@
-
 package com.hereliesaz.ideaz.utils
 
 import android.view.View
-import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.OnBackPressedDispatcherOwner
+import androidx.activity.setViewTreeOnBackPressedDispatcherOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -16,22 +17,21 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 
 /**
- * A helper class to manage the lifecycle of a Compose view outside of a standard Activity.
+ * A helper class to manage the lifecycle of a Compose view that is not hosted in a ComponentActivity.
  *
- * This is crucial for components like overlays hosted in a Service, which need to provide
- * the necessary LifecycleOwner and ViewModelStoreOwner
+ * This is crucial for components like overlays hosted in a Service. It provides the necessary
+ * LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner, and OnBackPressedDispatcherOwner
  * for Jetpack Compose components (like NavHost) to function correctly.
- *
- * The class creates and manages a LifecycleRegistry and a ViewModelStore, and it hooks them
- * into the provided View's hierarchy.
  */
-class ComposeLifecycleHelper(
-    private val view: View
-) : LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
+class ComposeLifecycleHelper(private val view: View) : LifecycleOwner,
+    ViewModelStoreOwner,
+    SavedStateRegistryOwner,
+    OnBackPressedDispatcherOwner {
 
     private val lifecycleRegistry = LifecycleRegistry(this)
     private val store = ViewModelStore()
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
+    override val onBackPressedDispatcher = OnBackPressedDispatcher()
 
     override val lifecycle: Lifecycle
         get() = lifecycleRegistry
@@ -42,49 +42,37 @@ class ComposeLifecycleHelper(
     override val savedStateRegistry: SavedStateRegistry
         get() = savedStateRegistryController.savedStateRegistry
 
-
     init {
-        // Connect the owners to the view tree.
+        // Immediately attach the owners to the view tree.
         view.setViewTreeLifecycleOwner(this)
         view.setViewTreeViewModelStoreOwner(this)
         view.setViewTreeSavedStateRegistryOwner(this)
+        view.setViewTreeOnBackPressedDispatcherOwner(this)
     }
 
-    /**
-     * To be called from the hosting component's onCreate.
-     */
+    /** To be called from the hosting component's onCreate. */
     fun onCreate() {
-        savedStateRegistryController.performRestore(null) // No saved bundle for now
-        handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+        savedStateRegistryController.performRestore(null)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
     }
 
-    /**
-     * To be called from the hosting component's onStart.
-     */
+    /** To be called from the hosting component's onStart. */
     fun onStart() {
-        handleLifecycleEvent(Lifecycle.Event.ON_START)
-        handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
     }
 
-    /**
-     * To be called from the hosting component's onStop.
-     */
+    /** To be called from the hosting component's onStop. */
     fun onStop() {
-        handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
-        handleLifecycleEvent(Lifecycle.Event.ON_STOP)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
     }
 
-    /**
-     * To be called from the hosting component's onDestroy.
-     */
+    /** To be called from the hosting component's onDestroy. */
     fun onDestroy() {
-        handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         store.clear()
-        // Dispose of the composition.
+        // Dispose of the composition to avoid leaks.
         (view as? androidx.compose.ui.platform.ComposeView)?.disposeComposition()
-    }
-
-    private fun handleLifecycleEvent(event: Lifecycle.Event) {
-        lifecycleRegistry.handleLifecycleEvent(event)
     }
 }
