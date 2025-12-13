@@ -6,16 +6,20 @@ To prevent `MainViewModel` from becoming a "God Object," logic is separated into
 * **MainViewModel** holds the `StateDelegate` (shared state) and instantiates the functional delegates.
 * **UI** observes flows exposed by `MainViewModel`, which are just proxies to the Delegates' flows.
 
-## The Overlay Loop (The "Split Brain" Fix)
-The Overlay system has been refactored to eliminate state desynchronization between the Activity and the Service.
+## Unified Overlay Architecture
+The application now uses `IdeazOverlayService` as the primary UI container for the entire user experience ("System Alert Window throughout the entire UX").
+*   **IdeazOverlayService**: Hosts the `IdeNavHost` (Settings, Project Screens) and the `IdeNavRail`.
+*   **Window Management**: Dynamically switches between `MATCH_PARENT` (Settings/Selection) and `WRAP_CONTENT` (Interact/Docked) to manage touch interception.
+*   **MainActivity**: Acts solely as a permission launcher and entry point, delegating UI to the Service.
+
+## The Overlay Loop (Legacy "Split Brain" Fix - Now Unified)
+The Overlay system manages state between the ViewModel and the Window.
 
 1.  **Trigger:** User clicks "Select" in `IdeNavRail`.
 2.  **Action:** `MainViewModel.toggleSelectMode(true)` is called.
-3.  **Delegate:** `OverlayDelegate` broadcasts `com.hereliesaz.ideaz.TOGGLE_SELECT_MODE` with `ENABLE=true`.
-4.  **Service:** `UIInspectionService` receives the broadcast and updates its **local** state to draw the `OverlayCanvas` with `FLAG_NOT_FOCUSABLE` (intercept touches).
-5.  **Interaction:** User drags a rectangle.
-6.  **Report:** `UIInspectionService` broadcasts `com.hereliesaz.ideaz.SELECTION_MADE` with the `Rect`.
-7.  **Response:** `MainViewModel` receives the broadcast via `SystemEventDelegate`, captures a screenshot, and opens the `ContextualChatOverlay`.
+3.  **Service:** `IdeazOverlayService` observes state and updates `layoutParams` to `MATCH_PARENT` with focusable flags.
+4.  **Interaction:** User drags a rectangle on the `SelectionOverlay`.
+5.  **Response:** `MainViewModel` receives the selection via `OverlayDelegate` and opens `ContextualChatOverlay`.
 
 ## The "Race to Build"
 1.  **Init:** User clicks "Save & Initialize" in `ProjectSetupTab`.
@@ -28,8 +32,8 @@ The Overlay system has been refactored to eliminate state desynchronization betw
 
 ## Web Runtime Architecture
 For `ProjectType.WEB`:
-1.  **Architecture:** The Web Runtime is embedded directly into `MainScreen` as a `WebProjectHost` composable (Layer 0), rather than launching a separate Activity.
-2.  **State Management:** `MainViewModel` manages `currentWebUrl`. When set, the UI switches to "Run Mode" (Web View + IDE Controls), bypassing the System Overlay service used for Android apps.
+1.  **Architecture:** The Web Runtime is embedded directly into `IdeazOverlayService` as a `WebProjectHost` composable (Layer 0).
+2.  **State Management:** `MainViewModel` manages `currentWebUrl`. When set, the UI switches to "Run Mode" (Web View + IDE Controls), rendering the WebView in the Overlay window (which expands to full screen).
 3.  **Logging:** `WebProjectHost` uses `WebChromeClient` to capture console logs and errors, broadcasting them to the IDE's global console via `AI_LOG`.
 4.  **Git Sync:** Web builds automatically trigger a `git push` via `BuildDelegate` to ensure remote CI/Deployment synchronization.
 
