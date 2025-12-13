@@ -150,17 +150,10 @@ class AIDelegate(
                     title = "Session ${System.currentTimeMillis()}"
                 )
                 val session = JulesApiClient.createSession(request)
-                _currentJulesSessionId.value = session.id
+                // Use session.name (resource name) for API calls instead of session.id
+                _currentJulesSessionId.value = session.name
                 _julesResponse.value = session
-                // Manually add user message to history
-                // We don't have a Message object in the response for user prompt, usually.
-                // Assuming generic Message type
-                // _julesHistory.value += Message(role = "user", content = promptText) // Message type?
-                // Message in models.kt? No Message in models.kt I saw.
-                // Wait, I should check models.kt for Message.
-                // It has `UserMessaged` in `Activity`.
-                // I will skip local history management and rely on listActivities.
-                activeSessionId = session.id
+                activeSessionId = session.name
             } else {
                 // Send Message
                 val request = SendMessageRequest(prompt = promptText)
