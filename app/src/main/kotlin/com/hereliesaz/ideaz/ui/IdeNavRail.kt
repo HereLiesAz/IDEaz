@@ -38,7 +38,8 @@ fun IdeNavRail(
             enableRailDragging = enableRailDraggingOverride ?: true, // Default true unless override
             onUndock = onUndock,
             onOverlayDrag = onOverlayDrag,
-            headerIconShape = AzHeaderIconShape.NONE
+            headerIconShape = AzHeaderIconShape.NONE,
+            displayAppNameInHeader = isIdeVisible
         )
 
         // ... (rest of items unchanged)
