@@ -2,6 +2,8 @@ package com.hereliesaz.ideaz.api
 
 import kotlinx.serialization.Serializable
 
+// Jules API Data Models
+
 // --- Sources ---
 
 @Serializable
