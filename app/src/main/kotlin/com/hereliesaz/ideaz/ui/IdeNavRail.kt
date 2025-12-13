@@ -26,6 +26,7 @@ fun IdeNavRail(
     enableRailDraggingOverride: Boolean? = null, // NEW
     onOverlayDrag: ((Float, Float) -> Unit)? = null, // NEW: Manual drag handler
     isLocalBuildEnabled: Boolean = false,
+    isTitleVisible: Boolean = isIdeVisible, // Default to isIdeVisible if not provided, but caller should control
     onNavigateToMainApp: (String) -> Unit = { navController.navigate(it) }
 ) {
     AzNavRail(
@@ -39,7 +40,7 @@ fun IdeNavRail(
             onUndock = onUndock,
             onOverlayDrag = onOverlayDrag,
             headerIconShape = AzHeaderIconShape.NONE,
-            displayAppNameInHeader = isIdeVisible
+            displayAppNameInHeader = isTitleVisible
         )
 
         // ... (rest of items unchanged)

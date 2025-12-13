@@ -270,6 +270,11 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
         val isWebMode = currentWebUrl != null && isTargetAppVisible
         val shouldBeFullscreen = !isTargetAppVisible || isWebMode || isSelectMode || isContextualChatVisible || isSheetOpen || isPromptPopupVisible
 
+        // Requirement #7 Logic: Title visible only in Select/Interact, disabled in Overlay/Build/Popup
+        // isTargetAppVisible covers Interact. isSelectMode covers Select.
+        // !isPromptPopupVisible && !isSheetOpen (Build/Logs) ensures it's hidden when those are active.
+        val isTitleVisible = (isTargetAppVisible || isSelectMode) && !isPromptPopupVisible && !isSheetOpen
+
         LaunchedEffect(shouldBeFullscreen) {
             updateWindowLayout(shouldBeFullscreen)
         }
@@ -317,6 +322,7 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
                         onShowPromptPopup = { isPromptPopupVisible = true },
                         handleActionClick = { it() },
                         isIdeVisible = isTargetAppVisible,
+                        isTitleVisible = isTitleVisible,
                         onLaunchOverlay = { viewModel.toggleSelectMode(!isSelectMode) },
                         sheetState = sheetState,
                         scope = scope,
