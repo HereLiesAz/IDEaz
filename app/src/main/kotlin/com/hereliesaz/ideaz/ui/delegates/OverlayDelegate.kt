@@ -69,7 +69,7 @@ class OverlayDelegate(
 
     /**
      * Toggles the selection mode.
-     * Starts the `UIInspectionService` and requests necessary permissions.
+     * Updates state and broadcasts change to synchronize other components (e.g., OverlayService).
      */
     fun toggleSelectMode(enable: Boolean) {
         if (enable && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(application)) {
@@ -81,14 +81,7 @@ class OverlayDelegate(
             return
         }
 
-        _isSelectMode.value = enable
-
-        val serviceIntent = Intent(application, com.hereliesaz.ideaz.services.UIInspectionService::class.java)
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            application.startForegroundService(serviceIntent)
-        } else {
-            application.startService(serviceIntent)
-        }
+        setInternalSelectMode(enable)
 
         val broadcastIntent = Intent("com.hereliesaz.ideaz.TOGGLE_SELECT_MODE").apply {
             putExtra("ENABLE", enable)
@@ -99,6 +92,14 @@ class OverlayDelegate(
         if (enable && !hasScreenCapturePermission()) {
             _requestScreenCapture.value = true
         }
+    }
+
+    /**
+     * Updates the internal selection mode state without triggering side effects like broadcasts.
+     * Used by SystemEventDelegate to sync state from broadcasts.
+     */
+    fun setInternalSelectMode(enable: Boolean) {
+        _isSelectMode.value = enable
     }
 
     /**

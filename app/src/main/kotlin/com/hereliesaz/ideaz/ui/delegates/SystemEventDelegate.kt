@@ -29,6 +29,10 @@ class SystemEventDelegate(
     private val promptReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
+                "com.hereliesaz.ideaz.TOGGLE_SELECT_MODE" -> {
+                    val enable = intent.getBooleanExtra("ENABLE", false)
+                    overlayDelegate.setInternalSelectMode(enable)
+                }
                 "com.hereliesaz.ideaz.AI_PROMPT" -> {
                     val prompt = intent.getStringExtra("PROMPT")
                     if (!prompt.isNullOrBlank()) aiDelegate.startContextualAITask(prompt)
@@ -71,6 +75,7 @@ class SystemEventDelegate(
 
     init {
         val promptFilter = IntentFilter().apply {
+            addAction("com.hereliesaz.ideaz.TOGGLE_SELECT_MODE")
             addAction("com.hereliesaz.ideaz.AI_PROMPT")
             addAction("com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE")
             addAction("com.hereliesaz.ideaz.SELECTION_MADE")
