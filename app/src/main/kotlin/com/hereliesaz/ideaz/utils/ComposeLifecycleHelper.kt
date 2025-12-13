@@ -2,15 +2,14 @@
 package com.hereliesaz.ideaz.utils
 
 import android.view.View
-import androidx.activity.ComponentActivity
-import androidx.activity.OnBackPressedDispatcher
-import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
@@ -20,22 +19,18 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
  * A helper class to manage the lifecycle of a Compose view outside of a standard Activity.
  *
  * This is crucial for components like overlays hosted in a Service, which need to provide
- * the necessary LifecycleOwner, ViewModelStoreOwner, and OnBackPressedDispatcherOwner
+ * the necessary LifecycleOwner and ViewModelStoreOwner
  * for Jetpack Compose components (like NavHost) to function correctly.
  *
- * The class creates and manages a LifecycleRegistry, a ViewModelStore, and an
- * OnBackPressedDispatcher, and it hooks them into the provided View's hierarchy.
+ * The class creates and manages a LifecycleRegistry and a ViewModelStore, and it hooks them
+ * into the provided View's hierarchy.
  */
 class ComposeLifecycleHelper(
     private val view: View
-) : LifecycleOwner, ViewModelStoreOwner, OnBackPressedDispatcherOwner, SavedStateRegistryOwner {
+) : LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
 
     private val lifecycleRegistry = LifecycleRegistry(this)
     private val store = ViewModelStore()
-    private val onBackPressedDispatcher = OnBackPressedDispatcher {
-        // No default behavior for back presses in this custom context.
-        // Can be customized if needed.
-    }
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
 
     override val lifecycle: Lifecycle
@@ -43,9 +38,6 @@ class ComposeLifecycleHelper(
 
     override val viewModelStore: ViewModelStore
         get() = store
-
-    override val onBackPressedDispatcher: OnBackPressedDispatcher
-        get() = onBackPressedDispatcher
 
     override val savedStateRegistry: SavedStateRegistry
         get() = savedStateRegistryController.savedStateRegistry
@@ -55,7 +47,6 @@ class ComposeLifecycleHelper(
         // Connect the owners to the view tree.
         view.setViewTreeLifecycleOwner(this)
         view.setViewTreeViewModelStoreOwner(this)
-        view.setViewTreeOnBackPressedDispatcherOwner(this)
         view.setViewTreeSavedStateRegistryOwner(this)
     }
 
