@@ -6,6 +6,7 @@ import org.eclipse.jgit.lib.ProgressMonitor
 import java.io.File
 import java.io.ByteArrayInputStream
 
+// Git Wrapper
 /**
  * Manages Git operations for a specific project directory using the JGit library.
  *
