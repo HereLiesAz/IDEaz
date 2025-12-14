@@ -6,9 +6,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 
 @Composable
 fun IdeNavHost(
@@ -18,6 +21,13 @@ fun IdeNavHost(
     settingsViewModel: SettingsViewModel,
     onThemeToggle: (Boolean) -> Unit
 ) {
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
+    LaunchedEffect(currentRoute) {
+        viewModel.flushNonFatalErrors()
+    }
+
     NavHost(
         navController = navController,
         startDestination = "initial_placeholder",

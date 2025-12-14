@@ -11,7 +11,9 @@ import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.api.GitHubRepoResponse
 import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.models.ProjectType
+import com.hereliesaz.ideaz.services.CrashReportingService
 import com.hereliesaz.ideaz.ui.delegates.*
+import com.hereliesaz.ideaz.utils.ErrorCollector
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ToolManager
 import kotlinx.coroutines.Dispatchers
@@ -129,6 +131,27 @@ class MainViewModel(
         super.onCleared()
         buildDelegate.unbindService(getApplication())
         systemEventDelegate.cleanup()
+    }
+
+    /**
+     * Called by UI when a screen transition occurs to flush non-fatal errors.
+     */
+    fun flushNonFatalErrors() {
+        val errors = ErrorCollector.getAndClear()
+        if (errors != null) {
+            val apiKey = settingsViewModel.getApiKey()
+            val githubUser = settingsViewModel.getGithubUser() ?: "Unknown"
+
+            if (!apiKey.isNullOrBlank()) {
+                val intent = Intent(getApplication(), CrashReportingService::class.java).apply {
+                    action = CrashReportingService.ACTION_REPORT_NON_FATAL
+                    putExtra(CrashReportingService.EXTRA_API_KEY, apiKey)
+                    putExtra(CrashReportingService.EXTRA_STACK_TRACE, errors)
+                    putExtra(CrashReportingService.EXTRA_GITHUB_USER, githubUser)
+                }
+                getApplication<Application>().startService(intent)
+            }
+        }
     }
 
     // --- PROXY METHODS ---

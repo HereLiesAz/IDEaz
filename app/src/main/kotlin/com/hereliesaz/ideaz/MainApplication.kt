@@ -19,6 +19,7 @@ class MainApplication : Application() {
             // Ignore
         }
 
+        // Initialize Crash Reporting
         CrashHandler.init(this)
         ToolManager.init(this)
     }

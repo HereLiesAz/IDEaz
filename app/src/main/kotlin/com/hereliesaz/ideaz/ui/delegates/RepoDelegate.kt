@@ -11,6 +11,7 @@ import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.ProjectMetadata
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.utils.ProjectConfigManager
+import com.hereliesaz.ideaz.utils.ProjectInitializer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -157,10 +158,16 @@ class RepoDelegate(
             val appName = settingsViewModel.getAppName() ?: return@launch
             val projectDir = settingsViewModel.getProjectPath(appName)
             val type = ProjectType.fromString(settingsViewModel.getProjectType())
+            val packageName = settingsViewModel.getTargetPackageName() ?: "com.example.app"
 
             ProjectConfigManager.ensureWorkflow(application, projectDir, type)
             ProjectConfigManager.ensureSetupScript(projectDir)
             ProjectConfigManager.ensureAgentsSetupMd(projectDir)
+
+            // Inject Crash Reporting (Error Handling)
+            if (type == ProjectType.ANDROID) {
+                ProjectInitializer.injectCrashReporting(application, projectDir, packageName, settingsViewModel)
+            }
 
             try {
                 val git = GitManager(projectDir)
