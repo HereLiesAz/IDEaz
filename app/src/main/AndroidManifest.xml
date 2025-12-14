@@ -74,6 +74,11 @@
             android:foregroundServiceType="mediaProjection" />
 
         <service
+            android:name=".services.CrashReportingService"
+            android:exported="false"
+            android:process=":crash_reporter" />
+
+        <service
             android:name=".services.IdeazOverlayService"
             android:foregroundServiceType="specialUse">
             <property android:name="android.app.property.FOREGROUND_SERVICE_TYPE_SPECIAL_USE_DESCRIPTION"
