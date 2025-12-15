@@ -16,6 +16,7 @@
 
     <!-- Exclude temporary build caches -->
     <exclude domain="file" path="cache"/>
+    <exclude domain="file" path="local-repo"/>
 
     <!-- Exclude build artifacts -->
     <exclude domain="file" path="web_dist"/>

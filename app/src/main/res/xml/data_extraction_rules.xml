@@ -17,6 +17,7 @@
 
         <!-- Exclude temporary build caches -->
         <exclude domain="file" path="cache"/>
+        <exclude domain="file" path="local-repo"/>
 
         <!-- Exclude build artifacts -->
         <exclude domain="file" path="web_dist"/>
@@ -28,6 +29,7 @@
         <include domain="file" path="."/>
         <exclude domain="file" path="local_build_tools"/>
         <exclude domain="file" path="cache"/>
+        <exclude domain="file" path="local-repo"/>
         <exclude domain="file" path="web_dist"/>
     </device-transfer>
 </data-extraction-rules>
