@@ -12,9 +12,11 @@ import android.os.IBinder
 import android.view.Gravity
 import android.view.WindowManager
 import android.widget.Toast
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -28,11 +30,11 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
-import com.composables.core.SheetDetent
 import com.composables.core.rememberBottomSheetState
 import com.hereliesaz.ideaz.R
 import com.hereliesaz.ideaz.ui.AlmostHidden
@@ -46,6 +48,7 @@ import com.hereliesaz.ideaz.ui.Peek
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.ui.theme.IDEazTheme
 import com.hereliesaz.ideaz.utils.ComposeLifecycleHelper
+import com.hereliesaz.ideaz.utils.ManualBackPressedDispatcherOwner
 
 class IdeazOverlayService : Service(), ViewModelStoreOwner {
 
@@ -171,123 +174,136 @@ class IdeazOverlayService : Service(), ViewModelStoreOwner {
     @Composable
     fun RailContent() {
         val context = LocalContext.current
-        val navController = rememberNavController()
-        val scope = rememberCoroutineScope()
+        val lifecycleOwner = LocalLifecycleOwner.current
+        val onBackPressedDispatcherOwner = remember { ManualBackPressedDispatcherOwner(lifecycleOwner.lifecycle) }
 
-        // We need a dummy sheet state here just for the rail API,
-        // but the actual sheet is in ConsoleContent.
-        // We use a separate state here that mimics the real one's minimal requirements.
-        val dummySheetState = rememberBottomSheetState(initialDetent = AlmostHidden)
+        CompositionLocalProvider(LocalOnBackPressedDispatcherOwner provides onBackPressedDispatcherOwner) {
+            val navController = rememberNavController()
+            val scope = rememberCoroutineScope()
 
-        val app = applicationContext as Application
-        val settingsViewModel = remember { SettingsViewModel(app) }
-        val viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(app, settingsViewModel))
-        val isSelectMode by viewModel.isSelectMode.collectAsState()
-
-        IDEazTheme {
-            // Rail is its own root
-            IdeNavRail(
-                navController = navController,
-                viewModel = viewModel,
-                context = context,
-                onShowPromptPopup = { },
-                handleActionClick = { action -> action() },
-                isIdeVisible = true,
-                onLaunchOverlay = { viewModel.toggleSelectMode(!isSelectMode) },
-                sheetState = dummySheetState,
-                scope = scope,
-                initiallyExpanded = false,
-                onUndock = { },
-                enableRailDraggingOverride = true,
-                isLocalBuildEnabled = false,
-                onNavigateToMainApp = { route ->
-                    val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-                    intent?.putExtra("route", route)
-                    intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    context.startActivity(intent)
-                }
+            // We need a dummy sheet state here just for the rail API,
+            // but the actual sheet is in ConsoleContent.
+            // We use a separate state here that mimics the real one's minimal requirements.
+            val dummySheetState = rememberBottomSheetState(
+                initialDetent = AlmostHidden,
+                detents = remember { listOf(AlmostHidden, Peek, Halfway) }
             )
+
+            val app = applicationContext as Application
+            val settingsViewModel = remember { SettingsViewModel(app) }
+            val viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(app, settingsViewModel))
+            val isSelectMode by viewModel.isSelectMode.collectAsState()
+
+            IDEazTheme {
+                // Rail is its own root
+                IdeNavRail(
+                    navController = navController,
+                    viewModel = viewModel,
+                    context = context,
+                    onShowPromptPopup = { },
+                    handleActionClick = { action -> action() },
+                    isIdeVisible = true,
+                    onLaunchOverlay = { viewModel.toggleSelectMode(!isSelectMode) },
+                    sheetState = dummySheetState,
+                    scope = scope,
+                    initiallyExpanded = false,
+                    onUndock = { },
+                    enableRailDraggingOverride = true,
+                    isLocalBuildEnabled = false,
+                    onNavigateToMainApp = { route ->
+                        val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                        intent?.putExtra("route", route)
+                        intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                    }
+                )
+            }
         }
     }
 
     // --- COMPOSABLE: CONSOLE + CHAT ---
     @Composable
     fun ConsoleContent() {
-        val config = LocalConfiguration.current
-        val density = LocalContext.current.resources.displayMetrics.density
-        val screenHeightDp = config.screenHeightDp.dp
-        val screenHeightPx = (config.screenHeightDp * density).toInt()
+        val lifecycleOwner = LocalLifecycleOwner.current
+        val onBackPressedDispatcherOwner = remember { ManualBackPressedDispatcherOwner(lifecycleOwner.lifecycle) }
 
-        val supportedDetents = remember { listOf(AlmostHidden, Peek, Halfway) }
-        val sheetState = rememberBottomSheetState(
-            detents = supportedDetents,
-            initialDetent = AlmostHidden
-        )
+        CompositionLocalProvider(LocalOnBackPressedDispatcherOwner provides onBackPressedDispatcherOwner) {
+            val config = LocalConfiguration.current
+            val density = LocalContext.current.resources.displayMetrics.density
+            val screenHeightDp = config.screenHeightDp.dp
+            val screenHeightPx = (config.screenHeightDp * density).toInt()
 
-        val app = applicationContext as Application
-        val settingsViewModel = remember { SettingsViewModel(app) }
-        val viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(app, settingsViewModel))
+            val supportedDetents = remember { listOf(AlmostHidden, Peek, Halfway) }
+            val sheetState = rememberBottomSheetState(
+                detents = supportedDetents,
+                initialDetent = AlmostHidden
+            )
 
-        val isContextualChatVisible by viewModel.isContextualChatVisible.collectAsState()
-        val activeSelectionRect by viewModel.activeSelectionRect.collectAsState()
-        val targetPackage by settingsViewModel.targetPackageName.collectAsState()
-        val context = LocalContext.current
+            val app = applicationContext as Application
+            val settingsViewModel = remember { SettingsViewModel(app) }
+            val viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(app, settingsViewModel))
 
-        // --- AUTO-LAUNCH LOGIC ---
-        LaunchedEffect(Unit) {
-            if (!targetPackage.isNullOrBlank() && targetPackage != context.packageName) {
-                try {
-                    val launchIntent = context.packageManager.getLaunchIntentForPackage(targetPackage!!)
-                    if (launchIntent != null) {
-                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        context.startActivity(launchIntent)
+            val isContextualChatVisible by viewModel.isContextualChatVisible.collectAsState()
+            val activeSelectionRect by viewModel.activeSelectionRect.collectAsState()
+            val targetPackage by settingsViewModel.targetPackageName.collectAsState()
+            val context = LocalContext.current
+
+            // --- AUTO-LAUNCH LOGIC ---
+            LaunchedEffect(Unit) {
+                if (!targetPackage.isNullOrBlank() && targetPackage != context.packageName) {
+                    try {
+                        val launchIntent = context.packageManager.getLaunchIntentForPackage(targetPackage!!)
+                        if (launchIntent != null) {
+                            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(launchIntent)
+                        }
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Error launching project", Toast.LENGTH_SHORT).show()
                     }
-                } catch (e: Exception) {
-                    Toast.makeText(context, "Error launching project", Toast.LENGTH_SHORT).show()
                 }
             }
-        }
 
-        // --- WINDOW SIZING LOGIC ---
-        // Calculate the physical height needed for the current detent
-        // Peek is 0.2f, AlmostHidden is 0.01f (or minimal).
-        // We use a slightly larger buffer for "AlmostHidden" to ensure the handle is touchable.
-        val currentDetent = sheetState.currentDetent
-        val isSheetOpen = currentDetent == Peek || currentDetent == Halfway
-        val isExpandedMode = isContextualChatVisible || currentDetent == Halfway // Full screen if Halfway or Chat
+            // --- WINDOW SIZING LOGIC ---
+            // Calculate the physical height needed for the current detent
+            // Peek is 0.2f, AlmostHidden is 0.01f (or minimal).
+            // We use a slightly larger buffer for "AlmostHidden" to ensure the handle is touchable.
+            val currentDetent = sheetState.currentDetent
+            val isSheetOpen = currentDetent == Peek || currentDetent == Halfway
+            val isExpandedMode = isContextualChatVisible || currentDetent == Halfway // Full screen if Halfway or Chat
 
-        // Calculate Pixel Height for Docked Mode
-        val dockedHeightPx = if (currentDetent == Peek) {
-            (screenHeightPx * 0.25f).toInt() // Give a bit more than 0.2 for safety
-        } else {
-            // AlmostHidden: Needs enough height for the "handle" or tip of the sheet
-            (50 * density).toInt()
-        }
+            // Calculate Pixel Height for Docked Mode
+            val dockedHeightPx = if (currentDetent == Peek) {
+                (screenHeightPx * 0.25f).toInt() // Give a bit more than 0.2 for safety
+            } else {
+                // AlmostHidden: Needs enough height for the "handle" or tip of the sheet
+                (50 * density).toInt()
+            }
 
-        LaunchedEffect(isExpandedMode, currentDetent) {
-            updateConsoleLayout(isExpandedMode, dockedHeightPx)
-        }
+            LaunchedEffect(isExpandedMode, currentDetent) {
+                updateConsoleLayout(isExpandedMode, dockedHeightPx)
+            }
 
-        IDEazTheme {
-            Box(modifier = Modifier.fillMaxSize()) {
-                // 1. Contextual Chat Overlay (High Z-Index)
-                if (isContextualChatVisible && activeSelectionRect != null) {
-                    ContextualChatOverlay(
-                        rect = activeSelectionRect!!,
+            IDEazTheme {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // 1. Contextual Chat Overlay (High Z-Index)
+                    if (isContextualChatVisible && activeSelectionRect != null) {
+                        ContextualChatOverlay(
+                            rect = activeSelectionRect!!,
+                            viewModel = viewModel,
+                            onClose = { viewModel.closeContextualChat() }
+                        )
+                    }
+
+                    // 2. Bottom Sheet
+                    IdeBottomSheet(
+                        sheetState = sheetState,
                         viewModel = viewModel,
-                        onClose = { viewModel.closeContextualChat() }
+                        peekDetent = Peek,
+                        halfwayDetent = Halfway,
+                        screenHeight = screenHeightDp,
+                        onSendPrompt = { viewModel.sendPrompt(it) }
                     )
                 }
-
-                // 2. Bottom Sheet
-                IdeBottomSheet(
-                    sheetState = sheetState,
-                    viewModel = viewModel,
-                    peekDetent = Peek,
-                    halfwayDetent = Halfway,
-                    screenHeight = screenHeightDp,
-                    onSendPrompt = { viewModel.sendPrompt(it) }
-                )
             }
         }
     }
