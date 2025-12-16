@@ -471,21 +471,26 @@ class MainViewModel(
                 val projectDir = settingsViewModel.getProjectPath(n)
                 if (projectDir.exists()) {
                     logHandler.onBuildLog("Syncing project '$n' before deletion...\n")
-                    val git = GitManager(projectDir)
+                    try {
+                        val git = GitManager(projectDir)
 
-                    if (git.hasChanges()) {
-                        git.addAll()
-                        git.commit("Sync before delete")
-                    }
+                        if (git.hasChanges()) {
+                            git.addAll()
+                            git.commit("Sync before delete")
+                        }
 
-                    val token = settingsViewModel.getGithubToken()
-                    val user = settingsViewModel.getGithubUser() ?: "git"
+                        val token = settingsViewModel.getGithubToken()
+                        val user = settingsViewModel.getGithubUser() ?: "git"
 
-                    if (!token.isNullOrBlank()) {
-                        git.push(user, token) { p, t -> logHandler.onGitProgress(p, t) }
-                        logHandler.onBuildLog("Project synced successfully.\n")
-                    } else {
-                        logHandler.onBuildLog("Warning: No GitHub token found. Skipping push.\n")
+                        if (!token.isNullOrBlank()) {
+                            git.push(user, token) { p, t -> logHandler.onGitProgress(p, t) }
+                            logHandler.onBuildLog("Project synced successfully.\n")
+                        } else {
+                            logHandler.onBuildLog("Warning: No GitHub token found. Skipping push.\n")
+                        }
+                    } catch (e: Exception) {
+                        logHandler.onBuildLog("Sync failed: ${e.message}. Aborting deletion.\n")
+                        throw e
                     }
                 }
                 performLocalDeletion(n)
