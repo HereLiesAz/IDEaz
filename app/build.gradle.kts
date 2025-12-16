@@ -15,9 +15,9 @@ if (versionPropsFile.exists()) {
     versionProps.load(FileInputStream(versionPropsFile))
 }
 
-val major = versionProps.getProperty("major", "1").toInt()
-val minor = versionProps.getProperty("minor", "0").toInt()
-val patch = versionProps.getProperty("patch", "3").toInt()
+val major = versionProps.getProperty("major").toInt()
+val minor = versionProps.getProperty("minor").toInt()
+val patch = versionProps.getProperty("patch").toInt()
 val buildNumber = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
 
 android {
