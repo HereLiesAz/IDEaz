@@ -199,12 +199,12 @@ class MainViewModel(
                     .firstOrNull { it.name == "tools.zip" }
 
                 if (toolAsset == null) {
-                    logHandler.onBuildLog("Error: 'tools.zip' not found in recent releases.")
+                    logHandler.onBuildLog("Error: 'tools.zip' artifact not found in recent releases.")
                     stateDelegate.setLoadingProgress(null)
                     return@launch
                 }
 
-                logHandler.onBuildLog("Downloading tools from ${toolAsset.name}...")
+                logHandler.onBuildLog("Downloading build tools from ${toolAsset.name}...")
                 zipFile = File(getApplication<Application>().cacheDir, "tools.zip")
 
                 val success = downloadFile(toolAsset.browserDownloadUrl, zipFile) { progress ->
