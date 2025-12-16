@@ -16,7 +16,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 @RunWith(RobolectricTestRunner::class)
-@Config(manifest = Config.NONE, sdk = [30])
+@Config(manifest = Config.NONE)
 class ToolManagerTest {
 
     private lateinit var context: Context
