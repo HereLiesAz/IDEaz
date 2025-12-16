@@ -48,6 +48,8 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [x] **3.4: UI Refinement**
     - [x] Reorder Settings Screen (Build Config first).
     - [x] Improve Project Load Tab layout.
+- [x] **3.5: Dependency Management**
+    - [x] UI for viewing and adding libraries via AI.
 
 ## Phase 4: AI Integration & Workflow
 - [ ] **4.1: Jules Integration**

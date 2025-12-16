@@ -118,7 +118,10 @@ fun MainScreen(
                     navController = navController,
                     viewModel = viewModel,
                     context = context,
-                    onShowPromptPopup = { isPromptPopupVisible = true },
+                    onShowPromptPopup = {
+                        // Show the prompt input dialog
+                        isPromptPopupVisible = true
+                    },
                     handleActionClick = { it() },
                     isIdeVisible = isIdeVisible,
                     onLaunchOverlay = {
