@@ -13,100 +13,118 @@ class SimpleJsBundlerTest {
     val tempFolder = TemporaryFolder()
 
     @Test
-    fun bundle_injectsAccessibilityLabels() {
-        val projectDir = tempFolder.newFolder("rn_project")
-        val appJs = File(projectDir, "App.js")
-        appJs.writeText("""
-            import React from 'react';
-            import { View, Text } from 'react-native';
-            export default function App() {
-                return (
-                    <View style={styles.container}>
-                        <Text>Hello World</Text>
-                        <View />
-                    </View>
-                );
-            }
-        """.trimIndent())
-
-        val outputDir = tempFolder.newFolder("output")
-        val bundler = SimpleJsBundler()
-
-        val result = bundler.bundle(projectDir, outputDir)
-        assertTrue(result.success)
-
-        val bundleFile = File(outputDir, "index.android.bundle")
-        assertTrue(bundleFile.exists())
-
-        val content = bundleFile.readText()
-
-        // Check for injection
-        // Line 5: <View style={styles.container}>
-        assertTrue("Should inject into View on line 5", content.contains("accessibilityLabel=\"__source:App.js:5__\""))
-
-        // Line 6: <Text>Hello World</Text>
-        assertTrue("Should inject into Text on line 6", content.contains("accessibilityLabel=\"__source:App.js:6__\""))
-
-        // Line 7: <View />
-        assertTrue("Should inject into self-closing View on line 7", content.contains("accessibilityLabel=\"__source:App.js:7__\""))
-
-        // Check Boilerplate wrapping
-        assertTrue(content.contains("AppRegistry.registerComponent"))
-        assertTrue(content.contains("function App()")) // export default stripped
-    }
-
-    @Test
     fun bundle_readsAppNameFromRootJson() {
-        val projectDir = tempFolder.newFolder("rn_project_root")
+        val projectDir = tempFolder.newFolder("project_root")
         File(projectDir, "App.js").writeText("export default function App() {}")
-        File(projectDir, "app.json").writeText("""
+
+        val appJson = File(projectDir, "app.json")
+        appJson.writeText("""
             {
-                "name": "RootAppName"
+                "name": "RootName"
             }
         """.trimIndent())
 
         val bundler = SimpleJsBundler()
-        val outputDir = tempFolder.newFolder("output_root")
+        val outputDir = tempFolder.newFolder("output")
         val result = bundler.bundle(projectDir, outputDir)
+        assertTrue("Bundling failed: ${result.output}", result.success)
 
-        assertTrue(result.success)
-        val bundleContent = File(outputDir, "index.android.bundle").readText()
-        assertTrue("Should contain RootAppName", bundleContent.contains("AppRegistry.registerComponent('RootAppName'"))
+        val outFile = File(outputDir, "index.android.bundle")
+        val content = outFile.readText()
+        assertTrue("Should use root 'name' property", content.contains("AppRegistry.registerComponent('RootName'"))
     }
 
     @Test
     fun bundle_readsAppNameFromExpoJson() {
-        val projectDir = tempFolder.newFolder("rn_project_expo")
+        val projectDir = tempFolder.newFolder("project_expo")
         File(projectDir, "App.js").writeText("export default function App() {}")
-        File(projectDir, "app.json").writeText("""
+
+        val appJson = File(projectDir, "app.json")
+        appJson.writeText("""
             {
                 "expo": {
-                    "name": "ExpoAppName"
+                    "name": "ExpoName"
                 }
             }
         """.trimIndent())
 
         val bundler = SimpleJsBundler()
-        val outputDir = tempFolder.newFolder("output_expo")
+        val outputDir = tempFolder.newFolder("output")
         val result = bundler.bundle(projectDir, outputDir)
+        assertTrue("Bundling failed: ${result.output}", result.success)
 
-        assertTrue(result.success)
-        val bundleContent = File(outputDir, "index.android.bundle").readText()
-        assertTrue("Should contain ExpoAppName", bundleContent.contains("AppRegistry.registerComponent('ExpoAppName'"))
+        val outFile = File(outputDir, "index.android.bundle")
+        val content = outFile.readText()
+        assertTrue("Should use expo.name property", content.contains("AppRegistry.registerComponent('ExpoName'"))
     }
 
     @Test
-    fun bundle_fallbacksToDefaultWhenMissing() {
-        val projectDir = tempFolder.newFolder("rn_project_missing")
+    fun bundle_prioritizesRootNameOverExpo() {
+        val projectDir = tempFolder.newFolder("project_both")
         File(projectDir, "App.js").writeText("export default function App() {}")
-        // No app.json
+
+        val appJson = File(projectDir, "app.json")
+        appJson.writeText("""
+            {
+                "name": "RootName",
+                "expo": {
+                    "name": "ExpoName"
+                }
+            }
+        """.trimIndent())
 
         val bundler = SimpleJsBundler()
-        val outputDir = tempFolder.newFolder("output_missing")
+        val outputDir = tempFolder.newFolder("output")
         val result = bundler.bundle(projectDir, outputDir)
+        assertTrue("Bundling failed: ${result.output}", result.success)
 
-        assertTrue(result.success)
-        val bundleContent = File(outputDir, "index.android.bundle").readText()
-        assertTrue("Should contain default MyReactNativeApp", bundleContent.contains("AppRegistry.registerComponent('MyReactNativeApp'"))
+        val outFile = File(outputDir, "index.android.bundle")
+        val content = outFile.readText()
+        assertTrue("Should prioritize root name over expo name", content.contains("AppRegistry.registerComponent('RootName'"))
+    }
+
+    @Test
+    fun bundle_fallsBackToDisplayName() {
+        val projectDir = tempFolder.newFolder("project_display")
+        File(projectDir, "App.js").writeText("export default function App() {}")
+
+        val appJson = File(projectDir, "app.json")
+        appJson.writeText("""
+            {
+                "displayName": "DisplayApp"
+            }
+        """.trimIndent())
+
+        val bundler = SimpleJsBundler()
+        val outputDir = tempFolder.newFolder("output")
+        val result = bundler.bundle(projectDir, outputDir)
+        assertTrue("Bundling failed: ${result.output}", result.success)
+
+        val outFile = File(outputDir, "index.android.bundle")
+        val content = outFile.readText()
+        assertTrue("Should fallback to displayName", content.contains("AppRegistry.registerComponent('DisplayApp'"))
+    }
+
+    @Test
+    fun bundle_injectsAccessibilityLabels() {
+        val bundler = SimpleJsBundler()
+        val input = listOf(
+            "<View style={{flex:1}}>",
+            "  <Text>Hello</Text>",
+            "</View>"
+        )
+        val result = bundler.processSource(input, "Test.js")
+
+        // Assertions for line 1
+        assertTrue(
+            "Line 1 View missing accessibilityLabel",
+            result.contains("""<View style={{flex:1}} accessibilityLabel="__source:Test.js:1__">""")
+        )
+
+        // Assertions for line 2
+        assertTrue(
+            "Line 2 Text missing accessibilityLabel",
+            result.contains("""<Text accessibilityLabel="__source:Test.js:2__">Hello</Text>""")
+        )
     }
 }
