@@ -1,6 +1,6 @@
 package com.hereliesaz.ideaz.buildlogic
 
-import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
