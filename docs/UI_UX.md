@@ -14,7 +14,7 @@ The interaction model revolves around the **Live App** and the **IDE Overlay**.
 
 ### 1. Interaction Mode (Docked / FAB)
 *   **Purpose:** Allow the user to use their app normally.
-*   **State:** `IdeazOverlayService` window (for the Rail) is **dynamic** (managed by `AzNavRail`). It shrinks to wrap the content (Rail/FAB) when stationary to unblock the underlying app, and expands to full screen during drag operations to ensure smooth movement.
+*   **State:** `IdeazOverlayService` window (for the Rail) is **dynamic** (managed by `AzNavRail` v5.2+). It shrinks to wrap the content (Rail/FAB) when stationary to unblock the underlying app, and expands to full screen during drag operations to ensure smooth movement.
 *   **Visuals:** The user sees their app cleanly with the Rail docked.
     *   **FAB Mode:** Long-press the rail header to collapse it into a Floating Action Button (FAB). The FAB can be dragged around the screen.
 *   **Trigger:** User taps "Interact" or toggles the mode. Long-press header for FAB.
@@ -36,6 +36,7 @@ The interaction model revolves around the **Live App** and the **IDE Overlay**.
 
 ### 1. The Unified Overlay
 *   **Concept:** The IDE runs entirely within a System Alert Window.
+*   **Compliance:** The overlay service extends `AzNavRailOverlayService`, leveraging the library's built-in `WindowManager` handling for dynamic sizing and drag support.
 *   **Transparency Rules:**
     *   **Interact/Select Mode:** The background MUST be transparent.
     *   **Settings/Setup:** The background MUST be **Opaque** (Solid).
