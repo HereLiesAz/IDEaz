@@ -40,7 +40,6 @@ fun IdeNavRail(
             onUndock = onUndock,
             onOverlayDrag = onOverlayDrag,
             headerIconShape = AzHeaderIconShape.NONE,
-            displayAppNameInHeader = isTitleVisible
         )
 
         // ... (rest of items unchanged)
