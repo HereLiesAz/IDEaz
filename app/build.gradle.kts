@@ -101,6 +101,7 @@ android {
 }
 
 configurations.all {
+    exclude(group = "com.intellij", module = "annotations")
     resolutionStrategy {
         eachDependency {
             if (requested.group == "commons-logging" && requested.name == "commons-logging") {
