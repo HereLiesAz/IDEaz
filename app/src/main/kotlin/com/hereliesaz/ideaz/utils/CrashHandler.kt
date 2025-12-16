@@ -31,13 +31,17 @@ object CrashHandler {
 
             val prefs = PreferenceManager.getDefaultSharedPreferences(context)
             val apiKey = prefs.getString(SettingsViewModel.KEY_API_KEY, null)
+            val githubToken = prefs.getString(SettingsViewModel.KEY_GITHUB_TOKEN, null)
             val githubUser = prefs.getString(SettingsViewModel.KEY_GITHUB_USER, "Unknown")
+            val reportToGithub = prefs.getBoolean(SettingsViewModel.KEY_REPORT_IDE_ERRORS, true)
 
             if (!apiKey.isNullOrBlank()) {
                 val intent = Intent(context, CrashReportingService::class.java).apply {
                     putExtra(CrashReportingService.EXTRA_API_KEY, apiKey)
+                    putExtra(CrashReportingService.EXTRA_GITHUB_TOKEN, githubToken)
                     putExtra(CrashReportingService.EXTRA_STACK_TRACE, stackTrace)
                     putExtra(CrashReportingService.EXTRA_GITHUB_USER, githubUser)
+                    putExtra(CrashReportingService.EXTRA_REPORT_TO_GITHUB, reportToGithub)
                 }
                 context.startService(intent)
             }
