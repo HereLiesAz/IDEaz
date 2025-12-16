@@ -14,6 +14,7 @@ import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.services.CrashReportingService
 import com.hereliesaz.ideaz.ui.delegates.*
 import com.hereliesaz.ideaz.utils.ErrorCollector
+import com.hereliesaz.ideaz.R
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ToolManager
 import kotlinx.coroutines.Dispatchers
@@ -456,6 +457,7 @@ class MainViewModel(
      * Deletes a local project by name.
      */
     fun deleteProject(n: String) {
+        if (n.isBlank()) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 performLocalDeletion(n)
@@ -508,7 +510,11 @@ class MainViewModel(
     private suspend fun performLocalDeletion(n: String) {
         val projectDir = settingsViewModel.getProjectPath(n)
         if (projectDir.exists()) {
-            projectDir.deleteRecursively()
+            if (!projectDir.deleteRecursively()) {
+                if (projectDir.exists()) {
+                    throw java.io.IOException("Failed to delete project directory: ${projectDir.absolutePath}")
+                }
+            }
         }
         withContext(Dispatchers.Main) {
             settingsViewModel.removeProject(n)
@@ -576,33 +582,54 @@ class MainViewModel(
             stateDelegate.setTargetAppVisible(true)
         } else {
             // Android, Flutter, React Native (assume APK)
-            var packageName = settingsViewModel.targetPackageName.value
-            if (packageName.isNullOrBlank()) {
-                 packageName = "com.example.helloworld" // fallback
-            }
+            val packageName = settingsViewModel.targetPackageName.value
 
             try {
-                val intent = c.packageManager.getLaunchIntentForPackage(packageName)
-                if (intent != null) {
-                    c.startActivity(intent)
-                } else {
-                    // Try to detect package name again as fallback
+                if (packageName.isNullOrBlank()) {
+                     // Try to detect package name if not set
+                    val projectDir = settingsViewModel.getProjectPath(appName)
+                    val detectedPackage = ProjectAnalyzer.detectPackageName(projectDir)
+
+                    if (!detectedPackage.isNullOrBlank()) {
+                        settingsViewModel.saveTargetPackageName(detectedPackage)
+                        launchPackage(c, detectedPackage)
+                    } else {
+                        Toast.makeText(c, c.getString(R.string.error_app_not_installed), Toast.LENGTH_SHORT).show()
+                    }
+                    return
+                }
+
+                if (!launchPackage(c, packageName)) {
+                    // Try to detect package name again as fallback in case it changed
                     val projectDir = settingsViewModel.getProjectPath(appName)
                     val detectedPackage = ProjectAnalyzer.detectPackageName(projectDir)
 
                     if (!detectedPackage.isNullOrBlank() && detectedPackage != packageName) {
                         settingsViewModel.saveTargetPackageName(detectedPackage)
-                        val newIntent = c.packageManager.getLaunchIntentForPackage(detectedPackage)
-                        if (newIntent != null) {
-                            c.startActivity(newIntent)
-                            return
+                        if (!launchPackage(c, detectedPackage)) {
+                             Toast.makeText(c, c.getString(R.string.error_app_not_installed), Toast.LENGTH_SHORT).show()
                         }
+                    } else {
+                        Toast.makeText(c, c.getString(R.string.error_app_not_installed), Toast.LENGTH_SHORT).show()
                     }
-                    Toast.makeText(c, "App not installed. Please build first.", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
-                Toast.makeText(c, "Failed to launch app: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(c, c.getString(R.string.error_launch_failed, e.message), Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    private fun launchPackage(c: Context, pkg: String): Boolean {
+        return try {
+            val intent = c.packageManager.getLaunchIntentForPackage(pkg)
+            if (intent != null) {
+                c.startActivity(intent)
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            false
         }
     }
 
