@@ -37,9 +37,6 @@ class MainActivity : ComponentActivity() {
             val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
             startActivityForResult(intent, 1001)
         } else {
-            // Ensure Overlay Service is running (it might be redundant if already started, but safe)
-            launchOverlay()
-
             // Render the Main UI
             val app = application as MainApplication
             setContent {
