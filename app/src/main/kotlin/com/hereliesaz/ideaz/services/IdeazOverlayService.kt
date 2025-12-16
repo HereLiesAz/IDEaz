@@ -72,6 +72,11 @@ class IdeazOverlayService : AzNavRailOverlayService(), ViewModelStoreOwner {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_QUIT) {
+            stopSelf()
+            android.os.Process.killProcess(android.os.Process.myPid())
+            return START_NOT_STICKY
+        }
         super.onStartCommand(intent, flags, startId)
         return START_STICKY
     }
@@ -89,11 +94,19 @@ class IdeazOverlayService : AzNavRailOverlayService(), ViewModelStoreOwner {
     }
 
     override fun getNotification(): Notification {
+        val quitIntent = Intent(this, IdeazOverlayService::class.java).apply {
+            action = ACTION_QUIT
+        }
+        val quitPendingIntent = android.app.PendingIntent.getService(
+            this, 0, quitIntent, android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("IDEaz Overlay")
             .setContentText("Tap to open navigation")
             .setSmallIcon(R.mipmap.ic_launcher)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Quit", quitPendingIntent)
             .build()
     }
 
@@ -221,21 +234,6 @@ class IdeazOverlayService : AzNavRailOverlayService(), ViewModelStoreOwner {
             val targetPackage by settingsViewModel.targetPackageName.collectAsState()
             val context = LocalContext.current
 
-            // --- AUTO-LAUNCH LOGIC ---
-            LaunchedEffect(Unit) {
-                if (!targetPackage.isNullOrBlank() && targetPackage != context.packageName) {
-                    try {
-                        val launchIntent = context.packageManager.getLaunchIntentForPackage(targetPackage!!)
-                        if (launchIntent != null) {
-                            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            context.startActivity(launchIntent)
-                        }
-                    } catch (e: Exception) {
-                        Toast.makeText(context, "Error launching project", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-
             // --- WINDOW SIZING LOGIC ---
             val currentDetent = sheetState.currentDetent
             val isSheetOpen = currentDetent == Peek || currentDetent == Halfway
@@ -282,5 +280,6 @@ class IdeazOverlayService : AzNavRailOverlayService(), ViewModelStoreOwner {
 
     companion object {
         private const val CHANNEL_ID = "ideaz_overlay_channel"
+        private const val ACTION_QUIT = "com.hereliesaz.ideaz.ACTION_QUIT"
     }
 }
