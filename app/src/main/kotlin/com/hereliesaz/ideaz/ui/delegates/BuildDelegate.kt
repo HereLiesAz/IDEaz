@@ -37,7 +37,7 @@ class BuildDelegate(
     private val onLog: (String) -> Unit,
     private val onOverlayLog: (String) -> Unit,
     private val onSourceMapUpdated: (Map<String, com.hereliesaz.ideaz.models.SourceMapEntry>) -> Unit,
-    private val onWebBuildFailure: (String) -> Unit,
+    private val onBuildFailure: (String) -> Unit,
     private val onWebBuildSuccess: (String) -> Unit,
     private val gitDelegate: GitDelegate
 ) {
@@ -98,11 +98,7 @@ class BuildDelegate(
             scope.launch {
                 onLog("\n[IDE] Build Failed.\n")
                 onOverlayLog("Build failed. Check global log.")
-                val type = ProjectType.fromString(settingsViewModel.getProjectType())
-                if (type == ProjectType.WEB) {
-                    onLog("[IDE] Web Build Failed. Requesting correction from Jules...\n")
-                    onWebBuildFailure(log)
-                }
+                onBuildFailure(log)
             }
         }
     }

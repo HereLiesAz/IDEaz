@@ -92,6 +92,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_SHOW_CANCEL_WARNING = "show_cancel_warning"
         const val KEY_AUTO_REPORT_BUGS = "auto_report_bugs"
         const val KEY_ENABLE_LOCAL_BUILDS = "enable_local_builds"
+        const val KEY_AUTO_DEBUG_BUILDS = "auto_debug_builds"
+        const val KEY_REPORT_IDE_ERRORS = "report_ide_errors"
 
         const val KEY_THEME_MODE = "theme_mode"
         const val THEME_AUTO = "auto"
@@ -179,6 +181,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun getAutoReportBugs() = sharedPreferences.getBoolean(KEY_AUTO_REPORT_BUGS, true)
     fun setAutoReportBugs(enabled: Boolean) = sharedPreferences.edit().putBoolean(KEY_AUTO_REPORT_BUGS, enabled).apply()
+
+    fun isAutoDebugBuildsEnabled() = sharedPreferences.getBoolean(KEY_AUTO_DEBUG_BUILDS, true)
+    fun setAutoDebugBuildsEnabled(enabled: Boolean) = sharedPreferences.edit().putBoolean(KEY_AUTO_DEBUG_BUILDS, enabled).apply()
+
+    fun isReportIdeErrorsEnabled() = sharedPreferences.getBoolean(KEY_REPORT_IDE_ERRORS, true)
+    fun setReportIdeErrorsEnabled(enabled: Boolean) = sharedPreferences.edit().putBoolean(KEY_REPORT_IDE_ERRORS, enabled).apply()
 
     fun isLocalBuildEnabled() = sharedPreferences.getBoolean(KEY_ENABLE_LOCAL_BUILDS, false)
     fun setLocalBuildEnabled(enabled: Boolean) = sharedPreferences.edit().putBoolean(KEY_ENABLE_LOCAL_BUILDS, enabled).apply()

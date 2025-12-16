@@ -95,6 +95,14 @@ fun SettingsScreen(
         mutableStateOf(settingsViewModel.getAutoReportBugs())
     }
 
+    var autoDebugBuilds by remember(settingsVersion) {
+        mutableStateOf(settingsViewModel.isAutoDebugBuildsEnabled())
+    }
+
+    var reportIdeErrors by remember(settingsVersion) {
+        mutableStateOf(settingsViewModel.isReportIdeErrorsEnabled())
+    }
+
     // Local Build State
     var isLocalBuildEnabled by remember(settingsVersion) {
         mutableStateOf(settingsViewModel.isLocalBuildEnabled())
@@ -697,6 +705,34 @@ fun SettingsScreen(
                         }
                     )
                     Text("Auto-report IDE internal errors to GitHub", color = MaterialTheme.colorScheme.onBackground)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = autoDebugBuilds,
+                        onCheckedChange = {
+                            autoDebugBuilds = it
+                            settingsViewModel.setAutoDebugBuildsEnabled(it)
+                        }
+                    )
+                    Text("Auto-debug build failures with Jules", color = MaterialTheme.colorScheme.onBackground)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = reportIdeErrors,
+                        onCheckedChange = {
+                            reportIdeErrors = it
+                            settingsViewModel.setReportIdeErrorsEnabled(it)
+                        }
+                    )
+                    Text("Report IDE errors to HereLiesAz/IDEaz (Issues)", color = MaterialTheme.colorScheme.onBackground)
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
