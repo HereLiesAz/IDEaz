@@ -457,6 +457,7 @@ class MainViewModel(
      * Deletes a local project by name.
      */
     fun deleteProject(n: String) {
+        if (n.isBlank()) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 performLocalDeletion(n)
@@ -509,7 +510,11 @@ class MainViewModel(
     private suspend fun performLocalDeletion(n: String) {
         val projectDir = settingsViewModel.getProjectPath(n)
         if (projectDir.exists()) {
-            projectDir.deleteRecursively()
+            if (!projectDir.deleteRecursively()) {
+                if (projectDir.exists()) {
+                    throw java.io.IOException("Failed to delete project directory: ${projectDir.absolutePath}")
+                }
+            }
         }
         withContext(Dispatchers.Main) {
             settingsViewModel.removeProject(n)
