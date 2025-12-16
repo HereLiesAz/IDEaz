@@ -518,6 +518,27 @@ class MainViewModel(
     /** Dismisses the update warning. */
     fun dismissUpdateWarning() = updateDelegate.dismissUpdateWarning()
 
+    // DEPENDENCIES
+
+    private val _dependencies = MutableStateFlow<List<com.hereliesaz.ideaz.utils.DependencyItem>>(emptyList())
+    val dependencies = _dependencies.asStateFlow()
+
+    fun loadDependencies() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val appName = settingsViewModel.getAppName()
+            if (appName != null) {
+                val projectDir = settingsViewModel.getProjectPath(appName)
+                val deps = com.hereliesaz.ideaz.utils.DependencyManager.listDependencies(projectDir)
+                _dependencies.value = deps
+            }
+        }
+    }
+
+    fun addDependencyViaAI(coordinate: String) {
+        val prompt = "Add dependency '$coordinate' to the project. Update gradle/libs.versions.toml and app/build.gradle.kts (or build.gradle.kts) accordingly. Ensure to add version to [versions] and library to [libraries] with an alias, then implement it."
+        aiDelegate.startContextualAITask(prompt)
+    }
+
     // MISC
 
     /** Clears the build log. */
