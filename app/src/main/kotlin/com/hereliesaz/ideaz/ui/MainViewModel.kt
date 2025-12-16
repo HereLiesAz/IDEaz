@@ -655,8 +655,10 @@ class MainViewModel(
         }
     }
 
-    /** Downloads project dependencies (TODO). */
-    fun downloadDependencies() { /* TODO */ }
+    /** Downloads project dependencies. */
+    fun downloadDependencies() {
+        buildDelegate.downloadDependencies()
+    }
 
     /** Checks for required API keys and returns a list of missing ones. */
     fun checkRequiredKeys(): List<String> {
