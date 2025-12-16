@@ -68,13 +68,16 @@ class SimpleJsBundler {
         if (appJson.exists()) {
             try {
                 val json = JSONObject(appJson.readText())
+                // Check root name first (standard)
+                if (json.has("name")) {
+                    return json.getString("name")
+                }
+                // Then check Expo
                 val expo = json.optJSONObject("expo")
                 if (expo != null && expo.has("name")) {
                     return expo.getString("name")
                 }
-                if (json.has("name")) {
-                    return json.getString("name")
-                }
+                // Fallback to displayName
                 if (json.has("displayName")) {
                     return json.getString("displayName")
                 }
