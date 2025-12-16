@@ -6,4 +6,6 @@
     <string name="starting_task">Starting task...</string>
 <string name="accessibility_service_label">IDEaz Inspection Service</string>
 <string name="accessibility_service_description">Allows IDEaz to inspect the UI layout to provide contextual AI assistance.</string>
+    <string name="error_app_not_installed">App not installed. Please build first.</string>
+    <string name="error_launch_failed">Failed to launch app: %1$s</string>
 </resources>
