@@ -122,6 +122,58 @@ class RepoDelegate(
     }
 
     /**
+     * Forks a GitHub repository.
+     */
+    fun forkRepository(
+        owner: String,
+        repoName: String,
+        onSuccess: (newOwner: String, newRepoName: String, branch: String) -> Unit
+    ) {
+        scope.launch {
+            onLoadingProgress(0)
+            try {
+                val token = settingsViewModel.getGithubToken()
+                if (token.isNullOrBlank()) {
+                    onOverlayLog("Error: No GitHub Token found.")
+                    return@launch
+                }
+
+                val service = GitHubApiClient.createService(token)
+                onOverlayLog("Forking $owner/$repoName...")
+
+                val request = com.hereliesaz.ideaz.api.ForkRepoRequest()
+                val response = service.forkRepo(owner, repoName, request)
+
+                val newOwner = response.fullName.split("/")[0]
+                val newBranch = response.defaultBranch ?: "main"
+
+                onOverlayLog("Fork successful: ${response.htmlUrl}")
+
+                settingsViewModel.setAppName(response.name)
+                settingsViewModel.setGithubUser(newOwner)
+                settingsViewModel.saveProjectConfig(response.name, newOwner, newBranch)
+
+                // Sanitize and set package name
+                var sanitizedUser = newOwner.replace(Regex("[^a-zA-Z0-9]"), "").lowercase()
+                if (sanitizedUser.isEmpty() || sanitizedUser[0].isDigit()) sanitizedUser = "_$sanitizedUser"
+
+                var sanitizedApp = response.name.replace(Regex("[^a-zA-Z0-9]"), "").lowercase()
+                if (sanitizedApp.isEmpty() || sanitizedApp[0].isDigit()) sanitizedApp = "_$sanitizedApp"
+
+                val generatedPackage = "com.$sanitizedUser.$sanitizedApp"
+                settingsViewModel.saveTargetPackageName(generatedPackage)
+
+                onSuccess(newOwner, response.name, newBranch)
+
+            } catch (e: Exception) {
+                onOverlayLog("Fork failed: ${e.message}")
+            } finally {
+                onLoadingProgress(null)
+            }
+        }
+    }
+
+    /**
      * Selects an existing repository for setup, inferring settings from metadata.
      */
     fun selectRepositoryForSetup(repo: GitHubRepoResponse, onSuccess: (owner: String, branch: String) -> Unit) {
