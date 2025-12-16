@@ -1,6 +1,7 @@
 package com.hereliesaz.ideaz.services
 
 import android.app.Application
+import com.hereliesaz.ideaz.MainApplication
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -42,7 +43,6 @@ import com.hereliesaz.ideaz.ui.Halfway
 import com.hereliesaz.ideaz.ui.IdeBottomSheet
 import com.hereliesaz.ideaz.ui.IdeNavRail
 import com.hereliesaz.ideaz.ui.MainViewModel
-import com.hereliesaz.ideaz.ui.MainViewModelFactory
 import com.hereliesaz.ideaz.ui.Peek
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.ui.theme.IDEazTheme
@@ -174,9 +174,8 @@ class IdeazOverlayService : AzNavRailOverlayService(), ViewModelStoreOwner {
                 detents = remember { listOf(AlmostHidden, Peek, Halfway) }
             )
 
-            val app = applicationContext as Application
-            val settingsViewModel = remember { SettingsViewModel(app) }
-            val viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(app, settingsViewModel))
+            val app = applicationContext as MainApplication
+            val viewModel = app.mainViewModel
             val isSelectMode by viewModel.isSelectMode.collectAsState()
 
             IDEazTheme {
@@ -225,14 +224,32 @@ class IdeazOverlayService : AzNavRailOverlayService(), ViewModelStoreOwner {
                 initialDetent = AlmostHidden
             )
 
-            val app = applicationContext as Application
-            val settingsViewModel = remember { SettingsViewModel(app) }
-            val viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(app, settingsViewModel))
+            val app = applicationContext as MainApplication
+            val viewModel = app.mainViewModel
+            val settingsViewModel = viewModel.settingsViewModel
 
             val isContextualChatVisible by viewModel.isContextualChatVisible.collectAsState()
             val activeSelectionRect by viewModel.activeSelectionRect.collectAsState()
             val targetPackage by settingsViewModel.targetPackageName.collectAsState()
             val context = LocalContext.current
+
+            // --- AUTO-LAUNCH LOGIC ---
+            // Disabled to ensure IDEaz starts on Project Screen as per user request
+            /*
+            LaunchedEffect(Unit) {
+                if (!targetPackage.isNullOrBlank() && targetPackage != context.packageName) {
+                    try {
+                        val launchIntent = context.packageManager.getLaunchIntentForPackage(targetPackage!!)
+                        if (launchIntent != null) {
+                            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(launchIntent)
+                        }
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Error launching project", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            */
 
             // --- WINDOW SIZING LOGIC ---
             val currentDetent = sheetState.currentDetent
