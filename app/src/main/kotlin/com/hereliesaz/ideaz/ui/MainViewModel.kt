@@ -368,8 +368,30 @@ class MainViewModel(
         }
     }
 
-    /** Forks a repository (TODO). */
-    fun forkRepository(u: String, onSuccess: () -> Unit = {}) { /* TODO */ }
+    /** Forks a repository. */
+    fun forkRepository(u: String, onSuccess: () -> Unit = {}) {
+        val parts = u.removePrefix("https://github.com/")
+            .removeSuffix(".git")
+            .split("/")
+            .filter { it.isNotBlank() }
+
+        if (parts.size < 2) {
+            logHandler.onOverlayLog("Invalid repository format. Use 'owner/repo'.")
+            return
+        }
+
+        val owner = parts[0]
+        val repo = parts[1]
+
+        repoDelegate.forkRepository(owner, repo) { newOwner, newRepo, _ ->
+            viewModelScope.launch {
+                repoDelegate.uploadProjectSecrets(newOwner, newRepo)
+                aiDelegate.fetchSessionsForRepo("$newOwner/$newRepo")
+                repoDelegate.forceUpdateInitFiles()
+                onSuccess()
+            }
+        }
+    }
 
     /**
      * Imports an external project folder via Storage Access Framework URI.
