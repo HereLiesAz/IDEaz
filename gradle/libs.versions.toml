@@ -1,16 +1,16 @@
 [versions]
-agp = "8.13.1"
-aetherTransportFile = "2.0.13"
-aznavrail = "4.47"
+agp = "8.13.2"
+aetherTransportFile = "2.0.14"
+aznavrail = "5.1"
 coreKtx = "1.17.0"
-googleGenai = "1.29.0"
+googleGenai = "1.31.0"
 kotlinCompilerEmbeddable = "2.2.21"
 kotlinxCoroutinesCore = "1.10.2"
 kxml2 = "2.3.0"
 mockwebserver = "5.3.2"
 preferenceKtx = "1.2.1"
-mavenResolver = "2.0.13"
-mavenResolverHttp = "1.9.24"
+mavenResolver = "2.0.14"
+mavenResolverHttp = "1.9.25"
 mavenCore = "3.9.11"
 wagonHttp = "3.5.3"
 jaxbApi = "2.3.1"
@@ -51,7 +51,8 @@ sodium = "5.2.0"
 jna = "5.18.1"
 hiddenapibypass = "6.1"
 loggingInterceptor = "5.3.2"
-json = "20240303"
+json = "20250517"
+roomCompiler = "2.8.4"
 
 [libraries]
 org-json = { module = "org.json:json", version.ref = "json" }
@@ -121,6 +122,7 @@ generativeai = { module = "com.google.ai.client.generativeai:generativeai", vers
 haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
 hiddenapibypass = { module = "org.lsposed.hiddenapibypass:hiddenapibypass", version.ref = "hiddenapibypass" }
 okhttp-logging-interceptor = { module = "com.squareup.okhttp3:logging-interceptor", version.ref = "loggingInterceptor" }
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "roomCompiler" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

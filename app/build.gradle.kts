@@ -1,3 +1,4 @@
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -179,6 +180,7 @@ dependencies {
     implementation(libs.androidx.documentfile)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.haze)
+    implementation(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     testImplementation(libs.org.json)
     testImplementation(libs.mockwebserver)
