@@ -26,8 +26,10 @@ class CrashReportingService : Service() {
         const val ACTION_REPORT_NON_FATAL = "com.hereliesaz.ideaz.REPORT_NON_FATAL"
 
         const val EXTRA_API_KEY = "extra_api_key"
+        const val EXTRA_GITHUB_TOKEN = "extra_github_token"
         const val EXTRA_STACK_TRACE = "extra_stack_trace" // Used for both Fatal and Batch errors
         const val EXTRA_GITHUB_USER = "extra_github_user"
+        const val EXTRA_REPORT_TO_GITHUB = "extra_report_to_github"
 
         private const val MANDATORY_INSTRUCTION =
             "You are required to get a perfect code review, no blocks or nitpicks allowed in it. " +
@@ -47,8 +49,10 @@ class CrashReportingService : Service() {
         }
 
         val apiKey = intent.getStringExtra(EXTRA_API_KEY)
+        val githubToken = intent.getStringExtra(EXTRA_GITHUB_TOKEN)
         val errorData = intent.getStringExtra(EXTRA_STACK_TRACE)
         val githubUser = intent.getStringExtra(EXTRA_GITHUB_USER) ?: "Unknown User"
+        val reportToGithub = intent.getBooleanExtra(EXTRA_REPORT_TO_GITHUB, true)
         val isFatal = intent.action != ACTION_REPORT_NON_FATAL
 
         if (apiKey.isNullOrBlank() || errorData.isNullOrBlank()) {
@@ -65,38 +69,49 @@ class CrashReportingService : Service() {
                 val type = if (isFatal) "CRASH" else "NON-FATAL ERROR(S)"
                 Log.d(TAG, "Attempting to submit $type report...")
 
-                val promptTitle = if (isFatal) {
-                    "CRASH REPORT from $githubUser: \n${errorData.lines().firstOrNull() ?: "Error"}"
+                if (reportToGithub && !githubToken.isNullOrBlank()) {
+                    com.hereliesaz.ideaz.utils.GithubIssueReporter.reportError(
+                        applicationContext,
+                        githubToken,
+                        Throwable(type),
+                        "Fatal Crash or System Error from $githubUser",
+                        errorData
+                    )
+                    Log.d(TAG, "Report submitted via GitHub Issues.")
                 } else {
-                    "NON-FATAL ERRORS from $githubUser"
+                    val promptTitle = if (isFatal) {
+                        "CRASH REPORT from $githubUser: \n${errorData.lines().firstOrNull() ?: "Error"}"
+                    } else {
+                        "NON-FATAL ERRORS from $githubUser"
+                    }
+
+                    val title = if (isFatal) {
+                        "Crash: ${errorData.lines().firstOrNull()?.take(50) ?: "Unknown"}"
+                    } else {
+                        "Non-Fatal Errors Batch"
+                    }
+
+                    // 1. Create Session
+                    val createRequest = CreateSessionRequest(
+                        prompt = promptTitle,
+                        sourceContext = SourceContext(
+                            source = IDEAZ_SOURCE,
+                            githubRepoContext = GitHubRepoContext(startingBranch = DEFAULT_BRANCH)
+                        ),
+                        title = title
+                    )
+
+                    val session = JulesApiClient.createSession(createRequest)
+                    Log.d(TAG, "Session created: ${session.name}")
+
+                    // 2. Send Message with Mandatory Instruction
+                    val messageRequest = SendMessageRequest(
+                        prompt = "AUTOMATED REPORT ($type):\n\n$errorData\n\n$MANDATORY_INSTRUCTION"
+                    )
+
+                    JulesApiClient.sendMessage(session.name, messageRequest)
+                    Log.d(TAG, "Report submitted via Jules Session.")
                 }
-
-                val title = if (isFatal) {
-                    "Crash: ${errorData.lines().firstOrNull()?.take(50) ?: "Unknown"}"
-                } else {
-                    "Non-Fatal Errors Batch"
-                }
-
-                // 1. Create Session
-                val createRequest = CreateSessionRequest(
-                    prompt = promptTitle,
-                    sourceContext = SourceContext(
-                        source = IDEAZ_SOURCE,
-                        githubRepoContext = GitHubRepoContext(startingBranch = DEFAULT_BRANCH)
-                    ),
-                    title = title
-                )
-
-                val session = JulesApiClient.createSession(createRequest)
-                Log.d(TAG, "Session created: ${session.name}")
-
-                // 2. Send Message with Mandatory Instruction
-                val messageRequest = SendMessageRequest(
-                    prompt = "AUTOMATED REPORT ($type):\n\n$errorData\n\n$MANDATORY_INSTRUCTION"
-                )
-
-                JulesApiClient.sendMessage(session.name, messageRequest)
-                Log.d(TAG, "Report submitted successfully.")
 
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to submit report", e)

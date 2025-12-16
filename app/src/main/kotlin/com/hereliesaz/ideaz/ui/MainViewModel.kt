@@ -14,6 +14,7 @@ import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.services.CrashReportingService
 import com.hereliesaz.ideaz.ui.delegates.*
 import com.hereliesaz.ideaz.utils.ErrorCollector
+import com.hereliesaz.ideaz.R
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ToolManager
 import kotlinx.coroutines.Dispatchers
@@ -74,7 +75,7 @@ class MainViewModel(
         logHandler::onBuildLog,
         logHandler::onAiLog,
         { map -> overlayDelegate.sourceMap = map },
-        { log -> aiDelegate.startContextualAITask("Web Build Failed. Fix this:\n$log") },
+        { log -> handleBuildFailure(log) },
         { path ->
             stateDelegate.setCurrentWebUrl("file://$path")
             stateDelegate.setTargetAppVisible(true) // Switch to "App View"
@@ -140,14 +141,18 @@ class MainViewModel(
         val errors = ErrorCollector.getAndClear()
         if (errors != null) {
             val apiKey = settingsViewModel.getApiKey()
+            val githubToken = settingsViewModel.getGithubToken()
             val githubUser = settingsViewModel.getGithubUser() ?: "Unknown"
+            val reportToGithub = settingsViewModel.isReportIdeErrorsEnabled()
 
             if (!apiKey.isNullOrBlank()) {
                 val intent = Intent(getApplication(), CrashReportingService::class.java).apply {
                     action = CrashReportingService.ACTION_REPORT_NON_FATAL
                     putExtra(CrashReportingService.EXTRA_API_KEY, apiKey)
+                    putExtra(CrashReportingService.EXTRA_GITHUB_TOKEN, githubToken)
                     putExtra(CrashReportingService.EXTRA_STACK_TRACE, errors)
                     putExtra(CrashReportingService.EXTRA_GITHUB_USER, githubUser)
+                    putExtra(CrashReportingService.EXTRA_REPORT_TO_GITHUB, reportToGithub)
                 }
                 getApplication<Application>().startService(intent)
             }
@@ -452,6 +457,7 @@ class MainViewModel(
      * Deletes a local project by name.
      */
     fun deleteProject(n: String) {
+        if (n.isBlank()) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 performLocalDeletion(n)
@@ -471,21 +477,26 @@ class MainViewModel(
                 val projectDir = settingsViewModel.getProjectPath(n)
                 if (projectDir.exists()) {
                     logHandler.onBuildLog("Syncing project '$n' before deletion...\n")
-                    val git = GitManager(projectDir)
+                    try {
+                        val git = GitManager(projectDir)
 
-                    if (git.hasChanges()) {
-                        git.addAll()
-                        git.commit("Sync before delete")
-                    }
+                        if (git.hasChanges()) {
+                            git.addAll()
+                            git.commit("Sync before delete")
+                        }
 
-                    val token = settingsViewModel.getGithubToken()
-                    val user = settingsViewModel.getGithubUser() ?: "git"
+                        val token = settingsViewModel.getGithubToken()
+                        val user = settingsViewModel.getGithubUser() ?: "git"
 
-                    if (!token.isNullOrBlank()) {
-                        git.push(user, token) { p, t -> logHandler.onGitProgress(p, t) }
-                        logHandler.onBuildLog("Project synced successfully.\n")
-                    } else {
-                        logHandler.onBuildLog("Warning: No GitHub token found. Skipping push.\n")
+                        if (!token.isNullOrBlank()) {
+                            git.push(user, token) { p, t -> logHandler.onGitProgress(p, t) }
+                            logHandler.onBuildLog("Project synced successfully.\n")
+                        } else {
+                            logHandler.onBuildLog("Warning: No GitHub token found. Skipping push.\n")
+                        }
+                    } catch (e: Exception) {
+                        logHandler.onBuildLog("Sync failed: ${e.message}. Aborting deletion.\n")
+                        throw e
                     }
                 }
                 performLocalDeletion(n)
@@ -499,7 +510,11 @@ class MainViewModel(
     private suspend fun performLocalDeletion(n: String) {
         val projectDir = settingsViewModel.getProjectPath(n)
         if (projectDir.exists()) {
-            projectDir.deleteRecursively()
+            if (!projectDir.deleteRecursively()) {
+                if (projectDir.exists()) {
+                    throw java.io.IOException("Failed to delete project directory: ${projectDir.absolutePath}")
+                }
+            }
         }
         withContext(Dispatchers.Main) {
             settingsViewModel.removeProject(n)
@@ -567,33 +582,54 @@ class MainViewModel(
             stateDelegate.setTargetAppVisible(true)
         } else {
             // Android, Flutter, React Native (assume APK)
-            var packageName = settingsViewModel.targetPackageName.value
-            if (packageName.isNullOrBlank()) {
-                 packageName = "com.example.helloworld" // fallback
-            }
+            val packageName = settingsViewModel.targetPackageName.value
 
             try {
-                val intent = c.packageManager.getLaunchIntentForPackage(packageName)
-                if (intent != null) {
-                    c.startActivity(intent)
-                } else {
-                    // Try to detect package name again as fallback
+                if (packageName.isNullOrBlank()) {
+                     // Try to detect package name if not set
+                    val projectDir = settingsViewModel.getProjectPath(appName)
+                    val detectedPackage = ProjectAnalyzer.detectPackageName(projectDir)
+
+                    if (!detectedPackage.isNullOrBlank()) {
+                        settingsViewModel.saveTargetPackageName(detectedPackage)
+                        launchPackage(c, detectedPackage)
+                    } else {
+                        Toast.makeText(c, c.getString(R.string.error_app_not_installed), Toast.LENGTH_SHORT).show()
+                    }
+                    return
+                }
+
+                if (!launchPackage(c, packageName)) {
+                    // Try to detect package name again as fallback in case it changed
                     val projectDir = settingsViewModel.getProjectPath(appName)
                     val detectedPackage = ProjectAnalyzer.detectPackageName(projectDir)
 
                     if (!detectedPackage.isNullOrBlank() && detectedPackage != packageName) {
                         settingsViewModel.saveTargetPackageName(detectedPackage)
-                        val newIntent = c.packageManager.getLaunchIntentForPackage(detectedPackage)
-                        if (newIntent != null) {
-                            c.startActivity(newIntent)
-                            return
+                        if (!launchPackage(c, detectedPackage)) {
+                             Toast.makeText(c, c.getString(R.string.error_app_not_installed), Toast.LENGTH_SHORT).show()
                         }
+                    } else {
+                        Toast.makeText(c, c.getString(R.string.error_app_not_installed), Toast.LENGTH_SHORT).show()
                     }
-                    Toast.makeText(c, "App not installed. Please build first.", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
-                Toast.makeText(c, "Failed to launch app: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(c, c.getString(R.string.error_launch_failed, e.message), Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    private fun launchPackage(c: Context, pkg: String): Boolean {
+        return try {
+            val intent = c.packageManager.getLaunchIntentForPackage(pkg)
+            if (intent != null) {
+                c.startActivity(intent)
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            false
         }
     }
 
@@ -645,6 +681,38 @@ class MainViewModel(
 
     private suspend fun applyUnidiffPatchInternal(diff: String): Boolean {
         return gitDelegate.applyUnidiffPatch(diff)
+    }
+
+    private fun handleBuildFailure(log: String) {
+        val isAutoDebug = settingsViewModel.isAutoDebugBuildsEnabled()
+        if (!isAutoDebug) return
+
+        // Heuristic for IDE Error
+        val isIdeError = log.contains("[IDE] Failed") ||
+                log.contains("tools not found") ||
+                log.contains("com.hereliesaz.ideaz") ||
+                (log.contains("FileNotFoundException") && !log.contains("build.gradle"))
+
+        if (isIdeError) {
+            if (settingsViewModel.isReportIdeErrorsEnabled()) {
+                val token = settingsViewModel.getGithubToken()
+                viewModelScope.launch {
+                    val result = com.hereliesaz.ideaz.utils.GithubIssueReporter.reportError(
+                        getApplication(),
+                        token,
+                        Throwable("Build Failure (Detected via Log)"),
+                        "Build failed with suspected IDE error",
+                        log
+                    )
+                    logHandler.onOverlayLog("IDE Error reported: $result")
+                }
+            } else {
+                logHandler.onOverlayLog("IDE Error detected. Reporting disabled.")
+            }
+        } else {
+            // Project Error -> Jules Session
+            aiDelegate.startContextualAITask("Build Failed. Fix this:\n$log")
+        }
     }
 }
 
