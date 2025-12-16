@@ -373,15 +373,19 @@ class MainViewModel(
     fun registerExternalProject(u: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                try {
-                    val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                    getApplication<Application>().contentResolver.takePersistableUriPermission(u, takeFlags)
-                } catch (e: Exception) {
-                    // Ignore if persistence is not supported
+                val documentFile = if (u.scheme == "file" && u.path != null) {
+                    androidx.documentfile.provider.DocumentFile.fromFile(File(u.path!!))
+                } else {
+                    try {
+                        val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                        getApplication<Application>().contentResolver.takePersistableUriPermission(u, takeFlags)
+                    } catch (e: Exception) {
+                        // Ignore if persistence is not supported
+                    }
+                    androidx.documentfile.provider.DocumentFile.fromTreeUri(getApplication(), u)
                 }
 
-                val documentFile = androidx.documentfile.provider.DocumentFile.fromTreeUri(getApplication(), u)
                 if (documentFile == null || !documentFile.isDirectory) {
                     logHandler.onOverlayLog("Invalid project directory selected.")
                     return@launch
