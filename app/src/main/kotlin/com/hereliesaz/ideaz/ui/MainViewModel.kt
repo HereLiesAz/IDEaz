@@ -74,7 +74,7 @@ class MainViewModel(
         logHandler::onBuildLog,
         logHandler::onAiLog,
         { map -> overlayDelegate.sourceMap = map },
-        { log -> aiDelegate.startContextualAITask("Web Build Failed. Fix this:\n$log") },
+        { log -> handleBuildFailure(log) },
         { path ->
             stateDelegate.setCurrentWebUrl("file://$path")
             stateDelegate.setTargetAppVisible(true) // Switch to "App View"
@@ -140,14 +140,18 @@ class MainViewModel(
         val errors = ErrorCollector.getAndClear()
         if (errors != null) {
             val apiKey = settingsViewModel.getApiKey()
+            val githubToken = settingsViewModel.getGithubToken()
             val githubUser = settingsViewModel.getGithubUser() ?: "Unknown"
+            val reportToGithub = settingsViewModel.isReportIdeErrorsEnabled()
 
             if (!apiKey.isNullOrBlank()) {
                 val intent = Intent(getApplication(), CrashReportingService::class.java).apply {
                     action = CrashReportingService.ACTION_REPORT_NON_FATAL
                     putExtra(CrashReportingService.EXTRA_API_KEY, apiKey)
+                    putExtra(CrashReportingService.EXTRA_GITHUB_TOKEN, githubToken)
                     putExtra(CrashReportingService.EXTRA_STACK_TRACE, errors)
                     putExtra(CrashReportingService.EXTRA_GITHUB_USER, githubUser)
+                    putExtra(CrashReportingService.EXTRA_REPORT_TO_GITHUB, reportToGithub)
                 }
                 getApplication<Application>().startService(intent)
             }
@@ -518,6 +522,27 @@ class MainViewModel(
     /** Dismisses the update warning. */
     fun dismissUpdateWarning() = updateDelegate.dismissUpdateWarning()
 
+    // DEPENDENCIES
+
+    private val _dependencies = MutableStateFlow<List<com.hereliesaz.ideaz.utils.DependencyItem>>(emptyList())
+    val dependencies = _dependencies.asStateFlow()
+
+    fun loadDependencies() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val appName = settingsViewModel.getAppName()
+            if (appName != null) {
+                val projectDir = settingsViewModel.getProjectPath(appName)
+                val deps = com.hereliesaz.ideaz.utils.DependencyManager.listDependencies(projectDir)
+                _dependencies.value = deps
+            }
+        }
+    }
+
+    fun addDependencyViaAI(coordinate: String) {
+        val prompt = "Add dependency '$coordinate' to the project. Update gradle/libs.versions.toml and app/build.gradle.kts (or build.gradle.kts) accordingly. Ensure to add version to [versions] and library to [libraries] with an alias, then implement it."
+        aiDelegate.startContextualAITask(prompt)
+    }
+
     // MISC
 
     /** Clears the build log. */
@@ -620,6 +645,38 @@ class MainViewModel(
 
     private suspend fun applyUnidiffPatchInternal(diff: String): Boolean {
         return gitDelegate.applyUnidiffPatch(diff)
+    }
+
+    private fun handleBuildFailure(log: String) {
+        val isAutoDebug = settingsViewModel.isAutoDebugBuildsEnabled()
+        if (!isAutoDebug) return
+
+        // Heuristic for IDE Error
+        val isIdeError = log.contains("[IDE] Failed") ||
+                log.contains("tools not found") ||
+                log.contains("com.hereliesaz.ideaz") ||
+                (log.contains("FileNotFoundException") && !log.contains("build.gradle"))
+
+        if (isIdeError) {
+            if (settingsViewModel.isReportIdeErrorsEnabled()) {
+                val token = settingsViewModel.getGithubToken()
+                viewModelScope.launch {
+                    val result = com.hereliesaz.ideaz.utils.GithubIssueReporter.reportError(
+                        getApplication(),
+                        token,
+                        Throwable("Build Failure (Detected via Log)"),
+                        "Build failed with suspected IDE error",
+                        log
+                    )
+                    logHandler.onOverlayLog("IDE Error reported: $result")
+                }
+            } else {
+                logHandler.onOverlayLog("IDE Error detected. Reporting disabled.")
+            }
+        } else {
+            // Project Error -> Jules Session
+            aiDelegate.startContextualAITask("Build Failed. Fix this:\n$log")
+        }
     }
 }
 
