@@ -35,3 +35,4 @@ The `docs/` folder contains the comprehensive documentation for this project. Th
 * **Refactor:** `MainViewModel` split into 6 Delegates. `ProjectScreen` split into sub-tabs.
 * **Stability:** Fixed JNA Crash and Service ANR.
 * **UI:** Updated `AzNavRail` components with `enabled`, `isLoading`, and `isError` states.
+* **UI:** Updated `AzNavRail` to 5.2 (Dynamic Overlay).
