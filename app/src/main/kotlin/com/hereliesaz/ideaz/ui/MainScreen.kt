@@ -1,6 +1,7 @@
 package com.hereliesaz.ideaz.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -86,81 +87,69 @@ fun MainScreen(
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
 
-            val railWidth = 80.dp
+            Row(modifier = Modifier.fillMaxSize()) {
+                // Navigation Rail
+                Box(
+                    modifier = Modifier.zIndex(Z_INDEX_NAV_RAIL)
+                ) {
+                    IdeNavRail(
+                        navController = navController,
+                        viewModel = viewModel,
+                        context = context,
+                        onShowPromptPopup = {
+                            // Show the prompt input dialog
+                            isPromptPopupVisible = true
+                        },
+                        handleActionClick = { it() },
+                        isIdeVisible = isIdeVisible,
+                        onLaunchOverlay = {
+                            // For Web, "Overlay" just means toggle selection mode or something similar,
+                            // but since we are already IN the "overlay" (simulated), this button might need to behave differently
+                            // or just do nothing/toggle internal state.
+                            if (currentWebUrl != null) {
+                                viewModel.toggleSelectMode(!viewModel.isSelectMode.value)
+                            } else {
+                                onLaunchOverlay()
+                            }
+                        },
+                        sheetState = sheetState,
+                        scope = scope,
+                        isLocalBuildEnabled = isLocalBuildEnabled,
+                        onNavigateToMainApp = { route ->
+                            viewModel.clearSelection()
+                            // If we are in Web Mode, we need to "Exit" it to go back to settings
+                            if (currentWebUrl != null) {
+                                viewModel.stateDelegate.setTargetAppVisible(false)
+                            }
+                            navController.navigate(route) {
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    )
+                }
 
-            // LAYER 1: Content (Padded Left) or WebView
-            if (currentWebUrl != null && isIdeVisible) {
-                // Web Mode: Show WebView at bottom layer
-                currentWebUrl?.let { webUrl ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .zIndex(Z_INDEX_WEB_VIEW)
-                    ) {
-                        WebProjectHost(
-                            url = webUrl,
-                            modifier = Modifier.fillMaxSize()
+                // Content
+                Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                    if (currentWebUrl != null && isIdeVisible) {
+                        // Web Mode: Show WebView
+                        currentWebUrl?.let { webUrl ->
+                            WebProjectHost(
+                                url = webUrl,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    } else {
+                        // IDE Mode: Show Settings/Project screens
+                        IdeNavHost(
+                            modifier = Modifier.fillMaxSize(),
+                            navController = navController,
+                            viewModel = viewModel,
+                            settingsViewModel = viewModel.settingsViewModel,
+                            onThemeToggle = onThemeToggle
                         )
                     }
                 }
-            } else {
-                // IDE Mode: Show Settings/Project screens
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(start = railWidth)
-                        .zIndex(Z_INDEX_IDE_CONTENT)
-                ) {
-                    IdeNavHost(
-                        modifier = Modifier.fillMaxSize(),
-                        navController = navController,
-                        viewModel = viewModel,
-                        settingsViewModel = viewModel.settingsViewModel,
-                        onThemeToggle = onThemeToggle
-                    )
-                }
-            }
-
-            // LAYER 2: Navigation Rail (Highest Z-Index)
-            // UNCONSTRAINED
-            Box(
-                modifier = Modifier.zIndex(Z_INDEX_NAV_RAIL)
-            ) {
-                IdeNavRail(
-                    navController = navController,
-                    viewModel = viewModel,
-                    context = context,
-                    onShowPromptPopup = {
-                        // Show the prompt input dialog
-                        isPromptPopupVisible = true
-                    },
-                    handleActionClick = { it() },
-                    isIdeVisible = isIdeVisible,
-                    onLaunchOverlay = {
-                        // For Web, "Overlay" just means toggle selection mode or something similar,
-                        // but since we are already IN the "overlay" (simulated), this button might need to behave differently
-                        // or just do nothing/toggle internal state.
-                        if (currentWebUrl != null) {
-                             viewModel.toggleSelectMode(!viewModel.isSelectMode.value)
-                        } else {
-                             onLaunchOverlay()
-                        }
-                    },
-                    sheetState = sheetState,
-                    scope = scope,
-                    isLocalBuildEnabled = isLocalBuildEnabled,
-                    onNavigateToMainApp = { route ->
-                        viewModel.clearSelection()
-                        // If we are in Web Mode, we need to "Exit" it to go back to settings
-                        if (currentWebUrl != null) {
-                             viewModel.stateDelegate.setTargetAppVisible(false)
-                        }
-                        navController.navigate(route) {
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }
-                )
             }
 
             // LAYER 3: Contextual Chat Overlay
