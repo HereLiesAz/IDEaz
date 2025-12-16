@@ -36,7 +36,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 ## Phase 3: UI/UX & Interaction
 - [x] **3.1: The Overlay**
     - [x] **3.1.1: Attachment:** Implement Bubble Notification for persistent overlay.
-    - [ ] **3.1.2: Transparency:** Ensure transparent background in IDE mode, Opaque in Settings.
+    - [x] **3.1.2: Transparency:** Ensure transparent background in IDE mode, Opaque in Settings.
     - [x] **3.1.3: Selection:** Tap (Node) and Drag (Rect) selection logic.
 - [x] **3.2: The Console**
     - [x] Bottom Sheet implementation.
