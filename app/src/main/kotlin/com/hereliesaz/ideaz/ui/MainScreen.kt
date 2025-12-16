@@ -68,6 +68,18 @@ fun MainScreen(
         navController.navigate("project_settings")
     }
 
+    // Handle Pending Navigation from Intent
+    val pendingRoute by viewModel.pendingRoute.collectAsState()
+    LaunchedEffect(pendingRoute) {
+        pendingRoute?.let { route ->
+            navController.navigate(route) {
+                launchSingleTop = true
+                restoreState = true
+            }
+            viewModel.setPendingRoute(null)
+        }
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
