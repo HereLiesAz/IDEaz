@@ -1,6 +1,7 @@
 package com.hereliesaz.ideaz.buildlogic
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -25,13 +26,12 @@ class SimpleJsBundlerTest {
 
         val bundler = SimpleJsBundler()
         val outputDir = tempFolder.newFolder("output")
-        bundler.bundle(projectDir, outputDir)
+        val result = bundler.bundle(projectDir, outputDir)
+        assertTrue("Bundling failed: ${result.output}", result.success)
 
         val outFile = File(outputDir, "index.android.bundle")
         val content = outFile.readText()
-        assert(content.contains("AppRegistry.registerComponent('RootName'")) {
-            "Should use root 'name' property"
-        }
+        assertTrue("Should use root 'name' property", content.contains("AppRegistry.registerComponent('RootName'"))
     }
 
     @Test
@@ -50,13 +50,12 @@ class SimpleJsBundlerTest {
 
         val bundler = SimpleJsBundler()
         val outputDir = tempFolder.newFolder("output")
-        bundler.bundle(projectDir, outputDir)
+        val result = bundler.bundle(projectDir, outputDir)
+        assertTrue("Bundling failed: ${result.output}", result.success)
 
         val outFile = File(outputDir, "index.android.bundle")
         val content = outFile.readText()
-        assert(content.contains("AppRegistry.registerComponent('ExpoName'")) {
-            "Should use expo.name property"
-        }
+        assertTrue("Should use expo.name property", content.contains("AppRegistry.registerComponent('ExpoName'"))
     }
 
     @Test
@@ -76,13 +75,12 @@ class SimpleJsBundlerTest {
 
         val bundler = SimpleJsBundler()
         val outputDir = tempFolder.newFolder("output")
-        bundler.bundle(projectDir, outputDir)
+        val result = bundler.bundle(projectDir, outputDir)
+        assertTrue("Bundling failed: ${result.output}", result.success)
 
         val outFile = File(outputDir, "index.android.bundle")
         val content = outFile.readText()
-        assert(content.contains("AppRegistry.registerComponent('RootName'")) {
-            "Should prioritize root name over expo name"
-        }
+        assertTrue("Should prioritize root name over expo name", content.contains("AppRegistry.registerComponent('RootName'"))
     }
 
     @Test
@@ -99,13 +97,12 @@ class SimpleJsBundlerTest {
 
         val bundler = SimpleJsBundler()
         val outputDir = tempFolder.newFolder("output")
-        bundler.bundle(projectDir, outputDir)
+        val result = bundler.bundle(projectDir, outputDir)
+        assertTrue("Bundling failed: ${result.output}", result.success)
 
         val outFile = File(outputDir, "index.android.bundle")
         val content = outFile.readText()
-        assert(content.contains("AppRegistry.registerComponent('DisplayApp'")) {
-            "Should fallback to displayName"
-        }
+        assertTrue("Should fallback to displayName", content.contains("AppRegistry.registerComponent('DisplayApp'"))
     }
 
     @Test
@@ -119,13 +116,15 @@ class SimpleJsBundlerTest {
         val result = bundler.processSource(input, "Test.js")
 
         // Assertions for line 1
-        assert(result.contains("""<View style={{flex:1}} accessibilityLabel="__source:Test.js:1__">""")) {
-            "Line 1 View missing accessibilityLabel"
-        }
+        assertTrue(
+            "Line 1 View missing accessibilityLabel",
+            result.contains("""<View style={{flex:1}} accessibilityLabel="__source:Test.js:1__">""")
+        )
 
         // Assertions for line 2
-        assert(result.contains("""<Text accessibilityLabel="__source:Test.js:2__">Hello</Text>""")) {
-            "Line 2 Text missing accessibilityLabel"
-        }
+        assertTrue(
+            "Line 2 Text missing accessibilityLabel",
+            result.contains("""<Text accessibilityLabel="__source:Test.js:2__">Hello</Text>""")
+        )
     }
 }

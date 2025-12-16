@@ -1,42 +1,47 @@
-# Architecture Overview
+# IDEaz: Architecture
 
-## The Delegate Pattern
-To prevent `MainViewModel` from becoming a "God Object," logic is separated into **Delegates**.
-* **Delegates** hold their own logic and private state.
-* **MainViewModel** holds the `StateDelegate` (shared state) and instantiates the functional delegates.
-* **UI** observes flows exposed by `MainViewModel`, which are just proxies to the Delegates' flows.
+## 1. The Core Loop
+The IDE is designed as an **Overlay**. It sits on top of the user's running app.
 
-## Unified Overlay Architecture
-The application now uses `IdeazOverlayService` as the primary UI container for the entire user experience ("System Alert Window throughout the entire UX").
-*   **IdeazOverlayService**: Hosts the `IdeNavHost` (Settings, Project Screens) and the `IdeNavRail`.
-*   **Window Management**: Dynamically switches between `MATCH_PARENT` (Settings/Selection) and `WRAP_CONTENT` (Interact/Docked) to manage touch interception.
-*   **MainActivity**: Acts solely as a permission launcher and entry point, delegating UI to the Service.
+1.  **User Interacts:** The user uses their app normally.
+2.  **User Selects:** The user drags a box over an area they want to change.
+3.  **User Prompts:** The user types "Make this button blue".
+4.  **IDE Acts:**
+    *   Finds the relevant source code (via `ProjectAnalyzer` or Source Maps).
+    *   Sends the prompt + code + context to the AI (Jules/Gemini).
+    *   Receives a diff/patch.
+    *   Applies the patch.
+    *   Triggers a background build.
+5.  **Update:** The app reloads (Hot Reload or Reinstall).
 
-## The Overlay Loop (Legacy "Split Brain" Fix - Now Unified)
-The Overlay system manages state between the ViewModel and the Window.
+## 2. The Delegate Pattern
+The `MainViewModel` was becoming a God Class. It has been refactored into **Delegates** (`ui/delegates/`).
 
-1.  **Trigger:** User clicks "Select" in `IdeNavRail`.
-2.  **Action:** `MainViewModel.toggleSelectMode(true)` is called.
-3.  **Service:** `IdeazOverlayService` observes state and updates `layoutParams` to `MATCH_PARENT` with focusable flags.
-4.  **Interaction:** User drags a rectangle on the `SelectionOverlay`.
-5.  **Response:** `MainViewModel` receives the selection via `OverlayDelegate` and opens `ContextualChatOverlay`.
+*   **`MainViewModel`:** The coordinator. Holds the `StateFlow`s but delegates logic.
+*   **`AIDelegate`:** Handles AI communication (Gemini/Jules).
+*   **`BuildDelegate`:** Manages the `BuildService` connection and callbacks.
+*   **`GitDelegate`:** Wraps `GitManager` for version control operations.
+*   **`RepoDelegate`:** Handles GitHub API interactions (forking, cloning).
+*   **`OverlayDelegate`:** Manages the `UIInspectionService` and selection logic.
+*   **`SystemEventDelegate`:** Handles broadcast receivers (Package install, etc).
+*   **`UpdateDelegate`:** Checks for IDEaz self-updates.
+*   **`StateDelegate`:** Holds the mutable state variables.
 
-## The "Race to Build"
-1.  **Init:** User clicks "Save & Initialize" in `ProjectSetupTab`.
-2.  **Injection:** `RepoDelegate.forceUpdateInitFiles()` writes `android_ci_jules.yml` and `setup_env.sh` to the local disk.
-3.  **Push:** `GitDelegate` commits and pushes these files to GitHub immediately.
-4.  **Race:**
-    * **Local:** `BuildDelegate` starts `BuildService` locally.
-    * **Remote:** GitHub Actions triggers off the push and starts the cloud build.
-    * **Winner:** Whichever finishes first notifies the user (Local via callback, Remote via future webhook/polling).
+## 3. The Services
+*   **`IdeazOverlayService`:** The UI Overlay. This is the "Main Window" of the IDE. It extends `AzNavRailOverlayService` (v5.2+) to provide a dynamically sized system alert window that automatically shrinks to wrap the navigation rail when stationary and expands during interactions. It also hosts the Console (Bottom Sheet).
+*   **`BuildService`:** A background (foreground) service that runs Gradle tasks and APK installation. It runs in a separate process to prevent UI freezes.
+*   **`CrashReportingService`:** Catches and reports fatal crashes.
 
-## Web Runtime Architecture
-For `ProjectType.WEB`:
-1.  **Architecture:** The Web Runtime is embedded directly into `IdeazOverlayService` as a `WebProjectHost` composable (Layer 0).
-2.  **State Management:** `MainViewModel` manages `currentWebUrl`. When set, the UI switches to "Run Mode" (Web View + IDE Controls), rendering the WebView in the Overlay window (which expands to full screen).
-3.  **Logging:** `WebProjectHost` uses `WebChromeClient` to capture console logs and errors, broadcasting them to the IDE's global console via `AI_LOG`.
-4.  **Git Sync:** Web builds automatically trigger a `git push` via `BuildDelegate` to ensure remote CI/Deployment synchronization.
+## 4. Data Flow
+*   **State:** UI components observe `MainViewModel.state`.
+*   **Events:** UI calls `MainViewModel.action()`, which delegates to `Delegate.action()`.
+*   **Updates:** Delegates update `StateDelegate` variables, which emit new `StateFlow` values.
 
-## JNA & Native Tools
-* **JNA Crash:** To support `LazySodium` (Secrets), we force `System.setProperty("jna.nosys", "true")` in `MainApplication`. This prevents the app from loading the incompatible system-provided `libjnidispatch.so`.
-* **Toolchain:** `ToolManager` is designed to run in a "hostile" Android environment. It looks for binaries in `local_build_tools` (downloaded) but falls back to extracting `lib<tool>.so` from the APK's native lib dir if needed.
+## 5. File System
+*   **Projects:** Stored in `context.filesDir/projects/`.
+*   **Imports:** Copied from `content://` URI to internal storage.
+*   **Temp:** `context.cacheDir` used for download buffers.
+
+## 6. Networking
+*   **Retrofit:** Used for GitHub and Jules API.
+*   **Download:** `HttpURLConnection` for raw file downloads (APKs).

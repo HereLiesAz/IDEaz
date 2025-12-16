@@ -65,8 +65,10 @@ class IdeazOverlayService : AzNavRailOverlayService(), ViewModelStoreOwner {
 
     override fun onCreate() {
         createNotificationChannel()
-        super.onCreate()
+        // Setup Console FIRST so it is added to WindowManager first (bottom Z-order)
         setupConsole()
+        // Super (AzNavRailOverlayService) adds the Rail Window SECOND (top Z-order)
+        super.onCreate()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -193,9 +195,11 @@ class IdeazOverlayService : AzNavRailOverlayService(), ViewModelStoreOwner {
                     isLocalBuildEnabled = false,
                     onNavigateToMainApp = { route ->
                         val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-                        intent?.putExtra("route", route)
-                        intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        context.startActivity(intent)
+                        if (intent != null) {
+                            intent.putExtra("route", route)
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(intent)
+                        }
                     }
                 )
             }
