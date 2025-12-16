@@ -1,6 +1,7 @@
 package com.hereliesaz.ideaz.services
 
 import android.app.Application
+import com.hereliesaz.ideaz.MainApplication
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -42,7 +43,6 @@ import com.hereliesaz.ideaz.ui.Halfway
 import com.hereliesaz.ideaz.ui.IdeBottomSheet
 import com.hereliesaz.ideaz.ui.IdeNavRail
 import com.hereliesaz.ideaz.ui.MainViewModel
-import com.hereliesaz.ideaz.ui.MainViewModelFactory
 import com.hereliesaz.ideaz.ui.Peek
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.ui.theme.IDEazTheme
@@ -65,11 +65,18 @@ class IdeazOverlayService : AzNavRailOverlayService(), ViewModelStoreOwner {
 
     override fun onCreate() {
         createNotificationChannel()
-        super.onCreate()
+        // Setup Console FIRST so it is added to WindowManager first (bottom Z-order)
         setupConsole()
+        // Super (AzNavRailOverlayService) adds the Rail Window SECOND (top Z-order)
+        super.onCreate()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_QUIT) {
+            stopSelf()
+            android.os.Process.killProcess(android.os.Process.myPid())
+            return START_NOT_STICKY
+        }
         super.onStartCommand(intent, flags, startId)
         return START_STICKY
     }
@@ -87,11 +94,19 @@ class IdeazOverlayService : AzNavRailOverlayService(), ViewModelStoreOwner {
     }
 
     override fun getNotification(): Notification {
+        val quitIntent = Intent(this, IdeazOverlayService::class.java).apply {
+            action = ACTION_QUIT
+        }
+        val quitPendingIntent = android.app.PendingIntent.getService(
+            this, 0, quitIntent, android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("IDEaz Overlay")
             .setContentText("Tap to open navigation")
             .setSmallIcon(R.mipmap.ic_launcher)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Quit", quitPendingIntent)
             .build()
     }
 
@@ -159,9 +174,8 @@ class IdeazOverlayService : AzNavRailOverlayService(), ViewModelStoreOwner {
                 detents = remember { listOf(AlmostHidden, Peek, Halfway) }
             )
 
-            val app = applicationContext as Application
-            val settingsViewModel = remember { SettingsViewModel(app) }
-            val viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(app, settingsViewModel))
+            val app = applicationContext as MainApplication
+            val viewModel = app.mainViewModel
             val isSelectMode by viewModel.isSelectMode.collectAsState()
 
             IDEazTheme {
@@ -181,9 +195,11 @@ class IdeazOverlayService : AzNavRailOverlayService(), ViewModelStoreOwner {
                     isLocalBuildEnabled = false,
                     onNavigateToMainApp = { route ->
                         val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-                        intent?.putExtra("route", route)
-                        intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        context.startActivity(intent)
+                        if (intent != null) {
+                            intent.putExtra("route", route)
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(intent)
+                        }
                     }
                 )
             }
@@ -208,9 +224,9 @@ class IdeazOverlayService : AzNavRailOverlayService(), ViewModelStoreOwner {
                 initialDetent = AlmostHidden
             )
 
-            val app = applicationContext as Application
-            val settingsViewModel = remember { SettingsViewModel(app) }
-            val viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(app, settingsViewModel))
+            val app = applicationContext as MainApplication
+            val viewModel = app.mainViewModel
+            val settingsViewModel = viewModel.settingsViewModel
 
             val isContextualChatVisible by viewModel.isContextualChatVisible.collectAsState()
             val activeSelectionRect by viewModel.activeSelectionRect.collectAsState()
@@ -218,6 +234,8 @@ class IdeazOverlayService : AzNavRailOverlayService(), ViewModelStoreOwner {
             val context = LocalContext.current
 
             // --- AUTO-LAUNCH LOGIC ---
+            // Disabled to ensure IDEaz starts on Project Screen as per user request
+            /*
             LaunchedEffect(Unit) {
                 if (!targetPackage.isNullOrBlank() && targetPackage != context.packageName) {
                     try {
@@ -231,6 +249,7 @@ class IdeazOverlayService : AzNavRailOverlayService(), ViewModelStoreOwner {
                     }
                 }
             }
+            */
 
             // --- WINDOW SIZING LOGIC ---
             val currentDetent = sheetState.currentDetent
@@ -278,5 +297,6 @@ class IdeazOverlayService : AzNavRailOverlayService(), ViewModelStoreOwner {
 
     companion object {
         private const val CHANNEL_ID = "ideaz_overlay_channel"
+        private const val ACTION_QUIT = "com.hereliesaz.ideaz.ACTION_QUIT"
     }
 }
