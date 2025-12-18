@@ -6,10 +6,6 @@ import android.content.res.AssetManager
 import android.content.res.Resources
 import android.view.LayoutInflater
 
-/**
- * A ContextWrapper that provides the Guest APK's resources and ClassLoader,
- * fooling the Guest Activity into thinking it's running in its own environment.
- */
 class VirtualContext(
     base: Context,
     private val guestResources: Resources,
@@ -40,9 +36,9 @@ class VirtualContext(
         return super.getSystemService(name)
     }
 
+    // We keep the host package name to avoid UID mismatches with system services
+    // while the resources are swapped out above.
     override fun getPackageName(): String {
-        // Return host package name to prevent SecurityExceptions when accessing system services,
-        // as the UID belongs to the host.
         return baseContext.packageName
     }
 }

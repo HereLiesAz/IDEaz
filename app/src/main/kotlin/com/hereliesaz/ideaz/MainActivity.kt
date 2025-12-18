@@ -26,7 +26,7 @@ class MainActivity : ComponentActivity() {
         val app = application as MainApplication
         val viewModel = app.mainViewModel
 
-        // Register for Screen Capture Permission
+        // Register for Screen Capture Permission (Modern Approach)
         screenCaptureLauncher = registerForActivityResult(
             ActivityResultContracts.StartActivityForResult()
         ) { result ->
@@ -35,24 +35,29 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Handle initial intent
+        // Handle initial deep link or intent
         handleIntent(intent)
 
         setContent {
             IDEazTheme {
                 MainScreen(
                     viewModel = viewModel,
+                    settingsViewModel = viewModel.settingsViewModel,
                     onRequestScreenCapture = {
                         val mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
                         screenCaptureLauncher.launch(mediaProjectionManager.createScreenCaptureIntent())
                     },
                     onThemeToggle = { isDark ->
-                        // Fix: setThemeMode expects "dark" or "light" (String), not Int.
+                        // Matches SettingsViewModel.setThemeMode(String)
                         viewModel.settingsViewModel.setThemeMode(if (isDark) "dark" else "light")
                     },
                     onLaunchOverlay = {
                         val intent = Intent(this, IdeazOverlayService::class.java)
                         startService(intent)
+                    },
+                    // Passing the container launcher to the UI
+                    onLaunchPreview = { apkPath ->
+                        launchAppPreview(apkPath)
                     }
                 )
             }
@@ -71,9 +76,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Legacy support if specific requests still use onActivityResult directly
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        // 1001 is often used for MediaProjection in older examples/libraries
+        if (requestCode == 1001 && resultCode == Activity.RESULT_OK && data != null) {
+            val app = application as MainApplication
+            app.mainViewModel.setScreenCapturePermission(resultCode, data)
+        }
+    }
+
     /**
      * Triggers the "contained" app preview.
-     * Call this after a successful build with the absolute path to the APK.
+     * Launches ContainerActivity with the path to the built APK.
      */
     fun launchAppPreview(apkPath: String) {
         val file = File(apkPath)

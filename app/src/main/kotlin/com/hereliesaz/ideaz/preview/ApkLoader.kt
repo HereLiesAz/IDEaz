@@ -10,9 +10,6 @@ import dalvik.system.DexClassLoader
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import java.io.File
 
-/**
- * Loads an external APK into the current process memory.
- */
 object ApkLoader {
 
     data class LoadedApk(
@@ -27,7 +24,7 @@ object ApkLoader {
         val apkFile = File(apkPath)
         if (!apkFile.exists()) throw IllegalArgumentException("APK not found at: $apkPath")
 
-        // 1. Create ClassLoader
+        // 1. DexClassLoader to load code
         val optimizedDir = context.getDir("dex_opt", Context.MODE_PRIVATE)
         val classLoader = DexClassLoader(
             apkPath,
@@ -36,7 +33,7 @@ object ApkLoader {
             context.classLoader
         )
 
-        // 2. Create Resources
+        // 2. AssetManager to load resources
         val assetManager = AssetManager::class.java.newInstance()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             HiddenApiBypass.invoke(AssetManager::class.java, assetManager, "addAssetPath", apkPath)
@@ -51,22 +48,19 @@ object ApkLoader {
             context.resources.configuration
         )
 
-        // 3. Extract Manifest Info
+        // 3. Parse Manifest for Activity and Theme
         val packageInfo = context.packageManager.getPackageArchiveInfo(
             apkPath,
             PackageManager.GET_ACTIVITIES
         ) ?: throw IllegalStateException("Unable to parse APK manifest.")
 
-        // Find the main activity
         var mainActivityName = packageInfo.activities?.firstOrNull()?.name
-
         packageInfo.activities?.forEach {
             if (it.name.endsWith(".MainActivity")) {
                 mainActivityName = it.name
             }
         }
 
-        // 4. Resolve Theme (Fix: Use safe call for applicationInfo)
         var theme = packageInfo.applicationInfo?.theme ?: 0
         if (theme == 0) {
             theme = android.R.style.Theme_DeviceDefault

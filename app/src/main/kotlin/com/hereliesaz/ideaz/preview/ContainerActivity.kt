@@ -1,15 +1,13 @@
 package com.hereliesaz.ideaz.preview
 
 import android.app.Activity
+import android.app.Instrumentation
 import android.os.Bundle
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import java.lang.reflect.Field
 
-/**
- * The Container Activity.
- * It loads a guest APK and runs its Main Activity within this window.
- */
 class ContainerActivity : ComponentActivity() {
 
     companion object {
@@ -28,14 +26,12 @@ class ContainerActivity : ComponentActivity() {
         }
 
         try {
-            // 1. Load the Guest APK
             val loadedApk = ApkLoader.loadApk(this, apkPath)
 
             if (loadedApk.mainActivityClassName == null) {
                 throw RuntimeException("No Activity found in the provided APK.")
             }
 
-            // 2. Create the Proxy Context
             val virtualContext = VirtualContext(
                 this,
                 loadedApk.resources,
@@ -43,38 +39,34 @@ class ContainerActivity : ComponentActivity() {
                 loadedApk.themeId
             )
 
-            // 3. Instantiate the Guest Activity
+            // Instantiate Guest Activity
             val activityClass = loadedApk.classLoader.loadClass(loadedApk.mainActivityClassName)
             val instance = activityClass.newInstance() as Activity
             guestActivity = instance
 
-            // 4. Inject Dependencies (The "Attach" Hack)
+            // --- THE INJECTION RITUAL ---
 
-            // Inject Base Context
-            val setBaseContextMethod = android.content.ContextWrapper::class.java.getDeclaredMethod("attachBaseContext", android.content.Context::class.java)
-            setBaseContextMethod.isAccessible = true
-            setBaseContextMethod.invoke(instance, virtualContext)
+            // 1. Inject Context (mBase)
+            val attachBaseContext = android.content.ContextWrapper::class.java.getDeclaredMethod("attachBaseContext", android.content.Context::class.java)
+            attachBaseContext.isAccessible = true
+            attachBaseContext.invoke(instance, virtualContext)
 
-            // Inject Window (Give it OUR window)
-            val mWindowField = Activity::class.java.getDeclaredField("mWindow")
-            mWindowField.isAccessible = true
-            mWindowField.set(instance, this.window)
+            // 2. Inject Window (Give it OUR window)
+            setField(Activity::class.java, instance, "mWindow", this.window)
 
-            // Inject WindowManager
-            val mWindowManagerField = Activity::class.java.getDeclaredField("mWindowManager")
-            mWindowManagerField.isAccessible = true
-            mWindowManagerField.set(instance, this.windowManager)
+            // 3. Inject WindowManager
+            setField(Activity::class.java, instance, "mWindowManager", this.windowManager)
 
-            // Inject Instrumentation
-            val mInstrumentationField = Activity::class.java.getDeclaredField("mInstrumentation")
-            mInstrumentationField.isAccessible = true
-            val instrumentation = android.app.Instrumentation()
-            mInstrumentationField.set(instance, instrumentation)
+            // 4. Inject Instrumentation (Standard)
+            setField(Activity::class.java, instance, "mInstrumentation", Instrumentation())
 
-            // 5. Awaken the Guest (Call onCreate)
+            // 5. Inject Application (Ours)
+            setField(Activity::class.java, instance, "mApplication", this.application)
+
+            // 6. Awaken (Call onCreate)
             val onCreateMethod = Activity::class.java.getDeclaredMethod("onCreate", Bundle::class.java)
             onCreateMethod.isAccessible = true
-            onCreateMethod.invoke(instance, null)
+            onCreateMethod.invoke(instance, savedInstanceState)
 
         } catch (e: Exception) {
             e.printStackTrace()
@@ -83,7 +75,17 @@ class ContainerActivity : ComponentActivity() {
         }
     }
 
-    // --- Lifecycle Forwarding ---
+    private fun setField(clazz: Class<*>, instance: Any, fieldName: String, value: Any?) {
+        try {
+            val field = clazz.getDeclaredField(fieldName)
+            field.isAccessible = true
+            field.set(instance, value)
+        } catch (e: Exception) {
+            e.printStackTrace() // Log but continue, some fields might vary by SDK
+        }
+    }
+
+    // --- Lifecycle Proxying ---
 
     override fun onStart() {
         super.onStart()
@@ -117,7 +119,7 @@ class ContainerActivity : ComponentActivity() {
                 method.isAccessible = true
                 method.invoke(it)
             } catch (e: Exception) {
-                // Squelch lifecycle errors if the guest doesn't implement them or they are protected
+                // Ignore lifecycle syncing errors
             }
         }
     }
