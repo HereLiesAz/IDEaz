@@ -79,7 +79,7 @@ fun ProjectCreateTab(
             AzButton(
                 onClick = {
                     onExecute {
-                        viewModel.createGitHubRepository(appName, repoDescription, isPrivateRepo, selectedType, packageName, context) {}
+                        viewModel.createGitHubRepository(appName, repoDescription, isPrivateRepo, selectedType, packageName, context) { _, _ -> }
                         Toast.makeText(context, "Creating...", Toast.LENGTH_SHORT).show()
                     }
                 },

@@ -800,7 +800,7 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 AzButton(
                     onClick = {
-                        viewModel.clearBuildCaches(context)
+                        viewModel.clearBuildCaches()
                         Toast.makeText(context, "Build caches cleared", Toast.LENGTH_SHORT).show()
                     },
                     text = "Clear Build Caches",

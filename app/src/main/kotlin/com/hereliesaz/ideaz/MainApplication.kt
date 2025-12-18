@@ -14,8 +14,7 @@ class MainApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        val settingsViewModel = SettingsViewModel(this)
-        mainViewModel = MainViewModel(this, settingsViewModel)
+        mainViewModel = MainViewModel(this)
 
         // CRITICAL: Force JNA to use the bundled library, NOT the system one.
         // This fixes the java.lang.Error crash on startup.
