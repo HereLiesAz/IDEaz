@@ -47,11 +47,13 @@
         </activity>
 
         <activity
-            android:name=".preview.ContainerActivity"
+            android:name=".features.preview.ContainerActivity"
             android:label="App Preview"
             android:theme="@style/Theme.IDEaz"
             android:exported="false"
-            android:configChanges="orientation|screenSize|keyboardHidden|uiMode" />
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
+            android:resizeableActivity="true" />
 
         <service
             android:name=".services.BuildService"
