@@ -13,6 +13,7 @@ import android.view.SurfaceView
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.Toast
+import com.hereliesaz.ideaz.R
 
 class ContainerActivity : Activity(), SurfaceHolder.Callback {
 
@@ -32,6 +33,7 @@ class ContainerActivity : Activity(), SurfaceHolder.Callback {
         targetPackageName = intent.getStringExtra(EXTRA_PACKAGE_NAME)
         displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
 
+        // Create a full-screen SurfaceView to render the other app
         val frameLayout = FrameLayout(this)
         frameLayout.layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -49,7 +51,9 @@ class ContainerActivity : Activity(), SurfaceHolder.Callback {
         launchTargetApp()
     }
 
-    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+        // In a more complex implementation, we would resize the VirtualDisplay here.
+    }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         releaseVirtualDisplay()
@@ -60,8 +64,9 @@ class ContainerActivity : Activity(), SurfaceHolder.Callback {
         val metrics = DisplayMetrics()
         windowManager.defaultDisplay.getMetrics(metrics)
 
-        // Without root, we use VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY.
-        // This works because we are the ones launching the activity into it.
+        // VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY allows us to create a private display
+        // without requiring the SYSTEM_ALERT_WINDOW permission for the display itself,
+        // though we need to be the owner or have permissions to launch onto it.
         val flags = DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY or
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_PRESENTATION
 
@@ -82,10 +87,11 @@ class ContainerActivity : Activity(), SurfaceHolder.Callback {
         try {
             val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
             if (launchIntent == null) {
-                Toast.makeText(this, "Waiting for install...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "App installed, but no launcher activity found.", Toast.LENGTH_LONG).show()
                 return
             }
 
+            // The Magic: Force the app onto our private display
             val options = ActivityOptions.makeBasic()
             options.launchDisplayId = display.displayId
 
@@ -94,7 +100,7 @@ class ContainerActivity : Activity(), SurfaceHolder.Callback {
 
         } catch (e: Exception) {
             e.printStackTrace()
-            Toast.makeText(this, "Launch Error: ${e.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Failed to launch in container: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
