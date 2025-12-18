@@ -65,8 +65,10 @@
 
 * **Class: BuildService (Service)**
     * Description (Does): Executes the build pipeline. **Updated:** Runs `GenerateSourceMap` as the final step after signing.
-* **Class: UIInspectionService (AccessibilityService)**
-    * ... (Unchanged)
+* **Class: IdeazOverlayService (Service)**
+    * Description (Does): Manages the visual overlay and interactions. Replaces the legacy `UIInspectionService`.
+* **Class: IdeazAccessibilityService (AccessibilityService)**
+    * Description (Does): Skeleton service for future UI inspection capabilities.
 
 ### E. Core Utilities
 

@@ -42,8 +42,8 @@
 
 #### services/
 *   `BuildService.kt`: Background service running the build toolchain.
-*   `UIInspectionService.kt`: Accessibility Service for UI inspection and overlay.
-*   `IdeazOverlayService.kt`: Foreground Service for the main visual overlay. Extends `AzNavRailOverlayService`.
+*   `IdeazAccessibilityService.kt`: Accessibility Service for UI inspection (Skeleton).
+*   `IdeazOverlayService.kt`: Foreground Service for the main visual overlay.
 *   `ScreenshotService.kt`: Service for capturing screenshots.
 *   `IBuildService.aidl`: IPC interface for the Build Service.
 
