@@ -8,7 +8,7 @@
 ## 2. Memory Management
 *   **Large Objects:** Avoid loading large files (like entire APKs) into memory. Use streams.
 *   **Bitmaps:** Recycle bitmaps if manually managing them (though Compose handles this mostly).
-*   **Accessibility Nodes:** In `UIInspectionService`, recycle `AccessibilityNodeInfo` objects to prevent leaks.
+*   **Accessibility Nodes:** In Accessibility Services, recycle `AccessibilityNodeInfo` objects to prevent leaks.
 *   **JGit:** Close `Git` instances immediately after use.
 
 ## 3. Build Speed
@@ -20,7 +20,7 @@
 ## 4. UI Rendering
 *   **Lazy Lists:** Use `LazyColumn` for logs and long lists.
 *   **Recomposition:** Use `remember` and `derivedStateOf` to minimize recomposition.
-*   **Overlays:** The `UIInspectionService` overlay should be lightweight. Avoid complex layouts in the overlay.
+*   **Overlays:** The `IdeazOverlayService` overlay should be lightweight. Avoid complex layouts in the overlay.
 
 ## 5. Network
 *   **Polling:** The AI polling loop (`MainViewModel`) should use an adaptive interval or long-polling to save battery/data.

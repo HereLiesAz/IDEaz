@@ -6,7 +6,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [x] **1.1: Project Structure Setup**
     - [x] Define multi-process architecture (`:app`, `:build_process`, `:inspection_service`).
     - [x] Create `BuildService` (Foreground Service).
-    - [x] Create `UIInspectionService` (Accessibility Service).
+    - [x] Create `IdeazOverlayService` (Foreground Service).
 - [x] **1.2: Data Layer**
     - [x] Implement `GitManager` (JGit wrapper).
     - [x] Implement `SettingsViewModel` (SharedPreferences).
@@ -67,8 +67,8 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 ## Phase 5: Production Polish
 - [ ] **5.1: Multi-Platform Support**
     - [x] Web Support (Runtime + Auto-Build/Correct).
-    - [ ] React Native Support (In Progress).
-    - [ ] Flutter Support (Planned).
+    - [ ] React Native Support (In Progress - Templates Added).
+    - [ ] Flutter Support (In Progress - Templates Added).
 - [ ] **5.2: Testing**
     - [ ] Unit Tests for all ViewModels.
     - [ ] Integration Tests for Build Pipeline.

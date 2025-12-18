@@ -28,5 +28,5 @@
 *   **Symlinks:** `Files.createSymbolicLink` requires Android O (API 26).
 
 ## Tips
-*   **Logs:** The app logs extensively to `Logcat`. Use `adb logcat -s IDEaz BuildService UIInspectionService` to debug.
-*   **Screenshots:** The `ScreenshotService` or `UIInspectionService` handles screen capture.
+*   **Logs:** The app logs extensively to `Logcat`. Use `adb logcat -s IDEaz BuildService IdeazOverlayService` to debug.
+*   **Screenshots:** The `ScreenshotService` or `IdeazOverlayService` handles screen capture.
