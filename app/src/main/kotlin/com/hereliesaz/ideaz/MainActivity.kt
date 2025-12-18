@@ -1,53 +1,60 @@
 package com.hereliesaz.ideaz
 
+import android.app.Activity
+import android.content.Context
 import android.content.Intent
-import android.net.Uri
+import android.media.projection.MediaProjectionManager
 import android.os.Bundle
-import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
+import com.hereliesaz.ideaz.preview.ContainerActivity
+import com.hereliesaz.ideaz.services.IdeazOverlayService
 import com.hereliesaz.ideaz.ui.MainScreen
 import com.hereliesaz.ideaz.ui.theme.IDEazTheme
-import com.hereliesaz.ideaz.services.IdeazOverlayService
-import androidx.core.content.ContextCompat
+import java.io.File
 
 class MainActivity : ComponentActivity() {
+
+    private lateinit var screenCaptureLauncher: ActivityResultLauncher<Intent>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Handle route from intent if any
+        val app = application as MainApplication
+        val viewModel = app.mainViewModel
+
+        // Register for Screen Capture Permission
+        screenCaptureLauncher = registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+                viewModel.setScreenCapturePermission(result.resultCode, result.data)
+            }
+        }
+
+        // Handle initial intent
         handleIntent(intent)
 
-        if (!Settings.canDrawOverlays(this)) {
-            setContent {
-                IDEazTheme {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Please grant overlay permission.")
+        setContent {
+            IDEazTheme {
+                MainScreen(
+                    viewModel = viewModel,
+                    onRequestScreenCapture = {
+                        val mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                        screenCaptureLauncher.launch(mediaProjectionManager.createScreenCaptureIntent())
+                    },
+                    onThemeToggle = { isDark ->
+                        // Fix: setThemeMode expects "dark" or "light" (String), not Int.
+                        viewModel.settingsViewModel.setThemeMode(if (isDark) "dark" else "light")
+                    },
+                    onLaunchOverlay = {
+                        val intent = Intent(this, IdeazOverlayService::class.java)
+                        startService(intent)
                     }
-                }
-            }
-            Toast.makeText(this, "Please grant overlay permission to use IDEaz", Toast.LENGTH_LONG).show()
-            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
-            startActivityForResult(intent, 1001)
-        } else {
-            // Render the Main UI
-            val app = application as MainApplication
-            setContent {
-                IDEazTheme {
-                    MainScreen(
-                        viewModel = app.mainViewModel,
-                        onRequestScreenCapture = { /* TODO */ },
-                        onThemeToggle = { /* recreate()? Or handled by state */ },
-                        onLaunchOverlay = { launchOverlay() }
-                    )
-                }
+                )
             }
         }
     }
@@ -64,21 +71,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == 1001) {
-            if (Settings.canDrawOverlays(this)) {
-                // Restart to load UI
-                recreate()
-            } else {
-                Toast.makeText(this, "Permission denied. IDEaz cannot run.", Toast.LENGTH_SHORT).show()
-                finish()
+    /**
+     * Triggers the "contained" app preview.
+     * Call this after a successful build with the absolute path to the APK.
+     */
+    fun launchAppPreview(apkPath: String) {
+        val file = File(apkPath)
+        if (file.exists()) {
+            val intent = Intent(this, ContainerActivity::class.java).apply {
+                putExtra(ContainerActivity.EXTRA_APK_PATH, apkPath)
             }
+            startActivity(intent)
+        } else {
+            Toast.makeText(this, "APK not found at $apkPath", Toast.LENGTH_SHORT).show()
         }
-    }
-
-    private fun launchOverlay() {
-        val intent = Intent(this, IdeazOverlayService::class.java)
-        ContextCompat.startForegroundService(this, intent)
     }
 }
