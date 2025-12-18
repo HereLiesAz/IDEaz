@@ -11,7 +11,6 @@ import org.lsposed.hiddenapibypass.HiddenApiBypass
 import java.io.File
 
 object ApkLoader {
-
     data class LoadedApk(
         val classLoader: ClassLoader,
         val resources: Resources,
@@ -24,16 +23,9 @@ object ApkLoader {
         val apkFile = File(apkPath)
         if (!apkFile.exists()) throw IllegalArgumentException("APK not found at: $apkPath")
 
-        // 1. DexClassLoader to load code
         val optimizedDir = context.getDir("dex_opt", Context.MODE_PRIVATE)
-        val classLoader = DexClassLoader(
-            apkPath,
-            optimizedDir.absolutePath,
-            null,
-            context.classLoader
-        )
+        val classLoader = DexClassLoader(apkPath, optimizedDir.absolutePath, null, context.classLoader)
 
-        // 2. AssetManager to load resources
         val assetManager = AssetManager::class.java.newInstance()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             HiddenApiBypass.invoke(AssetManager::class.java, assetManager, "addAssetPath", apkPath)
@@ -42,29 +34,18 @@ object ApkLoader {
             addAssetPath.invoke(assetManager, apkPath)
         }
 
-        val resources = Resources(
-            assetManager,
-            context.resources.displayMetrics,
-            context.resources.configuration
-        )
+        val resources = Resources(assetManager, context.resources.displayMetrics, context.resources.configuration)
 
-        // 3. Parse Manifest for Activity and Theme
-        val packageInfo = context.packageManager.getPackageArchiveInfo(
-            apkPath,
-            PackageManager.GET_ACTIVITIES
-        ) ?: throw IllegalStateException("Unable to parse APK manifest.")
+        val packageInfo = context.packageManager.getPackageArchiveInfo(apkPath, PackageManager.GET_ACTIVITIES)
+            ?: throw IllegalStateException("Unable to parse APK manifest.")
 
         var mainActivityName = packageInfo.activities?.firstOrNull()?.name
         packageInfo.activities?.forEach {
-            if (it.name.endsWith(".MainActivity")) {
-                mainActivityName = it.name
-            }
+            if (it.name.endsWith(".MainActivity")) mainActivityName = it.name
         }
 
         var theme = packageInfo.applicationInfo?.theme ?: 0
-        if (theme == 0) {
-            theme = android.R.style.Theme_DeviceDefault
-        }
+        if (theme == 0) theme = android.R.style.Theme_DeviceDefault
 
         return LoadedApk(classLoader, resources, mainActivityName, theme)
     }

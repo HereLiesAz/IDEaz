@@ -10,6 +10,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import com.hereliesaz.ideaz.preview.ContainerActivity
 import com.hereliesaz.ideaz.services.IdeazOverlayService
 import com.hereliesaz.ideaz.ui.MainScreen
@@ -26,36 +29,39 @@ class MainActivity : ComponentActivity() {
         val app = application as MainApplication
         val viewModel = app.mainViewModel
 
-        // Register for Screen Capture Permission (Modern Approach)
         screenCaptureLauncher = registerForActivityResult(
             ActivityResultContracts.StartActivityForResult()
         ) { result ->
             if (result.resultCode == Activity.RESULT_OK && result.data != null) {
-                viewModel.setScreenCapturePermission(result.resultCode, result.data)
+                viewModel.setScreenCapturePermission(result.resultCode, result.data!!)
             }
         }
 
-        // Handle initial deep link or intent
-        handleIntent(intent)
-
         setContent {
             IDEazTheme {
+                val autoLaunchApk by viewModel.autoLaunchApk.collectAsState()
+
+                LaunchedEffect(autoLaunchApk) {
+                    autoLaunchApk?.let {
+                        launchAppPreview(it)
+                        viewModel.onPreviewLaunched()
+                    }
+                }
+
                 MainScreen(
                     viewModel = viewModel,
-                    settingsViewModel = viewModel.settingsViewModel,
+                    settingsViewModel = viewModel.settingsViewModel, // Explicitly passed
                     onRequestScreenCapture = {
                         val mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
                         screenCaptureLauncher.launch(mediaProjectionManager.createScreenCaptureIntent())
                     },
                     onThemeToggle = { isDark ->
-                        // Matches SettingsViewModel.setThemeMode(String)
                         viewModel.settingsViewModel.setThemeMode(if (isDark) "dark" else "light")
                     },
                     onLaunchOverlay = {
                         val intent = Intent(this, IdeazOverlayService::class.java)
                         startService(intent)
                     },
-                    // Passing the container launcher to the UI
                     onLaunchPreview = { apkPath ->
                         launchAppPreview(apkPath)
                     }
@@ -64,32 +70,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        handleIntent(intent)
-    }
-
-    private fun handleIntent(intent: Intent?) {
-        intent?.getStringExtra("route")?.let { route ->
-            val app = application as MainApplication
-            app.mainViewModel.setPendingRoute(route)
-        }
-    }
-
-    // Legacy support if specific requests still use onActivityResult directly
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        // 1001 is often used for MediaProjection in older examples/libraries
-        if (requestCode == 1001 && resultCode == Activity.RESULT_OK && data != null) {
-            val app = application as MainApplication
-            app.mainViewModel.setScreenCapturePermission(resultCode, data)
-        }
-    }
-
-    /**
-     * Triggers the "contained" app preview.
-     * Launches ContainerActivity with the path to the built APK.
-     */
     fun launchAppPreview(apkPath: String) {
         val file = File(apkPath)
         if (file.exists()) {
