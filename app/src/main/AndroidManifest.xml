@@ -46,6 +46,12 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".preview.ContainerActivity"
+            android:label="App Preview"
+            android:theme="@style/Theme.IDEaz"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode" />
 
         <service
             android:name=".services.BuildService"
@@ -83,7 +89,7 @@
             android:name=".services.IdeazOverlayService"
             android:foregroundServiceType="specialUse">
             <property android:name="android.app.property.FOREGROUND_SERVICE_TYPE_SPECIAL_USE_DESCRIPTION"
-                      android:value="Overlay for navigation"/>
+                android:value="Overlay for navigation"/>
         </service>
 
     </application>
