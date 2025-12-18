@@ -263,8 +263,8 @@ fun ProjectSetupTab(
                         if (onCheckRequirements()) {
                             viewModel.createGitHubRepository(
                                 appName, repoDescription, false, selectedType, packageName, context
-                            ) {
-                                viewModel.uploadProjectSecrets(githubUser, appName) // This now just logs instructions
+                            ) { owner, repo ->
+                                viewModel.uploadProjectSecrets(owner, repo) // This now just logs instructions
                                 onCreateModeChanged(false)
                                 if (initialPrompt.isNotBlank()) {
                                     viewModel.sendPrompt(initialPrompt)
@@ -284,7 +284,7 @@ fun ProjectSetupTab(
                     onClick = {
                         if (onCheckRequirements()) {
                             viewModel.saveAndInitialize(
-                                appName, githubUser, branchName, packageName, selectedType, context, null
+                                appName, githubUser, branchName
                             )
                             onBuildTriggered()
                         }
@@ -302,7 +302,7 @@ fun ProjectSetupTab(
                         if (onCheckRequirements()) {
                             // Ensure init first
                             viewModel.saveAndInitialize(
-                                appName, githubUser, branchName, packageName, selectedType, context, null
+                                appName, githubUser, branchName
                             )
                             viewModel.sendPrompt(DOCS_PROMPT)
                         }
