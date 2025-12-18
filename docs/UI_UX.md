@@ -36,7 +36,7 @@ The interaction model revolves around the **Live App** and the **IDE Overlay**.
 
 ### 1. The Unified Overlay
 *   **Concept:** The IDE runs entirely within a System Alert Window.
-*   **Compliance:** The overlay service extends `AzNavRailOverlayService`, leveraging the library's built-in `WindowManager` handling for dynamic sizing and drag support.
+*   **Compliance:** The overlay service operates as a Foreground Service using standard `WindowManager` layout params for dynamic sizing and drag support.
 *   **Transparency Rules:**
     *   **Interact/Select Mode:** The background MUST be transparent.
     *   **Settings/Setup:** The background MUST be **Opaque** (Solid).
