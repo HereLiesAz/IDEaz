@@ -30,12 +30,9 @@ fun IdeNavHost(
 
     NavHost(
         navController = navController,
-        startDestination = "initial_placeholder",
+        startDestination = "project_settings",
         modifier = modifier
     ) {
-        composable("initial_placeholder") {
-            Box(modifier = Modifier.fillMaxSize().background(Color.Transparent))
-        }
         composable("main") {
             Box(modifier = Modifier.fillMaxSize().background(Color.Transparent))
         }
