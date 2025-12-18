@@ -48,6 +48,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [x] **3.4: UI Refinement**
     - [x] Reorder Settings Screen (Build Config first).
     - [x] Improve Project Load Tab layout.
+    - [x] Fix: Black screen on launch (Start Destination fixed).
 - [x] **3.5: Dependency Management**
     - [x] UI for viewing and adding libraries via AI.
 
