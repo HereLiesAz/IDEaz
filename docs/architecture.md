@@ -22,13 +22,13 @@ The `MainViewModel` was becoming a God Class. It has been refactored into **Dele
 *   **`BuildDelegate`:** Manages the `BuildService` connection and callbacks.
 *   **`GitDelegate`:** Wraps `GitManager` for version control operations.
 *   **`RepoDelegate`:** Handles GitHub API interactions (forking, cloning).
-*   **`OverlayDelegate`:** Manages the `UIInspectionService` and selection logic.
+*   **`OverlayDelegate`:** Manages the `IdeazOverlayService` and selection logic.
 *   **`SystemEventDelegate`:** Handles broadcast receivers (Package install, etc).
 *   **`UpdateDelegate`:** Checks for IDEaz self-updates.
 *   **`StateDelegate`:** Holds the mutable state variables.
 
 ## 3. The Services
-*   **`IdeazOverlayService`:** The UI Overlay. This is the "Main Window" of the IDE. It extends `AzNavRailOverlayService` (v5.2+) to provide a dynamically sized system alert window that automatically shrinks to wrap the navigation rail when stationary and expands during interactions. It also hosts the Console (Bottom Sheet).
+*   **`IdeazOverlayService`:** The UI Overlay. This is the "Main Window" of the IDE. It operates as a Foreground Service handling the system alert window and hosting the Console (Bottom Sheet).
 *   **`BuildService`:** A background (foreground) service that runs Gradle tasks and APK installation. It runs in a separate process to prevent UI freezes.
 *   **`CrashReportingService`:** Catches and reports fatal crashes.
 
