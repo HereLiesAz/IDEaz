@@ -285,6 +285,23 @@ class RepoDelegate(
                     if (user != null && !appName.isBlank()) {
                         val remoteUrl = "https://github.com/$user/$appName.git"
                         git.addRemote("origin", remoteUrl)
+
+                        // Check remote default branch
+                        try {
+                            if (!token.isNullOrBlank()) {
+                                val service = GitHubApiClient.createService(token)
+                                val repoInfo = service.getRepo(user, appName)
+                                val remoteDefaultBranch = repoInfo.defaultBranch ?: "main"
+                                val localBranch = git.getCurrentBranch() ?: "master"
+
+                                if (localBranch != remoteDefaultBranch) {
+                                    onOverlayLog("Renaming local branch '$localBranch' to match remote '$remoteDefaultBranch'...")
+                                    git.renameCurrentBranch(remoteDefaultBranch)
+                                }
+                            }
+                        } catch (e: Exception) {
+                            onLog("Warning: Failed to fetch remote branch info: ${e.message}. Defaulting to current.")
+                        }
                     }
                 }
 
