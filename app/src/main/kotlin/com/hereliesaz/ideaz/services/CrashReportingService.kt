@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 class CrashReportingService : Service() {
 
@@ -39,7 +40,10 @@ class CrashReportingService : Service() {
 
         private const val IDEAZ_SOURCE = "sources/github/HereLiesAz/IDEaz"
         private const val DEFAULT_BRANCH = "main"
+        private const val BATCH_DELAY_MS = 5000L
     }
+
+    private var lastReportTime = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -67,6 +71,15 @@ class CrashReportingService : Service() {
         AuthInterceptor.apiKey = apiKey
 
         serviceScope.launch {
+            // Rate limiting for non-fatal errors
+            if (!isFatal) {
+                val now = System.currentTimeMillis()
+                if (now - lastReportTime < BATCH_DELAY_MS) {
+                    delay(BATCH_DELAY_MS - (now - lastReportTime))
+                }
+                lastReportTime = System.currentTimeMillis()
+            }
+
             try {
                 val type = if (isFatal) "CRASH" else "NON-FATAL ERROR(S)"
                 Log.d(TAG, "Attempting to submit $type report...")
