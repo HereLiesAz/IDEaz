@@ -5,6 +5,7 @@ enum class ProjectType(val displayName: String) {
     REACT_NATIVE("React Native"),
     FLUTTER("Flutter"),
     WEB("Web"),
+    PYTHON("Python"),
     OTHER("Other"),
     UNKNOWN("Unknown");
 

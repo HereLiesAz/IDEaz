@@ -16,4 +16,7 @@ class AIDelegate(
     fun startContextualAITask(prompt: String) {}
     fun resumeSession(id: String) {}
     fun fetchSessionsForRepo(repo: String) {}
+    fun addDependencyViaAI(dep: String) {
+        startContextualAITask("Please add dependency: $dep")
+    }
 }

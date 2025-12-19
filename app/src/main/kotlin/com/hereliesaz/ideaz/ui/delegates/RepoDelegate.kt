@@ -3,9 +3,10 @@ package com.hereliesaz.ideaz.ui.delegates
 import android.app.Application
 import android.content.Context
 import android.widget.Toast
-import com.hereliesaz.ideaz.models.GitHubRepoResponse
+import com.hereliesaz.ideaz.api.GitHubRepoResponse
 import com.hereliesaz.ideaz.models.ProjectItem
 import com.hereliesaz.ideaz.models.ProjectType
+import com.hereliesaz.ideaz.ui.ProjectMetadata
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +29,9 @@ class RepoDelegate(
     private val _ownedRepos = MutableStateFlow<List<GitHubRepoResponse>>(emptyList())
     val ownedRepos = _ownedRepos.asStateFlow()
 
+    private val _localProjects = MutableStateFlow<List<ProjectMetadata>>(emptyList())
+    val localProjects = _localProjects.asStateFlow()
+
     fun fetchGitHubRepos() {
         onProgress(0)
         scope.launch(Dispatchers.IO) {
@@ -38,11 +42,10 @@ class RepoDelegate(
                     GitHubRepoResponse(
                         id = 1,
                         name = "IDEaz",
-                        full_name = "HereLiesAz/IDEaz",
-                        html_url = "https://github.com/HereLiesAz/IDEaz",
-                        description = "IDE",
+                        fullName = "HereLiesAz/IDEaz",
+                        htmlUrl = "https://github.com/HereLiesAz/IDEaz",
                         private = false,
-                        clone_url = "https://github.com/HereLiesAz/IDEaz.git"
+                        defaultBranch = "main"
                     )
                 )
                 _ownedRepos.value = dummy
@@ -57,9 +60,9 @@ class RepoDelegate(
     fun selectRepositoryForSetup(repo: GitHubRepoResponse, callback: (String, String) -> Unit) {
         settings.setAppName(repo.name)
         // Correct usage of full_name property
-        settings.setGithubUser(repo.full_name.split("/")[0])
-        // Correct usage of clone_url
-        callback(repo.name, repo.clone_url)
+        settings.setGithubUser(repo.fullName.split("/")[0])
+        // Construct clone_url from htmlUrl
+        callback(repo.name, repo.htmlUrl + ".git")
     }
 
     fun createGitHubRepository(
@@ -80,12 +83,16 @@ class RepoDelegate(
 
     fun scanLocalProjects() {}
 
-    fun getLocalProjectsWithMetadata(): List<ProjectItem> {
+    fun getLocalProjectsWithMetadata(): List<ProjectMetadata> {
         return emptyList()
     }
 
     fun forceUpdateInitFiles() {
         onLog("Forcing update of init files...")
+    }
+
+    fun deleteProject(path: String) {
+        onLog("Deleting project at $path...")
     }
 
     fun uploadProjectSecrets(owner: String, repo: String) {
