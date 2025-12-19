@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -28,16 +29,30 @@ fun IdeNavHost(
         viewModel.flushNonFatalErrors()
     }
 
+    // Handle Pending Navigation from Intent or Rail here to ensure graph is set
+    val pendingRoute by viewModel.pendingRoute.collectAsState()
+    LaunchedEffect(pendingRoute) {
+        pendingRoute?.let { route ->
+            try {
+                navController.navigate(route) {
+                    launchSingleTop = true
+                    restoreState = true
+                }
+                viewModel.setPendingRoute(null)
+            } catch (e: Exception) {
+                // Navigation might fail if graph isn't ready
+                e.printStackTrace()
+            }
+        }
+    }
+
     NavHost(
         navController = navController,
-        startDestination = "initial_placeholder",
+        startDestination = "project_settings",
         modifier = modifier
     ) {
-        composable("initial_placeholder") {
-            Box(modifier = Modifier.fillMaxSize().background(Color.Transparent))
-        }
         composable("main") {
-            Box(modifier = Modifier.fillMaxSize().background(Color.Transparent))
+            MainIdeScreen(viewModel = viewModel)
         }
         composable("settings") {
             SettingsScreen(
@@ -51,7 +66,7 @@ fun IdeNavHost(
                 viewModel = viewModel,
                 settingsViewModel = settingsViewModel,
                 onBuildTriggered = { navController.navigate("build") },
-                navController = navController // PASS NAV CONTROLLER HERE
+                navController = navController
             )
         }
         composable("file_explorer") {
