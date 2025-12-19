@@ -73,7 +73,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_PROJECT_PATHS = "project_paths"
         const val KEY_GOOGLE_API_KEY = "google_api_key" // Gemini
         const val KEY_GITHUB_TOKEN = "github_token"
-        const val KEY_JULES_PROJECT_ID = "jules_project_id"
+        const val KEY_JULES_PROJECT_ID = "jules_project_id" // Google Cloud Project ID (Number)
 
         const val KEY_PROJECT_TYPE = "project_type"
         const val KEY_TARGET_PACKAGE_NAME = "target_package_name"
