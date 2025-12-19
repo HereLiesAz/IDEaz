@@ -2,7 +2,6 @@ package com.hereliesaz.ideaz.ui.delegates
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,13 +20,10 @@ class StateDelegate {
     /** Whether the target application (or WebView) is currently visible. */
     val isTargetAppVisible = _isTargetAppVisible.asStateFlow()
 
-    private val _buildLog = MutableStateFlow("")
+    // Bolt Optimization: Use List<String> to avoid O(N^2) string concatenation
+    private val _buildLog = MutableStateFlow<List<String>>(emptyList())
     /** The main build/system log. */
     val buildLog = _buildLog.asStateFlow()
-
-    private val _aiLog = MutableStateFlow("")
-    /** Separate AI log stream (currently merged into buildLog). */
-    val aiLog = _aiLog.asStateFlow()
 
     private val _pendingRoute = MutableStateFlow<String?>(null)
     /** Pending navigation route to be consumed by the UI. */
@@ -39,15 +35,24 @@ class StateDelegate {
 
     // Derived
     /** Combined stream of log lines for UI display. */
-    val filteredLog = combine(_buildLog, _aiLog) { b, a ->
-        (b.lines() + a.lines()).filter { it.isNotBlank() }
-    }
+    val filteredLog = _buildLog.asStateFlow()
 
     /** Appends a message to the build log. */
-    fun appendBuildLog(msg: String) { _buildLog.value += msg }
+    fun appendBuildLog(msg: String) {
+        val lines = msg.split('\n').filter { it.isNotBlank() }
+        if (lines.isNotEmpty()) {
+            _buildLog.value = _buildLog.value + lines
+        }
+    }
 
     /** Appends an AI message to the log (prefixed with [AI]). */
-    fun appendAiLog(msg: String) { _buildLog.value += "[AI] $msg\n" }
+    fun appendAiLog(msg: String) {
+        val lines = msg.split('\n').filter { it.isNotBlank() }
+        if (lines.isNotEmpty()) {
+            val prefixed = lines.map { "[AI] $it" }
+            _buildLog.value = _buildLog.value + prefixed
+        }
+    }
 
     /** Sets the loading progress. Pass null to hide the indicator. */
     fun setLoadingProgress(p: Int?) { _loadingProgress.value = p }
@@ -62,5 +67,5 @@ class StateDelegate {
     fun setCurrentWebUrl(url: String?) { _currentWebUrl.value = url }
 
     /** Clears all logs. */
-    fun clearLog() { _buildLog.value = ""; _aiLog.value = "" }
+    fun clearLog() { _buildLog.value = emptyList() }
 }
