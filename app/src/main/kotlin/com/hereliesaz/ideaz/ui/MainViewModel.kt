@@ -195,7 +195,7 @@ class MainViewModel(
                 // Fetch releases on IO thread
                 val releases = withContext(Dispatchers.IO) {
                     val service = GitHubApiClient.createService(token)
-                    service.getReleases("HereLiesAz", "IDEaz")
+                    service.getReleases("HereLiesAz", "IDEaz-buildtools")
                 }
 
                 // Look for 'tools.zip' in assets
@@ -614,57 +614,22 @@ class MainViewModel(
 
                     if (!detectedPackage.isNullOrBlank()) {
                         settingsViewModel.saveTargetPackageName(detectedPackage)
-                        launchPackage(c, detectedPackage)
+                        stateDelegate.setTargetAppVisible(true)
                     } else {
                         Toast.makeText(c, c.getString(R.string.error_app_not_installed), Toast.LENGTH_SHORT).show()
                     }
                     return
                 }
 
-                if (!launchPackage(c, packageName)) {
-                    // Try to detect package name again as fallback in case it changed
-                    val projectDir = settingsViewModel.getProjectPath(appName)
-                    val detectedPackage = ProjectAnalyzer.detectPackageName(projectDir)
+                // Switch to "App View". AndroidProjectHost will handle launching on the virtual display.
+                stateDelegate.setTargetAppVisible(true)
 
-                    if (!detectedPackage.isNullOrBlank() && detectedPackage != packageName) {
-                        settingsViewModel.saveTargetPackageName(detectedPackage)
-                        if (!launchPackage(c, detectedPackage)) {
-                             Toast.makeText(c, c.getString(R.string.error_app_not_installed), Toast.LENGTH_SHORT).show()
-                        }
-                    } else {
-                        Toast.makeText(c, c.getString(R.string.error_app_not_installed), Toast.LENGTH_SHORT).show()
-                    }
-                }
             } catch (e: Exception) {
                 Toast.makeText(c, c.getString(R.string.error_launch_failed, e.message), Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    private fun launchPackage(c: Context, pkg: String): Boolean {
-        return try {
-            val intent = Intent(c, com.hereliesaz.ideaz.features.preview.ContainerActivity::class.java).apply {
-                putExtra("TARGET_PACKAGE", pkg)
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            c.startActivity(intent)
-            true
-        } catch (e: Exception) {
-            e.printStackTrace()
-            // Fallback to normal launch
-            try {
-                val intent = c.packageManager.getLaunchIntentForPackage(pkg)
-                if (intent != null) {
-                    c.startActivity(intent)
-                    true
-                } else {
-                    false
-                }
-            } catch (ex: Exception) {
-                false
-            }
-        }
-    }
 
     /** Downloads project dependencies. */
     fun downloadDependencies() {
