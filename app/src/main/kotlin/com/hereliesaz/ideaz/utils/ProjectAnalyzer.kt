@@ -8,25 +8,16 @@ object ProjectAnalyzer {
     fun detectProjectType(projectDir: File): ProjectType {
         if (!projectDir.exists()) return ProjectType.OTHER
 
-        // Check for Flutter
-        if (File(projectDir, "pubspec.yaml").exists()) return ProjectType.FLUTTER
+        // Check for Web
+        if (File(projectDir, "index.html").exists()) return ProjectType.WEB
 
-        // Check for React Native vs Web
+        // Check for Web (React/Node)
         val packageJson = File(projectDir, "package.json")
         if (packageJson.exists()) {
-            // Simple heuristic: check for android/ios folders or app.json which are typical in RN
-            if (File(projectDir, "android").exists() ||
-                File(projectDir, "ios").exists() ||
-                File(projectDir, "app.json").exists()) {
-                return ProjectType.REACT_NATIVE
-            }
-            // If index.html exists, it's likely Web
             if (File(projectDir, "index.html").exists()) {
                 return ProjectType.WEB
             }
         }
-
-        if (File(projectDir, "index.html").exists()) return ProjectType.WEB
 
         // Check for Android
         if (File(projectDir, "build.gradle.kts").exists() ||
