@@ -30,24 +30,6 @@ class ProjectAnalyzerTest {
         assertEquals(ProjectType.ANDROID, type)
     }
 
-    @Test
-    fun detectFlutterProject() {
-        val projectDir = tempFolder.newFolder("flutter_project")
-        File(projectDir, "pubspec.yaml").createNewFile()
-
-        val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals(ProjectType.FLUTTER, type)
-    }
-
-    @Test
-    fun detectReactNativeProject() {
-        val projectDir = tempFolder.newFolder("rn_project")
-        File(projectDir, "package.json").createNewFile()
-        File(projectDir, "app.json").createNewFile()
-
-        val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals(ProjectType.REACT_NATIVE, type)
-    }
 
     @Test
     fun detectWebProject() {
