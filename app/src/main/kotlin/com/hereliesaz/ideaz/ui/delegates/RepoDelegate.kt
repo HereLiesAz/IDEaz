@@ -298,6 +298,8 @@ class RepoDelegate(
                                     onOverlayLog("Renaming local branch '$localBranch' to match remote '$remoteDefaultBranch'...")
                                     git.renameCurrentBranch(remoteDefaultBranch)
                                 }
+                            } else {
+                                onLog("Warning: No GitHub token. Skipping remote branch check. Defaulting to local branch name.")
                             }
                         } catch (e: Exception) {
                             onLog("Warning: Failed to fetch remote branch info: ${e.message}. Defaulting to current.")
