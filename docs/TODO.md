@@ -78,3 +78,4 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [x] Migrate to `androidComponents` API in `build.gradle.kts`.
 - [x] Security Hardening: Implement PBKDF2 for key derivation.
 - [x] Refactor `MainViewModel` into Delegates and add KDocs.
+- [x] Fix JNA native library loading (lazysodium/jna conflict).
