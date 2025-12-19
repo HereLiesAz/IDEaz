@@ -410,6 +410,13 @@ class BuildService : Service() {
                 val processedManifestPath = File(buildDir, "processed_manifest.xml").absolutePath
 
                 // --- BUILD EXECUTION ---
+                // Inject resizeableActivity for Virtual Environment compatibility
+                try {
+                    injectResizeableActivity(projectDir)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to inject resizeableActivity", e)
+                }
+
                 val buildOrchestrator = BuildOrchestrator(
                     listOf(
                         ProcessManifest(File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, processedManifestPath, packageName, MIN_SDK, TARGET_SDK),
