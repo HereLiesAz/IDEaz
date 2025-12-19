@@ -306,10 +306,20 @@ class GitManager(private val projectDir: File) {
      * Renames the current branch.
      *
      * @param newName The new name for the current branch.
+     * @return `true` if successful, `false` otherwise.
      */
-    fun renameCurrentBranch(newName: String) {
-        Git.open(projectDir).use { git ->
-            git.branchRename().setNewName(newName).call()
+    fun renameCurrentBranch(newName: String): Boolean {
+        return try {
+            Git.open(projectDir).use { git ->
+                git.branchRename().setNewName(newName).call()
+                true
+            }
+        } catch (e: Exception) {
+            // Log the error (if we had a logger) or at least don't swallow it silently without a trace.
+            // Since this class doesn't have a logger, we rely on the caller to handle the false return.
+            // But we should print stack trace for debugging purposes as requested.
+            e.printStackTrace()
+            false
         }
     }
 
