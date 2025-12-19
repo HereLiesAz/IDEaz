@@ -25,7 +25,7 @@ class AIDelegate(
 ) {
 
     private val _currentJulesSessionId = MutableStateFlow<String?>(null)
-    /** The ID of the currently active Jules session. */
+    /** The Resource Name of the currently active Jules session. */
     val currentJulesSessionId = _currentJulesSessionId.asStateFlow()
 
     private val _julesResponse = MutableStateFlow<Session?>(null)
@@ -52,10 +52,10 @@ class AIDelegate(
     private val processedActivityIds = mutableSetOf<String>()
 
     /**
-     * Resumes an existing Jules session by its ID.
+     * Resumes an existing Jules session by its Name.
      */
-    fun resumeSession(sessionId: String) {
-        _currentJulesSessionId.value = sessionId
+    fun resumeSession(sessionName: String) {
+        _currentJulesSessionId.value = sessionName
     }
 
     /**
@@ -146,11 +146,11 @@ class AIDelegate(
             githubRepoContext = GitHubRepoContext(branch)
         )
 
-        val sessionId = _currentJulesSessionId.value
+        val sessionName = _currentJulesSessionId.value
 
         try {
-            val activeSessionId: String
-            if (sessionId == null) {
+            val activeSessionName: String
+            if (sessionName == null) {
                 // Create Session
                 val request = CreateSessionRequest(
                     prompt = promptText,
@@ -161,38 +161,38 @@ class AIDelegate(
                 // Use session.name (resource name) for API calls instead of session.id
                 _currentJulesSessionId.value = session.name
                 _julesResponse.value = session
-                activeSessionId = session.name
+                activeSessionName = session.name
             } else {
                 // Send Message
                 val request = SendMessageRequest(prompt = promptText)
-                JulesApiClient.sendMessage(sessionId, request)
-                activeSessionId = sessionId
+                JulesApiClient.sendMessage(sessionName, request)
+                activeSessionName = sessionName
             }
 
-            pollForResponse(activeSessionId)
+            pollForResponse(activeSessionName)
 
         } catch (e: Exception) {
             throw e
         }
     }
 
-    private suspend fun getAllActivities(sessionId: String): List<Activity> {
+    private suspend fun getAllActivities(sessionName: String): List<Activity> {
         val allActivities = mutableListOf<Activity>()
         var pageToken: String? = null
         do {
-            val response = JulesApiClient.listActivities(sessionId, pageToken = pageToken)
+            val response = JulesApiClient.listActivities(sessionName, pageToken = pageToken)
             response.activities?.let { allActivities.addAll(it) }
             pageToken = response.nextPageToken
         } while (pageToken != null)
         return allActivities
     }
 
-    private suspend fun pollForResponse(sessionId: String) {
+    private suspend fun pollForResponse(sessionName: String) {
         // Poll listActivities for a response
         var attempts = 0
         while (attempts < 15) { // 45 seconds max
             delay(3000)
-            val activities = getAllActivities(sessionId)
+            val activities = getAllActivities(sessionName)
 
             // Check for Agent Message
             // We log the latest message if found.

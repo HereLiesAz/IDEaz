@@ -135,7 +135,7 @@ fun ProjectScreen(
             showRequirementDialog = true
             return false
         }
-        if (!checkOverlayPermissions()) return false
+        // Overlay and Accessibility permissions are now requested lazily when needed.
         return true
     }
 
