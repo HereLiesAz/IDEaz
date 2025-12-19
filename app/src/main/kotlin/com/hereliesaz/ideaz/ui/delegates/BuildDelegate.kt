@@ -6,98 +6,168 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
-import android.util.Log
 import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.IBuildService
+import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.services.BuildService
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import com.hereliesaz.ideaz.ui.SettingsViewModel
+import com.hereliesaz.ideaz.utils.SourceMapParser
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import java.io.File
 
+/**
+ * Manages interactions with the background BuildService.
+ * Handles binding, unbinding, and invoking build operations via AIDL.
+ *
+ * @param application The Application context.
+ * @param settingsViewModel ViewModel to access project settings.
+ * @param scope CoroutineScope for handling callbacks on the main thread.
+ * @param onLog Callback for general build logs.
+ * @param onOverlayLog Callback for high-priority overlay logs.
+ * @param onSourceMapUpdated Callback when a new SourceMap is generated after a successful build.
+ * @param onWebBuildFailure Callback to trigger AI assistance on web build failures.
+ * @param onWebBuildSuccess Callback when a web build succeeds (to load the WebView).
+ * @param gitDelegate Delegate to handle Git operations (e.g., pushing after a web build).
+ */
 class BuildDelegate(
-    private val app: Application,
-    private val aiDelegate: AIDelegate,
-    private val onLog: (String) -> Unit
+    private val application: Application,
+    private val settingsViewModel: SettingsViewModel,
+    private val scope: CoroutineScope,
+    private val onLog: (String) -> Unit,
+    private val onOverlayLog: (String) -> Unit,
+    private val onSourceMapUpdated: (Map<String, com.hereliesaz.ideaz.models.SourceMapEntry>) -> Unit,
+    private val onBuildFailure: (String) -> Unit,
+    private val onWebBuildSuccess: (String) -> Unit,
+    private val gitDelegate: GitDelegate
 ) {
+
     private var buildService: IBuildService? = null
-    private val _buildStatus = MutableStateFlow("Idle")
-    val buildStatus = _buildStatus.asStateFlow()
+    private var isBuildServiceBound = false
+    private var isServiceRegistered = false
 
-    // Internal log for AI context if needed, but primary output via callback
-    private val _buildLog = MutableStateFlow("")
-    val buildLog = _buildLog.asStateFlow()
-
-    private val connection = object : ServiceConnection {
+    private val buildServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             buildService = IBuildService.Stub.asInterface(service)
-            _buildStatus.value = "Connected"
+            isBuildServiceBound = true
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
             buildService = null
-            _buildStatus.value = "Disconnected"
+            isBuildServiceBound = false
         }
     }
 
     private val buildCallback = object : IBuildCallback.Stub() {
         override fun onLog(message: String) {
-            _buildLog.value += "$message\n"
-            onLog(message)
+            scope.launch {
+                onLog("$message\n")
+                buildService?.updateNotification(message)
+            }
         }
 
         override fun onSuccess(apkPath: String) {
-            val msg = "Build Success: $apkPath"
-            _buildLog.value += "$msg\n"
-            onLog(msg)
-            _buildStatus.value = "Success"
+            scope.launch {
+                onLog("\n[IDE] Build successful: $apkPath\n")
+
+                val type = ProjectType.fromString(settingsViewModel.getProjectType())
+
+                // Check if this is a web build
+                if (type == ProjectType.WEB) {
+                    onLog("[IDE] Web Project ready. Loading WebView...\n")
+                    onWebBuildSuccess(apkPath)
+
+                    // Web Projects: Push to GitHub if enabled to trigger remote build/deploy
+                    if (!settingsViewModel.getGithubToken().isNullOrBlank()) {
+                         onLog("[IDE] Triggering remote Web Build (Pushing to GitHub)...\n")
+                         gitDelegate.push()
+                    }
+                } else {
+                    onOverlayLog("Build successful. Updating...")
+                    application.sendBroadcast(Intent("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP"))
+                    val buildDir = File(apkPath).parentFile
+                    if (buildDir != null) {
+                        val parser = SourceMapParser(buildDir)
+                        onSourceMapUpdated(parser.parse())
+                    }
+                }
+            }
         }
 
-        override fun onFailure(error: String) {
-            val msg = "Build Failed: $error"
-            _buildLog.value += "$msg\n"
-            onLog(msg)
-            _buildStatus.value = "Failed"
-
-            // Forward failure log to AI for resolution if it's a compilation error
-            // Simple heuristic: if it contains "error:" or "exception"
-            if (error.contains("error", ignoreCase = true) ||
-                error.contains("exception", ignoreCase = true) ||
-                _buildLog.value.contains("error:", ignoreCase = true)) {
-                 aiDelegate.startContextualAITask("Build Error: $error\nLog:\n${_buildLog.value}")
+        override fun onFailure(log: String) {
+            scope.launch {
+                onLog("\n[IDE] Build Failed.\n")
+                onOverlayLog("Build failed. Check global log.")
+                onBuildFailure(log)
             }
         }
     }
 
-    init {
-        bindService()
+    /**
+     * Binds the BuildService to the application context.
+     * Ensures the service is started and connected.
+     */
+    fun bindService(context: Context) {
+        if (isServiceRegistered) return
+        val intent = Intent(context, BuildService::class.java)
+        context.applicationContext.bindService(intent, buildServiceConnection, Context.BIND_AUTO_CREATE)
+        isServiceRegistered = true
     }
 
-    private fun bindService() {
-        val intent = Intent(app, BuildService::class.java)
-        app.bindService(intent, connection, Context.BIND_AUTO_CREATE)
-    }
-
-    fun unbindService() {
-        try {
-            app.unbindService(connection)
-        } catch (e: IllegalArgumentException) {
-            // Ignore if not registered
-        }
-    }
-
-    fun startBuild(projectPath: String) {
-        if (buildService != null) {
-            _buildLog.value = "Starting build for $projectPath...\n"
-            _buildStatus.value = "Building"
+    /**
+     * Unbinds the BuildService.
+     * Should be called when the ViewModel is cleared.
+     */
+    fun unbindService(context: Context) {
+        if (isServiceRegistered) {
             try {
-                buildService?.startBuild(projectPath, buildCallback)
+                context.applicationContext.unbindService(buildServiceConnection)
             } catch (e: Exception) {
-                _buildLog.value += "Failed to start build: ${e.message}\n"
-                _buildStatus.value = "Error"
             }
-        } else {
-            _buildLog.value += "Build Service not connected. Reconnecting...\n"
-            bindService()
+            isServiceRegistered = false
+        }
+    }
+
+    /**
+     * Initiates a build process.
+     * Checks if local build is enabled and if the service is bound.
+     * @param projectDir Optional specific project directory. Defaults to current project.
+     */
+    fun startBuild(projectDir: File? = null) {
+        scope.launch {
+            val typeStr = settingsViewModel.getProjectType()
+            val type = ProjectType.fromString(typeStr)
+
+            if (type != ProjectType.WEB && !settingsViewModel.isLocalBuildEnabled()) {
+                onLog("[INFO] Local build disabled. Using GitHub Action (Remote).\n")
+                return@launch
+            }
+
+            if (type == ProjectType.WEB) {
+                onLog("[IDE] Web Project: Pulling latest changes...\n")
+                // In a real scenario, we might await a git pull here
+            }
+
+            if (isBuildServiceBound) {
+                val dir = projectDir ?: settingsViewModel.getProjectPath(settingsViewModel.getAppName() ?: "")
+                buildService?.startBuild(dir.absolutePath, buildCallback)
+            } else {
+                onLog("Error: Build Service not bound.\n")
+            }
+        }
+    }
+
+    /**
+     * Initiates dependency download process via the BuildService.
+     */
+    fun downloadDependencies(projectDir: File? = null) {
+        scope.launch {
+            if (isBuildServiceBound) {
+                val dir = projectDir ?: settingsViewModel.getProjectPath(settingsViewModel.getAppName() ?: "")
+                buildService?.downloadDependencies(dir.absolutePath, buildCallback)
+            } else {
+                onLog("Error: Build Service not bound.\n")
+            }
         }
     }
 }

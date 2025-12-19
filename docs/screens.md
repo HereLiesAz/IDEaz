@@ -2,13 +2,13 @@
 
 ## 1. The Overlay ("Invisible Screen")
 *   **Role:** The primary interface for "Post-Code" development.
-*   **Implementation:** `IdeazOverlayService`.
+*   **Implementation:** `UIInspectionService` (Accessibility Service) + `IdeazOverlayService`.
 *   **Context:** Visible *only* over the target application.
 *   **Modes:**
     *   **Interact:** Pass-through to target app.
     *   **Select:** Blocks interaction to allow Element Tap or Rect Drag selection.
 *   **Components:**
-    *   **Selection Highlight:** Visual border around selected nodes or drawn rects (managed by `IdeazOverlayService`).
+    *   **Selection Highlight:** Visual border around selected nodes or drawn rects (managed by `UIInspectionService`).
     *   **Contextual Chat:** Inline chat display + input anchored to the selection (managed by `IdeazOverlayService`).
     *   **Update Popup:** "Updating, gimme a sec" toast/dialog.
 

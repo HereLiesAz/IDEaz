@@ -36,10 +36,14 @@ fun ProjectLoadTab(
     context: Context,
     onProjectSelected: (String) -> Unit
 ) {
-    val projectMetadataList by viewModel.localProjects.collectAsState()
+    var projectMetadataList by remember { mutableStateOf<List<com.hereliesaz.ideaz.ui.ProjectMetadata>>(emptyList()) }
+    val localProjects by settingsViewModel.localProjects.collectAsState()
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(localProjects) {
         viewModel.scanLocalProjects()
+        withContext(Dispatchers.IO) {
+            projectMetadataList = viewModel.getLocalProjectsWithMetadata()
+        }
     }
 
     // Storage permission launcher logic should be handled by the parent or buttons here

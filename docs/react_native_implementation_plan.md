@@ -39,6 +39,6 @@ We cannot run the standard Metro bundler (Node.js) on Android.
 ## 5. UI Inspection & Source Mapping
 *   **Task:** Integrate with the "Post-Code" overlay.
 *   **Logic:**
-    *   When the user taps an element, `IdeazOverlayService` (via selection logic) reads the `contentDescription` (mapped from `accessibilityLabel`).
+    *   When the user taps an element, `UIInspectionService` reads the `contentDescription` (mapped from `accessibilityLabel`).
     *   If the description matches the pattern `__source:line__`, extract the file and line.
     *   Pass this context to the AI Agent.

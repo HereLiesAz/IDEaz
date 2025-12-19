@@ -51,20 +51,8 @@ fun ProjectCloneTab(
                 modifier = Modifier.fillMaxWidth(),
                 leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
                 onSubmit = {
-                    // Simple parsing logic: handle full URL or user/repo
-                    val cleanUrl = cloneUrl.trim().removeSuffix(".git")
-                    val parts = cleanUrl.split("/")
-                    if (parts.size >= 2) {
-                        val repo = parts.last()
-                        val owner = parts[parts.lastIndex - 1]
-
-                        viewModel.forkRepository(owner, repo) { newOwner, newRepo, _ ->
-                             Toast.makeText(context, "Forked to $newOwner/$newRepo", Toast.LENGTH_SHORT).show()
-                        }
-                        Toast.makeText(context, "Forking...", Toast.LENGTH_SHORT).show()
-                    } else {
-                         Toast.makeText(context, "Invalid URL", Toast.LENGTH_SHORT).show()
-                    }
+                    viewModel.forkRepository(cloneUrl)
+                    Toast.makeText(context, "Forking...", Toast.LENGTH_SHORT).show()
                 },
                 submitButtonContent = { Text("Fork") },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send)

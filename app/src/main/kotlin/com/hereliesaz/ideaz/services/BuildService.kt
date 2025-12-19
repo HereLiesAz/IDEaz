@@ -13,50 +13,54 @@ import androidx.preference.PreferenceManager
 import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.IBuildService
 import com.hereliesaz.ideaz.MainActivity
-import com.hereliesaz.ideaz.features.preview.ContainerActivity
+import com.hereliesaz.ideaz.buildlogic.*
 import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.utils.ApkInstaller
+import com.hereliesaz.ideaz.utils.ToolManager
+import com.hereliesaz.ideaz.utils.ProjectAnalyzer
+import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.SettingsViewModel
-import kotlinx.coroutines.*
-import org.json.JSONObject
-import java.io.BufferedInputStream
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import java.io.File
-import java.io.FileOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.ArrayDeque
-import java.util.zip.ZipEntry
-import java.util.zip.ZipInputStream
 
+/**
+ * A foreground [Service] that orchestrates the build process in a separate process (`:build_process`).
+ */
 class BuildService : Service() {
-
     companion object {
         private const val TAG = "BuildService"
         private const val NOTIFICATION_CHANNEL_ID = "IDEAZ_BUILD_CHANNEL_ID"
         private const val NOTIFICATION_ID = 1
-        private const val POLL_INTERVAL_MS = 10_000L // 10 seconds
+        private const val MIN_SDK = 26
+        private const val TARGET_SDK = 36
         private const val MAX_LOG_LINES = 50
+        private const val ACTION_SYNC_AND_EXIT = "SYNC_AND_EXIT"
+        private const val ACTION_BUILD_LOG_INPUT = "BUILD_LOG_INPUT"
+        private const val EXTRA_TEXT_REPLY = "KEY_TEXT_REPLY"
     }
 
     private val logBuffer = ArrayDeque<String>(MAX_LOG_LINES)
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var buildJob: Job? = null
+    private var currentProjectPath: String? = null
 
-    // AIDL Stub for interaction with BuildDelegate
     private val binder = object : IBuildService.Stub() {
-        override fun startBuild(projectPath: String, callback: IBuildCallback) =
-            this@BuildService.startRemoteMonitor(projectPath, callback)
-
-        override fun downloadDependencies(projectPath: String, callback: IBuildCallback) {
-            // No-op for remote build
-        }
-
+        override fun startBuild(projectPath: String, callback: IBuildCallback) = this@BuildService.startBuild(projectPath, callback)
+        override fun downloadDependencies(projectPath: String, callback: IBuildCallback) = this@BuildService.downloadDependencies(projectPath, callback)
         override fun updateNotification(message: String) = this@BuildService.updateNotification(message)
         override fun cancelBuild() = this@BuildService.cancelBuild()
     }
 
     override fun onCreate() {
         super.onCreate()
+        // No auto-install from assets. Tools must be downloaded.
         createNotificationChannel()
     }
 
@@ -65,258 +69,357 @@ class BuildService : Service() {
         serviceScope.cancel()
     }
 
-    override fun onBind(intent: Intent?): IBinder = binder
-
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_SYNC_AND_EXIT) {
+            handleSyncAndExit()
+            return START_NOT_STICKY
+        } else if (intent?.action == ACTION_BUILD_LOG_INPUT) {
+            val remoteInput = androidx.core.app.RemoteInput.getResultsFromIntent(intent)
+            if (remoteInput != null) {
+                val input = remoteInput.getCharSequence(EXTRA_TEXT_REPLY).toString()
+                val promptIntent = Intent("com.hereliesaz.ideaz.AI_PROMPT").apply {
+                    putExtra("PROMPT", input)
+                }
+                sendBroadcast(promptIntent)
+            }
+            return START_NOT_STICKY
+        }
+
         val notification = createNotificationBuilder()
-            .setContentText("Build Monitor Active")
+            .setContentText("Build Service is running.")
+            .setStyle(NotificationCompat.BigTextStyle().bigText("Build Service is running."))
             .build()
         startForeground(NOTIFICATION_ID, notification)
-        return START_NOT_STICKY
+        return START_STICKY
     }
 
-    private fun startRemoteMonitor(projectPath: String, callback: IBuildCallback) {
-        cancelBuild()
-        buildJob = serviceScope.launch(Dispatchers.IO) {
-            try {
-                updateNotification("Syncing & Initializing Monitor...")
-                callback.onLog("--- Remote Build Sequence Started ---")
+    override fun onBind(intent: Intent?): IBinder = binder
 
-                val prefs = PreferenceManager.getDefaultSharedPreferences(this@BuildService)
-                val token = prefs.getString(SettingsViewModel.KEY_GITHUB_TOKEN, "") ?: ""
-                val username = prefs.getString(SettingsViewModel.KEY_GITHUB_USER, "") ?: ""
-                // Get repo name from settings or project folder name
-                val repoName = prefs.getString(SettingsViewModel.KEY_APP_NAME, File(projectPath).name) ?: "IDEaz"
-
-                if (token.isBlank() || username.isBlank()) {
-                    callback.onFailure("Missing GitHub credentials.")
-                    return@launch
-                }
-
-                val projectDir = File(projectPath)
-
-                // 1. Ensure Manifest is Container-Ready
-                injectResizeableFlag(File(projectDir, "app/src/main/AndroidManifest.xml"), callback)
-
-                // 2. Sync Local Changes (If any)
-                val git = GitManager(projectDir)
-                if (git.hasChanges()) {
-                    callback.onLog("Pushing local configuration changes...")
-                    git.addAll()
-                    git.commit("IDEaz: Pre-build configuration injection")
-                    git.push(username, token)
-                }
-
-                val currentHead = git.getHeadSha()
-                if (currentHead.isNullOrEmpty()) {
-                    callback.onFailure("Failed to get HEAD SHA.")
-                    return@launch
-                }
-                callback.onLog("Tracking commit: ${currentHead.take(7)}")
-
-                // 3. Poll GitHub Actions
-                callback.onLog("Polling GitHub Actions for workflow...")
-                updateNotification("Waiting for GitHub...")
-
-                var runId: Long = -1
-                var attempt = 0
-                val maxAttempts = 60
-
-                // Polling Loop
-                while (isActive && attempt < maxAttempts) {
-                    val url = "https://api.github.com/repos/$username/$repoName/actions/runs?head_sha=$currentHead"
-                    val response = githubApiRequest(url, token)
-
-                    val runs = JSONObject(response).optJSONArray("workflow_runs")
-                    if (runs != null && runs.length() > 0) {
-                        val latestRun = runs.getJSONObject(0)
-                        runId = latestRun.getLong("id")
-                        val status = latestRun.getString("status")
-                        val conclusion = latestRun.optString("conclusion", "null")
-
-                        updateNotification("Remote Status: $status")
-                        callback.onLog("Workflow $status...")
-
-                        if (status == "completed") {
-                            if (conclusion == "success") break
-                            else {
-                                callback.onFailure("Remote build failed with conclusion: $conclusion")
-                                return@launch
-                            }
-                        }
-                    }
-                    delay(POLL_INTERVAL_MS)
-                    attempt++
-                }
-
-                if (runId == -1L) {
-                    callback.onFailure("Timeout: No workflow run found for this commit.")
-                    return@launch
-                }
-
-                // 4. Download Artifact
-                updateNotification("Downloading APK...")
-                callback.onLog("Build success. Fetching artifacts...")
-
-                val artifactsUrl = "https://api.github.com/repos/$username/$repoName/actions/runs/$runId/artifacts"
-                val artResponse = githubApiRequest(artifactsUrl, token)
-                val artifacts = JSONObject(artResponse).optJSONArray("artifacts")
-
-                var downloadUrl: String? = null
-                if (artifacts != null) {
-                    for (i in 0 until artifacts.length()) {
-                        val art = artifacts.getJSONObject(i)
-                        val name = art.getString("name")
-                        // Look for standard artifact names
-                        if (name.contains("apk") || name.contains("debug") || name.contains("release")) {
-                            downloadUrl = art.getString("archive_download_url")
-                            break
-                        }
-                    }
-                }
-
-                if (downloadUrl == null) {
-                    callback.onFailure("No APK artifact found in build output.")
-                    return@launch
-                }
-
-                val downloadDir = File(filesDir, "downloads").apply { mkdirs() }
-                val zipFile = File(downloadDir, "artifact.zip")
-                downloadFile(downloadUrl, zipFile, token)
-
-                // 5. Extract & Install
-                callback.onLog("Extracting...")
-                val apkFile = extractApkFromZip(zipFile, downloadDir)
-
-                if (apkFile != null) {
-                    callback.onLog("Installing APK...")
-                    updateNotification("Installing...")
-
-                    // Install logic
-                    ApkInstaller.installApk(this@BuildService, apkFile.absolutePath)
-
-                    callback.onSuccess(apkFile.absolutePath)
-
-                    // 6. Launch Container
-                    val pkgName = detectPackageName(projectDir)
-                    val launchIntent = Intent(this@BuildService, ContainerActivity::class.java).apply {
-                        putExtra(ContainerActivity.EXTRA_PACKAGE_NAME, pkgName)
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    startActivity(launchIntent)
-
-                } else {
-                    callback.onFailure("Downloaded zip contained no APK.")
-                }
-
-            } catch (e: Exception) {
-                Log.e(TAG, "Remote monitor error", e)
-                callback.onFailure("Error: ${e.message}")
-            }
-        }
-    }
-
-    private fun githubApiRequest(urlStr: String, token: String): String {
-        val url = URL(urlStr)
-        val conn = url.openConnection() as HttpURLConnection
-        conn.requestMethod = "GET"
-        conn.setRequestProperty("Authorization", "Bearer $token")
-        conn.setRequestProperty("Accept", "application/vnd.github.v3+json")
-
-        if (conn.responseCode !in 200..299) {
-            throw RuntimeException("GitHub API ${conn.responseCode}: ${conn.responseMessage}")
-        }
-        return conn.inputStream.bufferedReader().readText()
-    }
-
-    private fun downloadFile(urlStr: String, destFile: File, token: String) {
-        val url = URL(urlStr)
-        val conn = url.openConnection() as HttpURLConnection
-        conn.requestMethod = "GET"
-        conn.setRequestProperty("Authorization", "Bearer $token")
-        conn.instanceFollowRedirects = true
-
-        if (conn.responseCode !in 200..299) throw RuntimeException("Download failed: ${conn.responseCode}")
-
-        conn.inputStream.use { input ->
-            FileOutputStream(destFile).use { output -> input.copyTo(output) }
-        }
-    }
-
-    private fun extractApkFromZip(zipFile: File, outputDir: File): File? {
-        ZipInputStream(BufferedInputStream(zipFile.inputStream())).use { zis ->
-            var entry: ZipEntry?
-            while (zis.nextEntry.also { entry = it } != null) {
-                if (entry!!.name.endsWith(".apk")) {
-                    val outFile = File(outputDir, entry!!.name)
-                    FileOutputStream(outFile).use { fos -> zis.copyTo(fos) }
-                    return outFile
-                }
-            }
-        }
-        return null
-    }
-
-    private fun injectResizeableFlag(manifestFile: File, callback: IBuildCallback) {
-        try {
-            if (!manifestFile.exists()) return
-            var content = manifestFile.readText()
-            if (!content.contains("android:resizeableActivity")) {
-                callback.onLog("Injecting android:resizeableActivity=\"true\"...")
-                // Regex to find the opening <application> tag
-                val regex = Regex("<application(\\s+[^>]*?)?>")
-                val match = regex.find(content)
-                if (match != null) {
-                    val tag = match.value
-                    // If the tag is closed immediately e.g., <application ... /> which is unlikely for app manifest but possible
-                    // However, we just append the attribute inside.
-                    if (!tag.contains("android:resizeableActivity")) {
-                         // Insert the attribute before the closing bracket of the tag
-                         val newTag = tag.substring(0, tag.length - 1) + " android:resizeableActivity=\"true\">"
-                         content = content.replaceFirst(tag, newTag)
-                         manifestFile.writeText(content)
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Manifest injection failed", e)
-            callback.onLog("Warning: Failed to inject resizeableActivity flag: ${e.message}")
-        }
-    }
-
-    private fun detectPackageName(projectDir: File): String {
-        val manifest = File(projectDir, "app/src/main/AndroidManifest.xml")
-        if (manifest.exists()) {
-            val match = Regex("package=\"([^\"]+)\"").find(manifest.readText())
-            if (match != null) return match.groupValues[1]
-        }
-        return "com.example.app"
-    }
-
-    // Notification Helpers (Standard Boilerplate)
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(NOTIFICATION_CHANNEL_ID, "IDEaz Builds", NotificationManager.IMPORTANCE_LOW)
+            val channel = NotificationChannel(NOTIFICATION_CHANNEL_ID, "IDEaz Build Service", NotificationManager.IMPORTANCE_DEFAULT)
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }
 
-    private fun updateNotification(msg: String) {
-        val notif = createNotificationBuilder().setContentText(msg).build()
-        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notif)
+    private fun updateNotification(message: String) {
+        synchronized(logBuffer) {
+            message.lines().forEach { line ->
+                if (line.isNotBlank()) {
+                    if (logBuffer.size >= MAX_LOG_LINES) {
+                        logBuffer.removeFirst()
+                    }
+                    logBuffer.addLast(line)
+                }
+            }
+        }
+
+        val latestLog = synchronized(logBuffer) { logBuffer.lastOrNull() } ?: "Processing..."
+        val bigText = synchronized(logBuffer) { logBuffer.joinToString("\n") }
+
+        val notification = createNotificationBuilder()
+            .setContentText(latestLog)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
+            .setOnlyAlertOnce(true)
+            .build()
+
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification)
     }
 
     private fun createNotificationBuilder(): NotificationCompat.Builder {
-        val intent = Intent(this, MainActivity::class.java)
-        val pending = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+        val contentIntent = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val syncIntent = Intent(this, BuildService::class.java).apply {
+            action = ACTION_SYNC_AND_EXIT
+        }
+        val syncPendingIntent = PendingIntent.getService(
+            this, 1, syncIntent, PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val remoteInput = androidx.core.app.RemoteInput.Builder(EXTRA_TEXT_REPLY)
+            .setLabel("Prompt AI...")
+            .build()
+
+        val replyIntent = Intent(this, BuildService::class.java).apply {
+            action = ACTION_BUILD_LOG_INPUT
+        }
+        val replyPendingIntent = PendingIntent.getService(
+            this,
+            2,
+            replyIntent,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val replyAction = NotificationCompat.Action.Builder(
+            android.R.drawable.ic_input_add,
+            "Prompt",
+            replyPendingIntent
+        )
+        .addRemoteInput(remoteInput)
+        .build()
+
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setContentTitle("IDEaz Build Service")
-            .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentIntent(pending)
+            .setContentTitle("IDEaz IDE")
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentIntent(contentIntent)
+            .addAction(replyAction)
+            .addAction(android.R.drawable.ic_menu_save, "Sync & Exit", syncPendingIntent)
+    }
+
+    private fun handleSyncAndExit() {
+        val path = currentProjectPath
+        if (path == null) {
+            Log.w(TAG, "Cannot sync: Project path is null")
+            stopSelf()
+            return
+        }
+
+        updateNotification("Syncing and exiting...")
+
+        serviceScope.launch {
+            try {
+                val prefs = PreferenceManager.getDefaultSharedPreferences(this@BuildService)
+                val token = prefs.getString(SettingsViewModel.KEY_GITHUB_TOKEN, null)
+                val user = prefs.getString(SettingsViewModel.KEY_GITHUB_USER, null)
+
+                val git = GitManager(File(path))
+                if (git.hasChanges()) {
+                    git.addAll()
+                    git.commit("Sync and Exit")
+                }
+                if (token != null) {
+                    git.push(user, token)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Sync failed", e)
+            } finally {
+                stopSelf()
+            }
+        }
+    }
+
+    private fun checkTool(name: String, callback: IBuildCallback): String? {
+        callback.onLog("Verifying tool: $name...")
+        val path = ToolManager.getToolPath(this, name)
+
+        if (path != null) {
+            val file = File(path)
+            if (file.exists()) {
+                callback.onLog("  OK: $path (${file.length()} bytes)")
+                return path
+            } else {
+                callback.onLog("  ERROR: Path returned '$path' but file does not exist!")
+                return null
+            }
+        } else {
+            callback.onLog("  ERROR: ToolManager returned null for '$name'. Ensure tools are downloaded.")
+            return null
+        }
     }
 
     private fun cancelBuild() {
-        buildJob?.cancel()
-        updateNotification("Cancelled")
+        try {
+            buildJob?.cancel()
+            buildJob = null
+            updateNotification("Build cancelled.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error cancelling build", e)
+        }
+    }
+
+    private fun downloadDependencies(projectPath: String, callback: IBuildCallback) {
+        cancelBuild()
+        buildJob = serviceScope.launch(Dispatchers.IO) {
+            try {
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+                currentProjectPath = projectPath
+                synchronized(logBuffer) {
+                    logBuffer.clear()
+                }
+                updateNotification("Downloading dependencies...")
+
+                val projectDir = File(projectPath)
+                if (!projectDir.exists()) {
+                    callback.onFailure("Project directory not found: $projectPath")
+                    return@launch
+                }
+                val localRepoDir = File(filesDir, "local-repo").apply { mkdirs() }
+
+                val type = ProjectAnalyzer.detectProjectType(projectDir)
+
+                if (type == ProjectType.ANDROID) {
+                    val resolver = HttpDependencyResolver(projectDir, File(projectDir, "dependencies.toml"), localRepoDir, callback)
+                    val resolverResult = resolver.execute()
+                    if (resolverResult.success && isActive) {
+                        callback.onLog("\n[IDE] Dependencies downloaded successfully.")
+                        updateNotification("Dependencies downloaded.")
+                    } else if (isActive) {
+                        callback.onFailure("Dependency resolution failed: ${resolverResult.output}")
+                    }
+                } else if (type == ProjectType.WEB) {
+                     if (File(projectDir, "package.json").exists()) {
+                         callback.onLog("\n[IDE] 'package.json' detected. 'npm install' is not currently supported on device.")
+                     } else {
+                         callback.onLog("\n[IDE] No dependency file detected for Web project.")
+                     }
+                     updateNotification("Download finished (Web).")
+                } else {
+                     callback.onLog("\n[IDE] Dependency download not supported for $type projects.")
+                     updateNotification("Download finished ($type).")
+                }
+            } catch (e: Throwable) {
+                Log.e(TAG, "Download dependencies failed", e)
+                if (isActive) {
+                    callback.onFailure("[IDE] Failed: ${e.message}")
+                }
+            }
+        }
+    }
+
+    private fun startBuild(projectPath: String, callback: IBuildCallback) {
+        cancelBuild()
+        buildJob = serviceScope.launch(Dispatchers.IO) {
+            try {
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+                currentProjectPath = projectPath
+                synchronized(logBuffer) {
+                    logBuffer.clear()
+                }
+                updateNotification("Starting build...")
+
+                val projectDir = File(projectPath)
+                val buildDir = File(projectDir, "build").apply { mkdirs() }
+                val cacheDir = File(filesDir, "cache").apply { mkdirs() }
+                val localRepoDir = File(filesDir, "local-repo").apply { mkdirs() }
+
+                val type = ProjectAnalyzer.detectProjectType(projectDir)
+                val packageName = ProjectAnalyzer.detectPackageName(projectDir)
+
+                // --- WEB BUILD ---
+                if (type == ProjectType.WEB) {
+                    // ... (existing web build logic)
+                    val outputDir = File(filesDir, "web_dist")
+                    val step = WebBuildStep(projectDir, outputDir)
+                    val result = step.execute(callback)
+                    if (result.success && isActive) {
+                        val indexHtml = File(outputDir, "index.html")
+                        callback.onSuccess(indexHtml.absolutePath)
+                    } else if (isActive) {
+                        callback.onFailure(result.output)
+                    }
+                    return@launch
+                }
+
+                // --- ANDROID BUILD ---
+                // ... (Dependency Resolution)
+                val resolver = HttpDependencyResolver(projectDir, File(projectDir, "dependencies.toml"), localRepoDir, callback)
+                val resolverResult = resolver.execute()
+                if (!resolverResult.success && isActive) {
+                    callback.onFailure("Dependency resolution failed: ${resolverResult.output}")
+                    return@launch
+                }
+
+                if (!isActive) return@launch
+
+                // --- TOOL VERIFICATION ---
+                if (!ToolManager.areToolsInstalled(this@BuildService)) {
+                    callback.onFailure("Local build tools not installed. Please enable them in Settings.")
+                    return@launch
+                }
+
+                callback.onLog("\n--- Toolchain Verification ---")
+                val aapt2Path = checkTool("aapt2", callback)
+                val kotlincJarPath = checkTool("kotlin-compiler.jar", callback)
+                val d8Path = checkTool("d8.jar", callback)
+                val apkSignerPath = checkTool("apksigner.jar", callback)
+                val androidJarPath = checkTool("android.jar", callback)
+                val javaBinaryPath = checkTool("java", callback)
+
+                val prefs = PreferenceManager.getDefaultSharedPreferences(this@BuildService)
+                val customKsPath = prefs.getString(SettingsViewModel.KEY_KEYSTORE_PATH, null)
+                val keystorePath = if (customKsPath != null && File(customKsPath).exists()) {
+                    callback.onLog("Using Custom Keystore: $customKsPath")
+                    customKsPath
+                } else {
+                    checkTool("debug.keystore", callback)
+                }
+
+                val ksPass = prefs.getString(SettingsViewModel.KEY_KEYSTORE_PASS, "android") ?: "android"
+                val keyAlias = prefs.getString(SettingsViewModel.KEY_KEY_ALIAS, "androiddebugkey") ?: "androiddebugkey"
+
+                callback.onLog("------------------------------\n")
+
+                val missingTools = mutableListOf<String>()
+                if (aapt2Path == null) missingTools.add("aapt2")
+                if (kotlincJarPath == null) missingTools.add("kotlin-compiler.jar")
+                if (d8Path == null) missingTools.add("d8.jar")
+                if (apkSignerPath == null) missingTools.add("apksigner.jar")
+                if (keystorePath == null) missingTools.add("keystore")
+                if (androidJarPath == null) missingTools.add("android.jar")
+                if (javaBinaryPath == null) missingTools.add("java")
+
+                if (missingTools.isNotEmpty() && isActive) {
+                    val errorMsg = "Build failed: One or more tools not found: ${missingTools.joinToString(", ")}"
+                    Log.e(TAG, errorMsg)
+                    callback.onFailure(errorMsg)
+                    return@launch
+                }
+
+                if (!isActive) return@launch
+
+                // --- PRE-PROCESSING ---
+                val processAars = ProcessAars(resolver.resolvedArtifacts, buildDir, aapt2Path!!)
+                val aarResult = processAars.execute(callback)
+                if (!aarResult.success && isActive) {
+                    callback.onFailure(aarResult.output)
+                    return@launch
+                }
+
+                val aarJars = processAars.jars.joinToString(File.pathSeparator)
+                val resolvedJars = resolver.resolvedClasspath
+                val fullClasspath = if (aarJars.isNotEmpty()) {
+                    "$resolvedJars${File.pathSeparator}$aarJars"
+                } else {
+                    resolvedJars
+                }
+
+                if (!isActive) return@launch
+
+                val processedManifestPath = File(buildDir, "processed_manifest.xml").absolutePath
+
+                // --- BUILD EXECUTION ---
+                val buildOrchestrator = BuildOrchestrator(
+                    listOf(
+                        ProcessManifest(File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, processedManifestPath, packageName, MIN_SDK, TARGET_SDK),
+                        Aapt2Compile(aapt2Path, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK),
+                        Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, processedManifestPath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK, processAars.compiledAars, packageName),
+                        KotlincCompile(kotlincJarPath!!, androidJarPath, File(projectDir, "app/src/main/java").absolutePath, File(buildDir, "classes"), fullClasspath, javaBinaryPath!!),
+                        D8Compile(d8Path!!, javaBinaryPath, androidJarPath, File(buildDir, "classes").absolutePath, File(buildDir, "classes").absolutePath, fullClasspath),
+                        ApkBuild(File(buildDir, "app-signed.apk").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "classes").absolutePath),
+                        ApkSign(apkSignerPath!!, javaBinaryPath, keystorePath!!, ksPass, keyAlias, File(buildDir, "app-signed.apk").absolutePath),
+                        GenerateSourceMap(File(projectDir, "app/src/main/res"), buildDir, cacheDir)
+                    )
+                )
+
+                val result = buildOrchestrator.execute(callback)
+                if (result.success && isActive) {
+                    callback.onSuccess(File(buildDir, "app-signed.apk").absolutePath)
+                    ApkInstaller.installApk(this@BuildService, File(buildDir, "app-signed.apk").absolutePath)
+                } else if (isActive) {
+                    callback.onFailure(result.output)
+                }
+            } catch (e: Throwable) {
+                Log.e(TAG, "Build service crashed", e)
+                if (isActive) {
+                    callback.onFailure("[IDE] Failed with internal error: ${e.message}\n${e.stackTraceToString()}")
+                }
+            }
+        }
     }
 }
