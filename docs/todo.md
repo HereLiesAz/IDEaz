@@ -26,16 +26,16 @@ This phase focuses on improving the user experience during long-running backgrou
 - [x] **6.2: Implement Contextual AI Overlay UI**
     - [x] Refine interaction: Select/Interact modes, Drag/Tap selection, Inline Chat.
 - [x] **6.3: Implement Persistent Status Notification**
+- [x] **6.4: Implement Android Virtual Environment Host** (Parity with Web workflow)
 
 ---
 
-### **Phase 7: Project Templates and Multi-Platform Support**
+### **Phase 7: Web Support**
 This phase will broaden the IDE's appeal and capabilities.
 
 - [x] **7.1: Lay Groundwork for Multi-Platform Support**
 - [x] **7.2: Implement Web Design Support**
-- [ ] **7.3: Implement React Native Support** (In Progress - Pending JS Bundler refinement)
-- [ ] **7.4: Implement Flutter Support (Final Stage)**
+- [x] **7.3: Remove Deprecated Platforms (React Native, Flutter)**
 
 ---
 

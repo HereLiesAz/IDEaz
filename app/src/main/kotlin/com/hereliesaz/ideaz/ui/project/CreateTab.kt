@@ -64,7 +64,7 @@ fun ProjectCreateTab(
             }
             Spacer(Modifier.height(8.dp))
 
-            if (selectedType in listOf(ProjectType.ANDROID, ProjectType.REACT_NATIVE, ProjectType.FLUTTER)) {
+            if (selectedType == ProjectType.ANDROID) {
                 AzTextBox(value = packageName, onValueChange = { packageName = it }, hint = "Package Name", onSubmit = {})
                 Spacer(Modifier.height(8.dp))
             }
