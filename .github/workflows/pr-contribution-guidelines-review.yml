@@ -35,9 +35,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          # For PR comments, we need to checkout the PR branch
-          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+        # Default behavior handles fork PRs correctly (checking out the merge commit)
+        # whereas explicit ref: head_ref fails for forks if the branch isn't on origin.
 
       - name: Generate GitHub App Token (fork-safe, optional)
         id: generate_token
@@ -112,6 +111,7 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          gemini_cli_version: '0.20.0'
           settings: |
             {
               "coreTools": [
@@ -124,6 +124,8 @@ jobs:
               ],
               "telemetry": { "enabled": false, "target": "gcp" }
             }
+          # Prompt is now a positional argument in the CLI, but actions usage maps this input to it.
+          # The key fix is ensuring the prompt logic handles missing files gracefully.
           prompt: |
             You are a repository assistant ensuring pull requests follow the repository's contribution guidelines.
 
@@ -140,15 +142,16 @@ jobs:
             ```
 
             Required behavior:
-            1. Read the contribution guidelines using: cat CONTRIBUTING.md
-               - If file is missing, set STATUS="PASS" with note "No CONTRIBUTING.md found", and proceed to step 4.
-            2. Compare the PR against the guidelines. Consider (at minimum):
+            1. Check if CONTRIBUTING.md exists. You can try `cat CONTRIBUTING.md` or `ls CONTRIBUTING.md`.
+               - If the command fails or file is missing, set STATUS="PASS" with note "No CONTRIBUTING.md found", and SKIP to step 4.
+            2. If found, Read the contribution guidelines.
+            3. Compare the PR against the guidelines. Consider (at minimum):
                - PR title/body formatting and required sections
                - Branch naming or target branch requirements
                - Tests, docs, or changelog requirements
                - Commit message conventions (if specified)
                - Any checklists or templates to be followed
-            3. Decide STATUS:
+               Decide STATUS:
                - If any requirement is not met: STATUS="FAIL" and prepare a concise checklist of actionable items with links to CONTRIBUTING.md anchors.
                - Else: STATUS="PASS" and prepare a brief confirmation referencing key checks.
             4. Build exactly one Markdown comment with this marker and structure:
