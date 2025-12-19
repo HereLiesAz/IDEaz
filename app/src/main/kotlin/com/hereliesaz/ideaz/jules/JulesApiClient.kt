@@ -17,6 +17,7 @@ object JulesApiClient {
     private fun getClient(): JulesApi {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
+            redactHeader("X-Goog-Api-Key")
         }
         val okHttpClient = OkHttpClient.Builder()
             .addInterceptor(AuthInterceptor)
