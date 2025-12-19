@@ -9,6 +9,8 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
+import java.util.concurrent.TimeUnit
+import org.jetbrains.annotations.VisibleForTesting
 
 /**
  * A Singleton client for interacting with the Jules API.
@@ -16,7 +18,7 @@ import retrofit2.Retrofit
  * This client provides a suspend-function based interface to the Jules REST API, handling:
  * - Authentication (via [AuthInterceptor]).
  * - JSON Serialization/Deserialization (via `kotlinx.serialization`).
- * - Logging (via `HttpLoggingInterceptor`).
+ * - Logging (via [HttpLoggingInterceptor]).
  * - Automatic Retries (via [RetryInterceptor]).
  *
  * It wraps the Retrofit interface [JulesApi].
@@ -24,9 +26,29 @@ import retrofit2.Retrofit
 object JulesApiClient {
 
     /** The base URL for the v1alpha Jules API. */
-    private const val BASE_URL = "https://jules.googleapis.com/v1alpha/"
+    private const val DEFAULT_BASE_URL = "https://jules.googleapis.com/v1alpha/"
 
-    private fun getClient(): JulesApi {
+    @VisibleForTesting
+    var baseUrl: String = DEFAULT_BASE_URL
+        set(value) {
+            synchronized(this) {
+                field = value
+                // Invalidate the client so it gets recreated with the new URL
+                _client = null
+            }
+        }
+
+    @Volatile
+    private var _client: JulesApi? = null
+
+    private val client: JulesApi
+        get() {
+            return _client ?: synchronized(this) {
+                _client ?: buildClient().also { _client = it }
+            }
+        }
+
+    private fun buildClient(): JulesApi {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
             redactHeader("X-Goog-Api-Key")
@@ -35,16 +57,16 @@ object JulesApiClient {
             .addInterceptor(AuthInterceptor)
             .addInterceptor(RetryInterceptor())
             .addInterceptor(loggingInterceptor)
-            .connectTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
-            .writeTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
             .build()
 
         val contentType = "application/json".toMediaType()
         val json = Json { ignoreUnknownKeys = true }
 
         val retrofit = Retrofit.Builder()
-            .baseUrl(BASE_URL)
+            .baseUrl(baseUrl)
             .client(okHttpClient)
             .addConverterFactory(json.asConverterFactory(contentType))
             .build()
@@ -53,17 +75,17 @@ object JulesApiClient {
     }
 
     suspend fun listSessions(projectId: String, location: String = "us-central1", pageSize: Int = 100, pageToken: String? = null) =
-        getClient().listSessions("projects/$projectId/locations/$location", pageSize, pageToken)
+        client.listSessions("projects/$projectId/locations/$location", pageSize, pageToken)
 
     suspend fun createSession(projectId: String, location: String = "us-central1", request: CreateSessionRequest): Session =
-        getClient().createSession("projects/$projectId/locations/$location", request)
+        client.createSession("projects/$projectId/locations/$location", request)
 
     suspend fun sendMessage(sessionName: String, request: SendMessageRequest) =
-        getClient().sendMessage(sessionName, request)
+        client.sendMessage(sessionName, request)
 
     suspend fun listActivities(sessionName: String, pageSize: Int = 100, pageToken: String? = null) =
-        getClient().listActivities(sessionName, pageSize, pageToken)
+        client.listActivities(sessionName, pageSize, pageToken)
 
     suspend fun listSources(projectId: String, location: String = "us-central1", pageSize: Int = 100, pageToken: String? = null) =
-        getClient().listSources("projects/$projectId/locations/$location", pageSize, pageToken)
+        client.listSources("projects/$projectId/locations/$location", pageSize, pageToken)
 }

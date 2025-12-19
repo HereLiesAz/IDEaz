@@ -301,6 +301,8 @@ class RepoDelegate(
                                         onOverlayLog("Failed to rename branch. Continuing...")
                                     }
                                 }
+                            } else {
+                                onLog("Warning: No GitHub token. Skipping remote branch check. Defaulting to local branch name.")
                             }
                         } catch (e: Exception) {
                             onLog("Warning: Failed to fetch remote branch info: ${e.message}. Defaulting to current.")
