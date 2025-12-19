@@ -303,6 +303,17 @@ class GitManager(private val projectDir: File) {
     }
 
     /**
+     * Renames the current branch.
+     *
+     * @param newName The new name for the current branch.
+     */
+    fun renameCurrentBranch(newName: String) {
+        Git.open(projectDir).use { git ->
+            git.branchRename().setNewName(newName).call()
+        }
+    }
+
+    /**
      * Applies a Git patch to the repository.
      *
      * @param patch The content of the unified diff patch.
