@@ -62,6 +62,7 @@ import com.hereliesaz.aznavrail.model.AzButtonShape
 import androidx.compose.foundation.background
 import com.hereliesaz.ideaz.utils.ToolManager
 import com.hereliesaz.ideaz.utils.isAccessibilityServiceEnabled
+import com.hereliesaz.ideaz.utils.checkAndRequestStoragePermission
 import java.io.File
 import android.app.AppOpsManager
 
@@ -364,14 +365,22 @@ fun SettingsScreen(
 
                 Row(modifier = Modifier.fillMaxWidth()) {
                     AzButton(
-                        onClick = { exportSettingsLauncher.launch("ideaz_settings.enc") },
+                        onClick = {
+                            checkAndRequestStoragePermission(context) {
+                                exportSettingsLauncher.launch("ideaz_settings.enc")
+                            }
+                        },
                         text = "Save Settings",
                         shape = AzButtonShape.RECTANGLE,
                         modifier = Modifier.weight(1f).padding(end = 8.dp)
                     )
 
                     AzButton(
-                        onClick = { importSettingsLauncher.launch(arrayOf("application/octet-stream")) },
+                        onClick = {
+                            checkAndRequestStoragePermission(context) {
+                                importSettingsLauncher.launch(arrayOf("application/octet-stream"))
+                            }
+                        },
                         text = "Load Settings",
                         shape = AzButtonShape.RECTANGLE,
                         modifier = Modifier.weight(1f).padding(start = 8.dp)
@@ -388,7 +397,11 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 AzButton(
-                    onClick = { keystorePickerLauncher.launch("*/*") },
+                    onClick = {
+                        checkAndRequestStoragePermission(context) {
+                            keystorePickerLauncher.launch("*/*")
+                        }
+                    },
                     text = "Select Custom Keystore",
                     shape = AzButtonShape.RECTANGLE,
                     modifier = Modifier.fillMaxWidth()
