@@ -72,9 +72,7 @@ fun MainScreen(
 
             Row(modifier = Modifier.fillMaxSize()) {
                 // Navigation Rail
-                Box(
-                    modifier = Modifier.zIndex(Z_INDEX_NAV_RAIL)
-                ) {
+                Box {
                     IdeNavRail(
                         navController = navController,
                         viewModel = viewModel,
