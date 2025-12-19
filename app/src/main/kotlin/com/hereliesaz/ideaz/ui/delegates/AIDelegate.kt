@@ -16,6 +16,12 @@ data class Message(val role: String, val content: String)
 /**
  * Delegate responsible for handling AI interactions, including session management,
  * fetching sessions from Jules API, and executing contextual AI tasks.
+ *
+ * Key Responsibilities:
+ * - [fetchSessionsForRepo]: Retrieves active sessions for the current repository from the Jules API.
+ * - [startContextualAITask]: Initiates a new AI task based on user input or overlay selection.
+ * - [runJulesTask]: Handles the specific logic for communicating with the Jules API (create session / send message).
+ * - [pollForResponse]: Polls the API for activities (messages, artifacts) after a request is sent.
  */
 class AIDelegate(
     private val settingsViewModel: SettingsViewModel,

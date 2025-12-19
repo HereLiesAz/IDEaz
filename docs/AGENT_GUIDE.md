@@ -1,40 +1,54 @@
 # Agent Guide
 
-## Core Directives
+This document is the operational manual for AI agents (Jules, Gemini) working on the IDEaz codebase.
 
-*   **Zero-Trust Environment:** The execution environment is unstable. Files may disappear, and the environment may reset. Always verify file existence and content before acting. Use `read_file` or `ls` frequently.
-*   **Verification:** Never assume an action succeeded. Always verify. For example, if you create a file, check if it exists. If you change code, check the diff.
-*   **Process Isolation:** Respect the multi-process architecture (Host, Build Service, UI Inspection Service). Code running in one process cannot directly access objects in another. Use AIDL or Broadcasts.
-*   **"No-Gradle" Pipeline:** Understand that the on-device build system is a custom orchestration of CLI tools (`aapt2`, `d8`, `kotlinc`). Do not rely on Gradle features for the *on-device* logic, only for the *host* project build.
-*   **Dependencies:** Be extremely careful with dependencies. The project uses a complex mix of local JARs, AARs, and Maven artifacts.
+## Core Philosophy: "No-Code" and "Post-Code"
+IDEaz is not a text editor. It is an **Overlay IDE**.
+*   **The User's Role:** Interact with the *running* app, select UI elements, and describe intent (e.g., "Make this button blue").
+*   **The Agent's Role:** Interpret the intent, modify the source code, run tests, and deploy the update.
+*   **The Interface:** The user sees the result, not the code.
 
-## Workflow
+## Workflow Rules
 
-1.  **Understand the Goal:** Read the prompt and the `TODO.md` carefully.
-2.  **Explore:** Use `list_files` and `read_file` to understand the relevant code. Do not rely solely on your training data; the codebase is the source of truth.
-3.  **Plan:** Create a step-by-step plan. Include verification steps.
-4.  **Execute:**
-    *   Make small, atomic changes.
-    *   Verify each change immediately.
-    *   Handle errors robustly.
-5.  **Test:** Run `./gradlew testDebugUnitTest` to verify logic. Run `./gradlew build` to verify compilation.
-6.  **Document:** Update `docs/` files to reflect your changes.
-7.  **Submit:** Request review and submit.
+### 1. Verification is Mandatory
+*   **Never assume:** Always read a file before editing it.
+*   **Double-check:** After editing, read the file again to ensure the change was applied correctly.
+*   **Test:** Run unit tests (`./gradlew testDebugUnitTest`) for logic changes.
+*   **Build:** Ensure the app compiles (`./gradlew :app:assembleDebug`).
+
+### 2. Documentation First
+*   Before implementing a feature, update the relevant documentation (e.g., `screens.md` if changing UI).
+*   If you find a discrepancy between code and docs, fix the docs.
+*   Update `TODO.md` when completing tasks.
+
+### 3. Error Handling
+*   **Crash Reporting:** The IDE has a built-in `CrashHandler`. Use it.
+*   **User Feedback:** Use `MainViewModel.updateMessage` to communicate status to the user.
+*   **Logs:** Use standard `Log.d/i/e` with tags. The `BuildService` captures these for the user console.
+
+### 4. Code Style
+*   **Kotlin:** Follow standard Kotlin coding conventions.
+*   **Compose:** Use Material 3 components.
+*   **Architecture:** MVVM with Delegates.
+    *   `ViewModel` holds state (`StateFlow`).
+    *   `Delegate` holds logic.
+    *   `Service` runs background tasks.
+
+### 5. Git Operations
+*   **No Interactive Git:** The user cannot resolve merge conflicts manually.
+*   **Strategy:** "Sync and Exit" or "Force Push" (for init files).
+*   **Commit Messages:** Descriptive and semantic (e.g., "Fix: ...", "Feat: ...").
+
+## Working with Dependencies
+*   **Centralized:** All versions are in `gradle/libs.versions.toml`.
+*   **Offline:** The environment has limited internet. Prefer bundled tools or cached dependencies if possible.
+
+## Debugging Tips
+*   **"Bottom Sheet Absent":** Check `MainScreen.kt` conditionals.
+*   **"Build Failed":** Check `BuildService` logs and `BuildOrchestrator` steps.
+*   **"404 API Error":** Check `SettingsViewModel` project ID and API key.
 
 ## Common Pitfalls
-
-*   **File Paths:** Be careful with file paths. Use `ProjectAnalyzer` to resolve paths dynamically where possible.
-*   **Exceptions:** Catch `Throwable`, not just `Exception`, especially in the Build Service, to catch `NoClassDefFoundError` and other runtime errors.
-*   **Concurrency:** Use `Dispatchers.IO` for disk/network operations. Be aware of `MainViewModel`'s `gitMutex`.
-*   **UI Updates:** All UI updates must happen on the Main thread. Use `withContext(Dispatchers.Main)` if necessary, or update `StateFlow`s which are observed by Compose.
-
-## Documentation Maintenance
-
-*   **TODO.md:** Mark tasks as complete (`[x]`) as you finish them. Add new tasks if you discover necessary work.
-*   **file_descriptions.md:** If you add a new file, add it here.
-*   **screens.md:** If you modify a screen, update its description.
-
-## Environment Setup
-
-*   The environment usually lacks a full Android SDK installation for the *host* machine (the one running the agent), but the project includes `setup_env.sh` to configure it.
-*   The *target* device (where the app runs) has its own set of tools managed by `ToolManager`. Do not confuse the two.
+*   **Hardcoded Paths:** Use `filesDir` or `cacheDir`. Never use `/sdcard` directly.
+*   **Main Thread Blocking:** Use `Dispatchers.IO` for file/network ops.
+*   **Missing Permissions:** Always check `canDrawOverlays` or `ReadStorage` before accessing resources.
