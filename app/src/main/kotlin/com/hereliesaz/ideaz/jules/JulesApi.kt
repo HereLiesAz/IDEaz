@@ -4,14 +4,16 @@ import com.hereliesaz.ideaz.api.*
 import retrofit2.http.*
 
 interface JulesApi {
-    @GET("sessions")
+    @GET("{parent}/sessions")
     suspend fun listSessions(
+        @Path("parent", encoded = true) parent: String,
         @Query("pageSize") pageSize: Int = 100,
         @Query("pageToken") pageToken: String? = null
     ): ListSessionsResponse
 
-    @POST("sessions")
+    @POST("{parent}/sessions")
     suspend fun createSession(
+        @Path("parent", encoded = true) parent: String,
         @Body request: CreateSessionRequest
     ): Session
 
@@ -28,8 +30,9 @@ interface JulesApi {
         @Query("pageToken") pageToken: String? = null
     ): ListActivitiesResponse
 
-    @GET("sources")
+    @GET("{parent}/sources")
     suspend fun listSources(
+        @Path("parent", encoded = true) parent: String,
         @Query("pageSize") pageSize: Int = 100,
         @Query("pageToken") pageToken: String? = null
     ): ListSourcesResponse
