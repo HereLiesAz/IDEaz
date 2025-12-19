@@ -18,7 +18,7 @@ fun IdeNavRail(
     onShowPromptPopup: () -> Unit,
     handleActionClick: (() -> Unit) -> Unit,
     isIdeVisible: Boolean,
-    onLaunchOverlay: () -> Unit,
+    onToggleMode: () -> Unit,
     sheetState: BottomSheetState,
     scope: CoroutineScope,
     initiallyExpanded: Boolean = false,
@@ -53,9 +53,7 @@ fun IdeNavRail(
             id = "main",
             text = "IDEaz",
             onClick = {
-                handleActionClick {
-                    onLaunchOverlay()
-                }
+                // Previously handled launching overlay, now default behavior
             }
         )
         azRailSubItem(
@@ -91,7 +89,7 @@ fun IdeNavRail(
             shape = AzButtonShape.NONE,
             onClick = {
                 handleActionClick {
-                    onLaunchOverlay()
+                    onToggleMode()
                 }
             }
         )
