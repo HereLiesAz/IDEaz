@@ -200,7 +200,6 @@ jobs:
         var modified = false
         val androidRoot = when(type) {
             ProjectType.ANDROID -> projectDir
-            ProjectType.REACT_NATIVE, ProjectType.FLUTTER -> File(projectDir, "android")
             else -> null
         }
 
