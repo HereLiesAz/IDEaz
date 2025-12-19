@@ -56,6 +56,12 @@ fun IdeNavRail(
                 // Previously handled launching overlay, now default behavior
             }
         )
+        // Only show Prompt option if in IDE Mode (isIdeVisible = true) or if we want it everywhere.
+        // The user complained about "contextless prompt popup over the project screen".
+        // This implies they triggered it accidentally or it shouldn't be there.
+        // However, user might want to prompt from Project Screen too (to control AI).
+        // But if it's "contextless", maybe they mean the overlay version.
+        // Let's keep it but ensure the popup handles dismissal/focus correctly.
         azRailSubItem(
             id = "prompt",
             hostId = "main",

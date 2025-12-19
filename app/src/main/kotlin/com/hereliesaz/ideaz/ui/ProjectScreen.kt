@@ -20,10 +20,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.hereliesaz.aznavrail.AzButton
 import com.hereliesaz.aznavrail.model.AzButtonShape
+import kotlinx.coroutines.launch
 import com.hereliesaz.ideaz.ui.project.ProjectCloneTab
 import com.hereliesaz.ideaz.ui.project.ProjectLoadTab
 import com.hereliesaz.ideaz.ui.project.ProjectSetupTab
@@ -33,6 +36,9 @@ import android.provider.Settings
 import android.net.Uri
 import android.content.Intent
 import android.os.Environment
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.hereliesaz.ideaz.utils.ApkInstaller
 
 @Composable
 fun ProjectScreen(
@@ -44,6 +50,55 @@ fun ProjectScreen(
     val context = LocalContext.current
     val hasToken = !settingsViewModel.getGithubToken().isNullOrBlank()
     val loadingProgress by viewModel.loadingProgress.collectAsState()
+    val artifactCheckResult by viewModel.artifactCheckResult.collectAsState()
+
+    var showDowngradeWarning by remember { mutableStateOf<Uri?>(null) }
+
+    val scope = rememberCoroutineScope()
+    val apkPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            // Check version before installing
+            val remoteVersion = artifactCheckResult?.remoteVersion
+            if (remoteVersion != null) {
+                scope.launch {
+                    val check = viewModel.checkLocalApkVersion(uri, remoteVersion)
+                    if (check == "downgrade") {
+                        showDowngradeWarning = uri
+                    } else if (check == "mismatch") {
+                         // Toast or error dialog handled by logging, but let's clear dialog
+                         // viewModel.dismissArtifactDialog() // Maybe keep it open to try again?
+                    } else {
+                        ApkInstaller.installApk(context, uri)
+                        viewModel.dismissArtifactDialog()
+                    }
+                }
+            } else {
+                // No remote version comparison needed
+                ApkInstaller.installApk(context, uri)
+                viewModel.dismissArtifactDialog()
+            }
+        }
+    }
+
+    if (showDowngradeWarning != null) {
+        AlertDialog(
+            onDismissRequest = { showDowngradeWarning = null },
+            title = { Text("Downgrade Warning") },
+            text = { Text("The selected APK version is lower than the version available on GitHub. Install anyway?") },
+            confirmButton = {
+                AzButton(onClick = {
+                    ApkInstaller.installApk(context, showDowngradeWarning!!)
+                    showDowngradeWarning = null
+                    viewModel.dismissArtifactDialog()
+                }, text = "Install Anyway")
+            },
+            dismissButton = {
+                TextButton(onClick = { showDowngradeWarning = null }) { Text("Cancel") }
+            }
+        )
+    }
 
     // --- TABS LOGIC ---
     // Removed "Create" tab. It is now a state within "Setup".
@@ -162,9 +217,46 @@ fun ProjectScreen(
         )
     }
 
+    if (artifactCheckResult != null) {
+        val res = artifactCheckResult!!
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissArtifactDialog() },
+            title = { Text("Project Artifact Found") },
+            text = {
+                Column {
+                    Text("A build is available on GitHub (v${res.remoteVersion}).")
+                    if (res.localVersion != null) {
+                        Text("Local version: v${res.localVersion}")
+                    } else {
+                        Text("No local version installed.")
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("Do you want to download the latest version or use a local APK?")
+                }
+            },
+            confirmButton = {
+                AzButton(onClick = {
+                    viewModel.downloadLatestArtifact(res.downloadUrl) { file ->
+                        ApkInstaller.installApk(context, file.absolutePath)
+                        viewModel.dismissArtifactDialog()
+                    }
+                }, text = "Download v${res.remoteVersion}")
+            },
+            dismissButton = {
+                Row {
+                    AzButton(onClick = {
+                        apkPickerLauncher.launch("application/vnd.android.package-archive")
+                    }, text = "Select Local", shape = AzButtonShape.NONE)
+                    Spacer(Modifier.width(8.dp))
+                    TextButton(onClick = { viewModel.dismissArtifactDialog() }) { Text("Cancel") }
+                }
+            }
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         // Use padding for the title area instead of a Spacer
-        Column(modifier = Modifier.padding(top = 32.dp)) {
+        Column(modifier = Modifier.padding(top = 64.dp)) {
              Text(
                 text = "Project",
                 style = MaterialTheme.typography.headlineMedium,
@@ -204,7 +296,11 @@ fun ProjectScreen(
 
         PrimaryTabRow(selectedTabIndex = tabIndex) {
             tabs.forEachIndexed { index, title ->
-                Tab(text = { Text(title) }, selected = tabIndex == index, onClick = { tabIndex = index })
+                Tab(
+                    text = { Text(title) },
+                    selected = tabIndex == index,
+                    onClick = { tabIndex = index }
+                )
             }
         }
 
