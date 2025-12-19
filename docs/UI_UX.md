@@ -55,7 +55,10 @@ A versatile bottom sheet that provides visibility into the background processes.
     *   **Clipboard:** Any text currently entered in a prompt input box **MUST** be automatically copied to the system clipboard.
     *   **Dismissal:** Disappears automatically when the new version of the app loads.
 
-### 4. Persistent Notification
+### 4. Destructive Actions
+*   **Deletion:** Deleting a project requires explicit confirmation via a dialog.
+
+### 5. Persistent Notification
 *   **Purpose:** Keeps the IDE "alive" and informative.
 *   **Content:** Displays the **three most recent lines** of log output (collapsed) and **10+ lines** (expanded).
 *   **Reliability:** Ensures the `IdeazOverlayService` is treated as a foreground service.
