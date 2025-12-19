@@ -96,11 +96,9 @@ class BuildService : Service() {
                 val projectDir = File(projectPath)
 
                 // 1. Ensure Manifest is Container-Ready
-                // Even if Jules commits, we enforce this flag locally before any sync happens.
                 injectResizeableFlag(File(projectDir, "app/src/main/AndroidManifest.xml"), callback)
 
                 // 2. Sync Local Changes (If any)
-                // We assume Jules might have pushed, but we also push local tweaks.
                 val git = GitManager(projectDir)
                 if (git.hasChanges()) {
                     callback.onLog("Pushing local configuration changes...")
@@ -110,6 +108,10 @@ class BuildService : Service() {
                 }
 
                 val currentHead = git.getHeadSha()
+                if (currentHead.isNullOrEmpty()) {
+                    callback.onFailure("Failed to get HEAD SHA.")
+                    return@launch
+                }
                 callback.onLog("Tracking commit: ${currentHead.take(7)}")
 
                 // 3. Poll GitHub Actions
@@ -261,12 +263,24 @@ class BuildService : Service() {
             var content = manifestFile.readText()
             if (!content.contains("android:resizeableActivity")) {
                 callback.onLog("Injecting android:resizeableActivity=\"true\"...")
-                // Simple regex injection into <application> tag
-                content = content.replaceFirst("<application", "<application android:resizeableActivity=\"true\"")
-                manifestFile.writeText(content)
+                // Regex to find the opening <application> tag
+                val regex = Regex("<application(\\s+[^>]*?)?>")
+                val match = regex.find(content)
+                if (match != null) {
+                    val tag = match.value
+                    // If the tag is closed immediately e.g., <application ... /> which is unlikely for app manifest but possible
+                    // However, we just append the attribute inside.
+                    if (!tag.contains("android:resizeableActivity")) {
+                         // Insert the attribute before the closing bracket of the tag
+                         val newTag = tag.substring(0, tag.length - 1) + " android:resizeableActivity=\"true\">"
+                         content = content.replaceFirst(tag, newTag)
+                         manifestFile.writeText(content)
+                    }
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Manifest injection failed", e)
+            callback.onLog("Warning: Failed to inject resizeableActivity flag: ${e.message}")
         }
     }
 
