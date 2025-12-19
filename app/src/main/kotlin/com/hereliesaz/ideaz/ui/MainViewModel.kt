@@ -195,7 +195,7 @@ class MainViewModel(
                 // Fetch releases on IO thread
                 val releases = withContext(Dispatchers.IO) {
                     val service = GitHubApiClient.createService(token)
-                    service.getReleases("HereLiesAz", "IDEaz")
+                    service.getReleases("HereLiesAz", "IDEaz-buildtools")
                 }
 
                 // Look for 'tools.zip' in assets
