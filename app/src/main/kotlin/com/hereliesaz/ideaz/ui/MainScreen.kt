@@ -26,6 +26,7 @@ import androidx.navigation.compose.rememberNavController
 import com.composables.core.SheetDetent
 import com.composables.core.rememberBottomSheetState
 import com.hereliesaz.ideaz.ui.web.WebProjectHost
+import com.hereliesaz.ideaz.ui.project.AndroidProjectHost
 import androidx.compose.ui.platform.LocalConfiguration
 
 const val Z_INDEX_WEB_VIEW = 0f
@@ -117,10 +118,8 @@ fun MainScreen(
                         isLocalBuildEnabled = isLocalBuildEnabled,
                         onNavigateToMainApp = { route ->
                             viewModel.clearSelection()
-                            // If we are in Web Mode, we need to "Exit" it to go back to settings
-                            if (currentWebUrl != null) {
-                                viewModel.stateDelegate.setTargetAppVisible(false)
-                            }
+                            // Exit App View (Web or Android)
+                            viewModel.stateDelegate.setTargetAppVisible(false)
                             navController.navigate(route) {
                                 launchSingleTop = true
                                 restoreState = true
@@ -131,13 +130,24 @@ fun MainScreen(
 
                 // Content
                 Box(modifier = Modifier.weight(1f).fillMaxSize()) {
-                    if (currentWebUrl != null && isIdeVisible) {
-                        // Web Mode: Show WebView
-                        currentWebUrl?.let { webUrl ->
-                            WebProjectHost(
-                                url = webUrl,
-                                modifier = Modifier.fillMaxSize()
-                            )
+                    if (isIdeVisible) {
+                        if (currentWebUrl != null) {
+                            // Web Mode: Show WebView
+                            currentWebUrl?.let { webUrl ->
+                                WebProjectHost(
+                                    url = webUrl,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        } else {
+                            // Android Mode: Show Virtual Environment
+                            val targetPackage by viewModel.settingsViewModel.targetPackageName.collectAsState()
+                            if (targetPackage != null) {
+                                AndroidProjectHost(
+                                    packageName = targetPackage!!,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                         }
                     } else {
                         // IDE Mode: Show Settings/Project screens
@@ -164,7 +174,7 @@ fun MainScreen(
             }
 
             // LAYER 4: Bottom Sheet (Console)
-            if (currentWebUrl != null && isIdeVisible) {
+            if (isIdeVisible) {
                 IdeBottomSheet(
                     sheetState = sheetState,
                     viewModel = viewModel,
