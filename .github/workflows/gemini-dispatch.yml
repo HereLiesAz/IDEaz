@@ -48,18 +48,16 @@ jobs:
     # For PRs: only if not from a fork
     # For issues: only on open/reopen
     # For comments: only if user types @gemini-cli and is OWNER/MEMBER/COLLABORATOR
-    if: |-
-      (
-        github.event_name == 'pull_request' &&
-        github.event.pull_request.head.repo.fork == false
-      ) || (
-        github.event_name == 'issues' &&
-        contains(fromJSON('["opened", "reopened"]'), github.event.action)
-      ) || (
-        github.event.sender.type == 'User' &&
-        startsWith(github.event.comment.body || github.event.review.body || github.event.issue.body, '@gemini-cli') &&
-        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association || github.event.review.author_association || github.event.issue.author_association)
-      )
+    if: >-
+      ${{
+        (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false) ||
+        (github.event_name == 'issues' && contains(fromJSON('["opened", "reopened"]'), github.event.action)) ||
+        (
+          github.event.sender.type == 'User' &&
+          startsWith(github.event.comment.body || github.event.review.body || github.event.issue.body, '@gemini-cli') &&
+          contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association || github.event.review.author_association || github.event.issue.author_association)
+        )
+      }}
     runs-on: 'ubuntu-latest'
     permissions:
       contents: 'write'
@@ -110,7 +108,7 @@ jobs:
               core.setOutput('additional_context', 'Assess this pull request. If it looks good, merge it into the target branch. If there are conflicts blocking the merge, resolve them by pushing fixes to the PR branch, and then merge it.');
             } else if (['issues.opened', 'issues.reopened'].includes(eventType)) {
               core.setOutput('command', 'invoke');
-              core.setOutput('additional_context', 'Please address this issue. Analyze the request and take appropriate action using your tools.');
+              core.setOutput('additional_context', 'Please address this issue. Analyze the request and take appropriate action using your tools. Commit your solution directly to the master branch.');
             } else {
               core.setOutput('command', 'fallthrough');
             }
