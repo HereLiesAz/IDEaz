@@ -7,12 +7,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +41,35 @@ fun ProjectLoadTab(
 ) {
     var projectMetadataList by remember { mutableStateOf<List<com.hereliesaz.ideaz.ui.ProjectMetadata>>(emptyList()) }
     val localProjects by settingsViewModel.localProjects.collectAsState()
+
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var projectToDelete by remember { mutableStateOf<String?>(null) }
+
+    if (showDeleteDialog && projectToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Project?") },
+            text = { Text("Are you sure you want to delete '${projectToDelete}'? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        projectToDelete?.let { viewModel.deleteProject(it) }
+                        showDeleteDialog = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     LaunchedEffect(localProjects) {
         viewModel.scanLocalProjects()
@@ -83,8 +115,11 @@ fun ProjectLoadTab(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
                         }
-                        IconButton(onClick = { viewModel.deleteProject(project.name) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete Project")
+                        IconButton(onClick = {
+                            projectToDelete = project.name
+                            showDeleteDialog = true
+                        }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete ${project.name}")
                         }
                     }
                 }
