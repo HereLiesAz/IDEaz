@@ -37,6 +37,22 @@ import java.net.URL
  * @param application The Android Application context.
  * @param settingsViewModel The ViewModel for accessing and modifying user settings.
  */
+/**
+ * The central ViewModel for the IDEaz application.
+ *
+ * This class orchestrates the interaction between the UI (`MainScreen`), the background build system (`BuildService`),
+ * the AI agent (`AIDelegate`), and the Git version control (`GitDelegate`).
+ *
+ * It uses a Delegate pattern to separate concerns:
+ * - [AIDelegate]: Manages AI sessions and Jules API calls.
+ * - [BuildDelegate]: Manages the connection to the remote BuildService and build execution.
+ * - [GitDelegate]: Manages local Git operations (clone, commit, push).
+ * - [RepoDelegate]: Manages remote repository operations (GitHub API).
+ * - [OverlayDelegate]: Manages the visual overlay and selection mode.
+ * - [StateDelegate]: Centralizes shared UI state (logs, progress).
+ * - [SystemEventDelegate]: Handles system broadcasts (screen on/off, package changes).
+ * - [UpdateDelegate]: Handles self-updates.
+ */
 class MainViewModel(
     application: Application,
     val settingsViewModel: SettingsViewModel
