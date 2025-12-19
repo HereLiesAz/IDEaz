@@ -124,6 +124,8 @@ jobs:
               ],
               "telemetry": { "enabled": false, "target": "gcp" }
             }
+          # Prompt is now a positional argument in the CLI, but actions usage maps this input to it.
+          # The key fix is ensuring the prompt logic handles missing files gracefully.
           prompt: |
             You are a repository assistant ensuring pull requests follow the repository's contribution guidelines.
 
@@ -140,15 +142,16 @@ jobs:
             ```
 
             Required behavior:
-            1. Read the contribution guidelines using: cat CONTRIBUTING.md
-               - If file is missing, set STATUS="PASS" with note "No CONTRIBUTING.md found", and proceed to step 4.
-            2. Compare the PR against the guidelines. Consider (at minimum):
+            1. Check if CONTRIBUTING.md exists. You can try `cat CONTRIBUTING.md` or `ls CONTRIBUTING.md`.
+               - If the command fails or file is missing, set STATUS="PASS" with note "No CONTRIBUTING.md found", and SKIP to step 4.
+            2. If found, Read the contribution guidelines.
+            3. Compare the PR against the guidelines. Consider (at minimum):
                - PR title/body formatting and required sections
                - Branch naming or target branch requirements
                - Tests, docs, or changelog requirements
                - Commit message conventions (if specified)
                - Any checklists or templates to be followed
-            3. Decide STATUS:
+               Decide STATUS:
                - If any requirement is not met: STATUS="FAIL" and prepare a concise checklist of actionable items with links to CONTRIBUTING.md anchors.
                - Else: STATUS="PASS" and prepare a brief confirmation referencing key checks.
             4. Build exactly one Markdown comment with this marker and structure:
