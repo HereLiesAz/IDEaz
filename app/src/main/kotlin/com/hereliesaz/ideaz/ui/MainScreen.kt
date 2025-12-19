@@ -149,16 +149,14 @@ fun MainScreen(
             }
 
             // LAYER 4: Bottom Sheet (Console)
-            if (isIdeVisible) {
-                IdeBottomSheet(
-                    sheetState = sheetState,
-                    viewModel = viewModel,
-                    peekDetent = Peek,
-                    halfwayDetent = Halfway,
-                    screenHeight = screenHeight,
-                    onSendPrompt = { viewModel.sendPrompt(it) }
-                )
-            }
+            IdeBottomSheet(
+                sheetState = sheetState,
+                viewModel = viewModel,
+                peekDetent = Peek,
+                halfwayDetent = Halfway,
+                screenHeight = screenHeight,
+                onSendPrompt = { viewModel.sendPrompt(it) }
+            )
 
             if (isPromptPopupVisible) {
                 PromptPopup(
