@@ -143,6 +143,18 @@ class MainViewModel(
     val currentJulesSessionId = aiDelegate.currentJulesSessionId
     val showCancelDialog = MutableStateFlow(false).asStateFlow()
 
+    // --- ARTIFACT CHECK STATE ---
+    data class ArtifactCheckResult(
+        val remoteVersion: String,
+        val downloadUrl: String,
+        val localVersion: String?,
+        val isRemoteNewer: Boolean
+    )
+    private val _artifactCheckResult = MutableStateFlow<ArtifactCheckResult?>(null)
+    val artifactCheckResult = _artifactCheckResult.asStateFlow()
+
+    fun dismissArtifactDialog() { _artifactCheckResult.value = null }
+
     // --- LIFECYCLE ---
     override fun onCleared() {
         super.onCleared()
@@ -372,6 +384,135 @@ class MainViewModel(
             repoDelegate.uploadProjectSecrets(user, appName)
             repoDelegate.forceUpdateInitFiles()
             buildDelegate.startBuild(context.filesDir.resolve(appName))
+
+            // Check for remote artifacts if it's an Android project
+            if (type == ProjectType.ANDROID) {
+                checkForRemoteArtifact(user, appName, context)
+            }
+        }
+    }
+
+    private suspend fun checkForRemoteArtifact(user: String, repo: String, context: Context) {
+        val token = settingsViewModel.getGithubToken()
+        if (token.isNullOrBlank()) return
+
+        try {
+            val service = GitHubApiClient.createService(token)
+            val releases = withContext(Dispatchers.IO) { service.getReleases(user, repo) }
+            // Find latest release with an APK
+            val release = releases.firstOrNull { r -> r.assets.any { it.name.endsWith(".apk") } } ?: return
+            val asset = release.assets.find { it.name.endsWith(".apk") } ?: return
+
+            // Parse remote version from tag (assuming semver-ish)
+            val remoteVersion = release.tagName.removePrefix("v").removePrefix("debug-").substringBefore("-")
+
+            // Check local APK
+            val projectDir = context.filesDir.resolve(repo)
+            // Look for generic APKs in typical build output
+            val apkDir = File(projectDir, "app/build/outputs/apk/debug")
+            val localApk = apkDir.walk().filter { it.extension == "apk" }.firstOrNull()
+
+            var localVersion: String? = null
+            if (localApk != null) {
+                val pm = context.packageManager
+                val info = pm.getPackageArchiveInfo(localApk.absolutePath, 0)
+                localVersion = info?.versionName
+            }
+
+            // Simple string comparison or semver if needed. For now, string.
+            val isNewer = if (localVersion == null) true else remoteVersion != localVersion
+
+            _artifactCheckResult.value = ArtifactCheckResult(
+                remoteVersion = remoteVersion,
+                downloadUrl = asset.browserDownloadUrl,
+                localVersion = localVersion,
+                isRemoteNewer = isNewer
+            )
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun downloadLatestArtifact(url: String, onSuccess: (File) -> Unit) {
+        viewModelScope.launch {
+            stateDelegate.setLoadingProgress(0)
+            stateDelegate.setBottomSheetState(com.composables.core.SheetDetent.FullyExpanded) // Expand logs
+            logHandler.onBuildLog("Downloading latest artifact from $url...")
+
+            val destFile = File(getApplication<Application>().cacheDir, "downloaded_project.apk")
+            val success = downloadFile(url, destFile) { progress ->
+                stateDelegate.setLoadingProgress(progress)
+            }
+
+            if (success) {
+                logHandler.onBuildLog("Download complete. Installing/Loading...")
+                onSuccess(destFile)
+            } else {
+                logHandler.onBuildLog("Download failed.")
+            }
+            stateDelegate.setLoadingProgress(null)
+        }
+    }
+
+    /**
+     * Checks if the local APK selected by URI is older than the remote version.
+     * Returns "downgrade", "upgrade", or "same".
+     *
+     * Note: This operation suspends and performs IO on Dispatchers.IO.
+     */
+    suspend fun checkLocalApkVersion(uri: Uri, remoteVersion: String): String {
+        return withContext(Dispatchers.IO) {
+            try {
+                val context = getApplication<Application>()
+                // Copy to temp file to parse
+                val tempFile = File(context.cacheDir, "temp_check.apk")
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    tempFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+
+                val pm = context.packageManager
+                val info = pm.getPackageArchiveInfo(tempFile.absolutePath, 0)
+                val localVersion = info?.versionName ?: return@withContext "unknown"
+                val localPackage = info.packageName
+
+                // Verify package name
+                val targetPackage = settingsViewModel.targetPackageName.value
+                // If we don't know target package yet (setup), we might skip or check appName.
+                // But usually we know it or can guess.
+                // If settingsViewModel doesn't have it, assume "com.hereliesaz." + appName logic?
+                // For now, if targetPackage is set, enforce it.
+                if (!targetPackage.isNullOrBlank() && localPackage != targetPackage) {
+                    logHandler.onOverlayLog("Error: Selected APK package '$localPackage' does not match project '$targetPackage'.")
+                    tempFile.delete()
+                    return@withContext "mismatch"
+                }
+
+                tempFile.delete()
+
+                // Compare versions (simple string comparison for now, or assume semver)
+                if (localVersion == remoteVersion) return@withContext "same"
+
+                // Simple semantic version check
+                // Format: X.Y.Z
+                fun parse(v: String) = v.split(".").mapNotNull { it.toIntOrNull() }
+                val rParts = parse(remoteVersion)
+                val lParts = parse(localVersion)
+
+                for (i in 0 until maxOf(rParts.size, lParts.size)) {
+                    val r = rParts.getOrElse(i) { 0 }
+                    val l = lParts.getOrElse(i) { 0 }
+                    if (l < r) return@withContext "downgrade"
+                    if (l > r) return@withContext "upgrade"
+                }
+                "same"
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+                "unknown"
+            }
         }
     }
 

@@ -60,6 +60,10 @@ class StateDelegate {
     /** Sets the visibility of the target app/WebView. */
     fun setTargetAppVisible(v: Boolean) { _isTargetAppVisible.value = v }
 
+    private val _bottomSheetState = MutableStateFlow<com.composables.core.SheetDetent>(com.composables.core.SheetDetent.Hidden)
+    val bottomSheetState = _bottomSheetState.asStateFlow()
+    fun setBottomSheetState(s: com.composables.core.SheetDetent) { _bottomSheetState.value = s }
+
     /** Sets the pending navigation route. */
     fun setPendingRoute(r: String?) { _pendingRoute.value = r }
 
