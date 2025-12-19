@@ -7,6 +7,7 @@ import android.content.pm.PackageInstaller
 import android.os.Build
 import com.hereliesaz.ideaz.MainActivity
 import java.io.File
+import android.net.Uri
 
 object ApkInstaller {
 
@@ -32,6 +33,31 @@ object ApkInstaller {
         inputStream.close()
 
         val intent = Intent(context, MainActivity::class.java) // Or a results receiver
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            PendingIntent.FLAG_MUTABLE
+        } else {
+            0
+        }
+        val pendingIntent = PendingIntent.getActivity(context, sessionId, intent, flags)
+        session.commit(pendingIntent.intentSender)
+        session.close()
+    }
+
+    fun installApk(context: Context, uri: android.net.Uri) {
+        val packageInstaller = context.packageManager.packageInstaller
+        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+        val sessionId = packageInstaller.createSession(params)
+        val session = packageInstaller.openSession(sessionId)
+
+        val inputStream = context.contentResolver.openInputStream(uri) ?: return
+        val outputStream = session.openWrite("IDEazIDE_uri", 0, -1) // size -1 if unknown
+
+        inputStream.copyTo(outputStream)
+        session.fsync(outputStream)
+        outputStream.close()
+        inputStream.close()
+
+        val intent = Intent(context, MainActivity::class.java)
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             PendingIntent.FLAG_MUTABLE
         } else {

@@ -10,7 +10,6 @@ import com.hereliesaz.ideaz.api.GitHubPermissions
 import com.hereliesaz.ideaz.api.Source
 import com.hereliesaz.ideaz.jules.JulesApiClient
 import com.hereliesaz.ideaz.git.GitManager
-import com.hereliesaz.ideaz.jules.JulesApiClient
 import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.ProjectMetadata
 import com.hereliesaz.ideaz.ui.SettingsViewModel
