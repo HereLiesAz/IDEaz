@@ -26,6 +26,7 @@ class CrashReportingService : Service() {
         const val ACTION_REPORT_NON_FATAL = "com.hereliesaz.ideaz.REPORT_NON_FATAL"
 
         const val EXTRA_API_KEY = "extra_api_key"
+        const val EXTRA_JULES_PROJECT_ID = "extra_jules_project_id"
         const val EXTRA_GITHUB_TOKEN = "extra_github_token"
         const val EXTRA_STACK_TRACE = "extra_stack_trace" // Used for both Fatal and Batch errors
         const val EXTRA_GITHUB_USER = "extra_github_user"
@@ -49,14 +50,15 @@ class CrashReportingService : Service() {
         }
 
         val apiKey = intent.getStringExtra(EXTRA_API_KEY)
+        val projectId = intent.getStringExtra(EXTRA_JULES_PROJECT_ID)
         val githubToken = intent.getStringExtra(EXTRA_GITHUB_TOKEN)
         val errorData = intent.getStringExtra(EXTRA_STACK_TRACE)
         val githubUser = intent.getStringExtra(EXTRA_GITHUB_USER) ?: "Unknown User"
         val reportToGithub = intent.getBooleanExtra(EXTRA_REPORT_TO_GITHUB, true)
         val isFatal = intent.action != ACTION_REPORT_NON_FATAL
 
-        if (apiKey.isNullOrBlank() || errorData.isNullOrBlank()) {
-            Log.w(TAG, "Missing API key or error data. Aborting report.")
+        if (apiKey.isNullOrBlank() || errorData.isNullOrBlank() || projectId.isNullOrBlank()) {
+            Log.w(TAG, "Missing API key, Project ID, or error data. Aborting report.")
             stopSelf()
             return START_NOT_STICKY
         }
@@ -101,7 +103,7 @@ class CrashReportingService : Service() {
                         title = title
                     )
 
-                    val session = JulesApiClient.createSession(createRequest)
+                    val session = JulesApiClient.createSession(projectId, request = createRequest)
                     Log.d(TAG, "Session created: ${session.name}")
 
                     // 2. Send Message with Mandatory Instruction
