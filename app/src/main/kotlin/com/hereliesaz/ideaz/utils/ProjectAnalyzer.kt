@@ -11,12 +11,12 @@ object ProjectAnalyzer {
         // Check for Web
         if (File(projectDir, "index.html").exists()) return ProjectType.WEB
 
-        // Check for Web (React/Node)
-        val packageJson = File(projectDir, "package.json")
-        if (packageJson.exists()) {
-            if (File(projectDir, "index.html").exists()) {
-                return ProjectType.WEB
-            }
+        // Check for Flutter
+        if (File(projectDir, "pubspec.yaml").exists()) return ProjectType.FLUTTER
+
+        // Check for React Native
+        if (File(projectDir, "package.json").exists() && File(projectDir, "app.json").exists()) {
+            return ProjectType.REACT_NATIVE
         }
 
         // Check for Android
