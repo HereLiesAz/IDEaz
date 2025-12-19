@@ -135,7 +135,7 @@ jobs:
                 "android_ci_jules.yml" to ANDROID_CI_JULES_YML,
                 "release.yml" to RELEASE_YML
             )
-            else -> return false // TODO: Add other templates
+            else -> emptyList()
         }
 
         var modified = false

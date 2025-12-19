@@ -16,12 +16,9 @@ import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.utils.ProjectConfigManager
 import com.hereliesaz.ideaz.utils.ProjectInitializer
 import com.hereliesaz.ideaz.utils.RepoMapper
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
@@ -29,7 +26,7 @@ import java.io.File
  * - Fetching/Creating GitHub repositories.
  * - Initializing local projects.
  * - Scanning/Managing local project directories.
- * - Uploading secrets (currently stubbed).
+ * - Uploading secrets.
  *
  * @param application The Application context.
  * @param settingsViewModel ViewModel for accessing settings.
@@ -329,7 +326,7 @@ class RepoDelegate(
      * Uses Sodium for client-side encryption.
      */
     fun uploadProjectSecrets(owner: String, repo: String) {
-        scope.launch {
+        scope.launch(Dispatchers.Default) {
             try {
                 onLog("Uploading project secrets to GitHub...")
                 val token = settingsViewModel.getGithubToken()
@@ -371,29 +368,11 @@ class RepoDelegate(
 
                 secrets.forEach { (name, value) ->
                     try {
-                        val encryptedBytes = ByteArray(com.goterl.lazysodium.interfaces.Box.SEALBYTES + value.length)
                         val keyBytes = android.util.Base64.decode(publicKey.key, android.util.Base64.NO_WRAP)
-
-                        // Use sealed box encryption
-                        // Note: LazySodium expects hex or bytes. We have bytes.
-                        // Ideally: sodium.cryptoBoxSeal(encryptedBytes, value.toByteArray(), value.length.toLong(), keyBytes)
-                        // But simpler wrapper:
-                        val encryptedHex = sodium.cryptoBoxSealEasy(value, com.goterl.lazysodium.utils.Key.fromBytes(keyBytes))
-                        // GitHub expects Base64 of the encrypted binary
-                        // cryptoBoxSealEasy returns HEX string. We need to convert Hex -> Bytes -> Base64.
-                        // Or use sodium.cryptoBoxSeal which writes to byte array.
 
                         // Let's retry with raw bytes to match GitHub's requirement (libsodium sealed box)
                         val res = sodium.cryptoBoxSealEasy(value, com.goterl.lazysodium.utils.Key.fromBytes(keyBytes))
                         // Convert Hex (LazySodium default output) to Base64
-                        // We need to implement a HexToBytes helper or use a library one if available.
-                        // LazySodium has Key.fromHexString().
-
-                        // Actually, standard approach:
-                        // encrypted_value = Base64(Sodium.seal(value, public_key))
-                        // LazySodium's cryptoBoxSealEasy returns a hex string.
-                        // We need to convert that hex string back to bytes, then base64 encode it.
-
                         val encryptedDataBytes = com.goterl.lazysodium.utils.Key.fromHexString(res).asBytes
                         val encryptedBase64 = android.util.Base64.encodeToString(encryptedDataBytes, android.util.Base64.NO_WRAP)
 
@@ -409,7 +388,7 @@ class RepoDelegate(
                 }
                 onLog("Secrets uploaded successfully.")
 
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 onLog("Error uploading secrets: ${e.message}")
                 e.printStackTrace()
             }
