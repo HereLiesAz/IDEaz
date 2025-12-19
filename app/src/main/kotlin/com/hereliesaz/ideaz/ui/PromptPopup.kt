@@ -17,6 +17,12 @@ fun PromptPopup(
     onDismiss: () -> Unit,
     onSubmit: (String) -> Unit
 ) {
+    // Dialog handles the dimming (scrim) and touch blocking by default.
+    // If this was appearing "over the project screen" it means the user clicked 'Prompt'
+    // in the nav rail while on the project screen.
+    // The Dialog composable is modal, so it naturally blocks interaction with the background.
+    // This is expected behavior for a popup.
+    // If the user found it "unresponsive", it's because this dialog was open.
     Dialog(onDismissRequest = onDismiss) {
         Card {
             Column(modifier = Modifier.padding(16.dp)) {
