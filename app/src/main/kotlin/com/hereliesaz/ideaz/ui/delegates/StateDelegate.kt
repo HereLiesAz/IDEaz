@@ -2,6 +2,7 @@ package com.hereliesaz.ideaz.ui.delegates
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 /**
  * Delegate responsible for holding and managing shared UI state.
@@ -35,29 +36,28 @@ class StateDelegate {
     /** Combined stream of log lines for UI display. */
     val filteredLog = _buildLog.asStateFlow()
 
-    /** Appends a message to the build log with a size cap. */
+    /** Appends a message to the build log. Splits by newline if necessary. */
     fun appendBuildLog(msg: String) {
-        val newLines = msg.split('\n').filter { it.isNotBlank() }
-        if (newLines.isNotEmpty()) {
-            updateLog { current ->
-                (current + newLines).takeLast(MAX_LOG_SIZE)
+        val lines = msg.split('\n').filter { it.isNotBlank() }
+        appendBuildLogLines(lines)
+    }
+
+    /** Appends multiple lines to the build log with a size cap. */
+    fun appendBuildLogLines(lines: List<String>) {
+        if (lines.isNotEmpty()) {
+            _buildLog.update { current ->
+                (current + lines).takeLast(MAX_LOG_SIZE)
             }
         }
     }
 
     /** Appends an AI message to the log (prefixed with [AI]) with a size cap. */
     fun appendAiLog(msg: String) {
-        val newLines = msg.split('\n').filter { it.isNotBlank() }
-        if (newLines.isNotEmpty()) {
-            val prefixed = newLines.map { "[AI] $it" }
-            updateLog { current ->
-                (current + prefixed).takeLast(MAX_LOG_SIZE)
-            }
+        val lines = msg.split('\n').filter { it.isNotBlank() }
+        if (lines.isNotEmpty()) {
+            val prefixed = lines.map { "[AI] $it" }
+            appendBuildLogLines(prefixed)
         }
-    }
-
-    private inline fun updateLog(transform: (List<String>) -> List<String>) {
-        _buildLog.value = transform(_buildLog.value)
     }
 
     /** Sets the loading progress. Pass null to hide the indicator. */

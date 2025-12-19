@@ -4,7 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
@@ -39,10 +39,24 @@ fun IdeBottomSheet(
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
-    // Auto-scroll logic
+    // --- OPTIMIZED AUTO-SCROLL ---
+    // Avoid animateScrollToItem which is heavy and causes high CPU/ANRs during fast updates.
+    // Also only scroll if we were already at the bottom.
+    var autoScrollEnabled by remember { mutableStateOf(true) }
+
+    // Detect if user scrolled up manually
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (listState.isScrollInProgress) {
+            val layoutInfo = listState.layoutInfo
+            val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()
+            autoScrollEnabled = lastVisibleItem != null && lastVisibleItem.index >= layoutInfo.totalItemsCount - 2
+        }
+    }
+
     LaunchedEffect(logMessages.size) {
-        if (logMessages.isNotEmpty()) {
-            listState.animateScrollToItem(logMessages.size - 1)
+        if (autoScrollEnabled && logMessages.isNotEmpty()) {
+            // Use scrollToItem (instant) instead of animateScrollToItem (heavy)
+            listState.scrollToItem(logMessages.size - 1)
         }
     }
 
@@ -83,6 +97,7 @@ fun IdeBottomSheet(
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("All", "Build", "Git", "AI")
 
+    // Memoize filtered logs to avoid expensive re-filtering on every recomposition
     val filteredMessages = remember(logMessages, selectedTab) {
         when (selectedTab) {
             1 -> logMessages.filter { !it.contains("[AI]") && !it.contains("[GIT]") }
@@ -136,7 +151,11 @@ fun IdeBottomSheet(
                                 .weight(1f)
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
-                            items(filteredMessages) { message ->
+                            itemsIndexed(
+                                items = filteredMessages,
+                                // Use stable keys if possible. For simple logs, index + content hash is okay-ish.
+                                key = { index, message -> "$index-${message.hashCode()}" }
+                            ) { _, message ->
                                 Text(
                                     text = message,
                                     style = MaterialTheme.typography.bodySmall,
@@ -158,7 +177,7 @@ fun IdeBottomSheet(
                     Row(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .padding(top = 48.dp, end = 16.dp) // Adjusted top padding to clear Tabs
+                            .padding(top = 48.dp, end = 16.dp)
                     ) {
                         IconButton(onClick = {
                             coroutineScope.launch {

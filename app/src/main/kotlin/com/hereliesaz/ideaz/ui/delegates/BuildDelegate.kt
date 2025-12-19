@@ -13,6 +13,7 @@ import com.hereliesaz.ideaz.services.BuildService
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.utils.SourceMapParser
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.launch
@@ -22,7 +23,7 @@ import java.io.File
  * Manages interactions with the background BuildService.
  * Handles binding, unbinding, and invoking build operations via AIDL.
  *
- * This version implements Log Batching to prevent Main Thread flooding during high-velocity logging.
+ * This version implements Log Batching and off-main-thread processing to prevent ANRs.
  */
 class BuildDelegate(
     private val application: Application,
@@ -44,19 +45,21 @@ class BuildDelegate(
     private val logChannel = Channel<String>(Channel.UNLIMITED)
 
     init {
-        // Collect logs in a single coroutine to avoid flood
-        scope.launch {
+        // Collect logs in a single coroutine to avoid flood.
+        // Use Dispatchers.Default to keep heavy string processing (splitting, filtering) off the Main thread.
+        scope.launch(Dispatchers.Default) {
             val batch = StringBuilder()
             var lastUpdate = 0L
             
             logChannel.consumeAsFlow().collect { msg ->
                 batch.append(msg).append("\n")
                 val now = System.currentTimeMillis()
-                // Update UI at most every 100ms
-                if (now - lastUpdate > 100) {
-                    onLog(batch.toString())
+                // Update UI state at most every 200ms to reduce recomposition pressure
+                if (now - lastUpdate > 200) {
+                    val batchStr = batch.toString()
                     batch.setLength(0)
                     lastUpdate = now
+                    onLog(batchStr)
                 }
             }
         }
@@ -76,10 +79,11 @@ class BuildDelegate(
 
     private val buildCallback = object : IBuildCallback.Stub() {
         override fun onLog(message: String) {
-            // Push to channel instead of launching coroutine
+            // Push to channel for background processing.
+            // DO NOT launch coroutines on Dispatchers.Main here, as it causes ANRs during verbose builds.
             logChannel.trySend(message)
-            // Update notification remains (handled in service, but we can trigger it)
-            scope.launch { buildService?.updateNotification(message) }
+            
+            // Redundant notification update removed. BuildService now handles this internally.
         }
 
         override fun onSuccess(apkPath: String) {
