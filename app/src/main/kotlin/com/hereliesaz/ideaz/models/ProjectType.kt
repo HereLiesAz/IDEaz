@@ -3,6 +3,8 @@ package com.hereliesaz.ideaz.models
 enum class ProjectType(val displayName: String) {
     ANDROID("Android"),
     WEB("Web"),
+    FLUTTER("Flutter"),
+    REACT_NATIVE("React Native"),
     OTHER("Other"),
     UNKNOWN("Unknown");
 
