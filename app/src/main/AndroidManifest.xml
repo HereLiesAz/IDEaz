@@ -46,6 +46,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".features.preview.ContainerActivity"
+            android:exported="false"
+            android:label="App Preview"
+            android:theme="@style/Theme.IDEaz" />
 
         <service
             android:name=".services.BuildService"
