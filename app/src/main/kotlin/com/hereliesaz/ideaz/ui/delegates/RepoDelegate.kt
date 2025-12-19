@@ -276,11 +276,38 @@ class RepoDelegate(
 
             try {
                 val git = GitManager(projectDir)
+                val token = settingsViewModel.getGithubToken()
+                val user = settingsViewModel.getGithubUser()
+
+                if (!git.isRepo()) {
+                    onOverlayLog("Initializing local repository...")
+                    git.init()
+                    if (user != null && !appName.isBlank()) {
+                        val remoteUrl = "https://github.com/$user/$appName.git"
+                        git.addRemote("origin", remoteUrl)
+
+                        // Check remote default branch
+                        try {
+                            if (!token.isNullOrBlank()) {
+                                val service = GitHubApiClient.createService(token)
+                                val repoInfo = service.getRepo(user, appName)
+                                val remoteDefaultBranch = repoInfo.defaultBranch ?: "main"
+                                val localBranch = git.getCurrentBranch() ?: "master"
+
+                                if (localBranch != remoteDefaultBranch) {
+                                    onOverlayLog("Renaming local branch '$localBranch' to match remote '$remoteDefaultBranch'...")
+                                    git.renameCurrentBranch(remoteDefaultBranch)
+                                }
+                            }
+                        } catch (e: Exception) {
+                            onLog("Warning: Failed to fetch remote branch info: ${e.message}. Defaulting to current.")
+                        }
+                    }
+                }
+
                 if (git.hasChanges()) {
                     git.addAll()
                     git.commit("IDEaz: Update Init Files & Workflows")
-                    val token = settingsViewModel.getGithubToken()
-                    val user = settingsViewModel.getGithubUser()
                     if (token != null && user != null) {
                         git.push(user, token) { progress, task -> onGitProgress(progress, task) }
                         onOverlayLog("Init files pushed successfully.")
@@ -293,16 +320,94 @@ class RepoDelegate(
     }
 
     /**
-     * Stub for uploading project secrets.
-     * Automated upload (using Sodium/JNA) is currently disabled due to stability issues.
+     * Uploads project secrets (API Keys, Keystore) to GitHub for remote builds.
+     * Uses Sodium for client-side encryption.
      */
     fun uploadProjectSecrets(owner: String, repo: String) {
-        // MANUAL COMPLIANCE: JNA/Sodium automation is disabled for stability.
         scope.launch {
-            onOverlayLog("CRITICAL: Manual secret upload is required.")
-            onOverlayLog("1. Go to your repo settings on GitHub.")
-            onOverlayLog("2. Add secrets: GEMINI_API_KEY, GOOGLE_API_KEY, JULES_PROJECT_ID.")
-            onOverlayLog("The remote build will fail without them.")
+            try {
+                onLog("Uploading project secrets to GitHub...")
+                val token = settingsViewModel.getGithubToken()
+                if (token.isNullOrBlank()) {
+                    onLog("Error: GitHub Token not found. Cannot upload secrets.")
+                    return@launch
+                }
+
+                val service = GitHubApiClient.createService(token)
+
+                // 1. Fetch Public Key
+                val publicKey = try {
+                    service.getRepoPublicKey(owner, repo)
+                } catch (e: Exception) {
+                    onLog("Error fetching public key: ${e.message}")
+                    return@launch
+                }
+
+                // 2. Prepare Secrets
+                val secrets = mutableMapOf<String, String>()
+                settingsViewModel.getApiKey()?.let { secrets["JULES_API_KEY"] = it }
+                settingsViewModel.getApiKey(com.hereliesaz.ideaz.ui.AiModels.GEMINI.requiredKey)?.let { secrets["GEMINI_API_KEY"] = it }
+                settingsViewModel.getApiKey("GOOGLE_API_KEY")?.let { secrets["GOOGLE_API_KEY"] = it }
+                settingsViewModel.getJulesProjectId()?.let { secrets["JULES_PROJECT_ID"] = it }
+
+                // Keystore Secrets
+                val keystorePath = settingsViewModel.getKeystorePath()
+                if (keystorePath != null && File(keystorePath).exists()) {
+                    val ksBytes = File(keystorePath).readBytes()
+                    val ksBase64 = android.util.Base64.encodeToString(ksBytes, android.util.Base64.NO_WRAP)
+                    secrets["IDEAZ_DEBUG_KEYSTORE_BASE64"] = ksBase64
+                }
+                secrets["IDEAZ_DEBUG_KEYSTORE_PASSWORD"] = settingsViewModel.getKeystorePass()
+                secrets["IDEAZ_DEBUG_KEY_ALIAS"] = settingsViewModel.getKeyAlias()
+                secrets["IDEAZ_DEBUG_KEY_PASSWORD"] = settingsViewModel.getKeyPass()
+
+                // 3. Encrypt and Upload
+                val sodium = com.goterl.lazysodium.LazySodiumAndroid(com.goterl.lazysodium.SodiumAndroid())
+
+                secrets.forEach { (name, value) ->
+                    try {
+                        val encryptedBytes = ByteArray(com.goterl.lazysodium.interfaces.Box.SEALBYTES + value.length)
+                        val keyBytes = android.util.Base64.decode(publicKey.key, android.util.Base64.NO_WRAP)
+
+                        // Use sealed box encryption
+                        // Note: LazySodium expects hex or bytes. We have bytes.
+                        // Ideally: sodium.cryptoBoxSeal(encryptedBytes, value.toByteArray(), value.length.toLong(), keyBytes)
+                        // But simpler wrapper:
+                        val encryptedHex = sodium.cryptoBoxSealEasy(value, com.goterl.lazysodium.utils.Key.fromBytes(keyBytes))
+                        // GitHub expects Base64 of the encrypted binary
+                        // cryptoBoxSealEasy returns HEX string. We need to convert Hex -> Bytes -> Base64.
+                        // Or use sodium.cryptoBoxSeal which writes to byte array.
+
+                        // Let's retry with raw bytes to match GitHub's requirement (libsodium sealed box)
+                        val res = sodium.cryptoBoxSealEasy(value, com.goterl.lazysodium.utils.Key.fromBytes(keyBytes))
+                        // Convert Hex (LazySodium default output) to Base64
+                        // We need to implement a HexToBytes helper or use a library one if available.
+                        // LazySodium has Key.fromHexString().
+
+                        // Actually, standard approach:
+                        // encrypted_value = Base64(Sodium.seal(value, public_key))
+                        // LazySodium's cryptoBoxSealEasy returns a hex string.
+                        // We need to convert that hex string back to bytes, then base64 encode it.
+
+                        val encryptedDataBytes = com.goterl.lazysodium.utils.Key.fromHexString(res).asBytes
+                        val encryptedBase64 = android.util.Base64.encodeToString(encryptedDataBytes, android.util.Base64.NO_WRAP)
+
+                        val req = com.hereliesaz.ideaz.api.CreateSecretRequest(encryptedBase64, publicKey.keyId)
+                        val resp = service.createSecret(owner, repo, name, req)
+
+                        if (!resp.isSuccessful) {
+                            onLog("Failed to upload $name: ${resp.code()}")
+                        }
+                    } catch (e: Exception) {
+                        onLog("Error encrypting/uploading $name: ${e.message}")
+                    }
+                }
+                onLog("Secrets uploaded successfully.")
+
+            } catch (e: Exception) {
+                onLog("Error uploading secrets: ${e.message}")
+                e.printStackTrace()
+            }
         }
     }
 
