@@ -148,11 +148,18 @@ class BuildDelegate(
                 // In a real scenario, we might await a git pull here
             }
 
+            // Retry binding logic
+            var attempts = 0
+            while (!isBuildServiceBound && attempts < 10) {
+                kotlinx.coroutines.delay(500)
+                attempts++
+            }
+
             if (isBuildServiceBound) {
                 val dir = projectDir ?: settingsViewModel.getProjectPath(settingsViewModel.getAppName() ?: "")
                 buildService?.startBuild(dir.absolutePath, buildCallback)
             } else {
-                onLog("Error: Build Service not bound.\n")
+                onLog("Error: Build Service not bound after waiting.\n")
             }
         }
     }
