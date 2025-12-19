@@ -20,6 +20,13 @@ import com.hereliesaz.ideaz.utils.ToolManager
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.SettingsViewModel
+import com.hereliesaz.ideaz.api.GitHubApiClient
+import com.hereliesaz.ideaz.utils.CrashHandler
+import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.zip.ZipInputStream
+import org.eclipse.jgit.api.Git
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -293,6 +300,15 @@ class BuildService : Service() {
                 }
                 updateNotification("Starting build...")
 
+                val prefs = PreferenceManager.getDefaultSharedPreferences(this@BuildService)
+                val localBuildEnabled = prefs.getBoolean(SettingsViewModel.KEY_ENABLE_LOCAL_BUILDS, false)
+
+                // --- REMOTE BUILD CHECK ---
+                if (!localBuildEnabled) {
+                     startRemoteBuild(projectPath, callback)
+                     return@launch
+                }
+
                 val projectDir = File(projectPath)
                 val buildDir = File(projectDir, "build").apply { mkdirs() }
                 val cacheDir = File(filesDir, "cache").apply { mkdirs() }
@@ -420,6 +436,231 @@ class BuildService : Service() {
                     callback.onFailure("[IDE] Failed with internal error: ${e.message}\n${e.stackTraceToString()}")
                 }
             }
+        }
+    }
+
+    private suspend fun startRemoteBuild(projectPath: String, callback: IBuildCallback) {
+        val projectDir = File(projectPath)
+
+        // Inject resizeableActivity for VirtualDisplay compatibility
+        try {
+            injectResizeableActivity(projectDir)
+        } catch (e: Exception) {
+            callback.onLog("Warning: Failed to inject resizeableActivity: ${e.message}\n")
+        }
+
+        updateNotification("Syncing to GitHub...")
+        callback.onLog("Syncing changes to GitHub...\n")
+
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        val token = prefs.getString(SettingsViewModel.KEY_GITHUB_TOKEN, null)
+        val user = prefs.getString(SettingsViewModel.KEY_GITHUB_USER, null)
+        val repo = projectDir.name
+
+        if (token.isNullOrBlank() || user.isNullOrBlank()) {
+             callback.onFailure("GitHub token or user not set. Please configure in settings.")
+             return
+        }
+
+        var headSha: String? = null
+        try {
+            val git = GitManager(projectDir)
+            if (git.hasChanges()) {
+                git.addAll()
+                git.commit("Remote Build Trigger: ${System.currentTimeMillis()}")
+            }
+            git.push(user, token)
+
+            val gitObj = Git.open(projectDir)
+            val head = gitObj.repository.resolve("HEAD")
+            headSha = head.name
+            gitObj.close()
+
+            callback.onLog("Synced. HEAD: ${headSha?.take(7)}\n")
+        } catch (e: Exception) {
+            CrashHandler.report(this, e)
+            callback.onFailure("Git Sync failed: ${e.message}")
+            return
+        }
+
+        if (headSha == null) {
+            callback.onFailure("Could not determine HEAD SHA.")
+            return
+        }
+
+        // Poll
+        updateNotification("Waiting for build...")
+        callback.onLog("Waiting for GitHub Action...\n")
+
+        val api = GitHubApiClient.createService(token)
+        var runId: Long? = null
+        var attempts = 0
+
+        while (runId == null && attempts < 20 && isActive) {
+            try {
+                val runs = api.listWorkflowRuns(user, repo, headSha = headSha)
+                val run = runs.workflowRuns.firstOrNull()
+                if (run != null) {
+                    runId = run.id
+                    callback.onLog("Workflow Run ID: $runId\n")
+                } else {
+                    kotlinx.coroutines.delay(3000)
+                    attempts++
+                }
+            } catch (e: Exception) {
+                // Ignore API errors during polling (e.g. 404 if repo not ready)
+                kotlinx.coroutines.delay(3000)
+                attempts++
+            }
+        }
+
+        if (runId == null) {
+             callback.onFailure("Workflow run not found for commit $headSha. Check GitHub Actions.")
+             return
+        }
+
+        var status = "queued"
+        var conclusion: String? = null
+
+        while ((status == "queued" || status == "in_progress") && isActive) {
+            kotlinx.coroutines.delay(5000)
+            try {
+                val runs = api.listWorkflowRuns(user, repo, headSha = headSha)
+                val run = runs.workflowRuns.find { it.id == runId }
+                if (run != null) {
+                    status = run.status
+                    conclusion = run.conclusion
+                    updateNotification("Build: $status")
+                    if (status == "completed") break
+                }
+            } catch (e: Exception) {
+                 // Ignore
+            }
+        }
+
+        if (!isActive) return
+
+        if (conclusion != "success") {
+            callback.onLog("Build finished with status: $conclusion\n")
+            try {
+                val jobs = api.getRunJobs(user, repo, runId)
+                val failedJob = jobs.jobs.find { it.conclusion == "failure" }
+                if (failedJob != null) {
+                     val logResp = api.getJobLogs(user, repo, failedJob.id)
+                     if (logResp.isSuccessful) {
+                         val logText = logResp.body()?.string() ?: "No log content"
+                         callback.onFailure("Remote Build Failed:\n$logText")
+                     } else {
+                         callback.onFailure("Remote Build Failed. Could not retrieve logs.")
+                     }
+                } else {
+                     callback.onFailure("Remote Build Failed (Unknown reason).")
+                }
+            } catch (e: Exception) {
+                CrashHandler.report(this, e)
+                callback.onFailure("Remote Build Failed: ${e.message}")
+            }
+            return
+        }
+
+        // Download
+        callback.onLog("Build Successful. Downloading artifact...\n")
+        updateNotification("Downloading APK...")
+
+        try {
+            val artifactsResp = api.getRunArtifacts(user, repo, runId)
+            val apkArtifact = artifactsResp.artifacts.find { it.name.contains("debug") && it.name.endsWith("apk") }
+                ?: artifactsResp.artifacts.find { it.name.endsWith(".apk") }
+                ?: artifactsResp.artifacts.find { it.name == "app-debug" } // GitHub often names artifact without extension in UI but zip has it
+                // Actually GitHub artifacts are downloaded as zip. The name in API is just a name.
+
+            if (apkArtifact == null) {
+                callback.onFailure("No APK artifact found in build.")
+                return
+            }
+
+            val downloadUrl = apkArtifact.archiveDownloadUrl
+            val zipFile = File(filesDir, "remote_build.zip")
+
+            if (downloadFileWithAuth(downloadUrl, zipFile, token, callback)) {
+                // Unzip
+                callback.onLog("Unzipping artifact...\n")
+                val destDir = File(filesDir, "remote_extracted")
+                destDir.deleteRecursively()
+                destDir.mkdirs()
+
+                ZipInputStream(zipFile.inputStream()).use { zis ->
+                    var entry = zis.nextEntry
+                    while (entry != null) {
+                        val newFile = File(destDir, entry.name)
+                        if (entry.isDirectory) {
+                            newFile.mkdirs()
+                        } else {
+                            newFile.parentFile?.mkdirs()
+                            FileOutputStream(newFile).use { fos ->
+                                val buffer = ByteArray(1024)
+                                var len: Int
+                                while (zis.read(buffer).also { len = it } > 0) {
+                                    fos.write(buffer, 0, len)
+                                }
+                            }
+                        }
+                        entry = zis.nextEntry
+                    }
+                }
+
+                // Find apk
+                val apkFile = destDir.walkTopDown().find { it.name.endsWith(".apk") }
+                if (apkFile != null) {
+                     callback.onLog("Installing APK: ${apkFile.name}\n")
+                     updateNotification("Installing...")
+                     ApkInstaller.installApk(this, apkFile.absolutePath)
+                     callback.onSuccess(apkFile.absolutePath)
+                } else {
+                     callback.onFailure("APK file not found in artifact zip.")
+                }
+
+            } else {
+                callback.onFailure("Failed to download artifact.")
+            }
+        } catch (e: Exception) {
+            CrashHandler.report(this, e)
+            callback.onFailure("Download/Install failed: ${e.message}")
+        }
+    }
+
+    private fun injectResizeableActivity(projectDir: File) {
+        val manifestFile = File(projectDir, "app/src/main/AndroidManifest.xml")
+        if (manifestFile.exists()) {
+            var content = manifestFile.readText()
+            if (!content.contains("android:resizeableActivity")) {
+                content = content.replaceFirst("<application", "<application android:resizeableActivity=\"true\"")
+                manifestFile.writeText(content)
+            }
+        }
+    }
+
+    private fun downloadFileWithAuth(urlStr: String, destination: File, token: String, callback: IBuildCallback): Boolean {
+        return try {
+            val url = URL(urlStr)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.setRequestProperty("Authorization", "Bearer $token")
+            connection.connect()
+
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                callback.onLog("Download failed: HTTP ${connection.responseCode}\n")
+                return false
+            }
+
+            val input = connection.inputStream
+            val output = FileOutputStream(destination)
+            input.copyTo(output)
+            output.close()
+            input.close()
+            true
+        } catch (e: Exception) {
+            callback.onLog("Download error: ${e.message}\n")
+            false
         }
     }
 }
