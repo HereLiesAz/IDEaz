@@ -115,7 +115,7 @@ class CrashReportingService : Service() {
                     Log.d(TAG, "Report submitted via Jules Session.")
                 }
 
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e(TAG, "Failed to submit report", e)
             } finally {
                 stopSelf(startId)
