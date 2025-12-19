@@ -65,8 +65,13 @@ class AIDelegate(
     fun fetchSessionsForRepo(repoName: String) {
         scope.launch {
             try {
-                // List all sessions (no parent param as per REST API)
-                val response = JulesApiClient.listSessions()
+                val projectId = settingsViewModel.getJulesProjectId()
+                if (projectId.isNullOrBlank()) {
+                    _sessions.value = emptyList()
+                    return@launch
+                }
+                // List all sessions
+                val response = JulesApiClient.listSessions(projectId)
                 val allSessions = response.sessions ?: emptyList()
                 val user = settingsViewModel.getGithubUser() ?: ""
                 val fullRepo = if (repoName.contains("/")) repoName else "$user/$repoName"
@@ -126,12 +131,15 @@ class AIDelegate(
     }
 
     private suspend fun runJulesTask(promptText: String) {
+        val projectId = settingsViewModel.getJulesProjectId()
+        if (projectId.isNullOrBlank()) {
+            _julesError.value = "Jules Project ID not configured in Settings."
+            return
+        }
+
         val appName = settingsViewModel.getAppName() ?: "project"
         val user = settingsViewModel.getGithubUser() ?: "user"
         val branch = settingsViewModel.getBranchName()
-
-        // Parent/Project ID logic might be needed for SourceContext if strictly required,
-        // but REST API docs usually imply 'sources/github/owner/repo'.
 
         val currentSourceContext = SourceContext(
             source = "sources/github/$user/$appName",
@@ -149,7 +157,7 @@ class AIDelegate(
                     sourceContext = currentSourceContext,
                     title = "Session ${System.currentTimeMillis()}"
                 )
-                val session = JulesApiClient.createSession(request)
+                val session = JulesApiClient.createSession(projectId, request = request)
                 // Use session.name (resource name) for API calls instead of session.id
                 _currentJulesSessionId.value = session.name
                 _julesResponse.value = session
