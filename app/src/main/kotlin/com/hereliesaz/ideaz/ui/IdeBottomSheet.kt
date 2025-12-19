@@ -5,6 +5,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
@@ -36,6 +37,14 @@ fun IdeBottomSheet(
     val logMessages by viewModel.filteredLog.collectAsState(initial = emptyList())
     val clipboardManager = LocalClipboardManager.current
     val coroutineScope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
+
+    // Auto-scroll logic
+    LaunchedEffect(logMessages.size) {
+        if (logMessages.isNotEmpty()) {
+            listState.animateScrollToItem(logMessages.size - 1)
+        }
+    }
 
     // Theming Logic
     val themeMode by viewModel.settingsViewModel.themeMode.collectAsState()
@@ -121,6 +130,7 @@ fun IdeBottomSheet(
                         }
 
                         LazyColumn(
+                            state = listState,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .weight(1f)
