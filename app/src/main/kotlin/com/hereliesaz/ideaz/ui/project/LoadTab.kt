@@ -28,6 +28,9 @@ import android.net.Uri
 import android.content.Intent
 import android.os.Environment
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.hereliesaz.ideaz.utils.checkAndRequestStoragePermission
 
 @Composable
 fun ProjectLoadTab(
@@ -46,8 +49,28 @@ fun ProjectLoadTab(
         }
     }
 
-    // Storage permission launcher logic should be handled by the parent or buttons here
-    // Re-implementing the buttons from the original screen for external projects
+    val externalProjectLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.registerExternalProject(uri)
+        }
+    }
+
+    val apkPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val intent = Intent(Intent.ACTION_VIEW)
+            intent.setDataAndType(uri, "application/vnd.android.package-archive")
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+            try {
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                Toast.makeText(context, "Could not open APK: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         if (projectMetadataList.isEmpty()) {
@@ -93,46 +116,28 @@ fun ProjectLoadTab(
 
         item {
             Spacer(modifier = Modifier.height(16.dp))
-            val isExternalStorageManager = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                Environment.isExternalStorageManager()
-            } else {
-                true
-            }
 
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R && !isExternalStorageManager) {
-                AzButton(
-                    onClick = {
-                        try {
-                            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                            intent.addCategory("android.intent.category.DEFAULT")
-                            intent.data = Uri.parse("package:${context.packageName}")
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-                            context.startActivity(intent)
-                        }
-                    },
-                    text = "Grant Storage Permission",
-                    shape = AzButtonShape.RECTANGLE,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-                )
-            } else {
-                // Launcher needs to be defined in parent or here.
-                // Since this is a composable, we can define it here.
-                // NOTE: For brevity in this specific fix, I am leaving the button visual
-                // but the logic relies on the caller or re-implementation if strictly needed here.
-                // Assuming viewModel.registerExternalProject handles the logic if passed a URI.
-                AzButton(
-                    onClick = {
-                        // In a full implementation, we'd hoist the launcher or define it here.
-                        // For now, focusing on the UI fix.
-                        Toast.makeText(context, "Use system file picker", Toast.LENGTH_SHORT).show()
-                    },
-                    text = "Add External Project",
-                    shape = AzButtonShape.RECTANGLE,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-                )
-            }
+            AzButton(
+                onClick = {
+                    checkAndRequestStoragePermission(context) {
+                        externalProjectLauncher.launch(null)
+                    }
+                },
+                text = "Add External Project",
+                shape = AzButtonShape.RECTANGLE,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            )
+
+            AzButton(
+                onClick = {
+                    checkAndRequestStoragePermission(context) {
+                        apkPickerLauncher.launch(arrayOf("application/vnd.android.package-archive"))
+                    }
+                },
+                text = "Select APK",
+                shape = AzButtonShape.RECTANGLE,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+            )
         }
     }
 }
