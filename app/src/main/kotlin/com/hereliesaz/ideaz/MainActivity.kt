@@ -26,6 +26,10 @@ class MainActivity : ComponentActivity() {
 
         // Render the Main UI
         val app = application as MainApplication
+
+        // Bind Build Service
+        app.mainViewModel.bindBuildService(this)
+
         setContent {
             IDEazTheme {
                 MainScreen(
@@ -34,6 +38,14 @@ class MainActivity : ComponentActivity() {
                     onThemeToggle = { /* recreate()? Or handled by state */ }
                 )
             }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (isFinishing) {
+             val app = application as MainApplication
+             app.mainViewModel.unbindBuildService(this)
         }
     }
 
