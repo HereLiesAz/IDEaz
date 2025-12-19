@@ -163,7 +163,15 @@ fun ProjectScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Spacer(modifier = Modifier.height(32.dp))
+        // Use padding for the title area instead of a Spacer
+        Column(modifier = Modifier.padding(top = 32.dp)) {
+             Text(
+                text = "Project",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
+            )
+        }
 
         if (displayAppName.isNotBlank()) {
             Card(

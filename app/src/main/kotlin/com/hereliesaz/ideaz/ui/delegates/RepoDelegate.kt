@@ -8,6 +8,7 @@ import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.api.GitHubRepoResponse
 import com.hereliesaz.ideaz.api.GitHubPermissions
 import com.hereliesaz.ideaz.api.Source
+import com.hereliesaz.ideaz.jules.JulesApiClient
 import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.jules.JulesApiClient
 import com.hereliesaz.ideaz.models.ProjectType
@@ -77,13 +78,46 @@ class RepoDelegate(
 
                 // Fallback to GitHub API
                 val token = settingsViewModel.getGithubToken()
-                if (!token.isNullOrBlank()) {
+                if (token.isNullOrBlank()) {
+                    onOverlayLog("Error: No GitHub Token found.")
+                }
+
+                // Try Jules API First
+                val projectId = settingsViewModel.getJulesProjectId()
+                var julesSuccess = false
+                if (!projectId.isNullOrBlank()) {
+                    try {
+                        val response = JulesApiClient.listSources(projectId)
+                        val julesRepos = response.sources?.mapNotNull { source ->
+                            source.githubRepo?.let {
+                                GitHubRepoResponse(
+                                    id = 0,
+                                    name = it.repo,
+                                    fullName = "${it.owner}/${it.repo}",
+                                    htmlUrl = "https://github.com/${it.owner}/${it.repo}",
+                                    cloneUrl = "https://github.com/${it.owner}/${it.repo}.git",
+                                    defaultBranch = it.defaultBranch?.displayName ?: "main",
+                                    permissions = null // Jules doesn't return permissions yet
+                                )
+                            }
+                        } ?: emptyList()
+
+                        if (julesRepos.isNotEmpty()) {
+                            _ownedRepos.value = julesRepos
+                            julesSuccess = true
+                        }
+                    } catch (e: Exception) {
+                        onOverlayLog("Jules API failed to list sources: ${e.message}. Falling back to GitHub.")
+                    }
+                }
+
+                // Fallback to GitHub API
+                if (!julesSuccess && !token.isNullOrBlank()) {
                     val service = GitHubApiClient.createService(token)
                     val repos = service.listRepos()
                     _ownedRepos.value = repos
-                } else {
-                    onOverlayLog("Error: No GitHub Token found.")
                 }
+
             } catch (e: Exception) {
                 onOverlayLog("Error fetching repos: ${e.message}")
             } finally {
