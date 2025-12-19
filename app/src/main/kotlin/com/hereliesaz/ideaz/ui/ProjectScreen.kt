@@ -1,6 +1,7 @@
 package com.hereliesaz.ideaz.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -46,10 +47,10 @@ fun ProjectScreen(
 
     // --- TABS LOGIC ---
     // Removed "Create" tab. It is now a state within "Setup".
-    val tabs = remember(hasToken) {
+    val tabs = remember {
         listOf("Setup", "Load", "Clone")
     }
-    var tabIndex by remember { mutableStateOf(0) }
+    var tabIndex by remember { mutableIntStateOf(0) }
     val currentTabName = tabs.getOrElse(tabIndex) { "Setup" }
 
     // --- SCREEN STATE ---
@@ -199,47 +200,49 @@ fun ProjectScreen(
             }
         }
 
-        when (currentTabName) {
-            "Setup" -> ProjectSetupTab(
-                viewModel,
-                settingsViewModel,
-                context,
-                onBuildTriggered,
-                onCheckRequirements = { checkLoadRequirements() },
-                isCreateMode = isCreateMode,
-                onCreateModeChanged = { isCreateMode = it },
-                onNavigateToTab = { tabName ->
-                    val idx = tabs.indexOf(tabName)
-                    if (idx != -1) tabIndex = idx
-                }
-            )
-            "Clone" -> ProjectCloneTab(
-                viewModel,
-                settingsViewModel,
-                context,
-                onRepoSelected = { repo ->
-                    if(checkKeys()) {
-                        viewModel.selectRepositoryForSetup(repo) {
-                            isCreateMode = false // Default to View/Init mode
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            when (currentTabName) {
+                "Setup" -> ProjectSetupTab(
+                    viewModel,
+                    settingsViewModel,
+                    context,
+                    onBuildTriggered,
+                    onCheckRequirements = { checkLoadRequirements() },
+                    isCreateMode = isCreateMode,
+                    onCreateModeChanged = { isCreateMode = it },
+                    onNavigateToTab = { tabName ->
+                        val idx = tabs.indexOf(tabName)
+                        if (idx != -1) tabIndex = idx
+                    }
+                )
+                "Clone" -> ProjectCloneTab(
+                    viewModel,
+                    settingsViewModel,
+                    context,
+                    onRepoSelected = { repo ->
+                        if(checkKeys()) {
+                            viewModel.selectRepositoryForSetup(repo) {
+                                isCreateMode = false // Default to View/Init mode
+                                tabIndex = tabs.indexOf("Setup")
+                            }
+                        }
+                    },
+                    onCreateNewSelected = {
+                        if (checkKeys()) {
+                            isCreateMode = true // Enable Create mode
                             tabIndex = tabs.indexOf("Setup")
                         }
                     }
-                },
-                onCreateNewSelected = {
-                    if (checkKeys()) {
-                        isCreateMode = true // Enable Create mode
-                        tabIndex = tabs.indexOf("Setup")
-                    }
-                }
-            )
-            "Load" -> ProjectLoadTab(viewModel, settingsViewModel, context) {
-                if(checkLoadRequirements()) {
-                    // Reset web state when loading a project (it might be Android)
-                    viewModel.stateDelegate.setCurrentWebUrl(null)
-                    viewModel.stateDelegate.setTargetAppVisible(false)
-                    viewModel.loadProject(it) {
-                        isCreateMode = false
-                        tabIndex = tabs.indexOf("Setup")
+                )
+                "Load" -> ProjectLoadTab(viewModel, settingsViewModel, context) {
+                    if(checkLoadRequirements()) {
+                        // Reset web state when loading a project (it might be Android)
+                        viewModel.stateDelegate.setCurrentWebUrl(null)
+                        viewModel.stateDelegate.setTargetAppVisible(false)
+                        viewModel.loadProject(it) {
+                            isCreateMode = false
+                            tabIndex = tabs.indexOf("Setup")
+                        }
                     }
                 }
             }
