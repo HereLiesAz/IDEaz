@@ -30,13 +30,12 @@ This phase focuses on improving the user experience during long-running backgrou
 
 ---
 
-### **Phase 7: Project Templates and Multi-Platform Support**
+### **Phase 7: Web Support**
 This phase will broaden the IDE's appeal and capabilities.
 
 - [x] **7.1: Lay Groundwork for Multi-Platform Support**
 - [x] **7.2: Implement Web Design Support**
-- [ ] **7.3: Implement React Native Support** (In Progress - Pending JS Bundler refinement)
-- [ ] **7.4: Implement Flutter Support (Final Stage)**
+- [x] **7.3: Remove Deprecated Platforms (React Native, Flutter)**
 
 ---
 

@@ -64,12 +64,17 @@ private fun createVirtualDisplay(context: Context, holder: SurfaceHolder, width:
     if (width <= 0 || height <= 0) return null
 
     return try {
+        // Try creating with standard flags. Private display (0) is safest but restrict cross-app launch.
+        // Public (1) requires permission.
+        // We attempt 0 for now. If target app shares UID or security allows, it works.
+        // Otherwise it might launch on main display.
         dm.createVirtualDisplay(
             "IDEaz-Virtual",
             width,
             height,
             metrics.densityDpi,
             holder.surface,
+            0
             DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC
         )
     } catch (e: Exception) {
