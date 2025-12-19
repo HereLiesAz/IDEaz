@@ -70,16 +70,26 @@ jobs:
           GITHUB_REPOSITORY: '${{ github.repository }}'
           GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN || github.token }}'
         run: |-
-          echo '🔍 Finding unlabeled issues and issues marked for triage...'
-          ISSUES="$(gh issue list \
+          echo '🔍 Finding unlabeled issues...'
+          ISSUES_NO_LABEL="$(gh issue list \
             --state 'open' \
-            --search 'no:label label:"status/needs-triage"' \
+            --search 'no:label' \
             --json number,title,body \
             --limit '100' \
-            --repo "${GITHUB_REPOSITORY}"
-          )"
+            --repo "${GITHUB_REPOSITORY}" || echo "[]")"
 
-          echo '📝 Setting output for GitHub Actions...'
+          echo '🔍 Finding issues marked for triage...'
+          ISSUES_NEEDS_TRIAGE="$(gh issue list \
+            --state 'open' \
+            --search 'label:"status/needs-triage"' \
+            --json number,title,body \
+            --limit '100' \
+            --repo "${GITHUB_REPOSITORY}" || echo "[]")"
+
+          echo '📝 Combining and setting output...'
+          # Combine arrays and deduplicate by number just in case
+          ISSUES="$(echo "${ISSUES_NO_LABEL}" "${ISSUES_NEEDS_TRIAGE}" | jq -s -c 'add | unique_by(.number)')"
+
           echo "issues_to_triage=${ISSUES}" >> "${GITHUB_OUTPUT}"
 
           ISSUE_COUNT="$(echo "${ISSUES}" | jq 'length')"
