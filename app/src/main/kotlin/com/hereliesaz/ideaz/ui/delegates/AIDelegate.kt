@@ -25,7 +25,7 @@ class AIDelegate(
 ) {
 
     private val _currentJulesSessionId = MutableStateFlow<String?>(null)
-    /** The ID of the currently active Jules session. */
+    /** The Resource Name of the currently active Jules session. */
     val currentJulesSessionId = _currentJulesSessionId.asStateFlow()
 
     private val _julesResponse = MutableStateFlow<Session?>(null)
@@ -52,10 +52,10 @@ class AIDelegate(
     private val processedActivityIds = mutableSetOf<String>()
 
     /**
-     * Resumes an existing Jules session by its ID.
+     * Resumes an existing Jules session by its Name.
      */
-    fun resumeSession(sessionId: String) {
-        _currentJulesSessionId.value = sessionId
+    fun resumeSession(sessionName: String) {
+        _currentJulesSessionId.value = sessionName
     }
 
     /**
@@ -65,8 +65,13 @@ class AIDelegate(
     fun fetchSessionsForRepo(repoName: String) {
         scope.launch {
             try {
-                // List all sessions (no parent param as per REST API)
-                val response = JulesApiClient.listSessions()
+                val projectId = settingsViewModel.getJulesProjectId()
+                if (projectId.isNullOrBlank()) {
+                    _sessions.value = emptyList()
+                    return@launch
+                }
+                // List all sessions
+                val response = JulesApiClient.listSessions(projectId)
                 val allSessions = response.sessions ?: emptyList()
                 val user = settingsViewModel.getGithubUser() ?: ""
                 val fullRepo = if (repoName.contains("/")) repoName else "$user/$repoName"
@@ -126,65 +131,68 @@ class AIDelegate(
     }
 
     private suspend fun runJulesTask(promptText: String) {
+        val projectId = settingsViewModel.getJulesProjectId()
+        if (projectId.isNullOrBlank()) {
+            _julesError.value = "Jules Project ID not configured in Settings."
+            return
+        }
+
         val appName = settingsViewModel.getAppName() ?: "project"
         val user = settingsViewModel.getGithubUser() ?: "user"
         val branch = settingsViewModel.getBranchName()
-
-        // Parent/Project ID logic might be needed for SourceContext if strictly required,
-        // but REST API docs usually imply 'sources/github/owner/repo'.
 
         val currentSourceContext = SourceContext(
             source = "sources/github/$user/$appName",
             githubRepoContext = GitHubRepoContext(branch)
         )
 
-        val sessionId = _currentJulesSessionId.value
+        val sessionName = _currentJulesSessionId.value
 
         try {
-            val activeSessionId: String
-            if (sessionId == null) {
+            val activeSessionName: String
+            if (sessionName == null) {
                 // Create Session
                 val request = CreateSessionRequest(
                     prompt = promptText,
                     sourceContext = currentSourceContext,
                     title = "Session ${System.currentTimeMillis()}"
                 )
-                val session = JulesApiClient.createSession(request)
+                val session = JulesApiClient.createSession(projectId, request = request)
                 // Use session.name (resource name) for API calls instead of session.id
                 _currentJulesSessionId.value = session.name
                 _julesResponse.value = session
-                activeSessionId = session.name
+                activeSessionName = session.name
             } else {
                 // Send Message
                 val request = SendMessageRequest(prompt = promptText)
-                JulesApiClient.sendMessage(sessionId, request)
-                activeSessionId = sessionId
+                JulesApiClient.sendMessage(sessionName, request)
+                activeSessionName = sessionName
             }
 
-            pollForResponse(activeSessionId)
+            pollForResponse(activeSessionName)
 
         } catch (e: Exception) {
             throw e
         }
     }
 
-    private suspend fun getAllActivities(sessionId: String): List<Activity> {
+    private suspend fun getAllActivities(sessionName: String): List<Activity> {
         val allActivities = mutableListOf<Activity>()
         var pageToken: String? = null
         do {
-            val response = JulesApiClient.listActivities(sessionId, pageToken = pageToken)
+            val response = JulesApiClient.listActivities(sessionName, pageToken = pageToken)
             response.activities?.let { allActivities.addAll(it) }
             pageToken = response.nextPageToken
         } while (pageToken != null)
         return allActivities
     }
 
-    private suspend fun pollForResponse(sessionId: String) {
+    private suspend fun pollForResponse(sessionName: String) {
         // Poll listActivities for a response
         var attempts = 0
         while (attempts < 15) { // 45 seconds max
             delay(3000)
-            val activities = getAllActivities(sessionId)
+            val activities = getAllActivities(sessionName)
 
             // Check for Agent Message
             // We log the latest message if found.

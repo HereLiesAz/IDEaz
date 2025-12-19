@@ -40,18 +40,18 @@ object JulesApiClient {
         return retrofit.create(JulesApi::class.java)
     }
 
-    suspend fun listSessions(pageSize: Int = 100, pageToken: String? = null) =
-        getClient().listSessions(pageSize, pageToken)
+    suspend fun listSessions(projectId: String, location: String = "us-central1", pageSize: Int = 100, pageToken: String? = null) =
+        getClient().listSessions("projects/$projectId/locations/$location", pageSize, pageToken)
 
-    suspend fun createSession(request: CreateSessionRequest): Session =
-        getClient().createSession(request)
+    suspend fun createSession(projectId: String, location: String = "us-central1", request: CreateSessionRequest): Session =
+        getClient().createSession("projects/$projectId/locations/$location", request)
 
-    suspend fun sendMessage(sessionId: String, request: SendMessageRequest) =
-        getClient().sendMessage(sessionId, request)
+    suspend fun sendMessage(sessionName: String, request: SendMessageRequest) =
+        getClient().sendMessage(sessionName, request)
 
-    suspend fun listActivities(sessionId: String, pageSize: Int = 100, pageToken: String? = null) =
-        getClient().listActivities(sessionId, pageSize, pageToken)
+    suspend fun listActivities(sessionName: String, pageSize: Int = 100, pageToken: String? = null) =
+        getClient().listActivities(sessionName, pageSize, pageToken)
 
-    suspend fun listSources(pageSize: Int = 100, pageToken: String? = null) =
-        getClient().listSources(pageSize, pageToken)
+    suspend fun listSources(projectId: String, location: String = "us-central1", pageSize: Int = 100, pageToken: String? = null) =
+        getClient().listSources("projects/$projectId/locations/$location", pageSize, pageToken)
 }
