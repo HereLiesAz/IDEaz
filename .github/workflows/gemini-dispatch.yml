@@ -104,7 +104,8 @@ jobs:
               core.setOutput('command', 'invoke');
               core.setOutput('additional_context', additionalContext);
             } else if (eventType === 'pull_request.opened') {
-              core.setOutput('command', 'review');
+              core.setOutput('command', 'invoke');
+              core.setOutput('additional_context', 'Assess this pull request. If it looks good, merge it into the target branch. If there are conflicts blocking the merge, resolve them by pushing fixes to the PR branch, and then merge it.');
             } else if (['issues.opened', 'issues.reopened'].includes(eventType)) {
               core.setOutput('command', 'triage');
             } else {
