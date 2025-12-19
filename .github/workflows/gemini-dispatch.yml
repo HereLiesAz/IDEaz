@@ -28,7 +28,7 @@ jobs:
      ${{ fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}
     runs-on: 'ubuntu-latest'
     permissions:
-      contents: 'read'
+      contents: 'write'
     steps:
       - name: 'Print context for debugging'
         env:
@@ -60,7 +60,7 @@ jobs:
       )
     runs-on: 'ubuntu-latest'
     permissions:
-      contents: 'read'
+      contents: 'write'
       issues: 'write'
       pull-requests: 'write'
     outputs:
@@ -77,7 +77,7 @@ jobs:
         with:
           app-id: '${{ vars.APP_ID }}'
           private-key: '${{ secrets.APP_PRIVATE_KEY }}'
-          permission-contents: 'read'
+          permission-contents: 'write'
           permission-issues: 'write'
           permission-pull-requests: 'write'
 
@@ -120,7 +120,7 @@ jobs:
       ${{ needs.dispatch.outputs.command == 'review' }}
     uses: './.github/workflows/gemini-review.yml'
     permissions:
-      contents: 'read'
+      contents: 'write'
       id-token: 'write'
       issues: 'write'
       pull-requests: 'write'
@@ -134,7 +134,7 @@ jobs:
       ${{ needs.dispatch.outputs.command == 'triage' }}
     uses: './.github/workflows/gemini-triage.yml'
     permissions:
-      contents: 'read'
+      contents: 'write'
       id-token: 'write'
       issues: 'write'
       pull-requests: 'write'
@@ -148,7 +148,7 @@ jobs:
       ${{ needs.dispatch.outputs.command == 'invoke' }}
     uses: './.github/workflows/gemini-invoke.yml'
     permissions:
-      contents: 'read'
+      contents: 'write'
       id-token: 'write'
       issues: 'write'
       pull-requests: 'write'
@@ -166,7 +166,7 @@ jobs:
       ${{ always() && !cancelled() && (failure() || needs.dispatch.outputs.command == 'fallthrough') }}
     runs-on: 'ubuntu-latest'
     permissions:
-      contents: 'read'
+      contents: 'write'
       issues: 'write'
       pull-requests: 'write'
     steps:
