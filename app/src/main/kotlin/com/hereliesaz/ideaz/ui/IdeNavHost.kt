@@ -38,9 +38,8 @@ fun IdeNavHost(
         }
         composable("settings") {
             SettingsScreen(
-                viewModel = viewModel,
-                settingsViewModel = settingsViewModel,
-                onThemeToggle = onThemeToggle
+                viewModel = settingsViewModel,
+                onBack = { navController.popBackStack() }
             )
         }
         composable("project_settings") {

@@ -68,6 +68,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_KEY_PASS = "key_pass"
 
         val aiTasks = AiModels.tasks
+
+        const val THEME_LIGHT = 0
+        const val THEME_DARK = 1
+        const val KEY_THEME_MODE = "theme_mode"
     }
 
     val currentAppName = MutableStateFlow(getAppName())
@@ -93,6 +97,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun getKeyAlias(): String? = prefs.getString(KEY_KEY_ALIAS, null)
     fun getKeyPass(): String? = prefs.getString(KEY_KEY_PASS, null)
 
+    fun getThemeMode(): Int = prefs.getInt(KEY_THEME_MODE, THEME_DARK)
+    fun isDarkTheme(): Boolean = getThemeMode() == THEME_DARK
+
     fun getProjectList(): Set<String> = prefs.getStringSet(KEY_PROJECT_LIST, emptySet()) ?: emptySet()
 
     fun getAppVersion(): String = "1.5.15" // Matches version.properties
@@ -114,6 +121,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setAutoDebugBuildsEnabled(value: Boolean) = putBool(KEY_AUTO_DEBUG_BUILDS, value)
     fun setReportIdeErrorsEnabled(value: Boolean) = putBool(KEY_REPORT_IDE_ERRORS, value)
     fun setLocalBuildEnabled(value: Boolean) = putBool(KEY_ENABLE_LOCAL_BUILDS, value)
+
+    fun setThemeMode(mode: Int) {
+        prefs.edit().putInt(KEY_THEME_MODE, mode).apply()
+        _settingsVersion.value += 1
+    }
 
     fun saveSigningCredentials(pass: String, alias: String, keyPass: String) {
         prefs.edit()

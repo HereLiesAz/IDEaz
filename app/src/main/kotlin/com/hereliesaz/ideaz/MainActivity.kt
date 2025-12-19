@@ -8,6 +8,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import com.hereliesaz.ideaz.ui.MainScreen
 import com.hereliesaz.ideaz.ui.MainViewModel
 import com.hereliesaz.ideaz.ui.MainViewModelFactory
@@ -30,7 +32,8 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
 
         setContent {
-            IDEazTheme(settingsViewModel = settingsViewModel) {
+            val version by settingsViewModel.settingsVersion.collectAsState()
+            IDEazTheme(darkTheme = settingsViewModel.isDarkTheme()) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     MainScreen(
                         viewModel = mainViewModel,

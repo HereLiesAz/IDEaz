@@ -6,38 +6,65 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
+import android.util.Log
 import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.IBuildService
-import com.hereliesaz.ideaz.models.SourceMapEntry
 import com.hereliesaz.ideaz.services.BuildService
-import com.hereliesaz.ideaz.ui.SettingsViewModel
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import java.io.File
 
 class BuildDelegate(
-    private val application: Application,
-    private val settings: SettingsViewModel,
-    private val scope: CoroutineScope,
-    private val onBuildLog: (String) -> Unit,
-    private val onAiLog: (String) -> Unit,
-    private val onSourceMapReady: (Map<String, SourceMapEntry>) -> Unit,
-    private val onBuildError: (String) -> Unit,
-    private val onApkReady: (String) -> Unit,
-    private val gitDelegate: GitDelegate
+    private val app: Application,
+    private val aiDelegate: AIDelegate,
+    private val onLog: (String) -> Unit
 ) {
-
     private var buildService: IBuildService? = null
-    private var isBound = false
+    private val _buildStatus = MutableStateFlow("Idle")
+    val buildStatus = _buildStatus.asStateFlow()
+
+    // Internal log for AI context if needed, but primary output via callback
+    private val _buildLog = MutableStateFlow("")
+    val buildLog = _buildLog.asStateFlow()
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             buildService = IBuildService.Stub.asInterface(service)
-            isBound = true
+            _buildStatus.value = "Connected"
         }
+
         override fun onServiceDisconnected(name: ComponentName?) {
             buildService = null
-            isBound = false
+            _buildStatus.value = "Disconnected"
+        }
+    }
+
+    private val buildCallback = object : IBuildCallback.Stub() {
+        override fun onLog(message: String) {
+            _buildLog.value += "$message\n"
+            onLog(message)
+        }
+
+        override fun onSuccess(apkPath: String) {
+            val msg = "Build Success: $apkPath"
+            _buildLog.value += "$msg\n"
+            onLog(msg)
+            _buildStatus.value = "Success"
+        }
+
+        override fun onFailure(error: String) {
+            val msg = "Build Failed: $error"
+            _buildLog.value += "$msg\n"
+            onLog(msg)
+            _buildStatus.value = "Failed"
+
+            // Forward failure log to AI for resolution if it's a compilation error
+            // Simple heuristic: if it contains "error:" or "exception"
+            if (error.contains("error", ignoreCase = true) ||
+                error.contains("exception", ignoreCase = true) ||
+                _buildLog.value.contains("error:", ignoreCase = true)) {
+                 aiDelegate.startContextualAITask("Build Error: $error\nLog:\n${_buildLog.value}")
+            }
         }
     }
 
@@ -46,59 +73,31 @@ class BuildDelegate(
     }
 
     private fun bindService() {
-        val intent = Intent(application, BuildService::class.java)
-        application.bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        val intent = Intent(app, BuildService::class.java)
+        app.bindService(intent, connection, Context.BIND_AUTO_CREATE)
     }
 
-    fun unbindService(context: Context) {
-        if (isBound) {
-            context.unbindService(connection)
-            isBound = false
-        }
-    }
-
-    fun downloadDependencies() {
-        // Triggered via MainViewModel usually
-        val path = settings.getAppName()?.let { "/sdcard/IDEaz/Projects/$it" } ?: return
-        if (isBound) {
-            // Remote build handles this implicitly during GitHub workflow,
-            // but we might want to trigger it explicitly.
-            // For now, this is a placeholder.
-            onBuildLog("Dependencies are managed remotely by GitHub Actions.")
-        } else {
-            bindService()
+    fun unbindService() {
+        try {
+            app.unbindService(connection)
+        } catch (e: IllegalArgumentException) {
+            // Ignore if not registered
         }
     }
 
     fun startBuild(projectPath: String) {
-        if (!isBound) {
+        if (buildService != null) {
+            _buildLog.value = "Starting build for $projectPath...\n"
+            _buildStatus.value = "Building"
+            try {
+                buildService?.startBuild(projectPath, buildCallback)
+            } catch (e: Exception) {
+                _buildLog.value += "Failed to start build: ${e.message}\n"
+                _buildStatus.value = "Error"
+            }
+        } else {
+            _buildLog.value += "Build Service not connected. Reconnecting...\n"
             bindService()
-            onBuildLog("Service binding... retry in a moment.")
-            return
-        }
-
-        try {
-            buildService?.startBuild(projectPath, object : IBuildCallback.Stub() {
-                override fun onLog(message: String) {
-                    scope.launch(Dispatchers.Main) { onBuildLog(message) }
-                }
-
-                override fun onSuccess(apkPath: String) {
-                    scope.launch(Dispatchers.Main) {
-                        onBuildLog("Build Complete: $apkPath")
-                        onApkReady(apkPath)
-                    }
-                }
-
-                override fun onFailure(error: String) {
-                    scope.launch(Dispatchers.Main) {
-                        onBuildLog("Build Failed: $error")
-                        onBuildError(error) // Triggers AI Contextual Task
-                    }
-                }
-            })
-        } catch (e: Exception) {
-            onBuildError("Service communication error: ${e.message}")
         }
     }
 }
