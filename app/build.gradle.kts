@@ -91,7 +91,6 @@ android {
             excludes.add("META-INF/plexus/components.xml")
             excludes.add("plugin.properties")
             pickFirsts.add("META-INF/sisu/javax.inject.Named")
-            pickFirsts.add("**/*.so")
             pickFirsts.add("**/*.jnilib")
             pickFirsts.add("**/*.kotlin_builtins")
             pickFirsts.add("**/*.kotlin_module")
