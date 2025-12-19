@@ -106,7 +106,8 @@ jobs:
             } else if (eventType === 'pull_request.opened') {
               core.setOutput('command', 'review');
             } else if (['issues.opened', 'issues.reopened'].includes(eventType)) {
-              core.setOutput('command', 'triage');
+              core.setOutput('command', 'invoke');
+              core.setOutput('additional_context', 'Please address this issue. Analyze the request and take appropriate action using your tools.');
             } else {
               core.setOutput('command', 'fallthrough');
             }
