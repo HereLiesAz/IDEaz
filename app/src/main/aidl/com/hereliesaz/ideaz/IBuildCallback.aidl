@@ -3,6 +3,6 @@ package com.hereliesaz.ideaz;
 
 interface IBuildCallback {
     oneway void onLog(String message);
-    void onSuccess(String apkPath);
-    void onFailure(String message);
+    oneway void onSuccess(String apkPath);
+    oneway void onFailure(String message);
 }

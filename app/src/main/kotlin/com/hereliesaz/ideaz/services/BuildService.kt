@@ -27,19 +27,13 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.zip.ZipInputStream
 import org.eclipse.jgit.api.Git
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import java.io.File
 import java.util.ArrayDeque
 import kotlin.coroutines.coroutineContext
 
 /**
- * A foreground [Service] that orchestrates the build process in a separate process (`:build_process`).
+ * A foreground [Service] that orchestrates the build process.
  */
 class BuildService : Service() {
     companion object {
@@ -52,12 +46,15 @@ class BuildService : Service() {
         private const val ACTION_SYNC_AND_EXIT = "SYNC_AND_EXIT"
         private const val ACTION_BUILD_LOG_INPUT = "BUILD_LOG_INPUT"
         private const val EXTRA_TEXT_REPLY = "KEY_TEXT_REPLY"
+        private const val NOTIFICATION_UPDATE_INTERVAL_MS = 1000L
     }
 
     private val logBuffer = ArrayDeque<String>(MAX_LOG_LINES)
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var buildJob: Job? = null
     private var currentProjectPath: String? = null
+    private var lastNotificationUpdate = 0L
+    private var pendingNotificationUpdate: Job? = null
 
     private val binder = object : IBuildService.Stub() {
         override fun startBuild(projectPath: String, callback: IBuildCallback) = this@BuildService.startBuild(projectPath, callback)
@@ -68,7 +65,6 @@ class BuildService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        // No auto-install from assets. Tools must be downloaded.
         createNotificationChannel()
     }
 
@@ -94,8 +90,8 @@ class BuildService : Service() {
         }
 
         val notification = createNotificationBuilder()
-            .setContentText("Build Service is running.")
-            .setStyle(NotificationCompat.BigTextStyle().bigText("Build Service is running."))
+            .setContentText("Build Service is ready.")
+            .setStyle(NotificationCompat.BigTextStyle().bigText("Build Service is ready."))
             .build()
         startForeground(NOTIFICATION_ID, notification)
         return START_STICKY
@@ -105,7 +101,7 @@ class BuildService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(NOTIFICATION_CHANNEL_ID, "IDEaz Build Service", NotificationManager.IMPORTANCE_DEFAULT)
+            val channel = NotificationChannel(NOTIFICATION_CHANNEL_ID, "IDEaz Build Service", NotificationManager.IMPORTANCE_LOW)
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }
@@ -122,6 +118,22 @@ class BuildService : Service() {
             }
         }
 
+        val now = System.currentTimeMillis()
+        if (now - lastNotificationUpdate < NOTIFICATION_UPDATE_INTERVAL_MS) {
+            if (pendingNotificationUpdate == null || pendingNotificationUpdate?.isCompleted == true) {
+                pendingNotificationUpdate = serviceScope.launch {
+                    delay(NOTIFICATION_UPDATE_INTERVAL_MS - (now - lastNotificationUpdate))
+                    performNotificationUpdate()
+                }
+            }
+            return
+        }
+
+        performNotificationUpdate()
+    }
+
+    private fun performNotificationUpdate() {
+        lastNotificationUpdate = System.currentTimeMillis()
         val latestLog = synchronized(logBuffer) { logBuffer.lastOrNull() } ?: "Processing..."
         val bigText = synchronized(logBuffer) { logBuffer.joinToString("\n") }
 
@@ -131,7 +143,12 @@ class BuildService : Service() {
             .setOnlyAlertOnce(true)
             .build()
 
-        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification)
+        val nm = getSystemService(NotificationManager::class.java)
+        try {
+            nm.notify(NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+             Log.e(TAG, "Failed to update notification", e)
+        }
     }
 
     private fun createNotificationBuilder(): NotificationCompat.Builder {
@@ -308,8 +325,6 @@ class BuildService : Service() {
                 val localBuildEnabled = prefs.getBoolean(SettingsViewModel.KEY_ENABLE_LOCAL_BUILDS, false)
 
                 // --- REMOTE BUILD CHECK ---
-                // Force remote build only if local build is disabled AND it is NOT a Web project.
-                // Web projects are always built locally.
                 if (!localBuildEnabled && type != ProjectType.WEB) {
                     startRemoteBuild(projectPath, callback)
                     return@launch
@@ -336,7 +351,6 @@ class BuildService : Service() {
                 }
 
                 // --- ANDROID BUILD ---
-                // ... (Dependency Resolution)
                 val resolver = HttpDependencyResolver(projectDir, File(projectDir, "dependencies.toml"), localRepoDir, callback)
                 val resolverResult = resolver.execute()
                 if (!resolverResult.success && isActive) {
@@ -412,7 +426,6 @@ class BuildService : Service() {
                 val processedManifestPath = File(buildDir, "processed_manifest.xml").absolutePath
 
                 // --- BUILD EXECUTION ---
-                // Inject resizeableActivity for Virtual Environment compatibility
                 try {
                     injectResizeableActivity(projectDir)
                 } catch (e: Exception) {
@@ -451,7 +464,6 @@ class BuildService : Service() {
     private suspend fun startRemoteBuild(projectPath: String, callback: IBuildCallback) {
         val projectDir = File(projectPath)
 
-        // Inject resizeableActivity for VirtualDisplay compatibility
         try {
             injectResizeableActivity(projectDir)
         } catch (e: Exception) {
@@ -497,7 +509,6 @@ class BuildService : Service() {
             return
         }
 
-        // Poll
         updateNotification("Waiting for build...")
         callback.onLog("Waiting for GitHub Action...\n")
 
@@ -517,7 +528,6 @@ class BuildService : Service() {
                     attempts++
                 }
             } catch (e: Exception) {
-                // Ignore API errors during polling (e.g. 404 if repo not ready)
                 kotlinx.coroutines.delay(3000)
                 attempts++
             }
@@ -572,7 +582,6 @@ class BuildService : Service() {
             return
         }
 
-        // Download
         callback.onLog("Build Successful. Downloading artifact...\n")
         updateNotification("Downloading APK...")
 
@@ -580,8 +589,7 @@ class BuildService : Service() {
             val artifactsResp = api.getRunArtifacts(user, repo, runId)
             val apkArtifact = artifactsResp.artifacts.find { it.name.contains("debug") && it.name.endsWith("apk") }
                 ?: artifactsResp.artifacts.find { it.name.endsWith(".apk") }
-                ?: artifactsResp.artifacts.find { it.name == "app-debug" } // GitHub often names artifact without extension in UI but zip has it
-            // Actually GitHub artifacts are downloaded as zip. The name in API is just a name.
+                ?: artifactsResp.artifacts.find { it.name == "app-debug" }
 
             if (apkArtifact == null) {
                 callback.onFailure("No APK artifact found in build.")
@@ -592,7 +600,6 @@ class BuildService : Service() {
             val zipFile = File(filesDir, "remote_build.zip")
 
             if (downloadFileWithAuth(downloadUrl, zipFile, token, callback)) {
-                // Unzip
                 callback.onLog("Unzipping artifact...\n")
                 val destDir = File(filesDir, "remote_extracted")
                 destDir.deleteRecursively()
@@ -607,18 +614,13 @@ class BuildService : Service() {
                         } else {
                             newFile.parentFile?.mkdirs()
                             FileOutputStream(newFile).use { fos ->
-                                val buffer = ByteArray(1024)
-                                var len: Int
-                                while (zis.read(buffer).also { len = it } > 0) {
-                                    fos.write(buffer, 0, len)
-                                }
+                                zis.copyTo(fos)
                             }
                         }
                         entry = zis.nextEntry
                     }
                 }
 
-                // Find apk
                 val apkFile = destDir.walkTopDown().find { it.name.endsWith(".apk") }
                 if (apkFile != null) {
                     callback.onLog("Installing APK: ${apkFile.name}\n")
