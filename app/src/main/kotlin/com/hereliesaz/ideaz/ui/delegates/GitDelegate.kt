@@ -11,7 +11,7 @@ class GitDelegate(
     private val onLog: (String) -> Unit,
     private val onProgress: (Int?) -> Unit
 ) {
-    val gitStatus = MutableStateFlow("Clean")
+    val gitStatus = MutableStateFlow<List<String>>(listOf("Clean"))
     val commitHistory = MutableStateFlow<List<String>>(emptyList())
     val branches = MutableStateFlow<List<String>>(emptyList())
 

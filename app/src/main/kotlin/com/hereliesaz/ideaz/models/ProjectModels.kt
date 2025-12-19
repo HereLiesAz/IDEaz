@@ -2,12 +2,6 @@ package com.hereliesaz.ideaz.models
 
 import kotlinx.serialization.Serializable
 
-enum class ProjectType {
-    ANDROID,
-    WEB,
-    PYTHON,
-    UNKNOWN
-}
 
 data class ProjectItem(
     val name: String,
