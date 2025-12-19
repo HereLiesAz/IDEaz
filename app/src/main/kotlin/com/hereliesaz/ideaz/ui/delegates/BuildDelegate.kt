@@ -140,7 +140,7 @@ class BuildDelegate(
 
             if (type != ProjectType.WEB && !settingsViewModel.isLocalBuildEnabled()) {
                 onLog("[INFO] Local build disabled. Using GitHub Action (Remote).\n")
-                return@launch
+                // Proceed to call buildService, which now handles remote build logic
             }
 
             if (type == ProjectType.WEB) {

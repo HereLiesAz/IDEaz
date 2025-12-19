@@ -21,6 +21,10 @@ object CrashHandler {
         }
     }
 
+    fun report(context: Context, throwable: Throwable) {
+        handleCrash(context, Thread.currentThread(), throwable)
+    }
+
     private fun handleCrash(context: Context, thread: Thread, throwable: Throwable) {
         Log.e(TAG, "Fatal Crash on thread ${thread.name}", throwable)
 
