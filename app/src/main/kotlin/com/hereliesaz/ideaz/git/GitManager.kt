@@ -284,6 +284,36 @@ class GitManager(private val projectDir: File) {
     }
 
     /**
+     * Checks if the current directory is a valid Git repository.
+     */
+    fun isRepo(): Boolean {
+        return File(projectDir, ".git").exists()
+    }
+
+    /**
+     * Adds a remote to the repository configuration.
+     */
+    fun addRemote(name: String, url: String) {
+        Git.open(projectDir).use { git ->
+            val config = git.repository.config
+            config.setString("remote", name, "url", url)
+            config.setString("remote", name, "fetch", "+refs/heads/*:refs/remotes/$name/*")
+            config.save()
+        }
+    }
+
+    /**
+     * Renames the current branch.
+     *
+     * @param newName The new name for the current branch.
+     */
+    fun renameCurrentBranch(newName: String) {
+        Git.open(projectDir).use { git ->
+            git.branchRename().setNewName(newName).call()
+        }
+    }
+
+    /**
      * Applies a Git patch to the repository.
      *
      * @param patch The content of the unified diff patch.
