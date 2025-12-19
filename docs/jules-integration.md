@@ -4,13 +4,15 @@ The IDEaz application integrates with the Jules AI Coding Agent using a hybrid a
 
 ## Jules API Client (`JulesApiClient`)
 
-The `JulesApiClient` is a Retrofit-based Kotlin implementation of the Jules API. It mirrors the structure of the official TypeScript SDK (`@kiwina/jules-api-sdk`).
+The `JulesApiClient` is a Retrofit-based Kotlin implementation of the Jules API. It mirrors the structure of the official TypeScript SDK (`jules-api-node`).
 
 ### Key Features
-*   **Session Management**: Creates sessions with context (prompt, source repository).
-*   **Activity Polling**: Polls for activities (plans, patches, messages) using `listActivities`.
-*   **Source Listing**: Fetches available repositories from the user's account.
-*   **Robustness**: Handles API authentication via `AuthInterceptor` and standard HTTP error handling.
+*   **Singleton Architecture**: Uses a thread-safe, lazy-initialized Singleton pattern for the `Retrofit` client to ensure optimal performance and resource usage.
+*   **Testability**: Supports configuring the `baseUrl` (observable via `@VisibleForTesting`), allowing comprehensive unit testing with `MockWebServer`.
+*   **Session Management**: Creates sessions with context (prompt, source repository) via `createSession`.
+*   **Activity Polling**: Provides access to `listActivities` and `sendMessage`, enabling polling-based asynchronous workflows to retrieve plans, patches, and messages.
+*   **Source Listing**: Fetches available repositories from the user's account via `listSources`.
+*   **Robustness**: Handles API authentication via `AuthInterceptor`, automatic retries via `RetryInterceptor`, and standard HTTP error handling.
 
 ### Usage in App
 *   **MainViewModel**: Uses `JulesApiClient` to:
