@@ -79,6 +79,7 @@ class RepoDelegate(
                 val token = settingsViewModel.getGithubToken()
                 if (token.isNullOrBlank()) {
                     onOverlayLog("Error: No GitHub Token found.")
+                    return@launch
                 }
 
                 // Try Jules API First
@@ -296,7 +297,9 @@ class RepoDelegate(
 
                                 if (localBranch != remoteDefaultBranch) {
                                     onOverlayLog("Renaming local branch '$localBranch' to match remote '$remoteDefaultBranch'...")
-                                    git.renameCurrentBranch(remoteDefaultBranch)
+                                    if (!git.renameCurrentBranch(remoteDefaultBranch)) {
+                                        onOverlayLog("Failed to rename branch. Continuing...")
+                                    }
                                 }
                             }
                         } catch (e: Exception) {

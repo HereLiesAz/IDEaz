@@ -17,6 +17,7 @@ import com.hereliesaz.ideaz.utils.ErrorCollector
 import com.hereliesaz.ideaz.R
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ToolManager
+import com.hereliesaz.ideaz.utils.VersionUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -399,12 +400,25 @@ class MainViewModel(
         try {
             val service = GitHubApiClient.createService(token)
             val releases = withContext(Dispatchers.IO) { service.getReleases(user, repo) }
-            // Find latest release with an APK
-            val release = releases.firstOrNull { r -> r.assets.any { it.name.endsWith(".apk") } } ?: return
-            val asset = release.assets.find { it.name.endsWith(".apk") } ?: return
 
-            // Parse remote version from tag (assuming semver-ish)
-            val remoteVersion = release.tagName.removePrefix("v").removePrefix("debug-").substringBefore("-")
+            // Find latest release (prefer pre-release debug builds) with an APK
+            val release = releases.firstOrNull { r ->
+                r.prerelease && r.assets.any { it.name.endsWith(".apk") }
+            } ?: releases.firstOrNull { r -> r.assets.any { it.name.endsWith(".apk") } } ?: return
+
+            // Find the APK asset with the highest version
+            val validAssets = release.assets.filter {
+                it.name.endsWith(".apk") && VersionUtils.extractVersionFromFilename(it.name) != null
+            }
+
+            val bestAsset = validAssets.sortedWith { a1, a2 ->
+                val v1 = VersionUtils.extractVersionFromFilename(a1.name) ?: "0"
+                val v2 = VersionUtils.extractVersionFromFilename(a2.name) ?: "0"
+                VersionUtils.compareVersions(v1, v2)
+            }.lastOrNull() ?: return
+
+            // Parse remote version
+            val remoteVersion = VersionUtils.extractVersionFromFilename(bestAsset.name) ?: return
 
             // Check local APK
             val projectDir = context.filesDir.resolve(repo)
@@ -419,12 +433,14 @@ class MainViewModel(
                 localVersion = info?.versionName
             }
 
-            // Simple string comparison or semver if needed. For now, string.
-            val isNewer = if (localVersion == null) true else remoteVersion != localVersion
+            // Compare versions
+            val isNewer = if (localVersion == null) true else {
+                VersionUtils.compareVersions(remoteVersion, localVersion) > 0
+            }
 
             _artifactCheckResult.value = ArtifactCheckResult(
                 remoteVersion = remoteVersion,
-                downloadUrl = asset.browserDownloadUrl,
+                downloadUrl = bestAsset.browserDownloadUrl,
                 localVersion = localVersion,
                 isRemoteNewer = isNewer
             )
