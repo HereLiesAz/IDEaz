@@ -74,7 +74,6 @@ private fun createVirtualDisplay(context: Context, holder: SurfaceHolder, width:
             height,
             metrics.densityDpi,
             holder.surface,
-            0
             DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC
         )
     } catch (e: Exception) {
