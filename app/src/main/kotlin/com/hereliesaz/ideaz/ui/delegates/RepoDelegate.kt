@@ -276,11 +276,21 @@ class RepoDelegate(
 
             try {
                 val git = GitManager(projectDir)
+                val token = settingsViewModel.getGithubToken()
+                val user = settingsViewModel.getGithubUser()
+
+                if (!git.isRepo()) {
+                    onOverlayLog("Initializing local repository...")
+                    git.init()
+                    if (user != null && !appName.isBlank()) {
+                        val remoteUrl = "https://github.com/$user/$appName.git"
+                        git.addRemote("origin", remoteUrl)
+                    }
+                }
+
                 if (git.hasChanges()) {
                     git.addAll()
                     git.commit("IDEaz: Update Init Files & Workflows")
-                    val token = settingsViewModel.getGithubToken()
-                    val user = settingsViewModel.getGithubUser()
                     if (token != null && user != null) {
                         git.push(user, token) { progress, task -> onGitProgress(progress, task) }
                         onOverlayLog("Init files pushed successfully.")
