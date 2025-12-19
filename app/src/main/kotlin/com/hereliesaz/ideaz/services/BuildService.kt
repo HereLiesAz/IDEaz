@@ -28,6 +28,8 @@ import java.net.URL
 import java.util.zip.ZipInputStream
 import org.eclipse.jgit.api.Git
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.consumeAsFlow
 import java.io.File
 import java.util.ArrayDeque
 import kotlin.coroutines.coroutineContext
@@ -35,7 +37,8 @@ import kotlin.coroutines.coroutineContext
 /**
  * A foreground [Service] that orchestrates the build process.
  * 
- * Fixed: Notification updates now run strictly on Dispatchers.IO to avoid blocking the Main thread.
+ * This service implements advanced log batching to minimize IPC overhead and prevent ANRs
+ * in the main application process.
  */
 class BuildService : Service() {
     companion object {
@@ -49,6 +52,7 @@ class BuildService : Service() {
         private const val ACTION_BUILD_LOG_INPUT = "BUILD_LOG_INPUT"
         private const val EXTRA_TEXT_REPLY = "KEY_TEXT_REPLY"
         private const val NOTIFICATION_UPDATE_INTERVAL_MS = 1000L
+        private const val UI_LOG_BATCH_INTERVAL_MS = 250L
     }
 
     private val logBuffer = ArrayDeque<String>(MAX_LOG_LINES)
@@ -231,6 +235,48 @@ class BuildService : Service() {
         }
     }
 
+    /**
+     * Wraps the provided IBuildCallback to implement log batching and local notification updates.
+     */
+    private fun wrapCallback(callback: IBuildCallback): IBuildCallback {
+        return object : IBuildCallback.Stub() {
+            private val logChannel = Channel<String>(Channel.UNLIMITED)
+            private val batchJob = serviceScope.launch {
+                val batch = StringBuilder()
+                var lastSend = 0L
+                logChannel.consumeAsFlow().collect { msg ->
+                    batch.append(msg).append("\n")
+                    val now = System.currentTimeMillis()
+                    if (now - lastSend > UI_LOG_BATCH_INTERVAL_MS) {
+                        val batchStr = batch.toString()
+                        batch.setLength(0)
+                        lastSend = now
+                        try {
+                            callback.onLog(batchStr)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to send log to UI", e)
+                        }
+                    }
+                }
+            }
+
+            override fun onLog(message: String) {
+                updateNotification(message)
+                logChannel.trySend(message)
+            }
+
+            override fun onSuccess(apkPath: String) {
+                batchJob.cancel()
+                try { callback.onSuccess(apkPath) } catch (e: Exception) {}
+            }
+
+            override fun onFailure(message: String) {
+                batchJob.cancel()
+                try { callback.onFailure(message) } catch (e: Exception) {}
+            }
+        }
+    }
+
     private fun checkTool(name: String, callback: IBuildCallback): String? {
         callback.onLog("Verifying tool: $name...")
         val path = ToolManager.getToolPath(this, name)
@@ -262,6 +308,7 @@ class BuildService : Service() {
 
     private fun downloadDependencies(projectPath: String, callback: IBuildCallback) {
         cancelBuild()
+        val wrappedCallback = wrapCallback(callback)
         buildJob = serviceScope.launch(Dispatchers.IO) {
             try {
                 android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
@@ -273,7 +320,7 @@ class BuildService : Service() {
 
                 val projectDir = File(projectPath)
                 if (!projectDir.exists()) {
-                    callback.onFailure("Project directory not found: $projectPath")
+                    wrappedCallback.onFailure("Project directory not found: $projectPath")
                     return@launch
                 }
                 val localRepoDir = File(filesDir, "local-repo").apply { mkdirs() }
@@ -281,29 +328,29 @@ class BuildService : Service() {
                 val type = ProjectAnalyzer.detectProjectType(projectDir)
 
                 if (type == ProjectType.ANDROID) {
-                    val resolver = HttpDependencyResolver(projectDir, File(projectDir, "dependencies.toml"), localRepoDir, callback)
+                    val resolver = HttpDependencyResolver(projectDir, File(projectDir, "dependencies.toml"), localRepoDir, wrappedCallback)
                     val resolverResult = resolver.execute()
                     if (resolverResult.success && isActive) {
-                        callback.onLog("\n[IDE] Dependencies downloaded successfully.")
+                        wrappedCallback.onLog("\n[IDE] Dependencies downloaded successfully.")
                         updateNotification("Dependencies downloaded.")
                     } else if (isActive) {
-                        callback.onFailure("Dependency resolution failed: ${resolverResult.output}")
+                        wrappedCallback.onFailure("Dependency resolution failed: ${resolverResult.output}")
                     }
                 } else if (type == ProjectType.WEB) {
                     if (File(projectDir, "package.json").exists()) {
-                        callback.onLog("\n[IDE] 'package.json' detected. 'npm install' is not currently supported on device.")
+                        wrappedCallback.onLog("\n[IDE] 'package.json' detected. 'npm install' is not currently supported on device.")
                     } else {
-                        callback.onLog("\n[IDE] No dependency file detected for Web project.")
+                        wrappedCallback.onLog("\n[IDE] No dependency file detected for Web project.")
                     }
                     updateNotification("Download finished (Web).")
                 } else {
-                    callback.onLog("\n[IDE] Dependency download not supported for $type projects.")
+                    wrappedCallback.onLog("\n[IDE] Dependency download not supported for $type projects.")
                     updateNotification("Download finished ($type).")
                 }
             } catch (e: Throwable) {
                 Log.e(TAG, "Download dependencies failed", e)
                 if (isActive) {
-                    callback.onFailure("[IDE] Failed: ${e.message}")
+                    wrappedCallback.onFailure("[IDE] Failed: ${e.message}")
                 }
             }
         }
@@ -311,6 +358,7 @@ class BuildService : Service() {
 
     private fun startBuild(projectPath: String, callback: IBuildCallback) {
         cancelBuild()
+        val wrappedCallback = wrapCallback(callback)
         buildJob = serviceScope.launch(Dispatchers.IO) {
             try {
                 android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
@@ -328,7 +376,7 @@ class BuildService : Service() {
 
                 // --- REMOTE BUILD CHECK ---
                 if (!localBuildEnabled && type != ProjectType.WEB) {
-                    startRemoteBuild(projectPath, callback)
+                    startRemoteBuild(projectPath, wrappedCallback)
                     return@launch
                 }
 
@@ -342,21 +390,21 @@ class BuildService : Service() {
                 if (type == ProjectType.WEB) {
                     val outputDir = File(filesDir, "web_dist")
                     val step = WebBuildStep(projectDir, outputDir)
-                    val result = step.execute(callback)
+                    val result = step.execute(wrappedCallback)
                     if (result.success && isActive) {
                         val indexHtml = File(outputDir, "index.html")
-                        callback.onSuccess(indexHtml.absolutePath)
+                        wrappedCallback.onSuccess(indexHtml.absolutePath)
                     } else if (isActive) {
-                        callback.onFailure(result.output)
+                        wrappedCallback.onFailure(result.output)
                     }
                     return@launch
                 }
 
                 // --- ANDROID BUILD ---
-                val resolver = HttpDependencyResolver(projectDir, File(projectDir, "dependencies.toml"), localRepoDir, callback)
+                val resolver = HttpDependencyResolver(projectDir, File(projectDir, "dependencies.toml"), localRepoDir, wrappedCallback)
                 val resolverResult = resolver.execute()
                 if (!resolverResult.success && isActive) {
-                    callback.onFailure("Dependency resolution failed: ${resolverResult.output}")
+                    wrappedCallback.onFailure("Dependency resolution failed: ${resolverResult.output}")
                     return@launch
                 }
 
@@ -364,30 +412,30 @@ class BuildService : Service() {
 
                 // --- TOOL VERIFICATION ---
                 if (!ToolManager.areToolsInstalled(this@BuildService)) {
-                    callback.onFailure("Local build tools not installed. Please enable them in Settings.")
+                    wrappedCallback.onFailure("Local build tools not installed. Please enable them in Settings.")
                     return@launch
                 }
 
-                callback.onLog("\n--- Toolchain Verification ---")
-                val aapt2Path = checkTool("aapt2", callback)
-                val kotlincJarPath = checkTool("kotlin-compiler.jar", callback)
-                val d8Path = checkTool("d8.jar", callback)
-                val apkSignerPath = checkTool("apksigner.jar", callback)
-                val androidJarPath = checkTool("android.jar", callback)
-                val javaBinaryPath = checkTool("java", callback)
+                wrappedCallback.onLog("\n--- Toolchain Verification ---")
+                val aapt2Path = checkTool("aapt2", wrappedCallback)
+                val kotlincJarPath = checkTool("kotlin-compiler.jar", wrappedCallback)
+                val d8Path = checkTool("d8.jar", wrappedCallback)
+                val apkSignerPath = checkTool("apksigner.jar", wrappedCallback)
+                val androidJarPath = checkTool("android.jar", wrappedCallback)
+                val javaBinaryPath = checkTool("java", wrappedCallback)
 
                 val customKsPath = prefs.getString(SettingsViewModel.KEY_KEYSTORE_PATH, null)
                 val keystorePath = if (customKsPath != null && File(customKsPath).exists()) {
-                    callback.onLog("Using Custom Keystore: $customKsPath")
+                    wrappedCallback.onLog("Using Custom Keystore: $customKsPath")
                     customKsPath
                 } else {
-                    checkTool("debug.keystore", callback)
+                    checkTool("debug.keystore", wrappedCallback)
                 }
 
                 val ksPass = prefs.getString(SettingsViewModel.KEY_KEYSTORE_PASS, "android") ?: "android"
                 val keyAlias = prefs.getString(SettingsViewModel.KEY_KEY_ALIAS, "androiddebugkey") ?: "androiddebugkey"
 
-                callback.onLog("------------------------------\n")
+                wrappedCallback.onLog("------------------------------\n")
 
                 val missingTools = mutableListOf<String>()
                 if (aapt2Path == null) missingTools.add("aapt2")
@@ -401,7 +449,7 @@ class BuildService : Service() {
                 if (missingTools.isNotEmpty() && isActive) {
                     val errorMsg = "Build failed: One or more tools not found: ${missingTools.joinToString(", ")}"
                     Log.e(TAG, errorMsg)
-                    callback.onFailure(errorMsg)
+                    wrappedCallback.onFailure(errorMsg)
                     return@launch
                 }
 
@@ -409,9 +457,9 @@ class BuildService : Service() {
 
                 // --- PRE-PROCESSING ---
                 val processAars = ProcessAars(resolver.resolvedArtifacts, buildDir, aapt2Path!!)
-                val aarResult = processAars.execute(callback)
+                val aarResult = processAars.execute(wrappedCallback)
                 if (!aarResult.success && isActive) {
-                    callback.onFailure(aarResult.output)
+                    wrappedCallback.onFailure(aarResult.output)
                     return@launch
                 }
 
@@ -447,17 +495,17 @@ class BuildService : Service() {
                     )
                 )
 
-                val result = buildOrchestrator.execute(callback)
+                val result = buildOrchestrator.execute(wrappedCallback)
                 if (result.success && isActive) {
-                    callback.onSuccess(File(buildDir, "app-signed.apk").absolutePath)
+                    wrappedCallback.onSuccess(File(buildDir, "app-signed.apk").absolutePath)
                     ApkInstaller.installApk(this@BuildService, File(buildDir, "app-signed.apk").absolutePath)
                 } else if (isActive) {
-                    callback.onFailure(result.output)
+                    wrappedCallback.onFailure(result.output)
                 }
             } catch (e: Throwable) {
                 Log.e(TAG, "Build service crashed", e)
                 if (isActive) {
-                    callback.onFailure("[IDE] Failed with internal error: ${e.message}\n${e.stackTraceToString()}")
+                    wrappedCallback.onFailure("[IDE] Failed with internal error: ${e.message}\n${e.stackTraceToString()}")
                 }
             }
         }
