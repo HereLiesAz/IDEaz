@@ -1,0 +1,65 @@
+# Screen Definitions
+
+## 1. The Overlay ("Invisible Screen")
+*   **Role:** The primary interface for "Post-Code" development.
+*   **Implementation:** `UIInspectionService` (Accessibility Service) + `IdeazOverlayService`.
+*   **Context:** Visible *only* over the target application.
+*   **Modes:**
+    *   **Interact:** Pass-through to target app.
+    *   **Select:** Blocks interaction to allow Element Tap or Rect Drag selection.
+*   **Components:**
+    *   **Selection Highlight:** Visual border around selected nodes or drawn rects (managed by `UIInspectionService`).
+    *   **Contextual Chat:** Inline chat display + input anchored to the selection (managed by `IdeazOverlayService`).
+    *   **Update Popup:** "Updating, gimme a sec" toast/dialog.
+
+## 2. Main Host Screen (`MainScreen.kt`)
+*   **Role:** The container for the IDE management UI (Docked Mode).
+*   **Components:**
+    *   `IdeNavRail`: Navigation bar (Project, Git, Settings).
+    *   `IdeBottomSheet`: The Global Console.
+    *   `LiveOutputBottomCard`: Floating status indicator.
+
+## 3. The Global Console (`IdeBottomSheet`)
+*   **Role:** Visibility into background processes.
+*   **States:**
+    *   **Hidden:** User is interacting with the app.
+    *   **Peek:** Shows status summary.
+    *   **Expanded:** Shows full logs.
+*   **Content Modes:**
+    *   **Git Terminal:** Output from `GitManager` operations.
+    *   **Build Log:** Live stream from `BuildService`.
+    *   **AI Log:** Real-time activity stream from Jules/Gemini.
+    *   **Debug Chat:** Contextless AI prompt input.
+
+## 4. Project Screen (`ProjectScreen.kt`)
+*   **Role:** Entry point.
+*   **Tabs:**
+    *   **Load:** Select existing local project. **Includes "Add External Project" / "Grant Storage Permission" button below the list.** -> **Transitions to Setup Tab.**
+    *   **Clone:** Search/Clone from GitHub.
+    *   **Create:** Generate from template.
+    *   **Setup:** **INITIALIZATION happens here.**
+        *   Displays Sessions.
+        *   "Save & Initialize" button triggers workflow injection and first build.
+
+## 5. Git Screen (`GitScreen.kt`)
+*   **Role:** Version control management.
+*   **Features:**
+    *   Branch Tree View.
+    *   Commit History.
+    *   Stash/Unstash controls.
+    *   Force Update Init Files (Menu option).
+
+## 6. Settings Screen (`SettingsScreen.kt`)
+*   **Role:** Configuration.
+*   **Visuals:** **Opaque Background** (Transparency is not allowed here).
+*   **Sections:**
+    1.  **Build Configuration:** (Local vs Cloud builds).
+    2.  **Saved Settings & Credentials:** Export/Import encrypted settings.
+    3.  **Signing Configuration:** Keystore management.
+    4.  **API Keys:** Jules, GitHub, AI Studio.
+    5.  **Permissions:** System permission status/requests.
+    6.  **Preferences/Theme/Logs/Updates/Debug.**
+
+## 7. Web Runtime (Embedded in `MainScreen.kt`)
+*   **Role:** Host for Web projects.
+*   **Component:** `WebProjectHost` (WebView) integrated directly into `MainScreen` as the bottom layer.
