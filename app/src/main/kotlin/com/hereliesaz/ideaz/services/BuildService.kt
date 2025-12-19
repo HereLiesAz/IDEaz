@@ -36,6 +36,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.ArrayDeque
+import kotlin.coroutines.coroutineContext
 
 /**
  * A foreground [Service] that orchestrates the build process in a separate process (`:build_process`).
@@ -357,7 +358,6 @@ class BuildService : Service() {
                 val androidJarPath = checkTool("android.jar", callback)
                 val javaBinaryPath = checkTool("java", callback)
 
-                val prefs = PreferenceManager.getDefaultSharedPreferences(this@BuildService)
                 val customKsPath = prefs.getString(SettingsViewModel.KEY_KEYSTORE_PATH, null)
                 val keystorePath = if (customKsPath != null && File(customKsPath).exists()) {
                     callback.onLog("Using Custom Keystore: $customKsPath")
@@ -496,7 +496,7 @@ class BuildService : Service() {
         var runId: Long? = null
         var attempts = 0
 
-        while (runId == null && attempts < 20 && isActive) {
+        while (runId == null && attempts < 20 && coroutineContext.isActive) {
             try {
                 val runs = api.listWorkflowRuns(user, repo, headSha = headSha)
                 val run = runs.workflowRuns.firstOrNull()
@@ -522,7 +522,7 @@ class BuildService : Service() {
         var status = "queued"
         var conclusion: String? = null
 
-        while ((status == "queued" || status == "in_progress") && isActive) {
+        while ((status == "queued" || status == "in_progress") && coroutineContext.isActive) {
             kotlinx.coroutines.delay(5000)
             try {
                 val runs = api.listWorkflowRuns(user, repo, headSha = headSha)
@@ -538,7 +538,7 @@ class BuildService : Service() {
             }
         }
 
-        if (!isActive) return
+        if (!coroutineContext.isActive) return
 
         if (conclusion != "success") {
             callback.onLog("Build finished with status: $conclusion\n")
