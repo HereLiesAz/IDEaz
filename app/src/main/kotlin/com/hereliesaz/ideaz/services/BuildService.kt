@@ -169,8 +169,8 @@ class BuildService : Service() {
             "Prompt",
             replyPendingIntent
         )
-        .addRemoteInput(remoteInput)
-        .build()
+            .addRemoteInput(remoteInput)
+            .build()
 
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setContentTitle("IDEaz IDE")
@@ -271,15 +271,15 @@ class BuildService : Service() {
                         callback.onFailure("Dependency resolution failed: ${resolverResult.output}")
                     }
                 } else if (type == ProjectType.WEB) {
-                     if (File(projectDir, "package.json").exists()) {
-                         callback.onLog("\n[IDE] 'package.json' detected. 'npm install' is not currently supported on device.")
-                     } else {
-                         callback.onLog("\n[IDE] No dependency file detected for Web project.")
-                     }
-                     updateNotification("Download finished (Web).")
+                    if (File(projectDir, "package.json").exists()) {
+                        callback.onLog("\n[IDE] 'package.json' detected. 'npm install' is not currently supported on device.")
+                    } else {
+                        callback.onLog("\n[IDE] No dependency file detected for Web project.")
+                    }
+                    updateNotification("Download finished (Web).")
                 } else {
-                     callback.onLog("\n[IDE] Dependency download not supported for $type projects.")
-                     updateNotification("Download finished ($type).")
+                    callback.onLog("\n[IDE] Dependency download not supported for $type projects.")
+                    updateNotification("Download finished ($type).")
                 }
             } catch (e: Throwable) {
                 Log.e(TAG, "Download dependencies failed", e)
@@ -301,26 +301,28 @@ class BuildService : Service() {
                 }
                 updateNotification("Starting build...")
 
+                val projectDir = File(projectPath)
+                val type = ProjectAnalyzer.detectProjectType(projectDir)
+
                 val prefs = PreferenceManager.getDefaultSharedPreferences(this@BuildService)
                 val localBuildEnabled = prefs.getBoolean(SettingsViewModel.KEY_ENABLE_LOCAL_BUILDS, false)
 
                 // --- REMOTE BUILD CHECK ---
-                if (!localBuildEnabled) {
-                     startRemoteBuild(projectPath, callback)
-                     return@launch
+                // Force remote build only if local build is disabled AND it is NOT a Web project.
+                // Web projects are always built locally.
+                if (!localBuildEnabled && type != ProjectType.WEB) {
+                    startRemoteBuild(projectPath, callback)
+                    return@launch
                 }
 
-                val projectDir = File(projectPath)
                 val buildDir = File(projectDir, "build").apply { mkdirs() }
                 val cacheDir = File(filesDir, "cache").apply { mkdirs() }
                 val localRepoDir = File(filesDir, "local-repo").apply { mkdirs() }
 
-                val type = ProjectAnalyzer.detectProjectType(projectDir)
                 val packageName = ProjectAnalyzer.detectPackageName(projectDir)
 
                 // --- WEB BUILD ---
                 if (type == ProjectType.WEB) {
-                    // ... (existing web build logic)
                     val outputDir = File(filesDir, "web_dist")
                     val step = WebBuildStep(projectDir, outputDir)
                     val result = step.execute(callback)
@@ -465,8 +467,8 @@ class BuildService : Service() {
         val repo = projectDir.name
 
         if (token.isNullOrBlank() || user.isNullOrBlank()) {
-             callback.onFailure("GitHub token or user not set. Please configure in settings.")
-             return
+            callback.onFailure("GitHub token or user not set. Please configure in settings.")
+            return
         }
 
         var headSha: String? = null
@@ -522,8 +524,8 @@ class BuildService : Service() {
         }
 
         if (runId == null) {
-             callback.onFailure("Workflow run not found for commit $headSha. Check GitHub Actions.")
-             return
+            callback.onFailure("Workflow run not found for commit $headSha. Check GitHub Actions.")
+            return
         }
 
         var status = "queued"
@@ -541,7 +543,7 @@ class BuildService : Service() {
                     if (status == "completed") break
                 }
             } catch (e: Exception) {
-                 // Ignore
+                // Ignore
             }
         }
 
@@ -553,15 +555,15 @@ class BuildService : Service() {
                 val jobs = api.getRunJobs(user, repo, runId)
                 val failedJob = jobs.jobs.find { it.conclusion == "failure" }
                 if (failedJob != null) {
-                     val logResp = api.getJobLogs(user, repo, failedJob.id)
-                     if (logResp.isSuccessful) {
-                         val logText = logResp.body()?.string() ?: "No log content"
-                         callback.onFailure("Remote Build Failed:\n$logText")
-                     } else {
-                         callback.onFailure("Remote Build Failed. Could not retrieve logs.")
-                     }
+                    val logResp = api.getJobLogs(user, repo, failedJob.id)
+                    if (logResp.isSuccessful) {
+                        val logText = logResp.body()?.string() ?: "No log content"
+                        callback.onFailure("Remote Build Failed:\n$logText")
+                    } else {
+                        callback.onFailure("Remote Build Failed. Could not retrieve logs.")
+                    }
                 } else {
-                     callback.onFailure("Remote Build Failed (Unknown reason).")
+                    callback.onFailure("Remote Build Failed (Unknown reason).")
                 }
             } catch (e: Exception) {
                 CrashHandler.report(this, e)
@@ -579,7 +581,7 @@ class BuildService : Service() {
             val apkArtifact = artifactsResp.artifacts.find { it.name.contains("debug") && it.name.endsWith("apk") }
                 ?: artifactsResp.artifacts.find { it.name.endsWith(".apk") }
                 ?: artifactsResp.artifacts.find { it.name == "app-debug" } // GitHub often names artifact without extension in UI but zip has it
-                // Actually GitHub artifacts are downloaded as zip. The name in API is just a name.
+            // Actually GitHub artifacts are downloaded as zip. The name in API is just a name.
 
             if (apkArtifact == null) {
                 callback.onFailure("No APK artifact found in build.")
@@ -619,12 +621,12 @@ class BuildService : Service() {
                 // Find apk
                 val apkFile = destDir.walkTopDown().find { it.name.endsWith(".apk") }
                 if (apkFile != null) {
-                     callback.onLog("Installing APK: ${apkFile.name}\n")
-                     updateNotification("Installing...")
-                     ApkInstaller.installApk(this, apkFile.absolutePath)
-                     callback.onSuccess(apkFile.absolutePath)
+                    callback.onLog("Installing APK: ${apkFile.name}\n")
+                    updateNotification("Installing...")
+                    ApkInstaller.installApk(this, apkFile.absolutePath)
+                    callback.onSuccess(apkFile.absolutePath)
                 } else {
-                     callback.onFailure("APK file not found in artifact zip.")
+                    callback.onFailure("APK file not found in artifact zip.")
                 }
 
             } else {
