@@ -105,11 +105,11 @@ configurations.all {
     resolutionStrategy {
         eachDependency {
             if (requested.group == "commons-logging" && requested.name == "commons-logging") {
+                // Use a non-conflicting SLF4J bridge
                 useTarget("org.slf4j:jcl-over-slf4j:1.7.30")
                 because("Avoids duplicate classes with jcl-over-slf4j")
             }
         }
-        force(libs.jna)
     }
 }
 
@@ -200,5 +200,6 @@ dependencies {
 
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.lazysodium.android)
+    implementation(libs.jna)
     implementation(libs.hiddenapibypass)
 }
