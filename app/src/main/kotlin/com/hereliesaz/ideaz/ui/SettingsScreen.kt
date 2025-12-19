@@ -1,231 +1,1011 @@
 package com.hereliesaz.ideaz.ui
 
+import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.Settings
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Switch
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
-import com.hereliesaz.ideaz.BuildConfig
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.hereliesaz.aznavrail.AzButton
+import com.hereliesaz.aznavrail.AzTextBox
+import com.hereliesaz.aznavrail.model.AzButtonShape
+import androidx.compose.foundation.background
+import com.hereliesaz.ideaz.utils.ToolManager
+import com.hereliesaz.ideaz.utils.isAccessibilityServiceEnabled
+import java.io.File
+import android.app.AppOpsManager
+
+private const val TAG = "SettingsScreen"
+
+@Composable
+fun SettingsScreen(
+    viewModel: MainViewModel,
+    settingsViewModel: SettingsViewModel,
+    onThemeToggle: (Boolean) -> Unit
+) {
+    Log.d(TAG, "SettingsScreen: Composing")
+
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    val settingsVersion by settingsViewModel.settingsVersion.collectAsState()
+    val appVersion = remember { settingsViewModel.getAppVersion() }
+    val updateVersion by viewModel.updateVersion.collectAsState()
+
+    var apiKey by remember(settingsVersion) { mutableStateOf(settingsViewModel.getApiKey() ?: "") }
+    var googleApiKey by remember(settingsVersion) { mutableStateOf(settingsViewModel.getGoogleApiKey() ?: "") }
+    var githubToken by remember(settingsVersion) { mutableStateOf(settingsViewModel.getGithubToken() ?: "") }
+    var julesProjectId by remember(settingsVersion) { mutableStateOf(settingsViewModel.getJulesProjectId() ?: "") }
+
+    var showCancelWarning by remember(settingsVersion) {
+        mutableStateOf(settingsViewModel.getShowCancelWarning())
+    }
+
+    var autoReportBugs by remember(settingsVersion) {
+        mutableStateOf(settingsViewModel.getAutoReportBugs())
+    }
+
+    var autoDebugBuilds by remember(settingsVersion) {
+        mutableStateOf(settingsViewModel.isAutoDebugBuildsEnabled())
+    }
+
+    var reportIdeErrors by remember(settingsVersion) {
+        mutableStateOf(settingsViewModel.isReportIdeErrorsEnabled())
+    }
+
+    // Local Build State
+    var isLocalBuildEnabled by remember(settingsVersion) {
+        mutableStateOf(settingsViewModel.isLocalBuildEnabled())
+    }
+    var showDownloadToolsDialog by remember { mutableStateOf(false) }
+    var showDeleteToolsDialog by remember { mutableStateOf(false) }
+
+    // --- NEW: Signing State ---
+    var keystorePath by remember(settingsVersion) { mutableStateOf(settingsViewModel.getKeystorePath() ?: "Default (debug.keystore)") }
+    var keystorePass by remember(settingsVersion) { mutableStateOf(settingsViewModel.getKeystorePass()) }
+    var keyAlias by remember(settingsVersion) { mutableStateOf(settingsViewModel.getKeyAlias()) }
+    var keyPass by remember(settingsVersion) { mutableStateOf(settingsViewModel.getKeyPass()) }
+
+    // --- Export/Import State (Encrypted) ---
+    var showExportPasswordDialog by remember { mutableStateOf(false) }
+    var showImportPasswordDialog by remember { mutableStateOf(false) }
+    var exportUri by remember { mutableStateOf<Uri?>(null) }
+    var importUri by remember { mutableStateOf<Uri?>(null) }
+
+
+    val keystorePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val newPath = settingsViewModel.importKeystore(context, uri)
+            if (newPath != null) {
+                keystorePath = newPath
+                Toast.makeText(context, "Keystore imported", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val exportSettingsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri: Uri? ->
+        if (uri != null) {
+            exportUri = uri
+            showExportPasswordDialog = true
+        }
+    }
+
+    val importSettingsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            importUri = uri
+            showImportPasswordDialog = true
+        }
+    }
+
+    // --- END NEW ---
+
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+
+    var refreshTrigger by remember { mutableStateOf(0) } // Force recomposition
+
+    // Refresh permissions on resume
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                refreshTrigger++
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            Log.d(TAG, "Notification permission granted: $isGranted")
+            refreshTrigger++
+        }
+    )
+
+    val overlayPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+        onResult = {
+            Log.d(TAG, "Returned from overlay settings")
+            refreshTrigger++
+        }
+    )
+
+    val installPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+        onResult = {
+            Log.d(TAG, "Returned from install settings")
+            refreshTrigger++
+        }
+    )
+
+    val accessibilitySettingsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+        onResult = {
+            Log.d(TAG, "Returned from accessibility settings")
+            refreshTrigger++
+        }
+    )
+
+    // --- Dialogs ---
+
+    if (showExportPasswordDialog) {
+        PasswordDialog(
+            title = "Set Password for Export",
+            confirmText = "Export",
+            onDismiss = { showExportPasswordDialog = false },
+            onConfirm = { password ->
+                showExportPasswordDialog = false
+                exportUri?.let { uri ->
+                    settingsViewModel.exportSettings(context, uri, password)
+                }
+            }
+        )
+    }
+
+    if (showImportPasswordDialog) {
+        PasswordDialog(
+            title = "Enter Password to Import",
+            confirmText = "Import",
+            onDismiss = { showImportPasswordDialog = false },
+            onConfirm = { password ->
+                showImportPasswordDialog = false
+                importUri?.let { uri ->
+                    settingsViewModel.importSettings(context, uri, password)
+                    // Refresh fields from viewModel state if needed, though flows should update UI automatically.
+                }
+            }
+        )
+    }
+
+    if (showDownloadToolsDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showDownloadToolsDialog = false
+                // Revert toggle if cancelled
+                isLocalBuildEnabled = false
+            },
+            title = { Text("Download Build Tools?") },
+            text = { Text("Local compilation requires additional tools (~100MB). Download them now?") },
+            confirmButton = {
+                AzButton(onClick = {
+                    showDownloadToolsDialog = false
+                    viewModel.downloadBuildTools()
+                    settingsViewModel.setLocalBuildEnabled(true)
+                    isLocalBuildEnabled = true
+                }, text = "Download")
+            },
+            dismissButton = {
+                AzButton(onClick = {
+                    showDownloadToolsDialog = false
+                    isLocalBuildEnabled = false
+                }, text = "Cancel", shape = AzButtonShape.NONE)
+            }
+        )
+    }
+
+    if (showDeleteToolsDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteToolsDialog = false },
+            title = { Text("Delete Build Tools?") },
+            text = { Text("You disabled local builds. Do you want to delete the build tools to free up space?") },
+            confirmButton = {
+                AzButton(onClick = {
+                    ToolManager.deleteTools(context)
+                    showDeleteToolsDialog = false
+                    settingsViewModel.setLocalBuildEnabled(false)
+                    isLocalBuildEnabled = false
+                    Toast.makeText(context, "Tools deleted.", Toast.LENGTH_SHORT).show()
+                }, text = "Delete")
+            },
+            dismissButton = {
+                AzButton(onClick = {
+                    showDeleteToolsDialog = false
+                    settingsViewModel.setLocalBuildEnabled(false)
+                    isLocalBuildEnabled = false
+                }, text = "Keep", shape = AzButtonShape.NONE)
+            }
+        )
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    top = 32.dp,
+                    bottom = 32.dp
+                )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = "IDEaz $appVersion",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                // --- BUILD CONFIGURATION ---
+                Text("Build Configuration", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Enable Local Builds (Experimental)",
+                        modifier = Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Switch(
+                        checked = isLocalBuildEnabled,
+                        onCheckedChange = { enabled ->
+                            if (enabled) {
+                                // Check if tools exist
+                                if (!ToolManager.areToolsInstalled(context)) {
+                                    showDownloadToolsDialog = true
+                                    // Toggle waits for confirmation
+                                } else {
+                                    isLocalBuildEnabled = true
+                                    settingsViewModel.setLocalBuildEnabled(true)
+                                }
+                            } else {
+                                // Disable
+                                showDeleteToolsDialog = true
+                                // Toggle waits for confirmation/dismiss of dialog
+                            }
+                        }
+                    )
+                }
+                Text(
+                    text = "Requires downloading extension (~100MB). If disabled, the app relies solely on GitHub Actions for builds.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // --- Saved Settings and Credentials ---
+                Text("Saved Settings and Credentials", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Save all API keys, passwords, and settings to an encrypted file.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    AzButton(
+                        onClick = { exportSettingsLauncher.launch("ideaz_settings.enc") },
+                        text = "Save Settings",
+                        shape = AzButtonShape.RECTANGLE,
+                        modifier = Modifier.weight(1f).padding(end = 8.dp)
+                    )
+
+                    AzButton(
+                        onClick = { importSettingsLauncher.launch(arrayOf("application/octet-stream")) },
+                        text = "Load Settings",
+                        shape = AzButtonShape.RECTANGLE,
+                        modifier = Modifier.weight(1f).padding(start = 8.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // --- NEW: Signing Config Section ---
+                Text("Signing Configuration", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text("Current Keystore: ${File(keystorePath).name}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                AzButton(
+                    onClick = { keystorePickerLauncher.launch("*/*") },
+                    text = "Select Custom Keystore",
+                    shape = AzButtonShape.RECTANGLE,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+                AzTextBox(
+                    value = keystorePass,
+                    onValueChange = { keystorePass = it },
+                    hint = "Keystore Password",
+                    secret = true,
+                    onSubmit = { settingsViewModel.saveSigningCredentials(keystorePass, keyAlias, keyPass) }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                AzTextBox(
+                    value = keyAlias,
+                    onValueChange = { keyAlias = it },
+                    hint = "Key Alias",
+                    onSubmit = { settingsViewModel.saveSigningCredentials(keystorePass, keyAlias, keyPass) }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                AzTextBox(
+                    value = keyPass,
+                    onValueChange = { keyPass = it },
+                    hint = "Key Password",
+                    secret = true,
+                    onSubmit = {
+                        settingsViewModel.saveSigningCredentials(keystorePass, keyAlias, keyPass)
+                        Toast.makeText(context, "Signing config saved", Toast.LENGTH_SHORT).show()
+                    },
+                    submitButtonContent = { Text("Save") }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                AzButton(
+                    onClick = {
+                        settingsViewModel.clearSigningConfig()
+                        keystorePath = "Default (debug.keystore)"
+                        keystorePass = "android"
+                        keyAlias = "androiddebugkey"
+                        keyPass = "android"
+                        Toast.makeText(context, "Reset to default debug keystore", Toast.LENGTH_SHORT).show()
+                    },
+                    text = "Reset to Default",
+                    shape = AzButtonShape.NONE,
+                    modifier = Modifier.align(Alignment.End)
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Text(
+                    "API Keys",
+                    color = MaterialTheme.colorScheme.onBackground,
+                    style = MaterialTheme.typography.titleLarge
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+
+                    Text("Jules API Key", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
+                }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    AzTextBox(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = apiKey,
+                        onValueChange = { apiKey = it },
+                        hint = "Jules API Key",
+                        secret = true,
+                        onSubmit = {
+                            settingsViewModel.saveApiKey(apiKey)
+                            Toast.makeText(context, "Jules Key Saved", Toast.LENGTH_SHORT).show()
+                        },
+                        submitButtonContent = { Text("Save") }
+                    )
+                }
+                Row(Modifier.width(60.dp), verticalAlignment = Alignment.CenterVertically) {
+                    AzButton(onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://jules.google.com/settings"))
+                        context.startActivity(intent)
+                    }, text = "Get Key", shape = AzButtonShape.NONE)
+                }
+
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+
+                    Text("GitHub Personal Access Token", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
+                }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    AzTextBox(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = githubToken,
+                        onValueChange = { githubToken = it },
+                        hint = "GitHub Token",
+                        secret = true,
+                        onSubmit = {
+                            settingsViewModel.saveGithubToken(githubToken)
+                            Toast.makeText(context, "GitHub Token Saved", Toast.LENGTH_SHORT).show()
+                        },
+                        submitButtonContent = { Text("Save") }
+                    )
+                }
+                Row(Modifier.width(60.dp), verticalAlignment = Alignment.CenterVertically) {
+                    AzButton(onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/settings/tokens"))
+                        context.startActivity(intent)
+                    }, text = "Get Key", shape = AzButtonShape.NONE)
+                }
+
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+
+                    Text("AI Studio API Key", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
+                }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    AzTextBox(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = googleApiKey,
+                        onValueChange = { googleApiKey = it },
+                        hint = "AI Studio API Key",
+                        secret = true,
+                        onSubmit = {
+                            settingsViewModel.saveGoogleApiKey(googleApiKey)
+                            Toast.makeText(context, "AI Studio Key Saved", Toast.LENGTH_SHORT).show()
+                        },
+                        submitButtonContent = { Text("Save") }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Google Cloud Project Number", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
+                }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    AzTextBox(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = julesProjectId,
+                        onValueChange = { julesProjectId = it },
+                        hint = "Google Cloud Project Number",
+                        onSubmit = {
+                            settingsViewModel.saveJulesProjectId(julesProjectId)
+                            Toast.makeText(context, "Project Number Saved", Toast.LENGTH_SHORT).show()
+                        },
+                        submitButtonContent = { Text("Save") }
+                    )
+                }
+
+                Row(Modifier.width(60.dp), verticalAlignment = Alignment.CenterVertically) {
+                    AzButton(onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/api-keys"))
+                        context.startActivity(intent)
+                    }, text = "Get Key", shape = AzButtonShape.NONE)
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Text("AI Assignments", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+
+                SettingsViewModel.aiTasks.forEach { (taskKey, taskName) ->
+                    var currentModelId by remember(taskKey) {
+                        mutableStateOf(settingsViewModel.getAiAssignment(taskKey) ?: AiModels.JULES_DEFAULT)
+                    }
+
+                    AiAssignmentDropdown(
+                        label = taskName,
+                        selectedModelId = currentModelId,
+                        onModelSelected = { model ->
+                            currentModelId = model.id
+                            settingsViewModel.saveAiAssignment(taskKey, model.id)
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Text("Permissions", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                val hasOverlay by remember(refreshTrigger) {
+                    mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context) else true)
+                }
+                val hasNotify by remember(refreshTrigger) {
+                    mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED else true)
+                }
+                val hasInstall by remember(refreshTrigger) {
+                    mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.packageManager.canRequestPackageInstalls() else true)
+                }
+                val hasScreenshot by remember(viewModel.hasScreenCapturePermission()) { mutableStateOf(viewModel.hasScreenCapturePermission()) }
+                val hasAccessibility by remember(refreshTrigger) {
+                    mutableStateOf(isAccessibilityServiceEnabled(context, ".services.UIInspectionService"))
+                }
+                val hasStorage by remember(refreshTrigger) {
+                    mutableStateOf(
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Environment.isExternalStorageManager()
+                        else true
+                    )
+                }
+
+
+                PermissionCheckRow(
+                    name = "Draw Over Other Apps",
+                    granted = hasOverlay,
+                    onClick = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:${context.packageName}")
+                            )
+                            overlayPermissionLauncher.launch(intent)
+                        }
+                    }
+                )
+
+                PermissionCheckRow(
+                    name = "Accessibility Service",
+                    granted = hasAccessibility,
+                    onClick = {
+                        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        accessibilitySettingsLauncher.launch(intent)
+                    }
+                )
+
+                PermissionCheckRow(
+                    name = "Post Notifications",
+                    granted = hasNotify,
+                    onClick = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    }
+                )
+
+                PermissionCheckRow(
+                    name = "Install Unknown Apps",
+                    granted = hasInstall,
+                    onClick = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                Uri.parse("package:${context.packageName}")
+                            )
+                            installPermissionLauncher.launch(intent)
+                        }
+                    }
+                )
+
+                PermissionCheckRow(
+                    name = "Screen Capture",
+                    granted = hasScreenshot,
+                    onClick = {
+                        if (!hasScreenshot) {
+                            viewModel.requestScreenCapturePermission()
+                        } else {
+                            Toast.makeText(context, "Permission already granted", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+
+                PermissionCheckRow(
+                    name = "Manage All Files (Storage)",
+                    granted = hasStorage,
+                    onClick = {
+                        if (!hasStorage) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                try {
+                                    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                                    intent.addCategory("android.intent.category.DEFAULT")
+                                    intent.data = Uri.parse("package:${context.packageName}")
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                                    context.startActivity(intent)
+                                }
+                            }
+                        } else {
+                            Toast.makeText(context, "Permission already granted", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+
+
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Text("Preferences", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = showCancelWarning,
+                        onCheckedChange = {
+                            showCancelWarning = it
+                            settingsViewModel.setShowCancelWarning(it)
+                        }
+                    )
+                    Text("Show warning when cancelling AI task", color = MaterialTheme.colorScheme.onBackground)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = autoReportBugs,
+                        onCheckedChange = {
+                            autoReportBugs = it
+                            settingsViewModel.setAutoReportBugs(it)
+                        }
+                    )
+                    Text("Auto-report IDE internal errors to GitHub", color = MaterialTheme.colorScheme.onBackground)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = autoDebugBuilds,
+                        onCheckedChange = {
+                            autoDebugBuilds = it
+                            settingsViewModel.setAutoDebugBuildsEnabled(it)
+                        }
+                    )
+                    Text("Auto-debug build failures with Jules", color = MaterialTheme.colorScheme.onBackground)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = reportIdeErrors,
+                        onCheckedChange = {
+                            reportIdeErrors = it
+                            settingsViewModel.setReportIdeErrorsEnabled(it)
+                        }
+                    )
+                    Text("Report IDE errors to HereLiesAz/IDEaz (Issues)", color = MaterialTheme.colorScheme.onBackground)
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                ThemeDropdown(
+                    settingsViewModel = settingsViewModel,
+                    onThemeToggle = onThemeToggle
+                )
+
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Text("Log Level", color = MaterialTheme.colorScheme.onBackground)
+                LogLevelDropdown(
+                    settingsViewModel = settingsViewModel
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Text("Updates", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                val updateStatus by viewModel.updateStatus.collectAsState()
+                val showUpdateWarning by viewModel.showUpdateWarning.collectAsState()
+                val updateMessage by viewModel.updateMessage.collectAsState()
+
+                if (updateStatus != null) {
+                    AlertDialog(
+                        onDismissRequest = { },
+                        title = { Text("Updating") },
+                        text = {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator()
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(updateStatus!!)
+                            }
+                        },
+                        confirmButton = {}
+                    )
+                }
+
+                if (showUpdateWarning) {
+                    AlertDialog(
+                        onDismissRequest = { viewModel.dismissUpdateWarning() },
+                        title = { Text("Update Ready") },
+                        text = { Text(updateMessage ?: "An update is available. Install?") },
+                        confirmButton = {
+                            AzButton(onClick = { viewModel.confirmUpdate() }, text = "Install")
+                        },
+                        dismissButton = {
+                            AzButton(onClick = { viewModel.dismissUpdateWarning() }, text = "Cancel", shape = AzButtonShape.NONE)
+                        }
+                    )
+                }
+
+                AzButton(
+                    onClick = { viewModel.checkForExperimentalUpdates() },
+                    text = "Check for Experimental Updates",
+                    shape = AzButtonShape.RECTANGLE,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+                Text("Debug", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(16.dp))
+                AzButton(
+                    onClick = {
+                        viewModel.clearBuildCaches(context)
+                        Toast.makeText(context, "Build caches cleared", Toast.LENGTH_SHORT).show()
+                    },
+                    text = "Clear Build Caches",
+                    shape = AzButtonShape.RECTANGLE,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun PermissionCheckRow(
+    name: String,
+    granted: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = name,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        if (granted) {
+            Icon(Icons.Default.Check, contentDescription = "Granted", tint = Color.Green)
+        } else {
+            Icon(Icons.Default.Close, contentDescription = "Not Granted", tint = MaterialTheme.colorScheme.error)
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(
-    viewModel: SettingsViewModel,
-    onBack: () -> Unit
+fun AiAssignmentDropdown(
+    label: String,
+    selectedModelId: String,
+    onModelSelected: (AiModel) -> Unit
 ) {
-    val context = LocalContext.current
-    val scrollState = rememberScrollState()
+    var isExpanded by remember { mutableStateOf(false) }
+    val selectedModel = AiModels.findById(selectedModelId) ?: AiModels.JULES
 
-    // State initialization
-    var apiKey by remember { mutableStateOf(viewModel.getApiKey() ?: "") }
-    var githubToken by remember { mutableStateOf(viewModel.getGithubToken() ?: "") }
-    var githubUser by remember { mutableStateOf(viewModel.getGithubUser() ?: "") }
-    var appName by remember { mutableStateOf(viewModel.getAppName() ?: "") }
-    var googleApiKey by remember { mutableStateOf(viewModel.getGoogleApiKey() ?: "") }
-    var julesProjectId by remember { mutableStateOf(viewModel.getJulesProjectId() ?: "") }
-
-    var showCancelWarning by remember { mutableStateOf(viewModel.getShowCancelWarning()) }
-    var autoReportBugs by remember { mutableStateOf(viewModel.getAutoReportBugs()) }
-    var autoDebugBuilds by remember { mutableStateOf(viewModel.isAutoDebugBuildsEnabled()) }
-    var reportIdeErrors by remember { mutableStateOf(viewModel.isReportIdeErrorsEnabled()) }
-    var localBuildEnabled by remember { mutableStateOf(viewModel.isLocalBuildEnabled()) }
-
-    var keystorePath by remember { mutableStateOf(viewModel.getKeystorePath() ?: "") }
-    var keystorePass by remember { mutableStateOf(viewModel.getKeystorePass() ?: "") }
-    var keyAlias by remember { mutableStateOf(viewModel.getKeyAlias() ?: "") }
-    var keyPass by remember { mutableStateOf(viewModel.getKeyPass() ?: "") }
-
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        uri?.let {
-            try {
-                // Fixed: Pass required params. For password we use default or ask (simplifying here)
-                viewModel.exportSettings(context, it, "default")
-                Toast.makeText(context, "Settings Exported", Toast.LENGTH_SHORT).show()
-            } catch (e: Exception) {
-                Toast.makeText(context, "Export Failed: ${e.message}", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let {
-            try {
-                // Fixed: Pass required params
-                viewModel.importSettings(context, it, "default")
-                Toast.makeText(context, "Settings Imported", Toast.LENGTH_SHORT).show()
-                // Refresh local state logic would go here
-            } catch (e: Exception) {
-                Toast.makeText(context, "Import Failed: ${e.message}", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Settings") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        Column(
+    ExposedDropdownMenuBox(
+        expanded = isExpanded,
+        onExpandedChange = { isExpanded = it }
+    ) {
+        TextField(
+            value = selectedModel.displayName,
+            onValueChange = { },
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) },
+            colors = ExposedDropdownMenuDefaults.textFieldColors(),
             modifier = Modifier
-                .padding(padding)
-                .padding(16.dp)
-                .verticalScroll(scrollState),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .fillMaxWidth()
+                .menuAnchor()
+        )
+
+        ExposedDropdownMenu(
+            expanded = isExpanded,
+            onDismissRequest = { isExpanded = false }
         ) {
-
-            Text("Project Config", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-
-            OutlinedTextField(
-                value = githubUser,
-                onValueChange = {
-                    githubUser = it
-                    viewModel.setGithubUser(it)
-                },
-                label = { Text("GitHub Username") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            OutlinedTextField(
-                value = appName,
-                onValueChange = {
-                    appName = it
-                    viewModel.setAppName(it)
-                },
-                label = { Text("App Name / Repo") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            OutlinedTextField(
-                value = githubToken,
-                onValueChange = {
-                    githubToken = it
-                    viewModel.saveGithubToken(it)
-                },
-                label = { Text("GitHub Token") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Text("AI Configuration", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-
-            OutlinedTextField(
-                value = apiKey,
-                onValueChange = {
-                    apiKey = it
-                    viewModel.saveApiKey(it)
-                },
-                label = { Text("Jules API Key") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            OutlinedTextField(
-                value = googleApiKey,
-                onValueChange = {
-                    googleApiKey = it
-                    viewModel.saveGoogleApiKey(it)
-                },
-                label = { Text("Google API Key") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Text("Behavior", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = showCancelWarning, onCheckedChange = {
-                    showCancelWarning = it
-                    viewModel.setShowCancelWarning(it)
-                })
-                Text("Show Warning on Cancel")
+            AiModels.availableModels.forEach { model ->
+                DropdownMenuItem(
+                    text = { Text(model.displayName) },
+                    onClick = {
+                        onModelSelected(model)
+                        isExpanded = false
+                    }
+                )
             }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = autoReportBugs, onCheckedChange = {
-                    autoReportBugs = it
-                    viewModel.setAutoReportBugs(it)
-                })
-                Text("Auto Report Bugs")
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = localBuildEnabled, onCheckedChange = {
-                    localBuildEnabled = it
-                    viewModel.setLocalBuildEnabled(it)
-                })
-                Text("Enable Local Build (Experimental)")
-            }
-
-            Text("Signing Configuration", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-
-            OutlinedTextField(
-                value = keystorePath,
-                onValueChange = { keystorePath = it },
-                label = { Text("Keystore Path") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            OutlinedTextField(
-                value = keystorePass,
-                onValueChange = { keystorePass = it },
-                label = { Text("Keystore Password") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            OutlinedTextField(
-                value = keyAlias,
-                onValueChange = { keyAlias = it },
-                label = { Text("Key Alias") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = {
-                    // Fixed: removed extra path arg, only saving credentials here
-                    viewModel.saveSigningCredentials(keystorePass, keyAlias, keyPass)
-                    Toast.makeText(context, "Signing Config Saved", Toast.LENGTH_SHORT).show()
-                }) {
-                    Text("Save Config")
-                }
-
-                OutlinedButton(onClick = {
-                    viewModel.clearSigningConfig()
-                    keystorePath = ""
-                    keystorePass = ""
-                    keyAlias = ""
-                    keyPass = ""
-                }) {
-                    Text("Clear")
-                }
-            }
-
-            Text("Data Management", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { exportLauncher.launch("ideaz_settings.json") }) {
-                    Text("Export Settings")
-                }
-                Button(onClick = { importLauncher.launch(arrayOf("application/json")) }) {
-                    Text("Import Settings")
-                }
-            }
-
-            Divider()
-            Text("IDEaz v${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall)
         }
     }
+}
+
+@OptIn( ExperimentalMaterial3Api::class)
+@Composable
+fun LogLevelDropdown(
+    settingsViewModel: SettingsViewModel
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    var selectedLevel by remember { mutableStateOf(settingsViewModel.getLogLevel()) }
+
+    val levelOptions = mapOf(
+        SettingsViewModel.LOG_LEVEL_INFO to "Info",
+        SettingsViewModel.LOG_LEVEL_DEBUG to "Debug",
+        SettingsViewModel.LOG_LEVEL_VERBOSE to "Verbose"
+    )
+
+    ExposedDropdownMenuBox(
+        expanded = isExpanded,
+        onExpandedChange = { isExpanded = it }
+    ) {
+        TextField(
+            value = levelOptions[selectedLevel] ?: "Info",
+            onValueChange = { },
+            readOnly = true,
+            label = { Text("Log Level") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) },
+            colors = ExposedDropdownMenuDefaults.textFieldColors(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor()
+        )
+
+        ExposedDropdownMenu(
+            expanded = isExpanded,
+            onDismissRequest = { isExpanded = false }
+        ) {
+            levelOptions.forEach { (key, value) ->
+                DropdownMenuItem(
+                    text = { Text(value) },
+                    onClick = {
+                        selectedLevel = key
+                        settingsViewModel.setLogLevel(key)
+                        isExpanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ThemeDropdown(
+    settingsViewModel: SettingsViewModel,
+    onThemeToggle: (Boolean) -> Unit
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    var selectedMode by remember { mutableStateOf(settingsViewModel.getThemeMode()) }
+
+    val themeOptions = mapOf(
+        SettingsViewModel.THEME_AUTO to "Automatic",
+        SettingsViewModel.THEME_DARK to "Dark Mode",
+        SettingsViewModel.THEME_LIGHT to "Light Mode",
+        SettingsViewModel.THEME_SYSTEM to "Match System"
+    )
+
+    ExposedDropdownMenuBox(
+        expanded = isExpanded,
+        onExpandedChange = { isExpanded = it }
+    ) {
+        TextField(
+            value = themeOptions[selectedMode] ?: "Automatic",
+            onValueChange = { },
+            readOnly = true,
+            label = { Text("Theme") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) },
+            colors = ExposedDropdownMenuDefaults.textFieldColors(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor()
+        )
+
+        ExposedDropdownMenu(
+            expanded = isExpanded,
+            onDismissRequest = { isExpanded = false }
+        ) {
+            themeOptions.forEach { (key, value) ->
+                DropdownMenuItem(
+                    text = { Text(value) },
+                    onClick = {
+                        selectedMode = key
+                        settingsViewModel.setThemeMode(key)
+                        onThemeToggle(true)
+                        isExpanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun PasswordDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+    title: String,
+    confirmText: String
+) {
+    var password by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            AzTextBox(
+                value = password,
+                onValueChange = { password = it },
+                hint = "Enter Password",
+                secret = true,
+                onSubmit = { onConfirm(password) }
+            )
+        },
+        confirmButton = {
+            AzButton(onClick = { onConfirm(password) }, text = confirmText)
+        },
+        dismissButton = {
+            AzButton(onClick = onDismiss, text = "Cancel", shape = AzButtonShape.NONE)
+        }
+    )
 }

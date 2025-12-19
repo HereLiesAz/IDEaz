@@ -25,7 +25,7 @@ import com.hereliesaz.aznavrail.AzButton
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.ideaz.ui.project.ProjectCloneTab
 import com.hereliesaz.ideaz.ui.project.ProjectLoadTab
-import com.hereliesaz.ideaz.ui.project.SetupTab
+import com.hereliesaz.ideaz.ui.project.ProjectSetupTab
 import com.hereliesaz.ideaz.utils.isAccessibilityServiceEnabled
 import android.os.Build
 import android.provider.Settings
@@ -200,7 +200,19 @@ fun ProjectScreen(
         }
 
         when (currentTabName) {
-            "Setup" -> SetupTab(viewModel)
+            "Setup" -> ProjectSetupTab(
+                viewModel,
+                settingsViewModel,
+                context,
+                onBuildTriggered,
+                onCheckRequirements = { checkLoadRequirements() },
+                isCreateMode = isCreateMode,
+                onCreateModeChanged = { isCreateMode = it },
+                onNavigateToTab = { tabName ->
+                    val idx = tabs.indexOf(tabName)
+                    if (idx != -1) tabIndex = idx
+                }
+            )
             "Clone" -> ProjectCloneTab(
                 viewModel,
                 settingsViewModel,

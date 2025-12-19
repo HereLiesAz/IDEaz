@@ -81,7 +81,7 @@ fun LibrariesScreen(
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text(
-                                text = "${dep.group}:${dep.artifact}",
+                                text = "${dep.group}:${dep.name}",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -92,6 +92,11 @@ fun LibrariesScreen(
                                 Text(
                                     text = "Version: ${dep.version}",
                                     style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    text = "Alias: ${dep.alias}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }

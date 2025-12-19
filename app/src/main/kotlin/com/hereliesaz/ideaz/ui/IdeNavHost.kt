@@ -30,16 +30,20 @@ fun IdeNavHost(
 
     NavHost(
         navController = navController,
-        startDestination = "project_settings",
+        startDestination = "initial_placeholder",
         modifier = modifier
     ) {
+        composable("initial_placeholder") {
+            Box(modifier = Modifier.fillMaxSize().background(Color.Transparent))
+        }
         composable("main") {
             Box(modifier = Modifier.fillMaxSize().background(Color.Transparent))
         }
         composable("settings") {
             SettingsScreen(
-                viewModel = settingsViewModel,
-                onBack = { navController.popBackStack() }
+                viewModel = viewModel,
+                settingsViewModel = settingsViewModel,
+                onThemeToggle = onThemeToggle
             )
         }
         composable("project_settings") {
