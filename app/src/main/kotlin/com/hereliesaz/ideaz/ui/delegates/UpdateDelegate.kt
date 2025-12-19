@@ -5,6 +5,7 @@ import com.hereliesaz.ideaz.BuildConfig
 import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.utils.ApkInstaller
+import com.hereliesaz.ideaz.utils.VersionUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,7 +16,6 @@ import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
-import kotlin.math.max
 
 /**
  * Manages application self-updates by checking GitHub Releases.
@@ -70,22 +70,36 @@ class UpdateDelegate(
                 // Hardcoded to the official repo for IDEaz updates
                 val releases = service.getReleases("HereLiesAz", "IDEaz")
 
-                // We check for general debug builds
+                // User requirement: Look for the latest pre-release debug build.
+                // The release tag (e.g., "latest-debug-v1.5") might contain multiple APKs with different versions.
+                // We must find the latest APK version within that release.
+
                 val update = releases.firstOrNull {
-                    it.tagName.startsWith("latest-debug-")
-                }
+                    it.prerelease && it.tagName.startsWith("latest-debug-")
+                } ?: releases.firstOrNull { it.tagName.startsWith("latest-debug-") }
 
                 if (update != null) {
                     _updateVersion.value = update.tagName
-                    val asset = update.assets.firstOrNull { it.name.endsWith(".apk") }
-                    pendingUpdateAssetUrl = asset?.browserDownloadUrl
+
+                    // Find the APK asset with the highest version by parsing filename
+                    val validAssets = update.assets.filter {
+                        it.name.endsWith(".apk") && it.name.contains("debug") && VersionUtils.extractVersionFromFilename(it.name) != null
+                    }
+
+                    val bestAsset = validAssets.sortedWith { a1, a2 ->
+                        val v1 = VersionUtils.extractVersionFromFilename(a1.name) ?: "0"
+                        val v2 = VersionUtils.extractVersionFromFilename(a2.name) ?: "0"
+                        VersionUtils.compareVersions(v1, v2)
+                    }.lastOrNull()
+
+                    pendingUpdateAssetUrl = bestAsset?.browserDownloadUrl
 
                     if (pendingUpdateAssetUrl != null) {
-                        val remoteVersion = Regex("IDEaz-(.*)-debug\\.apk").find(asset!!.name)?.groupValues?.get(1)
+                        val remoteVersion = VersionUtils.extractVersionFromFilename(bestAsset!!.name)
                         val localVersion = BuildConfig.VERSION_NAME
 
                         if (remoteVersion != null) {
-                            val diff = compareVersions(remoteVersion, localVersion)
+                            val diff = VersionUtils.compareVersions(remoteVersion, localVersion)
                             if (diff > 0) {
                                 _updateMessage.value = "New version $remoteVersion is available (Current: $localVersion). Install?"
                             } else if (diff < 0) {
@@ -98,7 +112,7 @@ class UpdateDelegate(
                         }
                         _showUpdateWarning.value = true
                     } else {
-                        onOverlayLog("Update found but no APK asset.")
+                        onOverlayLog("Update found but no valid debug APK asset.")
                     }
                 } else {
                     onOverlayLog("No updates found.")
@@ -164,15 +178,4 @@ class UpdateDelegate(
         }
     }
 
-    private fun compareVersions(v1: String, v2: String): Int {
-        val parts1 = v1.split(".").map { it.toIntOrNull() ?: 0 }
-        val parts2 = v2.split(".").map { it.toIntOrNull() ?: 0 }
-        val length = maxOf(parts1.size, parts2.size)
-        for (i in 0 until length) {
-            val p1 = parts1.getOrElse(i) { 0 }
-            val p2 = parts2.getOrElse(i) { 0 }
-            if (p1 != p2) return p1 - p2
-        }
-        return 0
-    }
 }
