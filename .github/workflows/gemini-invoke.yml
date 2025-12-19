@@ -20,7 +20,7 @@ jobs:
   invoke:
     runs-on: 'ubuntu-latest'
     permissions:
-      contents: 'read'
+      contents: 'write'
       id-token: 'write'
       issues: 'write'
       pull-requests: 'write'
@@ -33,9 +33,15 @@ jobs:
         with:
           app-id: '${{ vars.APP_ID }}'
           private-key: '${{ secrets.APP_PRIVATE_KEY }}'
-          permission-contents: 'read'
+          permission-contents: 'write'
           permission-issues: 'write'
           permission-pull-requests: 'write'
+
+      - name: 'Checkout repository'
+        uses: 'actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8' # ratchet:actions/checkout@v5
+        with:
+          token: '${{ steps.mint_identity_token.outputs.token || secrets.GITHUB_TOKEN || github.token }}'
+          fetch-depth: 0
 
       - name: 'Run Gemini CLI'
         id: 'run_gemini'
@@ -102,7 +108,10 @@ jobs:
                     "get_file_contents",
                     "list_commits",
                     "push_files",
-                    "search_code"
+                    "search_code",
+                    "add_comment_to_pending_review",
+                    "create_pending_pull_request_review",
+                    "submit_pending_pull_request_review"
                   ],
                   "env": {
                     "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
@@ -115,7 +124,10 @@ jobs:
                   "run_shell_command(echo)",
                   "run_shell_command(grep)",
                   "run_shell_command(head)",
-                  "run_shell_command(tail)"
+                  "run_shell_command(tail)",
+                  "run_shell_command(git)",
+                  "run_shell_command(gh)",
+                  "run_shell_command(ls)"
                 ]
               }
             }
