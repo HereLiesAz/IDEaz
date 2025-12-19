@@ -21,6 +21,7 @@ class CrashReportingServiceTest {
 
         val intent = Intent().apply {
             putExtra(CrashReportingService.EXTRA_API_KEY, "test_api_key")
+            putExtra(CrashReportingService.EXTRA_JULES_PROJECT_ID, "test_project_id")
             putExtra(CrashReportingService.EXTRA_STACK_TRACE, "Exception: Boom")
             putExtra(CrashReportingService.EXTRA_GITHUB_USER, "TestUser")
         }
