@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -101,6 +102,35 @@ data class GitHubArtifact(
     @SerialName("size_in_bytes") val sizeInBytes: Long,
     val expired: Boolean
 )
+
+@Serializable
+data class GitHubWorkflowRunsResponse(
+    @SerialName("total_count") val totalCount: Int,
+    @SerialName("workflow_runs") val workflowRuns: List<GitHubWorkflowRun>
+)
+
+@Serializable
+data class GitHubWorkflowRun(
+    val id: Long,
+    val name: String,
+    @SerialName("head_sha") val headSha: String,
+    val status: String, // queued, in_progress, completed
+    val conclusion: String?, // success, failure, cancelled, etc.
+    @SerialName("html_url") val htmlUrl: String
+)
+
+@Serializable
+data class GitHubJobsResponse(
+    val jobs: List<GitHubJob>
+)
+
+@Serializable
+data class GitHubJob(
+    val id: Long,
+    val name: String,
+    val status: String,
+    val conclusion: String?
+)
 // --- End Release & Artifact Data Classes ---
 
 // --- NEW: Issue Data Classes ---
@@ -194,6 +224,35 @@ interface GitHubApi {
         @Path("owner") owner: String,
         @Path("repo") repo: String
     ): GitHubArtifactsResponse
+
+    @retrofit2.http.GET("repos/{owner}/{repo}/actions/runs")
+    suspend fun listWorkflowRuns(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @retrofit2.http.Query("head_sha") headSha: String? = null,
+        @retrofit2.http.Query("per_page") perPage: Int = 1
+    ): GitHubWorkflowRunsResponse
+
+    @retrofit2.http.GET("repos/{owner}/{repo}/actions/runs/{run_id}/artifacts")
+    suspend fun getRunArtifacts(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("run_id") runId: Long
+    ): GitHubArtifactsResponse
+
+    @retrofit2.http.GET("repos/{owner}/{repo}/actions/runs/{run_id}/jobs")
+    suspend fun getRunJobs(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("run_id") runId: Long
+    ): GitHubJobsResponse
+
+    @retrofit2.http.GET("repos/{owner}/{repo}/actions/jobs/{job_id}/logs")
+    suspend fun getJobLogs(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("job_id") jobId: Long
+    ): retrofit2.Response<ResponseBody>
 
     @retrofit2.http.GET("user/repos?sort=updated&per_page=100")
     suspend fun listRepos(): List<GitHubRepoResponse>

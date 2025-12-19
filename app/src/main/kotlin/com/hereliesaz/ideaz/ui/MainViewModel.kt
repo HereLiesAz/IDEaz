@@ -643,15 +643,26 @@ class MainViewModel(
 
     private fun launchPackage(c: Context, pkg: String): Boolean {
         return try {
-            val intent = c.packageManager.getLaunchIntentForPackage(pkg)
-            if (intent != null) {
-                c.startActivity(intent)
-                true
-            } else {
+            val intent = Intent(c, com.hereliesaz.ideaz.features.preview.ContainerActivity::class.java).apply {
+                putExtra("TARGET_PACKAGE", pkg)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            c.startActivity(intent)
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Fallback to normal launch
+            try {
+                val intent = c.packageManager.getLaunchIntentForPackage(pkg)
+                if (intent != null) {
+                    c.startActivity(intent)
+                    true
+                } else {
+                    false
+                }
+            } catch (ex: Exception) {
                 false
             }
-        } catch (e: Exception) {
-            false
         }
     }
 
