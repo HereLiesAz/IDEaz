@@ -6,13 +6,17 @@ import android.util.Log
 import com.hereliesaz.ideaz.api.CreateRepoRequest
 import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.api.GitHubRepoResponse
+import com.hereliesaz.ideaz.api.GitHubPermissions
+import com.hereliesaz.ideaz.api.Source
 import com.hereliesaz.ideaz.jules.JulesApiClient
 import com.hereliesaz.ideaz.git.GitManager
+import com.hereliesaz.ideaz.jules.JulesApiClient
 import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.ProjectMetadata
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.utils.ProjectConfigManager
 import com.hereliesaz.ideaz.utils.ProjectInitializer
+import com.hereliesaz.ideaz.utils.RepoMapper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,12 +55,28 @@ class RepoDelegate(
     val ownedRepos = _ownedRepos.asStateFlow()
 
     /**
-     * Fetches the list of repositories from GitHub.
+     * Fetches the list of repositories from GitHub or Jules API.
+     * Prefers Jules API if configured.
      */
     fun fetchGitHubRepos() {
         scope.launch {
             onLoadingProgress(0)
             try {
+                val julesProjectId = settingsViewModel.getJulesProjectId()
+
+                if (!julesProjectId.isNullOrBlank()) {
+                     // Use Jules API
+                     try {
+                         val response = JulesApiClient.listSources(julesProjectId)
+                         val mappedRepos = response.sources?.mapNotNull { RepoMapper.mapSourceToRepoResponse(it) } ?: emptyList()
+                         _ownedRepos.value = mappedRepos
+                         return@launch
+                     } catch (e: Exception) {
+                         onOverlayLog("Jules API Error: ${e.message}. Falling back to GitHub.")
+                     }
+                }
+
+                // Fallback to GitHub API
                 val token = settingsViewModel.getGithubToken()
                 if (token.isNullOrBlank()) {
                     onOverlayLog("Error: No GitHub Token found.")

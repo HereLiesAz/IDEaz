@@ -53,7 +53,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 
 ## Phase 4: AI Integration & Workflow
 - [ ] **4.1: Jules Integration**
-    - [x] `JulesApiClient`.
+    - [x] `JulesApiClient` (Implemented with Sources endpoint support).
     - [ ] **4.1.1: Session Management:** Create/Delete/Resume sessions.
     - [ ] **4.1.2: Polling:** Implement infinite polling for *activities* (not just patch).
 - [x] **4.2: Workflow Injection (Initialization)**
