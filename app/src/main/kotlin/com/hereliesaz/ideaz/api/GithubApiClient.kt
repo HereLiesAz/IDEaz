@@ -272,6 +272,7 @@ object GitHubApiClient {
 
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
+            redactHeader("Authorization")
         }
 
         val client = OkHttpClient.Builder()
