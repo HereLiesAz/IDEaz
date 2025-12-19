@@ -152,12 +152,6 @@ jobs:
           
           echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
           echo "APK_FILE=$TARGET_NAME" >> $GITHUB_ENV
-          
-          # Package Build Tools (Optional)
-          mkdir -p build_tools_package/tools build_tools_package/native
-          [ -d "app/src/main/assets/tools" ] && cp -r app/src/main/assets/tools/* build_tools_package/tools/ || true
-          [ -d "app/src/main/jniLibs/arm64-v8a" ] && cp -r app/src/main/jniLibs/arm64-v8a/* build_tools_package/native/ || true
-          cd build_tools_package && zip -r ../build-tools.zip . && cd ..
 
       - name: Publish Release
         if: success() && github.event_name == 'push'
@@ -171,8 +165,6 @@ jobs:
           git tag -fa $TAG_NAME -m "Latest Debug Build"
           git push origin $TAG_NAME --force
 
-          BUILD_TOOLS="build-tools.zip"
-
           # Check if release exists
           if gh release view $TAG_NAME > /dev/null 2>&1; then
              echo "Updating existing release..."
@@ -181,12 +173,10 @@ jobs:
                --notes "Auto-build from commit $GITHUB_SHA" \
                --target $GITHUB_SHA
              gh release upload $TAG_NAME "$APK_FILE" --clobber
-             [ -f "$BUILD_TOOLS" ] && gh release upload $TAG_NAME "$BUILD_TOOLS" --clobber
           else
              echo "Creating new release..."
              gh release create $TAG_NAME "$APK_FILE" --prerelease \
                --title "Latest Debug Build ($TAG_NAME)" \
                --notes "Auto-build from commit $GITHUB_SHA" \
                --target $GITHUB_SHA
-             [ -f "$BUILD_TOOLS" ] && gh release upload $TAG_NAME "$BUILD_TOOLS" --clobber
           fi

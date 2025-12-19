@@ -308,8 +308,13 @@ class GitManager(private val projectDir: File) {
      * @param newName The new name for the current branch.
      */
     fun renameCurrentBranch(newName: String) {
-        Git.open(projectDir).use { git ->
-            git.branchRename().setNewName(newName).call()
+        try {
+            if (!isRepo()) return
+            Git.open(projectDir).use { git ->
+                git.branchRename().setNewName(newName).call()
+            }
+        } catch (e: Exception) {
+            // Ignore if branch cannot be renamed (e.g., HEAD detached or invalid state)
         }
     }
 
