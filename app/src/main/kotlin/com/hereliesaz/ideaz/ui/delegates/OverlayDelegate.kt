@@ -5,7 +5,6 @@ import android.app.Application
 import android.content.Intent
 import android.graphics.Rect
 import android.net.Uri
-import com.hereliesaz.ideaz.services.IdeazOverlayService
 import com.hereliesaz.ideaz.models.SourceMapEntry
 import com.hereliesaz.ideaz.services.ScreenshotService
 import com.hereliesaz.ideaz.ui.SettingsViewModel
@@ -20,7 +19,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * Delegate responsible for managing the UI Overlay, Selection Mode, and Screen Capture.
- * Coordinates with `UIInspectionService`, `IdeazOverlayService`, and `ScreenshotService`.
+ * Coordinates with `ScreenshotService`.
  *
  * @param application The Application context.
  * @param settingsViewModel ViewModel to access project path/name.
@@ -69,18 +68,8 @@ class OverlayDelegate(
 
     /**
      * Toggles the selection mode.
-     * Updates state and broadcasts change to synchronize other components (e.g., OverlayService).
      */
     fun toggleSelectMode(enable: Boolean) {
-        if (enable && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(application)) {
-            val intent = Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${application.packageName}")).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            application.startActivity(intent)
-            onOverlayLog("Please grant overlay permission.")
-            return
-        }
-
         setInternalSelectMode(enable)
 
         val broadcastIntent = Intent("com.hereliesaz.ideaz.TOGGLE_SELECT_MODE").apply {
@@ -188,18 +177,6 @@ class OverlayDelegate(
 
         pendingBase64Screenshot = base64
         _isContextualChatVisible.value = true
-
-        // Launch overlay service if not running, or update it
-        if (android.provider.Settings.canDrawOverlays(application)) {
-            val serviceIntent = Intent(application, IdeazOverlayService::class.java)
-            androidx.core.content.ContextCompat.startForegroundService(application, serviceIntent)
-        } else {
-            val intent = Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${application.packageName}")).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            application.startActivity(intent)
-            onOverlayLog("Please grant overlay permission.")
-        }
     }
 
     fun hasScreenCapturePermission() = screenCaptureData != null

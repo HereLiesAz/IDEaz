@@ -39,8 +39,7 @@ const val Z_INDEX_OVERLAY = 200f
 fun MainScreen(
     viewModel: MainViewModel,
     onRequestScreenCapture: () -> Unit,
-    onThemeToggle: (Boolean) -> Unit,
-    onLaunchOverlay: () -> Unit
+    onThemeToggle: (Boolean) -> Unit
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
@@ -103,14 +102,9 @@ fun MainScreen(
                         },
                         handleActionClick = { it() },
                         isIdeVisible = isIdeVisible,
-                        onLaunchOverlay = {
-                            // For Web, "Overlay" just means toggle selection mode or something similar,
-                            // but since we are already IN the "overlay" (simulated), this button might need to behave differently
-                            // or just do nothing/toggle internal state.
+                        onToggleMode = {
                             if (currentWebUrl != null) {
                                 viewModel.toggleSelectMode(!viewModel.isSelectMode.value)
-                            } else {
-                                onLaunchOverlay()
                             }
                         },
                         sheetState = sheetState,
