@@ -72,6 +72,7 @@
 *   `SourceMapParser.kt`: Parses R8 mapping files.
 *   `SourceContextHelper.kt`: Resolves source locations from view IDs.
 *   `ApkInstaller.kt`: Helper to install APKs.
+*   `PermissionUtils.kt`: Helper for checking and requesting storage permissions.
 
 ## docs/
 (See `AGENTS.md` for index)
