@@ -500,6 +500,9 @@ class BuildService : Service() {
             gitObj.close()
 
             callback.onLog("Synced. HEAD: ${headSha?.take(7)}\n")
+        } catch (e: org.eclipse.jgit.errors.RepositoryNotFoundException) {
+            callback.onFailure("Project is not a valid Git repository. Please initialize it or clone a remote one.")
+            return
         } catch (e: Exception) {
             CrashHandler.report(this, e)
             callback.onFailure("Git Sync failed: ${e.message}")
