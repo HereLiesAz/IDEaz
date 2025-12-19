@@ -16,7 +16,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [ ] **1.3: "Race to Build" Logic**
     - [x] **1.3.1: Artifact Detection:** Implement logic to compare Installed SHA vs Remote Release SHA vs Repo Head SHA. (Implemented manual check for updates in `MainViewModel`).
     - [ ] **1.3.2: Remote Polling:** Implement loop to check GitHub Releases for new builds.
-    - [ ] **1.3.3: Local Build:** Implement background build thread with lower priority.
+    - [x] **1.3.3: Local Build:** Implement background build thread with lower priority.
     - [ ] **1.3.4: Cancellation:** Implement logic to cancel local build if remote wins (and vice versa).
 
 ## Phase 2: The Build Pipeline ("No-Gradle" on Device)
@@ -66,7 +66,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 ## Phase 5: Production Polish
 - [ ] **5.1: Multi-Platform Support**
     - [x] Web Support (Runtime + Auto-Build/Correct).
-    - [ ] React Native Support (In Progress).
+    - [x] React Native Support (In Progress).
     - [ ] Flutter Support (Planned).
 - [ ] **5.2: Testing**
     - [ ] Unit Tests for all ViewModels.
