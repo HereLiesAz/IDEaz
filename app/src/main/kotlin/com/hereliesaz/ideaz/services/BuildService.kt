@@ -34,6 +34,8 @@ import kotlin.coroutines.coroutineContext
 
 /**
  * A foreground [Service] that orchestrates the build process.
+ * 
+ * Fixed: Notification updates now run strictly on Dispatchers.IO to avoid blocking the Main thread.
  */
 class BuildService : Service() {
     companion object {
@@ -129,10 +131,10 @@ class BuildService : Service() {
             return
         }
 
-        performNotificationUpdate()
+        serviceScope.launch { performNotificationUpdate() }
     }
 
-    private fun performNotificationUpdate() {
+    private suspend fun performNotificationUpdate() = withContext(Dispatchers.IO) {
         lastNotificationUpdate = System.currentTimeMillis()
         val latestLog = synchronized(logBuffer) { logBuffer.lastOrNull() } ?: "Processing..."
         val bigText = synchronized(logBuffer) { logBuffer.joinToString("\n") }

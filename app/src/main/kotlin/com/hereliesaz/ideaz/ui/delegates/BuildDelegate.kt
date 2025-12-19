@@ -13,6 +13,8 @@ import com.hereliesaz.ideaz.services.BuildService
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.utils.SourceMapParser
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -20,15 +22,7 @@ import java.io.File
  * Manages interactions with the background BuildService.
  * Handles binding, unbinding, and invoking build operations via AIDL.
  *
- * @param application The Application context.
- * @param settingsViewModel ViewModel to access project settings.
- * @param scope CoroutineScope for handling callbacks on the main thread.
- * @param onLog Callback for general build logs.
- * @param onOverlayLog Callback for high-priority overlay logs.
- * @param onSourceMapUpdated Callback when a new SourceMap is generated after a successful build.
- * @param onWebBuildFailure Callback to trigger AI assistance on web build failures.
- * @param onWebBuildSuccess Callback when a web build succeeds (to load the WebView).
- * @param gitDelegate Delegate to handle Git operations (e.g., pushing after a web build).
+ * This version implements Log Batching to prevent Main Thread flooding during high-velocity logging.
  */
 class BuildDelegate(
     private val application: Application,
@@ -46,6 +40,28 @@ class BuildDelegate(
     private var isBuildServiceBound = false
     private var isServiceRegistered = false
 
+    // Log Batching
+    private val logChannel = Channel<String>(Channel.UNLIMITED)
+
+    init {
+        // Collect logs in a single coroutine to avoid flood
+        scope.launch {
+            val batch = StringBuilder()
+            var lastUpdate = 0L
+            
+            logChannel.consumeAsFlow().collect { msg ->
+                batch.append(msg).append("\n")
+                val now = System.currentTimeMillis()
+                // Update UI at most every 100ms
+                if (now - lastUpdate > 100) {
+                    onLog(batch.toString())
+                    batch.setLength(0)
+                    lastUpdate = now
+                }
+            }
+        }
+    }
+
     private val buildServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             buildService = IBuildService.Stub.asInterface(service)
@@ -60,10 +76,10 @@ class BuildDelegate(
 
     private val buildCallback = object : IBuildCallback.Stub() {
         override fun onLog(message: String) {
-            scope.launch {
-                onLog("$message\n")
-                buildService?.updateNotification(message)
-            }
+            // Push to channel instead of launching coroutine
+            logChannel.trySend(message)
+            // Update notification remains (handled in service, but we can trigger it)
+            scope.launch { buildService?.updateNotification(message) }
         }
 
         override fun onSuccess(apkPath: String) {
@@ -72,12 +88,10 @@ class BuildDelegate(
 
                 val type = ProjectType.fromString(settingsViewModel.getProjectType())
 
-                // Check if this is a web build
                 if (type == ProjectType.WEB) {
                     onLog("[IDE] Web Project ready. Loading WebView...\n")
                     onWebBuildSuccess(apkPath)
 
-                    // Web Projects: Push to GitHub if enabled to trigger remote build/deploy
                     if (!settingsViewModel.getGithubToken().isNullOrBlank()) {
                          onLog("[IDE] Triggering remote Web Build (Pushing to GitHub)...\n")
                          gitDelegate.push()
@@ -103,10 +117,6 @@ class BuildDelegate(
         }
     }
 
-    /**
-     * Binds the BuildService to the application context.
-     * Ensures the service is started and connected.
-     */
     fun bindService(context: Context) {
         if (isServiceRegistered) return
         val intent = Intent(context, BuildService::class.java)
@@ -114,10 +124,6 @@ class BuildDelegate(
         isServiceRegistered = true
     }
 
-    /**
-     * Unbinds the BuildService.
-     * Should be called when the ViewModel is cleared.
-     */
     fun unbindService(context: Context) {
         if (isServiceRegistered) {
             try {
@@ -128,11 +134,6 @@ class BuildDelegate(
         }
     }
 
-    /**
-     * Initiates a build process.
-     * Checks if local build is enabled and if the service is bound.
-     * @param projectDir Optional specific project directory. Defaults to current project.
-     */
     fun startBuild(projectDir: File? = null) {
         scope.launch {
             val typeStr = settingsViewModel.getProjectType()
@@ -140,15 +141,8 @@ class BuildDelegate(
 
             if (type != ProjectType.WEB && !settingsViewModel.isLocalBuildEnabled()) {
                 onLog("[INFO] Local build disabled. Using GitHub Action (Remote).\n")
-                // Proceed to call buildService, which now handles remote build logic
             }
 
-            if (type == ProjectType.WEB) {
-                onLog("[IDE] Web Project: Pulling latest changes...\n")
-                // In a real scenario, we might await a git pull here
-            }
-
-            // Retry binding logic
             var attempts = 0
             while (!isBuildServiceBound && attempts < 10) {
                 kotlinx.coroutines.delay(500)
@@ -164,9 +158,6 @@ class BuildDelegate(
         }
     }
 
-    /**
-     * Initiates dependency download process via the BuildService.
-     */
     fun downloadDependencies(projectDir: File? = null) {
         scope.launch {
             if (isBuildServiceBound) {

@@ -2,16 +2,16 @@ package com.hereliesaz.ideaz.ui.delegates
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.stateIn
 
 /**
  * Delegate responsible for holding and managing shared UI state.
  * Centralizes state flows for logs, progress, visibility, and navigation.
  */
 class StateDelegate {
+    companion object {
+        private const val MAX_LOG_SIZE = 1000
+    }
+
     private val _loadingProgress = MutableStateFlow<Int?>(null)
     /** Current loading progress (0-100), or null if not loading. */
     val loadingProgress = _loadingProgress.asStateFlow()
@@ -20,9 +20,8 @@ class StateDelegate {
     /** Whether the target application (or WebView) is currently visible. */
     val isTargetAppVisible = _isTargetAppVisible.asStateFlow()
 
-    // Bolt Optimization: Use List<String> to avoid O(N^2) string concatenation
     private val _buildLog = MutableStateFlow<List<String>>(emptyList())
-    /** The main build/system log. */
+    /** The main build/system log. Capped at [MAX_LOG_SIZE] lines. */
     val buildLog = _buildLog.asStateFlow()
 
     private val _pendingRoute = MutableStateFlow<String?>(null)
@@ -33,25 +32,32 @@ class StateDelegate {
     /** The URL currently loaded in the WebView (for Web projects). */
     val currentWebUrl = _currentWebUrl.asStateFlow()
 
-    // Derived
     /** Combined stream of log lines for UI display. */
     val filteredLog = _buildLog.asStateFlow()
 
-    /** Appends a message to the build log. */
+    /** Appends a message to the build log with a size cap. */
     fun appendBuildLog(msg: String) {
-        val lines = msg.split('\n').filter { it.isNotBlank() }
-        if (lines.isNotEmpty()) {
-            _buildLog.value = _buildLog.value + lines
+        val newLines = msg.split('\n').filter { it.isNotBlank() }
+        if (newLines.isNotEmpty()) {
+            updateLog { current ->
+                (current + newLines).takeLast(MAX_LOG_SIZE)
+            }
         }
     }
 
-    /** Appends an AI message to the log (prefixed with [AI]). */
+    /** Appends an AI message to the log (prefixed with [AI]) with a size cap. */
     fun appendAiLog(msg: String) {
-        val lines = msg.split('\n').filter { it.isNotBlank() }
-        if (lines.isNotEmpty()) {
-            val prefixed = lines.map { "[AI] $it" }
-            _buildLog.value = _buildLog.value + prefixed
+        val newLines = msg.split('\n').filter { it.isNotBlank() }
+        if (newLines.isNotEmpty()) {
+            val prefixed = newLines.map { "[AI] $it" }
+            updateLog { current ->
+                (current + prefixed).takeLast(MAX_LOG_SIZE)
+            }
         }
+    }
+
+    private inline fun updateLog(transform: (List<String>) -> List<String>) {
+        _buildLog.value = transform(_buildLog.value)
     }
 
     /** Sets the loading progress. Pass null to hide the indicator. */
