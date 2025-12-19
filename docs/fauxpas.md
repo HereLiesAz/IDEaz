@@ -1,29 +1,30 @@
-# Faux Pas: Anti-Patterns and Mistakes to Avoid
+# Faux Pas (Anti-Patterns)
 
-## 1. Coding & Architecture
-*   **Magic Strings:** Do not use hardcoded strings (e.g., `"filesDir/project"`). Use constants or `ProjectAnalyzer`.
-*   **Main Thread Blocking:** Never perform disk I/O or network calls on the Main thread. Use `Dispatchers.IO`.
-*   **Receiver Type Mismatch:** In Compose, be careful with `this` scope inside `apply` or `with` blocks, especially within `content` lambdas.
-*   **Process Leaks:** Do not assume variables in `MainActivity` are available in `BuildService`. They are separate processes.
-*   **Singleton Abuse:** Be cautious with Singletons that hold state, as the process might die and restart.
+## 1. The "Hidden Error"
+**Bad:** `catch (e: Exception) { Log.e("Tag", "Error") }`
+**Good:** Report the error to the user (`viewModel.updateMessage`) or the collection service (`ErrorCollector`). Silent failures make debugging impossible.
 
-## 2. Build & Tools
-*   **Gradle Reliance:** Do not try to run `./gradlew` *inside* the Android app. It won't work. Use `BuildService`.
-*   **Exit commands:** Do not use `exit` in shell scripts intended for the `run_in_bash_session` tool if it blocks the session.
-*   **Asset Modification:** Do not try to modify assets at runtime. They are read-only.
-*   **Absolute Paths:** Do not hardcode `/data/user/0/...`. Use `context.filesDir`.
+## 2. The "Main Thread IO"
+**Bad:** Reading files or network on the Main Thread.
+**Consequence:** ANR (App Not Responding).
+**Fix:** Use `Dispatchers.IO` or `withContext(Dispatchers.IO)`.
 
-## 3. UI/UX
-*   **Blocking UI:** Do not block the UI while waiting for a build. Show a progress indicator.
-*   **System Permissions:** Do not assume you have permissions. Always check and request.
-*   **Notification Channel:** Do not post notifications without creating a channel first (API 26+).
+## 3. The "Hardcoded Path"
+**Bad:** `File("/sdcard/Download/MyProject")`
+**Consequence:** Permission denied on Android 11+.
+**Fix:** `context.filesDir.resolve("MyProject")`.
 
-## 4. Git & Data
-*   **Force Push:** Avoid `git push --force` on the main branch unless you are absolutely sure.
-*   **Secret Exposure:** Do not commit `local.properties` or files containing keys.
-*   **JGit Closing:** Always close `Git` instances to prevent file handle leaks (`Inflater has been closed` errors).
+## 4. The "Infinite Loop"
+**Bad:** Polling `listActivities` without a delay or exit condition.
+**Consequence:** Battery drain, API quota exhaustion.
+**Fix:** Add `delay(3000)` and a `maxAttempts` counter.
 
-## 5. Agent Behavior
-*   **Hallucination:** Do not invent file paths or library methods.
-*   **Unverified Changes:** Do not mark a task as done without verification.
-*   **Ignoring Errors:** Do not ignore "Command failed" messages. Investigate.
+## 5. The "Context Leak"
+**Bad:** Passing `Activity` context to a Singleton or long-lived ViewModel.
+**Consequence:** Memory leak.
+**Fix:** Use `Application` context or unbind properly in `onCleared()`.
+
+## 6. The "Unverified Commit"
+**Bad:** Committing code without running a build.
+**Consequence:** Broken build for the user.
+**Fix:** Always run `./gradlew :app:assembleDebug`.

@@ -10,8 +10,20 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 
+/**
+ * A Singleton client for interacting with the Jules API.
+ *
+ * This client provides a suspend-function based interface to the Jules REST API, handling:
+ * - Authentication (via [AuthInterceptor]).
+ * - JSON Serialization/Deserialization (via `kotlinx.serialization`).
+ * - Logging (via `HttpLoggingInterceptor`).
+ * - Automatic Retries (via [RetryInterceptor]).
+ *
+ * It wraps the Retrofit interface [JulesApi].
+ */
 object JulesApiClient {
 
+    /** The base URL for the v1alpha Jules API. */
     private const val BASE_URL = "https://jules.googleapis.com/v1alpha/"
 
     private fun getClient(): JulesApi {
