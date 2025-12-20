@@ -89,21 +89,6 @@ fun ProjectLoadTab(
         }
     }
 
-    val apkPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            val intent = Intent(Intent.ACTION_VIEW)
-            intent.setDataAndType(uri, "application/vnd.android.package-archive")
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-            try {
-                context.startActivity(intent)
-            } catch (e: Exception) {
-                Toast.makeText(context, "Could not open APK: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         if (projectMetadataList.isEmpty()) {
             item {
@@ -159,17 +144,6 @@ fun ProjectLoadTab(
                     }
                 },
                 text = "Add External Project",
-                shape = AzButtonShape.RECTANGLE,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-            )
-
-            AzButton(
-                onClick = {
-                    checkAndRequestStoragePermission(context) {
-                        apkPickerLauncher.launch(arrayOf("application/vnd.android.package-archive"))
-                    }
-                },
-                text = "Select APK",
                 shape = AzButtonShape.RECTANGLE,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
             )

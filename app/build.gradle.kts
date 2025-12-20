@@ -202,6 +202,7 @@ dependencies {
     implementation(libs.lazysodium.android) {
         exclude(group = "net.java.dev.jna")
     }
-    implementation(libs.jna)
+    // Force JNA AAR for Android native support
+    implementation("net.java.dev.jna:jna:${libs.versions.jna.get()}@aar")
     implementation(libs.hiddenapibypass)
 }
