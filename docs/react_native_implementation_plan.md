@@ -26,8 +26,9 @@ We cannot run the standard Metro bundler (Node.js) on Android.
     *   **Source Map Injection:** Use Regex to find JSX tags (e.g., `<View`) and inject a `accessibilityLabel` or `testID` attribute containing `__source:line_number__`.
     *   **Boilerplate Wrapping:** Wrap the code in the necessary `AppRegistry.registerComponent` calls if the user code doesn't include them explicitly (or ensure the template includes them).
 
-## 4. Build Step Implementation
-*   **Task:** Implement `ReactNativeBuildStep.kt`.
+## 4. Build Step Implementation (Pending)
+*   **Status:** Not implemented. `SimpleJsBundler` exists but is not called by `BuildService`.
+*   **Task:** Implement `ReactNativeBuildStep.kt` or integrate logic into `BuildService.kt`.
 *   **Workflow:**
     1.  **Setup:** Copy the Android shell from the template to the build directory.
     2.  **Bundle:** Run `SimpleJsBundler` to generate `src/main/assets/index.android.bundle`.
