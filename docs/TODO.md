@@ -63,16 +63,46 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [ ] **4.3.1: User Error:** If build fails (compilation), send log to Jules.
     - [ ] **4.3.2: IDE Error:** If build crashes (exception), report to `HereLiesAz/IDEaz` with label `jules`.
 
-## Phase 5: Production Polish
+## Phase 5: Production Polish & Refinement
 - [ ] **5.1: Multi-Platform Support**
     - [x] Web Support (Runtime + Auto-Build/Correct).
-    - [x] React Native Support (In Progress).
+    - [ ] React Native Support (Partial: Bundler implemented, BuildService integration pending).
     - [ ] Flutter Support (Planned).
 - [ ] **5.2: Testing**
     - [ ] Unit Tests for all ViewModels.
     - [ ] Integration Tests for Build Pipeline.
+- [x] **5.3: Advanced Features**
+    - [x] Incremental Builds.
+    - [x] On-Device Dependency Resolution.
+    - [x] AI Debugger (For user project errors).
+- [x] **5.4: Robust Error Handling**
+    - [x] Auto-Launch: App launches automatically after build/install.
+    - [x] Automated Bug Reporting: Internal IDE errors are reported to GitHub via API.
+    - [x] Toolchain Recovery: Corrupt/Missing assets are auto-repaired.
+    - [x] Build Pipeline Ordering: Fixed execution order (SourceMap last).
 
-## Phase 6: Maintenance
+## Phase 6: Advanced UI/UX (Background Operations)
+- [x] **6.1: Implement Live Output Bottom Card**
+- [x] **6.2: Implement Contextual AI Overlay UI**
+    - [x] Refine interaction: Select/Interact modes, Drag/Tap selection, Inline Chat.
+- [x] **6.3: Implement Persistent Status Notification**
+- [x] **6.4: Implement Android Virtual Environment Host** (Parity with Web workflow)
+
+## Phase 7: Web Support
+- [x] **7.1: Lay Groundwork for Multi-Platform Support**
+- [x] **7.2: Implement Web Design Support**
+- [x] **7.3: Remove Deprecated Platforms (React Native, Flutter)** (Note: React Native implementation is partial but stalled).
+
+## Phase 8: Build System Overhaul Investigation
+- [ ] Investigation into alternative build systems.
+
+## Phase 9: Enhanced Developer Tooling
+- [x] **9.1: Implement Read-Only File Explorer**
+- [x] **9.2: Implement Git Integration Screen**
+- [x] **9.3: Refactor Logging UI**
+- [x] **9.4: Implement Dependencies Screen**
+
+## Phase 10: Maintenance
 - [x] Keep `docs/` up to date.
 - [ ] Monitor GitHub Issues reported by the IDE.
 - [x] Migrate to `androidComponents` API in `build.gradle.kts`.

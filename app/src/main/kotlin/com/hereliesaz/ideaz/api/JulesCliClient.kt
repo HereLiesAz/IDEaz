@@ -6,6 +6,7 @@ import com.hereliesaz.ideaz.utils.ToolManager
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
+@Deprecated("Use JulesApiClient instead. This client relies on a CLI binary that is not functional in this environment.")
 object JulesCliClient {
 
     private const val TAG = "JulesCliClient"
