@@ -100,6 +100,7 @@ class MainViewModel(
             stateDelegate.setCurrentWebUrl("file://$path")
             stateDelegate.setTargetAppVisible(true) // Switch to "App View"
         },
+        { launchTargetApp(application) },
         gitDelegate
     )
 
