@@ -63,11 +63,11 @@ class JulesApiClientTest {
         mockWebServer.enqueue(MockResponse().setBody(mockResponseJson).setResponseCode(200))
 
         // Execute
-        val response = JulesApiClient.listSessions("p1", "l1")
+        val response = JulesApiClient.listSessions()
 
         // Verify Request
         val request = mockWebServer.takeRequest()
-        assertEquals("/projects/p1/locations/l1/sessions?pageSize=100", request.path)
+        assertEquals("/sessions?pageSize=100", request.path)
         assertEquals("TEST_API_KEY", request.getHeader("X-Goog-Api-Key"))
 
         // Verify Response
@@ -96,11 +96,11 @@ class JulesApiClientTest {
             )
         )
 
-        val session = JulesApiClient.createSession("p1", "l1", req)
+        val session = JulesApiClient.createSession(req)
 
         val recordedRequest = mockWebServer.takeRequest()
         assertEquals("POST", recordedRequest.method)
-        assertEquals("/projects/p1/locations/l1/sessions", recordedRequest.path)
+        assertEquals("/sessions", recordedRequest.path)
         assertTrue(recordedRequest.body.readUtf8().contains("create prompt"))
         assertEquals("new_session", session.id)
     }

@@ -1,0 +1,39 @@
+Reusing configuration cache.
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:compileDebugAidl UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugNavigationResources UP-TO-DATE
+> Task :app:compileDebugNavigationResources UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:compileDebugKotlin
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/HttpDependencyResolver.kt:184:42 'var file: File!' is deprecated. Deprecated in Java.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/HttpDependencyResolver.kt:209:25 'constructor(p0: File!): LocalRepository' is deprecated. Deprecated in Java.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/IdeBottomSheet.kt:38:28 'val LocalClipboardManager: ProvidableCompositionLocal<ClipboardManager>' is deprecated. Use LocalClipboard instead which supports suspend functions.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/IdeBottomSheet.kt:123:29 'fun TabRow(selectedTabIndex: Int, modifier: Modifier = ..., containerColor: Color = ..., contentColor: Color = ..., indicator: ComposableFunction1<List<TabPosition>, Unit> = ..., divider: ComposableFunction0<Unit> = ..., tabs: ComposableFunction0<Unit>): Unit' is deprecated. Replaced with PrimaryTabRow and SecondaryTabRow.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/IdeBottomSheet.kt:130:56 'fun Indicator(modifier: Modifier = ..., height: Dp = ..., color: Color = ...): Unit' is deprecated. Use SecondaryIndicator instead.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/IdeBottomSheet.kt:131:65 'fun Modifier.tabIndicatorOffset(currentTabPosition: TabPosition): Modifier' is deprecated. Solely for use alongside deprecated TabRowDefaults.Indicator method. For recommended PrimaryIndicator and SecondaryIndicator methods, please use TabIndicatorScope.tabIndicatorOffset method.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/SettingsScreen.kt:86:26 'val LocalLifecycleOwner: ProvidableCompositionLocal<LifecycleOwner>' is deprecated. Moved to lifecycle-runtime-compose library in androidx.lifecycle.compose package.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/SettingsScreen.kt:928:18 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes ExposedDropdownMenuAnchorType and enabled parameters.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/SettingsScreen.kt:975:18 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes ExposedDropdownMenuAnchorType and enabled parameters.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/SettingsScreen.kt:1025:18 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes ExposedDropdownMenuAnchorType and enabled parameters.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/project/CreateTab.kt:51:41 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes ExposedDropdownMenuAnchorType and enabled parameters.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/project/SetupTab.kt:165:41 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes ExposedDropdownMenuAnchorType and enabled parameters.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/web/WebProjectHost.kt:33:26 'val LocalLifecycleOwner: ProvidableCompositionLocal<LifecycleOwner>' is deprecated. Moved to lifecycle-runtime-compose library in androidx.lifecycle.compose package.
+
+BUILD SUCCESSFUL in 35s
+18 actionable tasks: 1 executed, 17 up-to-date
+Configuration cache entry reused.
