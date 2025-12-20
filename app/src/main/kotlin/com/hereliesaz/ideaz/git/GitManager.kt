@@ -98,6 +98,7 @@ class GitManager(private val projectDir: File) {
      * @param allowEmpty If `true`, allows creating a commit with no changes.
      */
     fun commit(message: String, allowEmpty: Boolean = false) {
+        configureUser()
         Git.open(projectDir).use { git ->
             git.commit().setMessage(message).setAllowEmpty(allowEmpty).call()
         }
@@ -281,6 +282,33 @@ class GitManager(private val projectDir: File) {
             projectDir.mkdirs()
         }
         Git.init().setDirectory(projectDir).call().close()
+        configureUser()
+    }
+
+    private fun configureUser() {
+        try {
+            Git.open(projectDir).use { git ->
+                val config = git.repository.config
+                val userName = config.getString("user", null, "name")
+                val userEmail = config.getString("user", null, "email")
+
+                var changed = false
+                if (userName.isNullOrBlank()) {
+                    config.setString("user", null, "name", "IDEaz User")
+                    changed = true
+                }
+                if (userEmail.isNullOrBlank()) {
+                    config.setString("user", null, "email", "ideaz@localhost")
+                    changed = true
+                }
+
+                if (changed) {
+                    config.save()
+                }
+            }
+        } catch (e: Exception) {
+            // Ignore if we can't set config (e.g. repo not valid yet, though unlikely if called after init/open)
+        }
     }
 
     /**

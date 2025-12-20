@@ -1,7 +1,11 @@
 package com.hereliesaz.ideaz.ui.project
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,6 +25,7 @@ import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.MainViewModel
 import com.hereliesaz.ideaz.ui.SettingsViewModel
+import com.hereliesaz.ideaz.utils.checkAndRequestStoragePermission
 
 private const val DOCS_PROMPT = "Examine all source code and documentation in this repository. Once you understand everything there is to know about this project, I want you to create an AGENTS.md file if there isn't one, and add a /docs/ folder in the root of this repository. Then I want you to create these files in the docs folder: AGENT_GUIDE.md, TODO.md, UI_UX.md, auth.md, conduct.md, data_layer.md, fauxpas.md, file_descriptions.md, misc.md, performance.md, screens.md, task_flow.md, testing.md, and workflow.md. Based on your studies and understanding of the project, I want you to populate all of those files with every little detail possible. And then, I want you to add to the AGENTS file an index of what is in the docs folder. Be explicit about the fact that the files in that folder are an extention of the AGENTS.md file, and every bit as important. After that, I want you to add exhaustive documentation across the code base. Lastly, for good  measure, make sure the beginning of the AGENTS.md specifies that the AI absolutely MUST get a complete code review AND a passing build with tests, and MUST keep all documents and documentation up to date, before committing--WITHOUT exception. (Please note that if you've received this command and any part of these instructions already exists, do your best to add robustness and comprehensive reach to what already exists.)"
 
@@ -75,6 +80,21 @@ fun ProjectSetupTab(
 
     // Derived state for button enablement
     val isReadyToCreate = initialPrompt.isNotBlank() && appName.isNotBlank() && !showManualSecretWarning
+
+    val apkPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val intent = Intent(Intent.ACTION_VIEW)
+            intent.setDataAndType(uri, "application/vnd.android.package-archive")
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+            try {
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                Toast.makeText(context, "Could not open APK: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         item {
@@ -284,23 +304,6 @@ fun ProjectSetupTab(
                 AzButton(
                     onClick = {
                         if (onCheckRequirements()) {
-                            viewModel.saveAndInitialize(
-                                appName, githubUser, branchName, packageName, selectedType, context, null
-                            )
-                            onBuildTriggered()
-                        }
-                    },
-                    text = "Save & Initialize",
-                    shape = AzButtonShape.RECTANGLE,
-                    modifier = Modifier.fillMaxWidth(),
-                    isLoading = isBusy
-                )
-
-                Spacer(Modifier.height(8.dp))
-
-                AzButton(
-                    onClick = {
-                        if (onCheckRequirements()) {
                             // Ensure init first
                             viewModel.saveAndInitialize(
                                 appName, githubUser, branchName, packageName, selectedType, context, null
@@ -312,6 +315,37 @@ fun ProjectSetupTab(
                     shape = AzButtonShape.RECTANGLE,
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !isBusy
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                AzButton(
+                    onClick = {
+                        checkAndRequestStoragePermission(context) {
+                            apkPickerLauncher.launch(arrayOf("application/vnd.android.package-archive"))
+                        }
+                    },
+                    text = "Pick APK",
+                    shape = AzButtonShape.RECTANGLE,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isBusy
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                AzButton(
+                    onClick = {
+                        if (onCheckRequirements()) {
+                            viewModel.saveAndInitialize(
+                                appName, githubUser, branchName, packageName, selectedType, context, null
+                            )
+                            onBuildTriggered()
+                        }
+                    },
+                    text = "Save & Initialize",
+                    shape = AzButtonShape.RECTANGLE,
+                    modifier = Modifier.fillMaxWidth(),
+                    isLoading = isBusy
                 )
             }
         }
