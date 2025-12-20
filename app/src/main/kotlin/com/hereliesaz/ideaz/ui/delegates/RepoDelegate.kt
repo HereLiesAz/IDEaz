@@ -63,7 +63,7 @@ class RepoDelegate(
                 if (!julesProjectId.isNullOrBlank()) {
                      // Use Jules API
                      try {
-                         val response = JulesApiClient.listSources(julesProjectId)
+                         val response = JulesApiClient.listSources()
                          val mappedRepos = response.sources?.mapNotNull { RepoMapper.mapSourceToRepoResponse(it) } ?: emptyList()
                          _ownedRepos.value = mappedRepos
                          return@launch
@@ -84,7 +84,7 @@ class RepoDelegate(
                 var julesSuccess = false
                 if (!projectId.isNullOrBlank()) {
                     try {
-                        val response = JulesApiClient.listSources(projectId)
+                        val response = JulesApiClient.listSources()
                         val julesRepos = response.sources?.mapNotNull { source ->
                             source.githubRepo?.let {
                                 GitHubRepoResponse(
