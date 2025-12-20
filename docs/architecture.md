@@ -1,9 +1,11 @@
 # IDEaz: Architecture
 
 ## 1. The Core Loop
-The IDE is designed as an **Overlay**. It sits on top of the user's running app.
+The IDE is designed to interact with the user's running app.
 
-1.  **User Interacts:** The user uses their app normally.
+1.  **User Interacts:** The user uses their app.
+    *   **Android:** The app runs inside `AndroidProjectHost` (Virtual Display) or as a separate process (Overlay support currently limited).
+    *   **Web:** The app runs inside `WebProjectHost`.
 2.  **User Selects:** The user drags a box over an area they want to change.
 3.  **User Prompts:** The user types "Make this button blue".
 4.  **IDE Acts:**
@@ -22,15 +24,16 @@ The `MainViewModel` was becoming a God Class. It has been refactored into **Dele
 *   **`BuildDelegate`:** Manages the `BuildService` connection and callbacks.
 *   **`GitDelegate`:** Wraps `GitManager` for version control operations.
 *   **`RepoDelegate`:** Handles GitHub API interactions (forking, cloning).
-*   **`OverlayDelegate`:** Manages the `UIInspectionService` and selection logic.
+*   **`OverlayDelegate`:** Manages the visual overlay state and selection logic.
 *   **`SystemEventDelegate`:** Handles broadcast receivers (Package install, etc).
 *   **`UpdateDelegate`:** Checks for IDEaz self-updates.
 *   **`StateDelegate`:** Holds the mutable state variables.
 
 ## 3. The Services
-*   **`IdeazOverlayService`:** The UI Overlay. This is the "Main Window" of the IDE. It extends `AzNavRailOverlayService` (v5.2+) to provide a dynamically sized system alert window that automatically shrinks to wrap the navigation rail when stationary and expands during interactions. It also hosts the Console (Bottom Sheet).
 *   **`BuildService`:** A background (foreground) service that runs Gradle tasks and APK installation. It runs in a separate process to prevent UI freezes.
 *   **`CrashReportingService`:** Catches and reports fatal crashes.
+*   **`IdeazAccessibilityService`:** Intended for UI inspection, but currently a skeleton implementation.
+*   *(Missing/Removed)* **`IdeazOverlayService`:** Previously the main overlay service. Currently removed/missing, leading to broken overlay functionality outside of the main app window.
 
 ## 4. Data Flow
 *   **State:** UI components observe `MainViewModel.state`.

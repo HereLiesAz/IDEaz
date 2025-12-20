@@ -22,7 +22,7 @@
 *   `GeminiApiClient.kt`: Client for Gemini API.
 *   `GithubApiClient.kt`: Client for GitHub API.
 *   `JulesApiClient.kt`: Client for Jules API.
-*   `JulesCliClient.kt`: (Deprecated) Wrapper for the local `jules` CLI binary. Unused.
+*   `JulesCliClient.kt`: (Deprecated/Unused) Wrapper for the local `jules` CLI binary.
 *   `models.kt`: Data classes for API responses.
 
 #### buildlogic/
@@ -35,35 +35,42 @@
 *   `ApkBuild.kt` / `ApkSign.kt`: APK packaging and signing.
 *   `HttpDependencyResolver.kt`: Resolves and downloads Maven dependencies.
 *   `WebBuildStep.kt`: Builds Web projects.
-*   `SimpleJsBundler.kt`: Basic bundler for React Native projects. (Note: Not yet integrated into BuildService).
+*   `SimpleJsBundler.kt`: Basic bundler for React Native projects. (Unused).
 
 #### git/
 *   `GitManager.kt`: Wrapper around JGit for version control operations.
 
 #### services/
 *   `BuildService.kt`: Background service running the build toolchain.
-*   `UIInspectionService.kt`: Accessibility Service for UI inspection and overlay.
-*   `IdeazOverlayService.kt`: Foreground Service for the main visual overlay. Extends `AzNavRailOverlayService`.
+*   `IdeazAccessibilityService.kt`: Skeleton Accessibility Service. (Currently provides no inspection logic).
 *   `ScreenshotService.kt`: Service for capturing screenshots.
+*   `CrashReportingService.kt`: Catches and reports fatal crashes.
 *   `IBuildService.aidl`: IPC interface for the Build Service.
 
 #### ui/
 *   `MainViewModel.kt`: Central logic for the UI, state management, and orchestration.
 *   `SettingsViewModel.kt`: Manages user preferences.
-*   `MainScreen.kt`: The main Compose screen.
-*   `ProjectScreen.kt`: Project management UI (Load/Create).
+*   `MainScreen.kt`: The main Compose screen. Hosts `IdeNavRail` and Project Hosts.
+*   `ProjectScreen.kt`: Project management UI.
 *   `IdeBottomSheet.kt`: The global log and chat console.
 *   `IdeNavRail.kt`: Navigation component.
+*   `GitScreen.kt`: UI for Git operations (History, Branches).
+*   `SettingsScreen.kt`: Application configuration UI.
 
 #### ui/delegates/
 *   `AIDelegate.kt`: Manages AI sessions and Jules interaction.
-*   `BuildDelegate.kt`: Manages BuildService binding and execution.
+*   `BuildDelegate.kt`: Manages the `BuildService` connection and callbacks.
 *   `GitDelegate.kt`: Manages Git operations and state.
-*   `OverlayDelegate.kt`: Manages the visual overlay and selection mode.
+*   `OverlayDelegate.kt`: Manages the visual overlay state and selection logic.
 *   `RepoDelegate.kt`: Manages repository fetching and creation.
 *   `StateDelegate.kt`: Centralizes shared UI state (logs, progress).
 *   `SystemEventDelegate.kt`: Handles BroadcastReceivers for system events.
 *   `UpdateDelegate.kt`: Handles application self-updates.
+
+#### ui/project/
+*   `ProjectLoadTab.kt`, `ProjectCloneTab.kt`, `ProjectSetupTab.kt`: Sub-screens for ProjectScreen.
+*   `AndroidProjectHost.kt`: Embeds the target Android app via VirtualDisplay.
+*   `WebProjectHost.kt`: Embeds Web projects via WebView.
 
 #### utils/
 *   `ToolManager.kt`: Installs and locates native tools (`aapt2`, `java`, etc.).
@@ -73,6 +80,7 @@
 *   `SourceContextHelper.kt`: Resolves source locations from view IDs.
 *   `ApkInstaller.kt`: Helper to install APKs.
 *   `PermissionUtils.kt`: Helper for checking and requesting storage permissions.
+*   `CrashHandler.kt`: Global exception handler.
 
 ## docs/
 (See `AGENTS.md` for index)
