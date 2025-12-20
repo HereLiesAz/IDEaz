@@ -74,11 +74,11 @@ object JulesApiClient {
         return retrofit.create(JulesApi::class.java)
     }
 
-    suspend fun listSessions(projectId: String, location: String = "us-central1", pageSize: Int = 100, pageToken: String? = null) =
-        client.listSessions("projects/$projectId/locations/$location", pageSize, pageToken)
+    suspend fun listSessions(pageSize: Int = 100, pageToken: String? = null) =
+        client.listSessions(pageSize, pageToken)
 
-    suspend fun createSession(projectId: String, location: String = "us-central1", request: CreateSessionRequest): Session =
-        client.createSession("projects/$projectId/locations/$location", request)
+    suspend fun createSession(request: CreateSessionRequest): Session =
+        client.createSession(request)
 
     suspend fun sendMessage(sessionName: String, request: SendMessageRequest) =
         client.sendMessage(sessionName, request)
@@ -86,6 +86,6 @@ object JulesApiClient {
     suspend fun listActivities(sessionName: String, pageSize: Int = 100, pageToken: String? = null) =
         client.listActivities(sessionName, pageSize, pageToken)
 
-    suspend fun listSources(projectId: String, location: String = "us-central1", pageSize: Int = 100, pageToken: String? = null) =
-        client.listSources("projects/$projectId/locations/$location", pageSize, pageToken)
+    suspend fun listSources(pageSize: Int = 100, pageToken: String? = null) =
+        client.listSources(pageSize, pageToken)
 }
