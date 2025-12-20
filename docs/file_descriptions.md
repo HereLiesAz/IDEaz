@@ -22,7 +22,7 @@
 *   `GeminiApiClient.kt`: Client for Gemini API.
 *   `GithubApiClient.kt`: Client for GitHub API.
 *   `JulesApiClient.kt`: Client for Jules API.
-*   `JulesCliClient.kt`: Wrapper for the local `jules` CLI binary.
+*   `JulesCliClient.kt`: (Deprecated) Wrapper for the local `jules` CLI binary. Unused.
 *   `models.kt`: Data classes for API responses.
 
 #### buildlogic/
@@ -35,7 +35,7 @@
 *   `ApkBuild.kt` / `ApkSign.kt`: APK packaging and signing.
 *   `HttpDependencyResolver.kt`: Resolves and downloads Maven dependencies.
 *   `WebBuildStep.kt`: Builds Web projects.
-*   `SimpleJsBundler.kt`: Basic bundler for React Native projects.
+*   `SimpleJsBundler.kt`: Basic bundler for React Native projects. (Note: Not yet integrated into BuildService).
 
 #### git/
 *   `GitManager.kt`: Wrapper around JGit for version control operations.
