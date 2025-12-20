@@ -34,6 +34,7 @@ class BuildDelegate(
     private val onSourceMapUpdated: (Map<String, com.hereliesaz.ideaz.models.SourceMapEntry>) -> Unit,
     private val onBuildFailure: (String) -> Unit,
     private val onWebBuildSuccess: (String) -> Unit,
+    private val onAndroidBuildSuccess: () -> Unit,
     private val gitDelegate: GitDelegate
 ) {
 
@@ -108,6 +109,8 @@ class BuildDelegate(
                         val parser = SourceMapParser(buildDir)
                         onSourceMapUpdated(parser.parse())
                     }
+                    // Automatically switch to App View
+                    onAndroidBuildSuccess()
                 }
             }
         }
