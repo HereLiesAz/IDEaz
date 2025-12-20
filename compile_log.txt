@@ -1,0 +1,60 @@
+Calculating task graph as no cached configuration is available for tasks: :app:compileDebugKotlin
+> Task :app:preBuild UP-TO-DATE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:generateDebugBuildConfig
+> Task :app:generateDebugResValues
+> Task :app:processDebugNavigationResources
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:checkDebugAarMetadata
+> Task :app:compileDebugNavigationResources
+> Task :app:packageDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:compileDebugAidl
+> Task :app:parseDebugLocalResources
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:processDebugManifestForPackage
+> Task :app:mergeDebugResources
+> Task :app:processDebugResources
+> Task :app:compileDebugKotlin
+e: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/jules/JulesApiClient.kt:78:29 Argument type mismatch: actual type is 'String', but 'Int' was expected.
+e: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/jules/JulesApiClient.kt:78:72 Argument type mismatch: actual type is 'Int', but 'String?' was expected.
+e: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/jules/JulesApiClient.kt:78:82 Too many arguments for 'suspend fun listSessions(pageSize: Int = ..., pageToken: String? = ...): ListSessionsResponse'.
+e: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/jules/JulesApiClient.kt:81:30 Argument type mismatch: actual type is 'String', but 'CreateSessionRequest' was expected.
+e: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/jules/JulesApiClient.kt:81:73 Too many arguments for 'suspend fun createSession(request: CreateSessionRequest): Session'.
+e: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/jules/JulesApiClient.kt:90:28 Argument type mismatch: actual type is 'String', but 'Int' was expected.
+e: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/jules/JulesApiClient.kt:90:71 Argument type mismatch: actual type is 'Int', but 'String?' was expected.
+e: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/jules/JulesApiClient.kt:90:81 Too many arguments for 'suspend fun listSources(pageSize: Int = ..., pageToken: String? = ...): ListSourcesResponse'.
+e: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/ProjectScreen.kt:321:21 No parameter with name 'onSelectApk' found.
+e: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/delegates/AIDelegate.kt:75:59 No value passed for parameter 'projectId'.
+e: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/delegates/AIDelegate.kt:155:60 No value passed for parameter 'projectId'.
+
+> Task :app:compileDebugKotlin FAILED
+
+[Incubating] Problems report is available at: file:///app/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to generate a Build Scan (Powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.1.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 1m 7s
+18 actionable tasks: 18 executed
+Configuration cache entry stored.
