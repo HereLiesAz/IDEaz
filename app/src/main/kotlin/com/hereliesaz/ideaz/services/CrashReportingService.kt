@@ -116,7 +116,7 @@ class CrashReportingService : Service() {
                         title = title
                     )
 
-                    val session = JulesApiClient.createSession(projectId, request = createRequest)
+                    val session = JulesApiClient.createSession(request = createRequest)
                     Log.d(TAG, "Session created: ${session.name}")
 
                     // 2. Send Message with Mandatory Instruction
