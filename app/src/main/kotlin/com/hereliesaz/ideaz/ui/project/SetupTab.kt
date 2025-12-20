@@ -34,7 +34,8 @@ fun ProjectSetupTab(
     onCheckRequirements: () -> Boolean,
     isCreateMode: Boolean,
     onCreateModeChanged: (Boolean) -> Unit,
-    onNavigateToTab: (String) -> Unit
+    onNavigateToTab: (String) -> Unit,
+    onSelectApk: () -> Unit = {}
 ) {
     val currentAppNameState by settingsViewModel.currentAppName.collectAsState()
     val sessions by viewModel.sessions.collectAsState()
