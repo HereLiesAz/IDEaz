@@ -68,7 +68,10 @@ class MainViewModel(
         override fun onAiLog(msg: String) {
             stateDelegate.appendAiLog(msg)
             // Broadcast for overlay logs
-            application.sendBroadcast(Intent("com.hereliesaz.ideaz.AI_LOG").apply { putExtra("MESSAGE", msg) })
+            application.sendBroadcast(Intent("com.hereliesaz.ideaz.AI_LOG").apply {
+                putExtra("MESSAGE", msg)
+                setPackage(application.packageName)
+            })
         }
         override fun onProgress(p: Int?) { stateDelegate.setLoadingProgress(p) }
         override fun onGitProgress(p: Int, t: String) {

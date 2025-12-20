@@ -48,6 +48,7 @@ fun WebProjectHost(
                         val msg = "[WEB] ${it.message()} (${it.sourceId()}:${it.lineNumber()})"
                         val intent = Intent(ACTION_AI_LOG).apply {
                             putExtra(EXTRA_MESSAGE, msg)
+                            setPackage(context.packageName)
                         }
                         context.sendBroadcast(intent)
                     }
@@ -60,6 +61,7 @@ fun WebProjectHost(
                     val msg = "[WEB] Error loading ${request?.url}: ${error?.description}"
                     val intent = Intent(ACTION_AI_LOG).apply {
                         putExtra(EXTRA_MESSAGE, msg)
+                        setPackage(context.packageName)
                     }
                     context.sendBroadcast(intent)
                 }
