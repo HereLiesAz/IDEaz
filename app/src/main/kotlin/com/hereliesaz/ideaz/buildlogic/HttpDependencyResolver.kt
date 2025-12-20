@@ -38,14 +38,28 @@ class HttpDependencyResolver(
     companion object {
         private const val TAG = "HttpDependencyResolver"
 
+        // Pre-compiled regexes to avoid compilation on every call/loop
+        private val MAVEN_DEPENDENCY_REGEX = "<dependency>(.*?)</dependency>".toRegex(RegexOption.DOT_MATCHES_ALL)
+        private val QUOTE_REGEX = "[\"']([^\"']+)[\"']".toRegex()
+
+        private val TAG_REGEXES = mapOf(
+            "groupId" to "<groupId>(.*?)</groupId>".toRegex(),
+            "artifactId" to "<artifactId>(.*?)</artifactId>".toRegex(),
+            "version" to "<version>(.*?)</version>".toRegex(),
+            "type" to "<type>(.*?)</type>".toRegex(),
+            "packaging" to "<packaging>(.*?)</packaging>".toRegex()
+        )
+
         fun parseDependencies(content: String, callback: IBuildCallback? = null): List<Dependency> {
             val dependencies = mutableListOf<Dependency>()
 
             // 1. Maven XML Parsing
-            val mavenRegex = "<dependency>(.*?)</dependency>".toRegex(RegexOption.DOT_MATCHES_ALL)
-            mavenRegex.findAll(content).forEach { matchResult ->
+            MAVEN_DEPENDENCY_REGEX.findAll(content).forEach { matchResult ->
                 val block = matchResult.groupValues[1]
-                val extract = { tag: String -> "<$tag>(.*?)</$tag>".toRegex().find(block)?.groupValues?.get(1)?.trim() }
+
+                fun extract(tag: String): String? {
+                    return TAG_REGEXES[tag]?.find(block)?.groupValues?.get(1)?.trim()
+                }
 
                 val groupId = extract("groupId")
                 val artifactId = extract("artifactId")
@@ -64,7 +78,7 @@ class HttpDependencyResolver(
             }
 
             // 2. Line-based parsing (TOML, Gradle, Raw)
-            content.lines().forEach { rawLine ->
+            content.lineSequence().forEach { rawLine ->
                 val line = rawLine.trim().substringBefore("//").trim()
                 if (line.isEmpty() || line.startsWith("#") || line.startsWith("<")) return@forEach
 
@@ -81,8 +95,7 @@ class HttpDependencyResolver(
                         }
                     } else {
                         // Gradle / Raw: Check for quotes first
-                        val quoteRegex = "[\"']([^\"']+)[\"']".toRegex()
-                        val match = quoteRegex.find(line)
+                        val match = QUOTE_REGEX.find(line)
                         if (match != null) {
                             val candidate = match.groupValues[1]
                             if (candidate.contains(":")) {
@@ -217,72 +230,5 @@ class HttpDependencyResolver(
              }
         }
         return session
-    }
-
-    private fun parseDependencies(content: String): List<Dependency> {
-        val dependencies = mutableListOf<Dependency>()
-
-        // 1. Maven XML Parsing
-        val mavenRegex = "<dependency>(.*?)</dependency>".toRegex(RegexOption.DOT_MATCHES_ALL)
-        mavenRegex.findAll(content).forEach { matchResult ->
-            val block = matchResult.groupValues[1]
-            val extract = { tag: String -> "<$tag>(.*?)</$tag>".toRegex().find(block)?.groupValues?.get(1)?.trim() }
-
-            val groupId = extract("groupId")
-            val artifactId = extract("artifactId")
-            val version = extract("version")
-            val type = extract("type") ?: extract("packaging")
-
-            if (groupId != null && artifactId != null && version != null) {
-                // DefaultArtifact format: [groupId]:[artifactId]:[extension]:[version]
-                val coords = if (type != null) "$groupId:$artifactId:$type:$version" else "$groupId:$artifactId:$version"
-                try {
-                    dependencies.add(Dependency(DefaultArtifact(coords), "compile"))
-                } catch (e: Exception) {
-                    callback?.onLog("[IDE] WARNING: Failed to parse Maven dependency: $coords")
-                }
-            }
-        }
-
-        // 2. Line-based parsing (TOML, Gradle, Raw)
-        content.lines().forEach { rawLine ->
-            val line = rawLine.trim().substringBefore("//").trim()
-            if (line.isEmpty() || line.startsWith("#") || line.startsWith("<")) return@forEach
-
-            try {
-                var coords: String? = null
-
-                if (line.contains("=")) {
-                    // TOML: "group:artifact" = "version"
-                    val parts = line.split("=")
-                    if (parts.size == 2) {
-                        val key = parts[0].trim().replace("\"", "").replace("'", "")
-                        val value = parts[1].trim().replace("\"", "").replace("'", "")
-                        coords = "$key:$value"
-                    }
-                } else {
-                    // Gradle / Raw: Check for quotes first
-                    val quoteRegex = "[\"']([^\"']+)[\"']".toRegex()
-                    val match = quoteRegex.find(line)
-                    if (match != null) {
-                        val candidate = match.groupValues[1]
-                        if (candidate.contains(":")) {
-                             coords = candidate
-                        }
-                    } else if (line.contains(":")) {
-                        // Raw: g:a:v
-                        coords = line
-                    }
-                }
-
-                if (coords != null) {
-                    dependencies.add(Dependency(DefaultArtifact(coords), "compile"))
-                }
-            } catch (e: Exception) {
-                callback?.onLog("[IDE] WARNING: Skipping invalid dependency line: '$line'")
-            }
-        }
-
-        return dependencies.distinctBy { it.artifact.toString() }
     }
 }
