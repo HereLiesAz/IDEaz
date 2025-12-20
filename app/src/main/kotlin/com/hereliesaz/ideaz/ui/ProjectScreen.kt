@@ -72,12 +72,14 @@ fun ProjectScreen(
                     } else {
                         ApkInstaller.installApk(context, uri)
                         viewModel.dismissArtifactDialog()
+                        viewModel.launchTargetApp(context)
                     }
                 }
             } else {
                 // No remote version comparison needed
                 ApkInstaller.installApk(context, uri)
                 viewModel.dismissArtifactDialog()
+                viewModel.launchTargetApp(context)
             }
         }
     }
@@ -92,6 +94,7 @@ fun ProjectScreen(
                     ApkInstaller.installApk(context, showDowngradeWarning!!)
                     showDowngradeWarning = null
                     viewModel.dismissArtifactDialog()
+                    viewModel.launchTargetApp(context)
                 }, text = "Install Anyway")
             },
             dismissButton = {
@@ -239,6 +242,7 @@ fun ProjectScreen(
                     viewModel.downloadLatestArtifact(res.downloadUrl) { file ->
                         ApkInstaller.installApk(context, file.absolutePath)
                         viewModel.dismissArtifactDialog()
+                        viewModel.launchTargetApp(context)
                     }
                 }, text = "Download v${res.remoteVersion}")
             },
