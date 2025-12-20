@@ -71,13 +71,8 @@ class AIDelegate(
     fun fetchSessionsForRepo(repoName: String) {
         scope.launch {
             try {
-                val projectId = settingsViewModel.getJulesProjectId()
-                if (projectId.isNullOrBlank()) {
-                    _sessions.value = emptyList()
-                    return@launch
-                }
-                // List all sessions
-                val response = JulesApiClient.listSessions(projectId)
+                // List all sessions (API change: no arguments)
+                val response = JulesApiClient.listSessions()
                 val allSessions = response.sessions ?: emptyList()
                 val user = settingsViewModel.getGithubUser() ?: ""
                 val fullRepo = if (repoName.contains("/")) repoName else "$user/$repoName"
@@ -118,11 +113,6 @@ class AIDelegate(
                 when (model.id) {
                     AiModels.JULES_DEFAULT -> runJulesTask(richPrompt)
                     AiModels.GEMINI_FLASH -> {
-                        // For Gemini, we might still use the old client or a different path
-                        // Assuming GeminiApiClient is separate and works
-                        // But wait, the user asked for Jules API correctness.
-                        // I'll leave Gemini path as is or assume it's fine.
-                        // Ideally GeminiApiClient should be checked too, but out of scope.
                         val response = com.hereliesaz.ideaz.api.GeminiApiClient.generateContent(richPrompt, key)
                         onOverlayLog(response)
                     }
@@ -137,11 +127,9 @@ class AIDelegate(
     }
 
     private suspend fun runJulesTask(promptText: String) {
-        val projectId = settingsViewModel.getJulesProjectId()
-        if (projectId.isNullOrBlank()) {
-            _julesError.value = "Jules Project ID not configured in Settings."
-            return
-        }
+        // Project ID is no longer required for API calls (implied by API key),
+        // but we might check it if needed for other reasons.
+        // The SDK doesn't use it in calls.
 
         val appName = settingsViewModel.getAppName() ?: "project"
         val user = settingsViewModel.getGithubUser() ?: "user"
@@ -163,8 +151,8 @@ class AIDelegate(
                     sourceContext = currentSourceContext,
                     title = "Session ${System.currentTimeMillis()}"
                 )
-                val session = JulesApiClient.createSession(projectId, request = request)
-                // Use session.name (resource name) for API calls instead of session.id
+                // API Change: No projectId/location args
+                val session = JulesApiClient.createSession(request = request)
                 _currentJulesSessionId.value = session.name
                 _julesResponse.value = session
                 activeSessionName = session.name
@@ -194,15 +182,11 @@ class AIDelegate(
     }
 
     private suspend fun pollForResponse(sessionName: String) {
-        // Poll listActivities for a response
         var attempts = 0
         while (attempts < 15) { // 45 seconds max
             delay(3000)
             val activities = getAllActivities(sessionName)
 
-            // Check for Agent Message
-            // We log the latest message if found.
-            // A more robust implementation would track seen message IDs.
             val latestAgentMessage = activities.firstOrNull { it.agentMessaged != null }
 
             if (latestAgentMessage != null) {
@@ -212,7 +196,6 @@ class AIDelegate(
                 }
             }
 
-            // Check for Artifacts (Patches)
             activities.forEach { activity ->
                 if (activity.id !in processedActivityIds) {
                     var activityProcessed = false
@@ -234,7 +217,6 @@ class AIDelegate(
                     }
                 }
             }
-
             attempts++
         }
     }
