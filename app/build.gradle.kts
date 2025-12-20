@@ -95,6 +95,7 @@ android {
             pickFirsts.add("**/*.kotlin_builtins")
             pickFirsts.add("**/*.kotlin_module")
             pickFirsts.add("misc/registry.properties")
+            pickFirsts.add("**/libjnidispatch.so")
         }
     }
 }
@@ -198,7 +199,9 @@ dependencies {
     implementation(libs.resolver.maven.resolver.supplier)
 
     implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.lazysodium.android)
+    implementation(libs.lazysodium.android) {
+        exclude(group = "net.java.dev.jna")
+    }
     implementation(libs.jna)
     implementation(libs.hiddenapibypass)
 }
