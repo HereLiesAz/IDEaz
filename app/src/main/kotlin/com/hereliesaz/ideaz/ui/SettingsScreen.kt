@@ -65,6 +65,12 @@ import com.hereliesaz.ideaz.utils.isAccessibilityServiceEnabled
 import com.hereliesaz.ideaz.utils.checkAndRequestStoragePermission
 import java.io.File
 import android.app.AppOpsManager
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.foundation.selection.toggleable
 
 private const val TAG = "SettingsScreen"
 
@@ -309,15 +315,39 @@ fun SettingsScreen(
                     text = "IDEaz $appVersion",
                     style = MaterialTheme.typography.headlineMedium,
                     color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    modifier = Modifier.padding(bottom = 16.dp).semantics { heading() }
                 )
 
                 // --- BUILD CONFIGURATION ---
-                Text("Build Configuration", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Text("Build Configuration", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
                 Spacer(modifier = Modifier.height(16.dp))
 
+                val onLocalBuildToggle = { enabled: Boolean ->
+                    if (enabled) {
+                        // Check if tools exist
+                        if (!ToolManager.areToolsInstalled(context)) {
+                            showDownloadToolsDialog = true
+                            // Toggle waits for confirmation
+                        } else {
+                            isLocalBuildEnabled = true
+                            settingsViewModel.setLocalBuildEnabled(true)
+                        }
+                    } else {
+                        // Disable
+                        showDeleteToolsDialog = true
+                        // Toggle waits for confirmation/dismiss of dialog
+                    }
+                }
+
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .toggleable(
+                            value = isLocalBuildEnabled,
+                            onValueChange = onLocalBuildToggle,
+                            role = Role.Switch
+                        )
+                        .padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -327,22 +357,7 @@ fun SettingsScreen(
                     )
                     Switch(
                         checked = isLocalBuildEnabled,
-                        onCheckedChange = { enabled ->
-                            if (enabled) {
-                                // Check if tools exist
-                                if (!ToolManager.areToolsInstalled(context)) {
-                                    showDownloadToolsDialog = true
-                                    // Toggle waits for confirmation
-                                } else {
-                                    isLocalBuildEnabled = true
-                                    settingsViewModel.setLocalBuildEnabled(true)
-                                }
-                            } else {
-                                // Disable
-                                showDeleteToolsDialog = true
-                                // Toggle waits for confirmation/dismiss of dialog
-                            }
-                        }
+                        onCheckedChange = null // Handled by Row
                     )
                 }
                 Text(
@@ -354,7 +369,7 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // --- Saved Settings and Credentials ---
-                Text("Saved Settings and Credentials", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Text("Saved Settings and Credentials", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     "Save all API keys, passwords, and settings to an encrypted file.",
@@ -390,7 +405,7 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // --- NEW: Signing Config Section ---
-                Text("Signing Configuration", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Text("Signing Configuration", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text("Current Keystore: ${File(keystorePath).name}", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -454,7 +469,8 @@ fun SettingsScreen(
                 Text(
                     "API Keys",
                     color = MaterialTheme.colorScheme.onBackground,
-                    style = MaterialTheme.typography.titleLarge
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.semantics { heading() }
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -561,7 +577,7 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                Text("AI Assignments", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Text("AI Assignments", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
 
                 SettingsViewModel.aiTasks.forEach { (taskKey, taskName) ->
                     var currentModelId by remember(taskKey) {
@@ -582,7 +598,7 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                Text("Permissions", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Text("Permissions", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
                 Spacer(modifier = Modifier.height(16.dp))
 
                 val hasOverlay by remember(refreshTrigger) {
@@ -691,59 +707,87 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                Text("Preferences", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Text("Preferences", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .toggleable(
+                            value = showCancelWarning,
+                            onValueChange = {
+                                showCancelWarning = it
+                                settingsViewModel.setShowCancelWarning(it)
+                            },
+                            role = Role.Checkbox
+                        )
+                        .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Checkbox(
                         checked = showCancelWarning,
-                        onCheckedChange = {
-                            showCancelWarning = it
-                            settingsViewModel.setShowCancelWarning(it)
-                        }
+                        onCheckedChange = null
                     )
                     Text("Show warning when cancelling AI task", color = MaterialTheme.colorScheme.onBackground)
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .toggleable(
+                            value = autoReportBugs,
+                            onValueChange = {
+                                autoReportBugs = it
+                                settingsViewModel.setAutoReportBugs(it)
+                            },
+                            role = Role.Checkbox
+                        )
+                        .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Checkbox(
                         checked = autoReportBugs,
-                        onCheckedChange = {
-                            autoReportBugs = it
-                            settingsViewModel.setAutoReportBugs(it)
-                        }
+                        onCheckedChange = null
                     )
                     Text("Auto-report IDE internal errors to GitHub", color = MaterialTheme.colorScheme.onBackground)
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .toggleable(
+                            value = autoDebugBuilds,
+                            onValueChange = {
+                                autoDebugBuilds = it
+                                settingsViewModel.setAutoDebugBuildsEnabled(it)
+                            },
+                            role = Role.Checkbox
+                        )
+                        .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Checkbox(
                         checked = autoDebugBuilds,
-                        onCheckedChange = {
-                            autoDebugBuilds = it
-                            settingsViewModel.setAutoDebugBuildsEnabled(it)
-                        }
+                        onCheckedChange = null
                     )
                     Text("Auto-debug build failures with Jules", color = MaterialTheme.colorScheme.onBackground)
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .toggleable(
+                            value = reportIdeErrors,
+                            onValueChange = {
+                                reportIdeErrors = it
+                                settingsViewModel.setReportIdeErrorsEnabled(it)
+                            },
+                            role = Role.Checkbox
+                        )
+                        .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Checkbox(
                         checked = reportIdeErrors,
-                        onCheckedChange = {
-                            reportIdeErrors = it
-                            settingsViewModel.setReportIdeErrorsEnabled(it)
-                        }
+                        onCheckedChange = null
                     )
                     Text("Report IDE errors to HereLiesAz/IDEaz (Issues)", color = MaterialTheme.colorScheme.onBackground)
                 }
@@ -758,14 +802,14 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                Text("Log Level", color = MaterialTheme.colorScheme.onBackground)
+                Text("Log Level", color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.semantics { heading() })
                 LogLevelDropdown(
                     settingsViewModel = settingsViewModel
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                Text("Updates", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Text("Updates", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
                 Spacer(modifier = Modifier.height(16.dp))
 
                 val updateStatus by viewModel.updateStatus.collectAsState()
@@ -809,7 +853,7 @@ fun SettingsScreen(
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
-                Text("Debug", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+                Text("Debug", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
                 Spacer(modifier = Modifier.height(16.dp))
                 AzButton(
                     onClick = {
@@ -834,7 +878,13 @@ fun PermissionCheckRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
+            .clickable(
+                onClick = onClick,
+                role = Role.Button
+            )
+            .semantics {
+                stateDescription = if (granted) "Granted" else "Not Granted"
+            }
             .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

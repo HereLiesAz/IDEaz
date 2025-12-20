@@ -29,3 +29,8 @@
 *   **Foreground Service:** "IDEaz is running".
     *   **Action:** "Exit", "Prompt".
 *   **Build Status:** "Build in progress..." -> "Build Complete".
+
+## 5. Accessibility
+*   **Semantics:** All interactive elements must have proper roles (Button, Switch, etc.) and state descriptions.
+*   **Touch Targets:** Minimum 48dp. Group related elements (e.g. Label + Switch) into a single toggleable row.
+*   **Headings:** Use `heading()` semantics for section titles to assist screen reader navigation.
