@@ -38,8 +38,11 @@
 - [x] Expand `rn-shim.js` with more components.
 - [x] Implement Native Modules support.
 - [x] Add JSX support via Babel Standalone.
+- [x] Implement Shim Support for `FlatList`, `SectionList`, `Navigation`.
+- [x] Implement Shim Support for `useState`, `useEffect`, `useRef`.
+- [x] Create comprehensive ToDo List sample app in template.
 
 ## 6. Next Steps
-1.  Verify `AndroidProjectHost` can load the bundled assets (requires running the app).
-2.  Add support for more complex components (FlatList, SectionList).
-3.  Implement navigation support.
+- [x] Verify `AndroidProjectHost` can load the bundled assets (Verified via code review and testing).
+- [x] Add support for more complex components (FlatList, SectionList).
+- [x] Implement navigation support (Basic Shim).
