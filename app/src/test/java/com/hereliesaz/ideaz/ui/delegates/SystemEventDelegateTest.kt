@@ -32,7 +32,7 @@ class SystemEventDelegateTest {
         val stateDelegate = StateDelegate()
 
         // Instantiate SystemEventDelegate (registers receivers)
-        val systemEventDelegate = SystemEventDelegate(app, aiDelegate, overlayDelegate, stateDelegate)
+        val systemEventDelegate = SystemEventDelegate(app, aiDelegate, overlayDelegate, stateDelegate) {}
 
         val testMsg = "[WEB] Test Log Message"
         val intent = Intent(ACTION_AI_LOG).apply {

@@ -111,6 +111,7 @@ class UpdateDelegate(
                             _updateMessage.value = "Update found: ${update.tagName}. Install?"
                         }
                         _showUpdateWarning.value = true
+                        copyToClipboard(_updateMessage.value)
                     } else {
                         onOverlayLog("Update found but no valid debug APK asset.")
                     }
@@ -151,6 +152,18 @@ class UpdateDelegate(
     fun dismissUpdateWarning() {
         _showUpdateWarning.value = false
         pendingUpdateAssetUrl = null
+    }
+
+    private fun copyToClipboard(text: String?) {
+        if (text.isNullOrBlank()) return
+        try {
+            val clipboard = application.getSystemService(android.content.ClipboardManager::class.java)
+            val clip = android.content.ClipData.newPlainText("Update Info", text)
+            clipboard?.setPrimaryClip(clip)
+            onOverlayLog("Update info copied to clipboard.")
+        } catch (e: Exception) {
+            onOverlayLog("Failed to copy to clipboard.")
+        }
     }
 
     private suspend fun downloadFile(urlStr: String, fileName: String): File? {
