@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.services
 
+import android.app.ActivityOptions
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -38,7 +39,8 @@ import kotlin.coroutines.coroutineContext
  * A foreground [Service] that orchestrates the build process.
  * 
  * This service implements advanced log batching to minimize IPC overhead and prevent ANRs
- * in the main application process.
+ * in the main application process. It also handles Background Activity Launch (BAL) restrictions
+ * for targeting Android 14+.
  */
 class BuildService : Service() {
     companion object {
@@ -158,12 +160,21 @@ class BuildService : Service() {
     }
 
     private fun createNotificationBuilder(): NotificationCompat.Builder {
+        val options = ActivityOptions.makeBasic()
+        if (Build.VERSION.SDK_INT >= 34) {
+            options.setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
+        }
+        if (Build.VERSION.SDK_INT >= 35) {
+            options.setPendingIntentCreatorBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
+        }
+
         val contentIntent = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             },
-            PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_IMMUTABLE,
+            options.toBundle()
         )
 
         val syncIntent = Intent(this, BuildService::class.java).apply {
