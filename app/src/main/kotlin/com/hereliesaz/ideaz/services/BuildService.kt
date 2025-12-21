@@ -23,6 +23,7 @@ import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.utils.CrashHandler
+import com.hereliesaz.ideaz.utils.HybridToolchainManager
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
@@ -476,11 +477,14 @@ class BuildService : Service() {
 
                 val aarJars = processAars.jars.joinToString(File.pathSeparator)
                 val resolvedJars = resolver.resolvedClasspath
-                val fullClasspath = if (aarJars.isNotEmpty()) {
-                    "$resolvedJars${File.pathSeparator}$aarJars"
-                } else {
-                    resolvedJars
-                }
+
+                // NEW: Hybrid Host Runtime
+                val hybridRuntime = HybridToolchainManager.getHostRuntimeClasspath(filesDir, wrappedCallback)
+                val hybridJars = hybridRuntime.joinToString(File.pathSeparator) { it.absolutePath }
+
+                val fullClasspath = listOf(resolvedJars, aarJars, hybridJars)
+                    .filter { it.isNotEmpty() }
+                    .joinToString(File.pathSeparator)
 
                 if (!isActive) return@launch
 
@@ -493,21 +497,67 @@ class BuildService : Service() {
                     Log.w(TAG, "Failed to inject resizeableActivity", e)
                 }
 
-                val buildOrchestrator = BuildOrchestrator(
-                    listOf(
-                        ProcessManifest(File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, processedManifestPath, packageName, MIN_SDK, TARGET_SDK),
-                        Aapt2Compile(aapt2Path, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK),
-                        Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, processedManifestPath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK, processAars.compiledAars, packageName),
-                        KotlincCompile(kotlincJarPath!!, androidJarPath, File(projectDir, "app/src/main/java").absolutePath, File(buildDir, "classes"), fullClasspath, javaBinaryPath!!),
-                        D8Compile(d8Path!!, javaBinaryPath, androidJarPath, File(buildDir, "classes").absolutePath, File(buildDir, "classes").absolutePath, fullClasspath),
-                        ApkBuild(File(buildDir, "app-signed.apk").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "classes").absolutePath),
-                        ApkSign(apkSignerPath!!, javaBinaryPath, keystorePath!!, ksPass, keyAlias, File(buildDir, "app-signed.apk").absolutePath),
-                        GenerateSourceMap(File(projectDir, "app/src/main/res"), buildDir, cacheDir)
-                    )
+                val schemaType = detectSchema(projectDir)
+                val generatedHostDir = File(buildDir, "generated/host")
+                val buildSteps = mutableListOf<BuildStep>(
+                     ProcessManifest(File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, processedManifestPath, packageName, MIN_SDK, TARGET_SDK),
+                     Aapt2Compile(aapt2Path, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK),
+                     Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, processedManifestPath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK, processAars.compiledAars, packageName)
                 )
+
+                if (schemaType != null) {
+                    wrappedCallback.onLog("[IDE] Detected Schema: $schemaType. Enabling Hybrid Host generation.")
+                    buildSteps.add(RedwoodCodegen(javaBinaryPath!!, schemaType, generatedHostDir, true, filesDir))
+                }
+
+                val sourceDirs = mutableListOf(File(projectDir, "app/src/main/java"))
+                if (schemaType != null) {
+                    sourceDirs.add(generatedHostDir)
+                }
+
+                buildSteps.add(KotlincCompile(kotlincJarPath!!, androidJarPath, sourceDirs, File(buildDir, "classes"), fullClasspath, javaBinaryPath!!))
+                buildSteps.add(D8Compile(d8Path!!, javaBinaryPath, androidJarPath, File(buildDir, "classes").absolutePath, File(buildDir, "classes").absolutePath, fullClasspath))
+                buildSteps.add(ApkBuild(File(buildDir, "app-signed.apk").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "classes").absolutePath))
+                buildSteps.add(ApkSign(apkSignerPath!!, javaBinaryPath, keystorePath!!, ksPass, keyAlias, File(buildDir, "app-signed.apk").absolutePath))
+
+                // --- GUEST BUILD ---
+                if (schemaType != null) {
+                    val generatedGuestDir = File(buildDir, "generated/guest")
+                    val guestSourceDir = File(projectDir, "app/src/main/zipline")
+                    val guestOutputDir = File(buildDir, "guest")
+
+                    // 1. Generate Guest Code
+                    buildSteps.add(RedwoodCodegen(javaBinaryPath!!, schemaType, generatedGuestDir, false, filesDir))
+
+                    // 2. Compile Guest Code
+                    val guestDeps = HybridToolchainManager.getGuestRuntimeClasspath(filesDir, wrappedCallback)
+                    val ziplinePlugin = HybridToolchainManager.getZiplineCompilerPluginClasspath(filesDir, wrappedCallback)
+                    val ziplinePluginJars = ziplinePlugin.filter { it.extension == "jar" }
+                    val guestSources = listOf(guestSourceDir, generatedGuestDir)
+
+                    buildSteps.add(ZiplineCompile(guestSources, guestOutputDir, guestDeps, ziplinePluginJars))
+                    buildSteps.add(ZiplineManifestGenerator(guestOutputDir, this@BuildService))
+                }
+
+                buildSteps.add(GenerateSourceMap(File(projectDir, "app/src/main/res"), buildDir, cacheDir))
+
+                val buildOrchestrator = BuildOrchestrator(buildSteps)
 
                 val result = buildOrchestrator.execute(wrappedCallback)
                 if (result.success && isActive) {
+                    if (schemaType != null) {
+                        try {
+                            val guestOutputDir = File(buildDir, "guest")
+                            val hostedDir = File(filesDir, "hosted")
+                            hostedDir.mkdirs()
+                            guestOutputDir.copyRecursively(hostedDir, overwrite = true)
+                            sendBroadcast(Intent("com.hereliesaz.ideaz.RELOAD_ZIPLINE"))
+                            wrappedCallback.onLog("[Zipline] Hot Reload triggered.")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Hot reload failed", e)
+                        }
+                    }
+
                     wrappedCallback.onSuccess(File(buildDir, "app-signed.apk").absolutePath)
                     ApkInstaller.installApk(this@BuildService, File(buildDir, "app-signed.apk").absolutePath)
                 } else if (isActive) {
@@ -737,5 +787,20 @@ class BuildService : Service() {
             callback.onLog("Download error: ${e.message}\n")
             false
         }
+    }
+
+    private fun detectSchema(projectDir: File): String? {
+        val srcDir = File(projectDir, "app/src/main/java")
+        if (!srcDir.exists()) return null
+
+        // Simple heuristic: grep for @Schema
+        val schemaFile = srcDir.walkTopDown().filter { it.isFile && it.extension == "kt" }
+            .find { it.readText().contains("@Schema") }
+
+        if (schemaFile != null) {
+            val relative = schemaFile.relativeTo(srcDir).path.replace(File.separatorChar, '.')
+            return relative.removeSuffix(".kt")
+        }
+        return null
     }
 }
