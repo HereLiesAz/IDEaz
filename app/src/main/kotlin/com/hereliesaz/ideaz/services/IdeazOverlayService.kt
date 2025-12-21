@@ -9,6 +9,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.graphics.Rect
@@ -46,6 +48,13 @@ class IdeazOverlayService : Service() {
                     } else {
                         overlayView?.clearHighlight()
                     }
+                }
+                "com.hereliesaz.ideaz.SHOW_UPDATE_POPUP" -> {
+                    val prompt = intent.getStringExtra("PROMPT")
+                    if (!prompt.isNullOrBlank()) {
+                        copyToClipboard(prompt)
+                    }
+                    overlayView?.showUpdateSplash()
                 }
             }
         }
@@ -90,6 +99,7 @@ class IdeazOverlayService : Service() {
         val filter = IntentFilter().apply {
             addAction("com.hereliesaz.ideaz.TOGGLE_SELECT_MODE")
             addAction("com.hereliesaz.ideaz.HIGHLIGHT_RECT")
+            addAction("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
@@ -192,6 +202,16 @@ class IdeazOverlayService : Service() {
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .build()
+    }
+
+    private fun copyToClipboard(text: String) {
+        try {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("Copied Prompt", text)
+            clipboard.setPrimaryClip(clip)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     companion object {

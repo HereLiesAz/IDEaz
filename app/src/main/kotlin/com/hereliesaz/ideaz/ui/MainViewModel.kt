@@ -126,7 +126,14 @@ class MainViewModel(
             stateDelegate.setCurrentWebUrl("file://$path")
             stateDelegate.setTargetAppVisible(true) // Switch to "App View"
         },
-        { launchTargetApp(application) },
+        {
+            val intent = Intent("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP")
+            if (lastPrompt != null) {
+                intent.putExtra("PROMPT", lastPrompt)
+            }
+            application.sendBroadcast(intent)
+            launchTargetApp(application)
+        },
         gitDelegate
     )
 
@@ -183,6 +190,7 @@ class MainViewModel(
     val activeSelectionRect = overlayDelegate.activeSelectionRect
     val isContextualChatVisible = overlayDelegate.isContextualChatVisible
     val requestScreenCapture = overlayDelegate.requestScreenCapture
+    private var lastPrompt: String? = null
     val ownedRepos = repoDelegate.ownedRepos
     val sessions = aiDelegate.sessions
     val commitHistory = gitDelegate.commitHistory
@@ -386,10 +394,16 @@ class MainViewModel(
     // AI
 
     /** Sends a prompt to the active AI session. */
-    fun sendPrompt(p: String?) { if(!p.isNullOrBlank()) aiDelegate.startContextualAITask(p) }
+    fun sendPrompt(p: String?) {
+        if (!p.isNullOrBlank()) {
+            lastPrompt = p
+            aiDelegate.startContextualAITask(p)
+        }
+    }
 
     /** Submits a prompt along with context (screen capture, selection) from the overlay. */
     fun submitContextualPrompt(p: String) {
+        lastPrompt = p
         val context = overlayDelegate.pendingContextInfo ?: "No context"
         val base64 = overlayDelegate.pendingBase64Screenshot
         val richPrompt = if (base64 != null) "$context\n\n$p\n\n[IMAGE: data:image/png;base64,$base64]" else "$context\n\n$p"
