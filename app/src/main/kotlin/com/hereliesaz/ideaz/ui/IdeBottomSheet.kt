@@ -95,14 +95,17 @@ fun IdeBottomSheet(
 
     // Tabs
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("All", "Build", "Git", "AI")
+    val tabs = listOf("All", "Build", "Git", "AI", "System")
+
+    val systemLogMessages by viewModel.stateDelegate.systemLog.collectAsState()
 
     // Memoize filtered logs to avoid expensive re-filtering on every recomposition
-    val filteredMessages = remember(logMessages, selectedTab) {
+    val filteredMessages = remember(logMessages, systemLogMessages, selectedTab) {
         when (selectedTab) {
             1 -> logMessages.filter { !it.contains("[AI]") && !it.contains("[GIT]") }
             2 -> logMessages.filter { it.contains("[GIT]") }
             3 -> logMessages.filter { it.contains("[AI]") }
+            4 -> systemLogMessages
             else -> logMessages
         }
     }
