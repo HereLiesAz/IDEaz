@@ -503,18 +503,30 @@ class BuildService : Service() {
 
                 val schemaType = detectSchema(projectDir)
                 val generatedHostDir = File(buildDir, "generated/host")
-                val buildSteps = mutableListOf<BuildStep>(
-                     ProcessManifest(File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, processedManifestPath, packageName, MIN_SDK, TARGET_SDK),
-                     Aapt2Compile(aapt2Path, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK),
-                     Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, processedManifestPath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK, processAars.compiledAars, packageName)
-                )
+                val buildSteps = mutableListOf<BuildStep>()
+
+                // REACT NATIVE PRE-STEP
+                var assetsDirArg: String? = null
+                if (type == ProjectType.REACT_NATIVE) {
+                    val assetsDir = File(buildDir, "assets")
+                    if (!assetsDir.exists()) assetsDir.mkdirs()
+                    buildSteps.add(ReactNativeBuildStep(projectDir, assetsDir))
+                    assetsDirArg = assetsDir.absolutePath
+                }
+
+                buildSteps.add(ProcessManifest(File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, processedManifestPath, packageName, MIN_SDK, TARGET_SDK))
+                buildSteps.add(Aapt2Compile(aapt2Path, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK))
+                buildSteps.add(Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, processedManifestPath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK, processAars.compiledAars, packageName, assetsDirArg))
 
                 if (schemaType != null) {
                     wrappedCallback.onLog("[IDE] Detected Schema: $schemaType. Enabling Hybrid Host generation.")
                     buildSteps.add(RedwoodCodegen(javaBinaryPath!!, schemaType, generatedHostDir, true, filesDir))
                 }
 
-                val sourceDirs = mutableListOf(File(projectDir, "app/src/main/java"))
+                val sourceDirs = mutableListOf(
+                    File(projectDir, "app/src/main/java"),
+                    File(buildDir, "gen")
+                )
                 if (schemaType != null) {
                     sourceDirs.add(generatedHostDir)
                 }
@@ -709,10 +721,20 @@ class BuildService : Service() {
                 destDir.deleteRecursively()
                 destDir.mkdirs()
 
+                val basePath = destDir.toPath().normalize()
                 ZipInputStream(zipFile.inputStream()).use { zis ->
                     var entry = zis.nextEntry
                     while (entry != null) {
                         val newFile = File(destDir, entry.name)
+
+                        // Security: Prevent Zip Slip vulnerability
+                        val destPath = newFile.toPath().normalize()
+                        if (!destPath.startsWith(basePath)) {
+                            Log.w(TAG, "Zip Slip detected: Skipping malicious entry ${entry.name}")
+                            entry = zis.nextEntry
+                            continue
+                        }
+
                         if (entry.isDirectory) {
                             newFile.mkdirs()
                         } else {
