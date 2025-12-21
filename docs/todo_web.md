@@ -49,8 +49,8 @@ Objective: Enable users to create, edit, preview, and deploy static web applicat
     - [x] Update Editor/Log viewer (Integrated Sora Editor - Basic support, Syntax Highlighting pending).
 
 ## Phase 6: UI & Overlay Integration
-- [ ] **6.1: Overlay Support**
-    - [ ] Web projects run in `WebProjectHost` which is already part of `MainScreen`.
-    - [ ] Ensure the IDEaz overlay (Select Mode) works over the WebView.
-        - [ ] WebView accessibility node mapping might be complex.
-        - [ ] Verify "Drag to Select" can identify HTML elements (via AccessibilityNodeInfo).
+- [x] **6.1: Overlay Support**
+    - [x] Web projects run in `WebProjectHost` which is already part of `MainScreen`.
+    - [x] Ensure the IDEaz overlay (Select Mode) works over the WebView (Implemented via SelectionOverlay and JS inspection).
+        - [x] WebView accessibility node mapping might be complex (Bypassed via JS injection).
+        - [x] Verify "Drag to Select" can identify HTML elements (Implemented `INSPECT_WEB` broadcast).

@@ -377,6 +377,19 @@ class MainViewModel(
     /** Toggles the screen selection mode. */
     fun toggleSelectMode(b: Boolean) = overlayDelegate.toggleSelectMode(b)
 
+    fun handleSelection(rect: android.graphics.Rect) {
+        overlayDelegate.onSelectionMade(rect)
+
+        if (stateDelegate.currentWebUrl.value != null) {
+            val intent = Intent("com.hereliesaz.ideaz.INSPECT_WEB").apply {
+                putExtra("X", rect.centerX().toFloat())
+                putExtra("Y", rect.centerY().toFloat())
+                setPackage(getApplication<Application>().packageName)
+            }
+            getApplication<Application>().sendBroadcast(intent)
+        }
+    }
+
     /** Clears the current screen selection. */
     fun clearSelection() = overlayDelegate.clearSelection()
 
