@@ -185,6 +185,7 @@ class MainViewModel(
         super.onCleared()
         buildDelegate.unbindService(getApplication())
         systemEventDelegate.cleanup()
+        ziplineDispatcher.close()
     }
 
     /**
