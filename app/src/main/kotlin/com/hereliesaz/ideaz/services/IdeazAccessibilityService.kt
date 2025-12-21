@@ -1,61 +1,130 @@
-// --- NEW FILE ---
 package com.hereliesaz.ideaz.services
 
 import android.accessibilityservice.AccessibilityService
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.graphics.Rect
+import android.os.Build
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
- * A skeleton Accessibility Service.
- * This is required for the system to list our app in the Accessibility settings.
- * We can add logic here later to inspect the view hierarchy.
+ * An Accessibility Service that inspects the view hierarchy.
+ * It listens for tap events broadcast by the OverlayView, finds the
+ * UI element under the tap, and reports it back to the main app.
  */
 class IdeazAccessibilityService : AccessibilityService() {
 
     private val TAG = "IdeazAccessibility"
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Log.d(TAG, "onAccessibilityEvent: $event")
-
-        // Inspection logic (Disabled for production safety)
-        /*
-        if (event?.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
-            val root = rootInActiveWindow
-            if (root != null) {
-                Log.d(TAG, "--- Inspection Start ---")
-                dumpNode(root)
-                Log.d(TAG, "--- Inspection End ---")
-                root.recycle()
+    private val tapReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "com.hereliesaz.ideaz.INTERNAL_TAP_DETECTED") {
+                val x = intent.getIntExtra("X", -1)
+                val y = intent.getIntExtra("Y", -1)
+                if (x != -1 && y != -1) {
+                    inspectAt(x, y)
+                }
             }
         }
-        */
     }
 
-    private fun dumpNode(node: AccessibilityNodeInfo, depth: Int = 0) {
-        val prefix = "  ".repeat(depth)
-        val id = node.viewIdResourceName ?: "no-id"
-        val cls = node.className ?: "unknown-class"
-        val text = node.text ?: ""
-        val desc = node.contentDescription ?: ""
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        Log.d(TAG, "Accessibility Service Connected")
 
-        Log.d(TAG, "$prefix Node: $cls | ID: $id | Text: $text | Desc: $desc")
-
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i)
-            if (child != null) {
-                dumpNode(child, depth + 1)
-                child.recycle()
-            }
+        val filter = IntentFilter("com.hereliesaz.ideaz.INTERNAL_TAP_DETECTED")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(tapReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(tapReceiver, filter)
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try {
+            unregisterReceiver(tapReceiver)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // We only care about explicit inspection via tap
     }
 
     override fun onInterrupt() {
         Log.d(TAG, "onInterrupt")
     }
 
-    override fun onServiceConnected() {
-        super.onServiceConnected()
-        Log.d(TAG, "Accessibility Service Connected")
+    private fun inspectAt(x: Int, y: Int) {
+        val root = rootInActiveWindow ?: return
+
+        // Traverse to find the smallest node containing (x,y)
+        val leaf = findLeafNode(root, x, y)
+
+        if (leaf != null) {
+            val bounds = Rect()
+            leaf.getBoundsInScreen(bounds)
+
+            val resourceId = leaf.viewIdResourceName
+
+            Log.d(TAG, "Found Node: $resourceId at $bounds")
+
+            val intent = Intent("com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE").apply {
+                putExtra("BOUNDS", bounds)
+                if (resourceId != null) {
+                    putExtra("RESOURCE_ID", resourceId)
+                }
+                setPackage(packageName) // Send to self (the app)
+            }
+            sendBroadcast(intent)
+
+            if (leaf != root) {
+                // If we found a child, we must recycle the root separately?
+                // No, findLeafNode recycling logic handles intermediate children.
+                // Root is passed in, findLeafNode checks it.
+                // If it returns a child, it does NOT recycle root.
+                // So we must recycle root.
+                root.recycle()
+            }
+            leaf.recycle()
+        } else {
+            root.recycle()
+        }
+    }
+
+    private fun findLeafNode(node: AccessibilityNodeInfo, x: Int, y: Int): AccessibilityNodeInfo? {
+        val bounds = Rect()
+        node.getBoundsInScreen(bounds)
+
+        if (!bounds.contains(x, y)) {
+            return null // Node doesn't contain point
+        }
+
+        // Check children (last one on top usually)
+        for (i in node.childCount - 1 downTo 0) {
+            val child = node.getChild(i)
+            if (child != null) {
+                val leaf = findLeafNode(child, x, y)
+                if (leaf != null) {
+                    // We found a descendant.
+                    // If leaf is different from child, it means child was just a container.
+                    // We recycle child if it's not the returned leaf.
+                    if (leaf != child) {
+                        child.recycle()
+                    }
+                    return leaf
+                }
+                child.recycle() // Child didn't contain it
+            }
+        }
+
+        // No child contains it, but this node does. Return this node.
+        return node
     }
 }
