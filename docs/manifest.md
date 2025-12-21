@@ -57,22 +57,33 @@
 ### A. ViewModels and State Management
 
 * **Class: MainViewModel (AndroidViewModel)**
-    * Description (Does): Centralizes application logic. **New:** Implements `handleIdeError` to route internal crashes to the `GithubIssueReporter` (via API) while routing build failures to the AI Debugger.
+    * Description (Does): Centralizes application logic. Uses Delegates (`AIDelegate`, `BuildDelegate`, etc.) to handle specific domains.
+    * **Implements:** `handleIdeError` to route internal crashes to the `GithubIssueReporter` (via API) while routing build failures to the AI Debugger.
 * **Class: SettingsViewModel**
     * Description (Does): Manages settings, including the new `KEY_AUTO_REPORT_BUGS` and `KEY_GITHUB_TOKEN`.
 
 ### B. Services and Inter-Process Communication (IPC)
 
 * **Class: BuildService (Service)**
-    * Description (Does): Executes the build pipeline. **Updated:** Runs `GenerateSourceMap` as the final step after signing.
+    * **Type:** `android:exported="true"`, `android:process=":build_process"`
+    * **Permissions:** `FOREGROUND_SERVICE`
+    * Description (Does): Executes the build pipeline. Runs `GenerateSourceMap` as the final step after signing.
+* **Class: IdeazOverlayService (Service)**
+    * **Type:** `android:permission="android.permission.FOREGROUND_SERVICE"`, `android:foregroundServiceType="specialUse"` (or `manifest` dependent).
+    * **Permissions:** `SYSTEM_ALERT_WINDOW`, `FOREGROUND_SERVICE`.
+    * Description (Does): Hosts the main UI overlay (`AzNavRail`, `IdeBottomSheet`).
 * **Class: UIInspectionService (AccessibilityService)**
-    * ... (Unchanged)
+    * **Permissions:** `BIND_ACCESSIBILITY_SERVICE`.
+    * Description (Does): Retrieves Node Info for inspection.
+* **Class: CrashReportingService (Service)**
+    * **Type:** `android:process=":crash_reporter"`
+    * Description (Does): Handles fatal error reporting in isolation.
 
 ### E. Core Utilities
 
 * **Class: ToolManager**
-    * Description (Does): Locates native tools. **Updated:** Validates asset files (`android.jar`) on load and repairs them if they are 0-byte/corrupt.
+    * Description (Does): Locates native tools. Validates asset files (`android.jar`) on load and repairs them if they are 0-byte/corrupt.
 * **Class: GithubIssueReporter**
-    * Description (Does): **New utility.** Takes a `Throwable` and `contextMessage`, creates a formatted markdown bug report, and posts it to the `HereLiesAz/IDEaz` GitHub repo via API. Falls back to a browser intent if the API fails.
+    * Description (Does): Utilities to post GitHub issues. Takes a `Throwable` and `contextMessage`, creates a formatted markdown bug report, and posts it to the `HereLiesAz/IDEaz` GitHub repo via API. Falls back to a browser intent if the API fails.
 * **Class: MainActivity**
-    * Description (Does): **Updated:** Registers a `packageInstallReceiver` to detect when the user's app is installed/updated and launches it immediately.
+    * Description (Does): Registers a `packageInstallReceiver` to detect when the user's app is installed/updated and launches it immediately.
