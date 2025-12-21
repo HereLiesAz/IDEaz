@@ -8,7 +8,7 @@ const Stack = createNativeStackNavigator();
 const STORAGE_KEY = '@todos';
 
 const HomeScreen = ({ navigation }) => {
-  const textRef = React.useRef('');
+  const [text, setText] = React.useState('');
   const [todos, setTodos] = React.useState([]);
 
   React.useEffect(() => {
@@ -34,7 +34,6 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const addTodo = () => {
-    const text = textRef.current;
     if (!text || text.trim().length === 0) return;
 
     const newTodo = { id: Date.now().toString(), title: text, completed: false };
@@ -42,7 +41,7 @@ const HomeScreen = ({ navigation }) => {
     setTodos(updatedTodos);
     saveTodos(updatedTodos);
 
-    textRef.current = '';
+    setText('');
     NativeModules.ToastAndroid.show('Task Added!', 0);
   };
 
@@ -76,8 +75,8 @@ const HomeScreen = ({ navigation }) => {
         <TextInput
           style={styles.input}
           placeholder="New Task..."
-          value={textRef.current}
-          onChangeText={(val) => textRef.current = val}
+          value={text}
+          onChangeText={setText}
         />
         <Button title="Add" onPress={addTodo} />
       </View>
@@ -95,11 +94,15 @@ const HomeScreen = ({ navigation }) => {
   );
 };
 
-const DetailsScreen = () => {
+const DetailsScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Details Screen</Text>
       <Text style={styles.text}>This demonstrates navigation!</Text>
+      <Button
+        title="Go Back"
+        onPress={() => navigation.goBack()}
+      />
     </View>
   );
 };

@@ -256,7 +256,8 @@ export const NavigationContainer = ({ children }) => {
 export const createNativeStackNavigator = () => {
     return {
         Navigator: ({ children, initialRouteName }) => {
-            const [currentRoute, setCurrentRoute] = React.useState(initialRouteName || 'Home');
+            const [stack, setStack] = React.useState([initialRouteName || 'Home']);
+            const currentRoute = stack[stack.length - 1];
 
             const kids = Array.isArray(children) ? children : [children];
             const validScreens = kids.filter(k => k && k._isScreen);
@@ -267,8 +268,12 @@ export const createNativeStackNavigator = () => {
             if (!targetScreen) return null;
 
             const navigation = {
-                navigate: (route) => setCurrentRoute(route),
-                goBack: () => console.log('goBack not impl')
+                navigate: (route) => setStack([...stack, route]),
+                goBack: () => {
+                    if (stack.length > 1) {
+                        setStack(stack.slice(0, -1));
+                    }
+                }
             };
 
             return React.createElement(targetScreen.props.component, { navigation });
