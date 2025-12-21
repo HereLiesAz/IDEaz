@@ -116,7 +116,12 @@ class MainViewModel(
         }
     }
 
-    val aiDelegate = AIDelegate(settingsViewModel, viewModelScope, logHandler::onAiLog) { diff -> applyUnidiffPatchInternal(diff) }
+    val aiDelegate = AIDelegate(
+        settingsViewModel,
+        viewModelScope,
+        logHandler::onAiLog,
+        { diff -> applyUnidiffPatchInternal(diff) }
+    )
     val overlayDelegate = OverlayDelegate(application, settingsViewModel, viewModelScope, logHandler::onAiLog)
 
     val gitDelegate = GitDelegate(settingsViewModel, viewModelScope, logHandler::onBuildLog, logHandler::onProgress)
