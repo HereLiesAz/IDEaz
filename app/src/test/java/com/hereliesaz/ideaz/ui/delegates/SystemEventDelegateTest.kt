@@ -2,8 +2,8 @@ package com.hereliesaz.ideaz.ui.delegates
 
 import android.content.Intent
 import com.hereliesaz.ideaz.ui.SettingsViewModel
-import com.hereliesaz.ideaz.ui.web.ACTION_AI_LOG
-import com.hereliesaz.ideaz.ui.web.EXTRA_MESSAGE
+import com.hereliesaz.ideaz.models.ACTION_AI_LOG
+import com.hereliesaz.ideaz.models.EXTRA_MESSAGE
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertTrue

@@ -20,10 +20,9 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.hereliesaz.ideaz.models.ACTION_AI_LOG
+import com.hereliesaz.ideaz.models.EXTRA_MESSAGE
 import java.io.File
-
-const val ACTION_AI_LOG = "com.hereliesaz.ideaz.AI_LOG"
-const val EXTRA_MESSAGE = "MESSAGE"
 
 @Composable
 fun WebProjectHost(
