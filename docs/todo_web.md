@@ -4,13 +4,13 @@ This document details the step-by-step plan for completing the Web support in ID
 Objective: Enable users to create, edit, preview, and deploy static web applications (HTML/CSS/JS).
 
 ## Phase 1: Project Initialization & Templates
-- [ ] **1.1: Template Refinement**
-    - [ ] Review existing `app/src/main/assets/templates/web/`.
-    - [ ] Ensure `index.html`, `style.css`, `script.js` are present and linked.
-    - [ ] Add `manifest.json` for PWA support (optional but recommended).
-- [ ] **1.2: Project Detection**
-    - [ ] Verify `ProjectAnalyzer.kt` correctly identifies Web projects (via `index.html`).
-    - [ ] Verify `ProjectType.WEB` assignment.
+- [x] **1.1: Template Refinement**
+    - [x] Review existing `app/src/main/assets/templates/web/`.
+    - [x] Ensure `index.html`, `style.css`, `script.js` are present and linked.
+    - [x] Add `manifest.json` for PWA support (optional but recommended).
+- [x] **1.2: Project Detection**
+    - [x] Verify `ProjectAnalyzer.kt` correctly identifies Web projects (via `index.html`).
+    - [x] Verify `ProjectType.WEB` assignment.
 
 ## Phase 2: Runtime (WebProjectHost)
 - [ ] **2.1: WebView Configuration**
