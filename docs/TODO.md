@@ -106,7 +106,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 
 ## Phase 10: Maintenance
 - [x] Keep `docs/` up to date.
-- [ ] Monitor GitHub Issues reported by the IDE.
+- [x] Monitor GitHub Issues reported by the IDE.
 - [x] Migrate to `androidComponents` API in `build.gradle.kts`.
 - [x] Security Hardening: Implement PBKDF2 for key derivation.
 - [x] Refactor `MainViewModel` into Delegates and add KDocs.
@@ -132,7 +132,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [x] **11.5: Manifest & Security**
     - [x] Implement `ZiplineManifestGenerator` (SHA-256 hashing, JSON construction).
     - [x] Implement Ed25519 signing of manifest using `LazySodiumAndroid`.
-- [ ] **11.6: Hot Reload & Runtime**
+- [x] **11.6: Hot Reload & Runtime**
     - [x] Implement "Hot Reload" trigger (write manifest, broadcast `RELOAD_ZIPLINE`).
     - [x] Implement Host receiver to trigger `ziplineLoader.load`.
     - [x] Refactor `SimpleJsBundler` for Zipline module loading/bootstrapping. (Skipped: ZiplineLoader handles modular loading without bundling).
