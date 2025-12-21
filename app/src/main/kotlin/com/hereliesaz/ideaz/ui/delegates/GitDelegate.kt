@@ -182,4 +182,11 @@ class GitDelegate(
         refreshGitData()
         onLog("[GIT] Switched to $branch.\n")
     }
+
+    /**
+     * Retrieves the current HEAD SHA.
+     */
+    suspend fun getHeadSha(): String? = withContext(Dispatchers.IO) {
+        getGitManager()?.getHeadSha()
+    }
 }
