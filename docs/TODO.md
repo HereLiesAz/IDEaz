@@ -34,10 +34,10 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [ ] **Refinement:** Handle complex POMs and exclusions robustly.
 
 ## Phase 3: UI/UX & Interaction
-- [x] **3.1: The Overlay (Status: IMPLEMENTED)**
-    - [x] **3.1.1: Attachment:** `IdeazOverlayService` (System Alert Window) implemented and registered.
-    - [x] **3.1.2: Transparency:** Transparent overlay mode functional via `IdeazOverlayService`.
-    - [x] **3.1.3: Selection:** Selection logic integrated with system overlay for external app inspection.
+- [!] **3.1: The Overlay (Status: BROKEN/MISSING)**
+    - [!] **3.1.1: Attachment:** `IdeazOverlayService` (System Alert Window) is missing from codebase.
+    - [!] **3.1.2: Transparency:** Transparent overlay mode is non-functional without the service.
+    - [!] **3.1.3: Selection:** Selection logic exists in `OverlayDelegate` but lacks a rendering layer over external apps.
 - [x] **3.2: The Console**
     - [x] Bottom Sheet implementation.
     - [ ] **3.2.1: Live Logs:** Stream Logcat/Build logs to the sheet.
@@ -67,8 +67,8 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 ## Phase 5: Production Polish & Refinement
 - [ ] **5.1: Multi-Platform Support**
     - [x] Web Support (Runtime + Auto-Build/Correct).
-    - [x] React Native Support (Partial: Bundler implemented and integrated, Runtime pending).
-    - [ ] Flutter Support (Planned).
+    - [ ] React Native Support (Partial: Bundler implemented but unused, BuildService integration pending).
+    - [x] Flutter Support (Implemented Phases 1-4. Phases 5-6 pending).
 - [ ] **5.2: Testing**
     - [ ] Unit Tests for all ViewModels.
     - [ ] Integration Tests for Build Pipeline.
@@ -128,11 +128,11 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] Implement `K2JSCompiler` invocation in `BuildService`.
     - [x] Configure Zipline compiler plugin (`-Xplugin`, `-P plugin:zipline-api-validation=enabled`).
     - [x] Set up IR backend flags (`-Xir-produce-js`, `-Xir-per-module`).
-- [x] **11.5: Manifest & Security**
-    - [x] Implement `ZiplineManifestGenerator` (SHA-256 hashing, JSON construction).
-    - [x] Implement Ed25519 signing of manifest using `LazySodiumAndroid`.
+- [ ] **11.5: Manifest & Security**
+    - [ ] Implement `ZiplineManifestGenerator` (SHA-256 hashing, JSON construction).
+    - [ ] Implement Ed25519 signing of manifest using `LazySodiumAndroid`.
 - [ ] **11.6: Hot Reload & Runtime**
-    - [x] Implement "Hot Reload" trigger (write manifest, broadcast `RELOAD_ZIPLINE`).
+    - [ ] Implement "Hot Reload" trigger (write manifest, broadcast `RELOAD_ZIPLINE`).
     - [ ] Implement Host receiver to trigger `ziplineLoader.loadOnce`.
     - [ ] Refactor `SimpleJsBundler` for Zipline module loading/bootstrapping.
     - [ ] Implement Error Handling: Capture Guest crashes and feed to Jules.
