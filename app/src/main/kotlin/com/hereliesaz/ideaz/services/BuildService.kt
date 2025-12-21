@@ -538,13 +538,30 @@ class BuildService : Service() {
                 buildSteps.add(GenerateSourceMap(File(projectDir, "app/src/main/res"), buildDir, cacheDir))
 
                 val buildOrchestrator = BuildOrchestrator(buildSteps)
+                val buildSteps = mutableListOf<BuildStep>()
+
+                // REACT NATIVE PRE-STEP
+                var assetsDirArg: String? = null
+                if (type == ProjectType.REACT_NATIVE) {
+                    val assetsDir = File(buildDir, "assets")
+                    if (!assetsDir.exists()) assetsDir.mkdirs()
+                    buildSteps.add(ReactNativeBuildStep(projectDir, assetsDir))
+                    assetsDirArg = assetsDir.absolutePath
+                }
+
+                buildSteps.add(ProcessManifest(File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, processedManifestPath, packageName, MIN_SDK, TARGET_SDK))
+                buildSteps.add(Aapt2Compile(aapt2Path, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK))
+                buildSteps.add(Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, processedManifestPath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK, processAars.compiledAars, packageName, assetsDirArg))
 
                 if (schemaType != null) {
                     wrappedCallback.onLog("[IDE] Detected Schema: $schemaType. Enabling Hybrid Host generation.")
                     buildSteps.add(RedwoodCodegen(javaBinaryPath!!, schemaType, generatedHostDir, true, filesDir))
                 }
 
-                val sourceDirs = mutableListOf(File(projectDir, "app/src/main/java"))
+                val sourceDirs = mutableListOf(
+                    File(projectDir, "app/src/main/java"),
+                    File(buildDir, "gen")
+                )
                 if (schemaType != null) {
                     sourceDirs.add(generatedHostDir)
                 }
