@@ -83,6 +83,14 @@ class MainViewModel(
         )
     }
 
+    init {
+        viewModelScope.launch {
+            com.hereliesaz.ideaz.utils.LogcatReader.observe().collect {
+                stateDelegate.appendSystemLog(it)
+            }
+        }
+    }
+
     // Helper to pipe logs to UI and State
     private val logHandler = object : LogHandler {
         override fun onBuildLog(msg: String) { stateDelegate.appendBuildLog(msg) }
