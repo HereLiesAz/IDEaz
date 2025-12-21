@@ -7,3 +7,8 @@
 **Vulnerability:** Sensitive application logs were being broadcast globally via `sendBroadcast(Intent)` without package restriction, allowing malicious apps to intercept them.
 **Learning:** `Context.sendBroadcast()` is global by default.
 **Prevention:** Always use `intent.setPackage(context.packageName)` for internal broadcasts or use `LocalBroadcastManager` (deprecated but safe) or `SharedFlow`.
+
+## 2025-12-21 - [Zip Slip in Build Service]
+**Vulnerability:** `BuildService.startRemoteBuild` extracted artifacts without validating that the destination path was within the target directory, allowing potential file overwrite via path traversal (Zip Slip).
+**Learning:** `ZipInputStream` entries can contain `../` sequences. Always validate `entry.name` or the resulting `canonicalPath` / `toPath().normalize()`.
+**Prevention:** Use `destinationPath.startsWith(basePath)` check after normalizing both paths when extracting zips.
