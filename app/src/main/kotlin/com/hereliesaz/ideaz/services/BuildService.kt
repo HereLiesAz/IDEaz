@@ -1,6 +1,5 @@
 package com.hereliesaz.ideaz.services
 
-import android.app.ActivityOptions
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -161,21 +160,12 @@ class BuildService : Service() {
     }
 
     private fun createNotificationBuilder(): NotificationCompat.Builder {
-        val options = ActivityOptions.makeBasic()
-        if (Build.VERSION.SDK_INT >= 34) {
-            options.setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-        }
-        if (Build.VERSION.SDK_INT >= 35) {
-            options.setPendingIntentCreatorBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-        }
-
         val contentIntent = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             },
-            PendingIntent.FLAG_IMMUTABLE,
-            options.toBundle()
+            PendingIntent.FLAG_IMMUTABLE
         )
 
         val syncIntent = Intent(this, BuildService::class.java).apply {
@@ -508,60 +498,13 @@ class BuildService : Service() {
                      Aapt2Compile(aapt2Path, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK),
                      Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, processedManifestPath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK, processAars.compiledAars, packageName)
                 )
-                if (schemaType != null) {
-                    sourceDirs.add(generatedHostDir)
-                }
-
-                buildSteps.add(KotlincCompile(kotlincJarPath!!, androidJarPath, sourceDirs, File(buildDir, "classes"), fullClasspath, javaBinaryPath!!))
-                buildSteps.add(D8Compile(d8Path!!, javaBinaryPath, androidJarPath, File(buildDir, "classes").absolutePath, File(buildDir, "classes").absolutePath, fullClasspath))
-                buildSteps.add(ApkBuild(File(buildDir, "app-signed.apk").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "classes").absolutePath))
-                buildSteps.add(ApkSign(apkSignerPath!!, javaBinaryPath, keystorePath!!, ksPass, keyAlias, File(buildDir, "app-signed.apk").absolutePath))
-
-                // --- GUEST BUILD ---
-                if (schemaType != null) {
-                    val generatedGuestDir = File(buildDir, "generated/guest")
-                    val guestSourceDir = File(projectDir, "app/src/main/zipline")
-                    val guestOutputDir = File(buildDir, "guest")
-
-                    // 1. Generate Guest Code
-                    buildSteps.add(RedwoodCodegen(javaBinaryPath!!, schemaType, generatedGuestDir, false, filesDir))
-
-                    // 2. Compile Guest Code
-                    val guestDeps = HybridToolchainManager.getGuestRuntimeClasspath(filesDir, wrappedCallback)
-                    val ziplinePlugin = HybridToolchainManager.getZiplineCompilerPluginClasspath(filesDir, wrappedCallback)
-                    val ziplinePluginJars = ziplinePlugin.filter { it.extension == "jar" }
-                    val guestSources = listOf(guestSourceDir, generatedGuestDir)
-
-                    buildSteps.add(ZiplineCompile(guestSources, guestOutputDir, guestDeps, ziplinePluginJars))
-                }
-
-                buildSteps.add(GenerateSourceMap(File(projectDir, "app/src/main/res"), buildDir, cacheDir))
-
-                val buildOrchestrator = BuildOrchestrator(buildSteps)
-                val buildSteps = mutableListOf<BuildStep>()
-
-                // REACT NATIVE PRE-STEP
-                var assetsDirArg: String? = null
-                if (type == ProjectType.REACT_NATIVE) {
-                    val assetsDir = File(buildDir, "assets")
-                    if (!assetsDir.exists()) assetsDir.mkdirs()
-                    buildSteps.add(ReactNativeBuildStep(projectDir, assetsDir))
-                    assetsDirArg = assetsDir.absolutePath
-                }
-
-                buildSteps.add(ProcessManifest(File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, processedManifestPath, packageName, MIN_SDK, TARGET_SDK))
-                buildSteps.add(Aapt2Compile(aapt2Path, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK))
-                buildSteps.add(Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, processedManifestPath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK, processAars.compiledAars, packageName, assetsDirArg))
 
                 if (schemaType != null) {
                     wrappedCallback.onLog("[IDE] Detected Schema: $schemaType. Enabling Hybrid Host generation.")
                     buildSteps.add(RedwoodCodegen(javaBinaryPath!!, schemaType, generatedHostDir, true, filesDir))
                 }
 
-                val sourceDirs = mutableListOf(
-                    File(projectDir, "app/src/main/java"),
-                    File(buildDir, "gen")
-                )
+                val sourceDirs = mutableListOf(File(projectDir, "app/src/main/java"))
                 if (schemaType != null) {
                     sourceDirs.add(generatedHostDir)
                 }
