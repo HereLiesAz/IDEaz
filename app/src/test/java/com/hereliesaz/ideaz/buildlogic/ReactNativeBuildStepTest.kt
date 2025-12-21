@@ -28,7 +28,12 @@ class ReactNativeBuildStepTest {
     fun `execute copies assets and bundles successfully`() {
         // Setup project
         File(projectDir, "app.json").writeText("""{"name": "TestApp"}""")
-        File(projectDir, "App.js").writeText("const App = () => {}; export default App;")
+        File(projectDir, "App.js").writeText("""
+            import React from 'react';
+            import { View } from 'react-native';
+            const App = () => <View />;
+            export default App;
+        """.trimIndent())
 
         // Setup assets
         val projectAssets = File(projectDir, "assets")

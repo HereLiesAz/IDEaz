@@ -1,18 +1,19 @@
 # React Native Implementation Plan (Partial/Stalled)
 
-**Status:** Implementation is currently in progress. Bundler logic is integrated. Runtime shim (WebView-based) supports basic components and Native Modules.
+**Status:** Implementation is currently in progress. Bundler logic is integrated. Runtime shim (WebView-based) supports basic components, Native Modules, and JSX (via Babel).
 
 ## 1. Bundling Strategy
 *   **Tool:** `SimpleJsBundler` (Custom Kotlin implementation).
 *   **Logic:**
     *   Parse `app.json` to find entry point.
-    *   Regex replacement to inject `AppRegistry`.
+    *   Regex replacement to inject `AppRegistry` and accessibility labels.
     *   Copy assets from project to build output.
-*   **Limitations:** Does not support full Metro features (HMR, complex resolution). No JSX compilation (requires `React.createElement` or Babel).
+*   **Limitations:** Does not support full Metro features (HMR, complex resolution). JSX is supported at runtime via Babel Standalone.
 
 ## 2. Runtime
 *   **Host:** `AndroidProjectHost` (Virtual Display) running the compiled APK.
 *   **Implementation:** `MainActivity` uses `WebView` to load `index.html`.
+*   **JSX:** `index.html` loads Babel Standalone to transform JSX in `index.android.bundle`.
 *   **Shim:** `rn-shim.js` implements:
     *   `View`, `Text`, `Image`, `TextInput`, `Button`, `ScrollView`, `TouchableOpacity`, `Alert`.
     *   `StyleSheet` (basic pass-through).
@@ -21,7 +22,7 @@
 
 ## 3. Build Service Integration
 *   **Task:** `ReactNativeBuildStep` is integrated into `BuildService`.
-*   **Dependencies:** Uses the internal bundler (no node/npm required).
+*   **Dependencies:** Uses the internal bundler (no node/npm required). Babel Standalone is bundled with the template.
 
 ## 4. Platform Decisions (From previous roadmap)
 *   **Bridge:** Use a custom Java-JS bridge (`WebView.addJavascriptInterface`).
@@ -36,9 +37,9 @@
 - [x] Update `ReactNativeBuildStep` to copy assets.
 - [x] Expand `rn-shim.js` with more components.
 - [x] Implement Native Modules support.
+- [x] Add JSX support via Babel Standalone.
 
 ## 6. Next Steps
 1.  Verify `AndroidProjectHost` can load the bundled assets (requires running the app).
-2.  Add JSX compilation support (Babel Standalone or regex transform).
-3.  Add support for more complex components (FlatList, SectionList).
-4.  Implement navigation support.
+2.  Add support for more complex components (FlatList, SectionList).
+3.  Implement navigation support.
