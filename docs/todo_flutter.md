@@ -46,13 +46,13 @@ Constraint: Local compilation of Dart is currently not possible due to missing b
 
 ## Phase 5: Investigation (Local Execution)
 *Research tasks for potential future on-device support.*
-- [ ] **5.1: Dart on Android**
-    - [ ] Investigate running a pre-compiled `dart` binary on Android (termux-packages?).
-    - [ ] If `dart` binary runs, we can use `dart run` or `flutter_tools` snapshot.
-- [ ] **5.2: Flutter Engine Runner**
-    - [ ] Investigate a "Universal Flutter Runner" similar to React Native.
-    - [ ] Challenge: Flutter code is AOT compiled (Release) or requires JIT kernel (Debug).
-    - [ ] Can we generate a kernel snapshot remotely and download *just* the snapshot to run on a generic local engine? (Hot Update).
+- [x] **5.1: Dart on Android**
+    - [x] Investigate running a pre-compiled `dart` binary on Android (termux-packages?). (See `docs/flutter_investigation.md` - Not feasible)
+    - [x] If `dart` binary runs, we can use `dart run` or `flutter_tools` snapshot.
+- [x] **5.2: Flutter Engine Runner**
+    - [x] Investigate a "Universal Flutter Runner" similar to React Native.
+    - [x] Challenge: Flutter code is AOT compiled (Release) or requires JIT kernel (Debug).
+    - [x] Can we generate a kernel snapshot remotely and download *just* the snapshot to run on a generic local engine? (Hot Update). (See `docs/flutter_investigation.md`)
 
 ## Phase 6: UI & Overlay Integration
 - [x] **6.1: Overlay Support**

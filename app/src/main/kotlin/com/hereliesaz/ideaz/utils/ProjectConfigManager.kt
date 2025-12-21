@@ -1,6 +1,5 @@
 package com.hereliesaz.ideaz.utils
 
-import android.content.Context
 import android.util.Base64
 import com.hereliesaz.ideaz.models.IdeazProjectConfig
 import com.hereliesaz.ideaz.models.ProjectType
@@ -154,12 +153,56 @@ jobs:
           publish_dir: .
 """.trimIndent()
 
-    fun ensureWorkflow(context: Context, projectDir: File, type: ProjectType): Boolean {
+    private val ANDROID_CI_FLUTTER_YML = """
+name: Android CI (Flutter)
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.16.0'
+        channel: 'stable'
+    - name: Get Dependencies
+      run: flutter pub get
+    - name: Build APK
+      run: flutter build apk --debug
+    - name: Rename Artifact
+      run: |
+        VERSION=${'$'}(grep '^version:' pubspec.yaml | head -n 1 | sed 's/^version:[[:space:]]*//' | tr -d '\r' | tr -d ' ')
+        if [ -z "${'$'}VERSION" ]; then VERSION="1.0.0"; fi
+        mv build/app/outputs/flutter-apk/app-debug.apk build/app/outputs/flutter-apk/IDEaz-${'$'}VERSION-debug.apk
+    - name: Upload APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: app-debug
+        path: build/app/outputs/flutter-apk/IDEaz-*-debug.apk
+""".trimIndent()
+
+    fun ensureWorkflow(projectDir: File, type: ProjectType): Boolean {
         // We use hardcoded strings for robustness if assets are missing
         val workflows = when (type) {
             ProjectType.ANDROID -> listOf(
                 "android_ci_jules.yml" to ANDROID_CI_JULES_YML,
                 "release.yml" to RELEASE_YML
+            )
+            ProjectType.FLUTTER -> listOf(
+                "android_ci_flutter.yml" to ANDROID_CI_FLUTTER_YML
             )
             ProjectType.WEB -> listOf(
                 "web_ci_pages.yml" to WEB_CI_PAGES_YML
