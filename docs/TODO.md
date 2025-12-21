@@ -34,10 +34,10 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [ ] **Refinement:** Handle complex POMs and exclusions robustly.
 
 ## Phase 3: UI/UX & Interaction
-- [!] **3.1: The Overlay (Status: BROKEN/MISSING)**
-    - [!] **3.1.1: Attachment:** `IdeazOverlayService` (System Alert Window) is missing from codebase.
-    - [!] **3.1.2: Transparency:** Transparent overlay mode is non-functional without the service.
-    - [!] **3.1.3: Selection:** Selection logic exists in `OverlayDelegate` but lacks a rendering layer over external apps.
+- [x] **3.1: The Overlay**
+    - [x] **3.1.1: Attachment:** `IdeazOverlayService` (System Alert Window) implemented and registered.
+    - [x] **3.1.2: Transparency:** Transparent overlay mode functional via `OverlayView`.
+    - [x] **3.1.3: Selection:** Drag selection implemented in `OverlayView` and integrated with `OverlayDelegate`.
 - [x] **3.2: The Console**
     - [x] Bottom Sheet implementation.
     - [ ] **3.2.1: Live Logs:** Stream Logcat/Build logs to the sheet.
@@ -132,7 +132,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] Implement `ZiplineManifestGenerator` (SHA-256 hashing, JSON construction).
     - [x] Implement Ed25519 signing of manifest using `LazySodiumAndroid`.
 - [ ] **11.6: Hot Reload & Runtime**
-    - [ ] Implement "Hot Reload" trigger (write manifest, broadcast `RELOAD_ZIPLINE`).
-    - [ ] Implement Host receiver to trigger `ziplineLoader.loadOnce`.
-    - [ ] Refactor `SimpleJsBundler` for Zipline module loading/bootstrapping.
-    - [ ] Implement Error Handling: Capture Guest crashes and feed to Jules.
+    - [x] Implement "Hot Reload" trigger (write manifest, broadcast `RELOAD_ZIPLINE`).
+    - [x] Implement Host receiver to trigger `ziplineLoader.load`.
+    - [x] Refactor `SimpleJsBundler` for Zipline module loading/bootstrapping. (Skipped: ZiplineLoader handles modular loading without bundling).
+    - [x] Implement Error Handling: Capture Guest crashes and feed to Jules.

@@ -8,13 +8,14 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.view.MotionEvent
 import android.view.View
+import kotlin.math.abs
 
 /**
  * A custom view added to the WindowManager by the AccessibilityService.
  * It is responsible for:
  * 1. Being transparent mostly.
  * 2. Drawing a bounding box when instructed.
- * 3. Detecting taps when in "Select Mode".
+ * 3. Detecting taps and drags when in "Select Mode".
  */
 class OverlayView(context: Context) : View(context) {
 
@@ -29,12 +30,25 @@ class OverlayView(context: Context) : View(context) {
         style = Paint.Style.FILL
     }
 
+    private val selectionPaint = Paint().apply {
+        color = Color.CYAN
+        style = Paint.Style.STROKE
+        strokeWidth = 5f
+    }
+
     private var highlightRect: Rect? = null
     private var isSelectionMode = false
 
+    // Drag selection state
+    private var startX = 0f
+    private var startY = 0f
+    private var currentX = 0f
+    private var currentY = 0f
+    private var isDragging = false
+
     fun setSelectionMode(enabled: Boolean) {
         isSelectionMode = enabled
-        // Force redraw to show/hide selection cues if needed
+        isDragging = false
         invalidate()
     }
 
@@ -60,6 +74,14 @@ class OverlayView(context: Context) : View(context) {
             canvas.drawRect(it, fillPaint)
             canvas.drawRect(it, paint)
         }
+
+        if (isDragging) {
+            val left = kotlin.math.min(startX, currentX)
+            val top = kotlin.math.min(startY, currentY)
+            val right = kotlin.math.max(startX, currentX)
+            val bottom = kotlin.math.max(startY, currentY)
+            canvas.drawRect(left, top, right, bottom, selectionPaint)
+        }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -69,10 +91,33 @@ class OverlayView(context: Context) : View(context) {
 
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                // Send tap coordinates back to service
-                val intent = Intent("com.hereliesaz.ideaz.INTERNAL_TAP_DETECTED").apply {
-                    putExtra("X", event.rawX.toInt())
-                    putExtra("Y", event.rawY.toInt())
+                startX = event.rawX
+                startY = event.rawY
+                currentX = startX
+                currentY = startY
+                isDragging = true
+                invalidate()
+                return true
+            }
+            MotionEvent.ACTION_MOVE -> {
+                currentX = event.rawX
+                currentY = event.rawY
+                invalidate()
+                return true
+            }
+            MotionEvent.ACTION_UP -> {
+                isDragging = false
+                invalidate()
+
+                val left = kotlin.math.min(startX, currentX).toInt()
+                val top = kotlin.math.min(startY, currentY).toInt()
+                val right = kotlin.math.max(startX, currentX).toInt()
+                val bottom = kotlin.math.max(startY, currentY).toInt()
+
+                val rect = Rect(left, top, right, bottom)
+
+                val intent = Intent("com.hereliesaz.ideaz.SELECTION_MADE").apply {
+                    putExtra("RECT", rect)
                     setPackage(context.packageName)
                 }
                 context.sendBroadcast(intent)
