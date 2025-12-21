@@ -5,16 +5,16 @@ Objective: Enable users to create, edit, build (bundle), and run React Native ap
 
 ## Phase 1: Project Initialization & Templates
 - [ ] **1.1: Create React Native Template**
-    - [ ] Create directory `app/src/main/assets/templates/react_native/`.
-    - [ ] Create `package.json` with standard dependencies (react, react-native).
-    - [ ] Create `app.json` (name, displayName).
-    - [ ] Create `App.js` (Hello World component).
+    - [x] Create directory `app/src/main/assets/templates/react_native/`.
+    - [ ] Create `package.json` with standard dependencies (react, react-native). *(Note: Template currently contains `dependencies.toml` instead)*
+    - [x] Create `app.json` (name, displayName).
+    - [x] Create `App.js` (Hello World component).
     - [ ] Create `index.js` (AppRegistry registration entry point).
     - [ ] Create `babel.config.js` and `metro.config.js` (standard configs).
 - [ ] **1.2: Project Detection**
-    - [ ] Update `ProjectAnalyzer.kt` to robustly detect RN projects.
-    - [ ] Verify `ProjectType.REACT_NATIVE` assignment.
-    - [ ] Ensure `MainViewModel` correctly loads the project type.
+    - [ ] Update `ProjectAnalyzer.kt` to robustly detect RN projects. *(Current logic requires package.json, which is missing in template)*
+    - [x] Verify `ProjectType.REACT_NATIVE` assignment.
+    - [x] Ensure `MainViewModel` correctly loads the project type.
 
 ## Phase 2: The Runtime (Runner)
 *Strategy: Use a "Universal Runner" Activity that includes the React Native runtime and loads a local JS bundle.*
@@ -35,14 +35,14 @@ Objective: Enable users to create, edit, build (bundle), and run React Native ap
 ## Phase 3: The Build System (Bundling)
 *Strategy: Use `SimpleJsBundler` (Kotlin-based) to bundle JS without Node.js.*
 - [ ] **3.1: Bundler Logic (`SimpleJsBundler.kt`)**
-    - [ ] **Tests:** Create robust unit tests for `SimpleJsBundler` (verifying regex replacement, JSON parsing).
+    - [x] **Tests:** Create robust unit tests for `SimpleJsBundler` (verifying regex replacement, JSON parsing).
     - [ ] **Import Support:** Enhance to support basic `import` statements (merge files? or limited support).
         *   *Note:* Full module resolution without Node is hard. Phase 1 might rely on a single file or simple concatenation.
         *   *Alternative:* If full bundling is impossible, push to GitHub for Metro build (Remote Build).
         *   *Decision:* Support single-file `App.js` editing locally + Remote Build for complex apps.
     - [ ] **Asset Copying:** Implement logic to copy images/assets to the correct runner directory.
 - [ ] **3.2: Build Service Integration**
-    - [ ] Create `ReactNativeBuildStep` in `BuildService`.
+    - [x] Create `ReactNativeBuildStep` in `BuildService`.
     - [ ] Implement `buildReactNativeProject()` method.
     - [ ] Step 1: Run `SimpleJsBundler`.
     - [ ] Step 2: (Optional) Download pre-built native libs if not in the Runner.
@@ -54,7 +54,7 @@ Objective: Enable users to create, edit, build (bundle), and run React Native ap
     - [ ] Create `android_ci_react_native.yml` in assets.
     - [ ] Configure it to run `npm install`, `npx react-native bundle`, and `./gradlew assembleDebug`.
 - [ ] **4.2: Artifact Retrieval**
-    - [ ] Update `MainViewModel` to look for `*-debug.apk` from RN builds.
+    - [x] Update `MainViewModel` to look for `*-debug.apk` from RN builds.
 
 ## Phase 5: UI & UX
 - [ ] **5.1: Launch Logic**
@@ -62,5 +62,5 @@ Objective: Enable users to create, edit, build (bundle), and run React Native ap
         - [ ] If `REACT_NATIVE` and `Local Mode`: Launch `ReactNativeActivity` with bundle path.
         - [ ] If `Remote Mode` (APK installed): Launch package via Intent.
 - [ ] **5.2: Accessibility & Overlay**
-    - [ ] Verify `SimpleJsBundler` correctly injects `accessibilityLabel` for the IDEaz overlay.
+    - [x] Verify `SimpleJsBundler` correctly injects `accessibilityLabel` for the IDEaz overlay.
     - [ ] Test selection mode on the RN surface.
