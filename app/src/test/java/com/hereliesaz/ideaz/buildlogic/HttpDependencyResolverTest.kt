@@ -3,13 +3,13 @@ package com.hereliesaz.ideaz.buildlogic
 import org.junit.Test
 import org.junit.Assert.*
 import java.io.File
+import org.eclipse.aether.graph.Dependency
+import org.eclipse.aether.artifact.Artifact
 
 class HttpDependencyResolverTest {
     @Test
     fun testParseDependencies() {
-        val resolver = HttpDependencyResolver(File("."), File("."), File("."), null)
-        val method = HttpDependencyResolver::class.java.getDeclaredMethod("parseDependencies", String::class.java)
-        method.isAccessible = true
+        // Updated to use direct call and direct access, removing brittle reflection
 
         val input = """
             # TOML
@@ -38,20 +38,15 @@ class HttpDependencyResolverTest {
             </dependency>
         """.trimIndent()
 
-        val dependencies = method.invoke(resolver, input) as List<*>
+        val dependencies = HttpDependencyResolver.parseDependencies(input, null)
 
         assertEquals(8, dependencies.size)
 
-        fun checkArtifact(dep: Any?, artifactId: String, version: String, extension: String) {
-            assertNotNull(dep)
-            val artifact = dep!!.javaClass.getMethod("getArtifact").invoke(dep)
-            val actualArtifactId = artifact.javaClass.getMethod("getArtifactId").invoke(artifact) as String
-            val actualVersion = artifact.javaClass.getMethod("getVersion").invoke(artifact) as String
-            val actualExtension = artifact.javaClass.getMethod("getExtension").invoke(artifact) as String
-
-            assertEquals("ArtifactId mismatch for $artifactId", artifactId, actualArtifactId)
-            assertEquals("Version mismatch for $artifactId", version, actualVersion)
-            assertEquals("Extension mismatch for $artifactId", extension, actualExtension)
+        fun checkArtifact(dep: Dependency, artifactId: String, version: String, extension: String) {
+            val artifact = dep.artifact
+            assertEquals("ArtifactId mismatch for $artifactId", artifactId, artifact.artifactId)
+            assertEquals("Version mismatch for $artifactId", version, artifact.version)
+            assertEquals("Extension mismatch for $artifactId", extension, artifact.extension)
         }
 
         // Maven (Parsed first)
