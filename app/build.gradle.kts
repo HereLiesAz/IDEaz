@@ -205,4 +205,6 @@ dependencies {
     // Force JNA AAR for Android native support
     implementation("net.java.dev.jna:jna:${libs.versions.jna.get()}@aar")
     implementation(libs.hiddenapibypass)
+    implementation(libs.zipline.android)
+    implementation(libs.zipline.loader)
 }

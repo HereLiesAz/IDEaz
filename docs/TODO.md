@@ -123,7 +123,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] Ensure source-based schema parsing (no pre-compilation of Schema.kt).
 - [ ] **11.3: Host Compilation (Native)**
     - [x] Update `KotlincCompile` to include generated Host code.
-    - [ ] Integrate `ZiplineLoader` logic into Host (`MainActivity`).
+    - [x] Integrate `ZiplineLoader` logic into Host (`MainViewModel`).
 - [x] **11.4: Guest Compilation (Zipline/JS)**
     - [x] Implement `K2JSCompiler` invocation in `BuildService`.
     - [x] Configure Zipline compiler plugin (`-Xplugin`, `-P plugin:zipline-api-validation=enabled`).
