@@ -123,7 +123,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] Ensure source-based schema parsing (no pre-compilation of Schema.kt).
 - [ ] **11.3: Host Compilation (Native)**
     - [x] Update `KotlincCompile` to include generated Host code.
-    - [x] Integrate `ZiplineLoader` logic into Host (`MainViewModel`).
+    - [ ] Integrate `ZiplineLoader` logic into Host (`MainActivity`).
 - [x] **11.4: Guest Compilation (Zipline/JS)**
     - [x] Implement `K2JSCompiler` invocation in `BuildService`.
     - [x] Configure Zipline compiler plugin (`-Xplugin`, `-P plugin:zipline-api-validation=enabled`).
@@ -132,7 +132,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] Implement `ZiplineManifestGenerator` (SHA-256 hashing, JSON construction).
     - [x] Implement Ed25519 signing of manifest using `LazySodiumAndroid`.
 - [ ] **11.6: Hot Reload & Runtime**
-    - [ ] Implement "Hot Reload" trigger (write manifest, broadcast `RELOAD_ZIPLINE`).
+    - [x] Implement "Hot Reload" trigger (write manifest, broadcast `RELOAD_ZIPLINE`).
     - [ ] Implement Host receiver to trigger `ziplineLoader.loadOnce`.
     - [ ] Refactor `SimpleJsBundler` for Zipline module loading/bootstrapping.
     - [ ] Implement Error Handling: Capture Guest crashes and feed to Jules.
