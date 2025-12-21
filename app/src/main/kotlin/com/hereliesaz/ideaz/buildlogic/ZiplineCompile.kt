@@ -30,7 +30,8 @@ class ZiplineCompile(
             }
 
             if (sourceFiles.isEmpty()) {
-                return BuildResult(false, "No guest source files found.")
+                callback?.onLog("[Zipline] No guest source files found, skipping compilation.")
+                return BuildResult(true, "No guest source files found.")
             }
 
             val cpString = classpath.joinToString(File.pathSeparator) { it.absolutePath }
