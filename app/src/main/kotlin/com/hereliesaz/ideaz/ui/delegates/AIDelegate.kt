@@ -1,6 +1,7 @@
 package com.hereliesaz.ideaz.ui.delegates
 
 import com.hereliesaz.ideaz.api.*
+import com.hereliesaz.ideaz.jules.IJulesApiClient
 import com.hereliesaz.ideaz.jules.JulesApiClient
 import com.hereliesaz.ideaz.ui.AiModels
 import com.hereliesaz.ideaz.ui.SettingsViewModel
@@ -27,7 +28,8 @@ class AIDelegate(
     private val settingsViewModel: SettingsViewModel,
     private val scope: CoroutineScope,
     private val onOverlayLog: (String) -> Unit,
-    private val onUnidiffPatchReceived: suspend (String) -> Boolean
+    private val onUnidiffPatchReceived: suspend (String) -> Boolean,
+    private val julesApiClient: IJulesApiClient = JulesApiClient
 ) {
 
     private val _currentJulesSessionId = MutableStateFlow<String?>(null)
@@ -72,7 +74,7 @@ class AIDelegate(
         scope.launch {
             try {
                 // List all sessions (API change: no arguments)
-                val response = JulesApiClient.listSessions()
+                val response = julesApiClient.listSessions()
                 val allSessions = response.sessions ?: emptyList()
                 val user = settingsViewModel.getGithubUser() ?: ""
                 val fullRepo = if (repoName.contains("/")) repoName else "$user/$repoName"
@@ -152,14 +154,14 @@ class AIDelegate(
                     title = "Session ${System.currentTimeMillis()}"
                 )
                 // API Change: No projectId/location args
-                val session = JulesApiClient.createSession(request = request)
+                val session = julesApiClient.createSession(request = request)
                 _currentJulesSessionId.value = session.id
                 _julesResponse.value = session
                 activeSessionId = session.id
             } else {
                 // Send Message
                 val request = SendMessageRequest(prompt = promptText)
-                JulesApiClient.sendMessage(sessionId, request)
+                julesApiClient.sendMessage(sessionId, request)
                 activeSessionId = sessionId
             }
 
@@ -174,7 +176,7 @@ class AIDelegate(
         val allActivities = mutableListOf<Activity>()
         var pageToken: String? = null
         do {
-            val response = JulesApiClient.listActivities(sessionId, pageToken = pageToken)
+            val response = julesApiClient.listActivities(sessionId, pageToken = pageToken)
             response.activities?.let { allActivities.addAll(it) }
             pageToken = response.nextPageToken
         } while (pageToken != null)

@@ -23,7 +23,7 @@ import org.jetbrains.annotations.VisibleForTesting
  *
  * It wraps the Retrofit interface [JulesApi].
  */
-object JulesApiClient {
+object JulesApiClient : IJulesApiClient {
 
     /** The base URL for the v1alpha Jules API. */
     private const val DEFAULT_BASE_URL = "https://jules.googleapis.com/v1alpha/"
@@ -74,18 +74,18 @@ object JulesApiClient {
         return retrofit.create(JulesApi::class.java)
     }
 
-    suspend fun listSessions(pageSize: Int = 100, pageToken: String? = null) =
+    override suspend fun listSessions(pageSize: Int, pageToken: String?) =
         client.listSessions(pageSize, pageToken)
 
-    suspend fun createSession(request: CreateSessionRequest): Session =
+    override suspend fun createSession(request: CreateSessionRequest): Session =
         client.createSession(request)
 
-    suspend fun sendMessage(sessionId: String, request: SendMessageRequest) =
+    override suspend fun sendMessage(sessionId: String, request: SendMessageRequest) =
         client.sendMessage(sessionId, request)
 
-    suspend fun listActivities(sessionId: String, pageSize: Int = 100, pageToken: String? = null) =
+    override suspend fun listActivities(sessionId: String, pageSize: Int, pageToken: String?) =
         client.listActivities(sessionId, pageSize, pageToken)
 
-    suspend fun listSources(pageSize: Int = 100, pageToken: String? = null) =
+    override suspend fun listSources(pageSize: Int, pageToken: String?) =
         client.listSources(pageSize, pageToken)
 }
