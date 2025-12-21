@@ -90,6 +90,7 @@
 
 #### utils/
 *   `ToolManager.kt`: Installs and locates native tools (`aapt2`, `java`, etc.).
+*   `TemplateManager.kt`: Manages project template copying and customization.
 *   `ProjectAnalyzer.kt`: Detects project types and configurations.
 *   `ProcessExecutor.kt`: Helper to run native shell commands.
 *   `SourceMapParser.kt`: Parses R8 mapping files (or custom map).
