@@ -61,6 +61,7 @@ fun MainScreen(
 
     val isContextualChatVisible by viewModel.isContextualChatVisible.collectAsState()
     val activeSelectionRect by viewModel.activeSelectionRect.collectAsState()
+    val isSelectMode by viewModel.isSelectMode.collectAsState()
 
     var isPromptPopupVisible by remember { mutableStateOf(false) }
 
@@ -135,6 +136,16 @@ fun MainScreen(
                             onThemeToggle = onThemeToggle
                         )
                     }
+                }
+            }
+
+            // LAYER 2.5: Selection Overlay
+            if (isSelectMode) {
+                Box(modifier = Modifier.fillMaxSize().zIndex(Z_INDEX_OVERLAY)) {
+                    SelectionOverlay(
+                        onTap = { x, y -> viewModel.handleSelection(android.graphics.Rect(x.toInt(), y.toInt(), x.toInt()+1, y.toInt()+1)) },
+                        onDragEnd = { rect -> viewModel.handleSelection(rect) }
+                    )
                 }
             }
 
