@@ -70,7 +70,8 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] React Native Support (Partial: Bundler implemented, Runtime Shim expanded with State/Lists/Navigation).
     - [x] Flutter Support (Implemented Phases 1-4. Phases 5-6 pending).
 - [ ] **5.2: Testing**
-    - [ ] Unit Tests for all ViewModels.
+    - [x] Unit Tests for SettingsViewModel.
+    - [ ] Unit Tests for MainViewModel (Delegates).
     - [ ] Integration Tests for Build Pipeline.
 - [x] **5.3: Advanced Features**
     - [x] Incremental Builds.
