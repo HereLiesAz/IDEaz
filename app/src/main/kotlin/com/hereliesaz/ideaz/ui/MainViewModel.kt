@@ -147,8 +147,40 @@ class MainViewModel(
 
     val updateDelegate = UpdateDelegate(application, settingsViewModel, viewModelScope, logHandler::onAiLog)
 
+    private var currentZipline: app.cash.zipline.Zipline? = null
+
+    private fun reloadZipline(manifestPath: String) {
+        viewModelScope.launch(ziplineDispatcher) {
+            try {
+                logHandler.onBuildLog("[Zipline] Reloading from $manifestPath...")
+                currentZipline?.close()
+                currentZipline = null
+
+                // Load from file URL
+                val manifestUrl = File(manifestPath).toUri().toString()
+                val zipline = ziplineLoader.loadOnce("guest", manifestUrl) {
+                     // TODO: Configure bindings/services exposed to Guest
+                }
+                currentZipline = zipline
+
+                logHandler.onBuildLog("[Zipline] Reload complete.")
+
+            } catch (e: Exception) {
+                logHandler.onBuildLog("[Zipline] Reload failed: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
+
     // Handles BroadcastReceivers
-    val systemEventDelegate = SystemEventDelegate(application, aiDelegate, overlayDelegate, stateDelegate)
+    val systemEventDelegate = SystemEventDelegate(
+        application,
+        aiDelegate,
+        overlayDelegate,
+        stateDelegate
+    ) { manifestPath ->
+        reloadZipline(manifestPath)
+    }
 
     // --- PUBLIC STATE EXPOSURE (Delegated) ---
     val loadingProgress = stateDelegate.loadingProgress
