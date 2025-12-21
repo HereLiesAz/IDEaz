@@ -14,7 +14,8 @@ class Aapt2Link(
     private val minSdk: Int,
     private val targetSdk: Int,
     private val dependencyResources: List<String> = emptyList(),
-    private val packageName: String? = null
+    private val packageName: String? = null,
+    private val assetsDir: String? = null
 ) : BuildStep {
 
     override fun execute(callback: IBuildCallback?): BuildResult {
@@ -54,6 +55,14 @@ class Aapt2Link(
         if (!packageName.isNullOrBlank()) {
             command.add("--rename-manifest-package")
             command.add(packageName)
+        }
+
+        if (!assetsDir.isNullOrBlank()) {
+            val assetsFile = File(assetsDir)
+            if (assetsFile.exists() && assetsFile.isDirectory) {
+                command.add("-A")
+                command.add(assetsDir)
+            }
         }
 
         command.addAll(dependencyResources)

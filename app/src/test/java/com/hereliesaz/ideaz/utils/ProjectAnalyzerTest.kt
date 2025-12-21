@@ -60,6 +60,15 @@ class ProjectAnalyzerTest {
     }
 
     @Test
+    fun detectFlutterProject() {
+        val projectDir = tempFolder.newFolder("flutter_project")
+        File(projectDir, "pubspec.yaml").createNewFile()
+
+        val type = ProjectAnalyzer.detectProjectType(projectDir)
+        assertEquals(ProjectType.FLUTTER, type)
+    }
+
+    @Test
     fun detectPackageName_fromManifest() {
         val projectDir = tempFolder.newFolder("manifest_project")
         val manifestDir = File(projectDir, "app/src/main").apply { mkdirs() }

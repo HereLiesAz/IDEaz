@@ -44,9 +44,27 @@ class StateDelegate {
 
     /** Appends multiple lines to the build log with a size cap. */
     fun appendBuildLogLines(lines: List<String>) {
-        if (lines.isNotEmpty()) {
-            _buildLog.update { current ->
-                (current + lines).takeLast(MAX_LOG_SIZE)
+        if (lines.isEmpty()) return
+        _buildLog.update { current ->
+            val totalSize = current.size + lines.size
+            if (totalSize <= MAX_LOG_SIZE) {
+                current + lines
+            } else {
+                // Optimization: Avoid creating an intermediate list of size (current + lines)
+                // just to slice it. Instead, build the result directly.
+                val keepFromCurrent = MAX_LOG_SIZE - lines.size
+                if (keepFromCurrent <= 0) {
+                    lines.takeLast(MAX_LOG_SIZE)
+                } else {
+                    val result = java.util.ArrayList<String>(MAX_LOG_SIZE)
+                    // We assume 'current' is RandomAccess (ArrayList) for O(1) access
+                    val start = current.size - keepFromCurrent
+                    for (i in start until current.size) {
+                        result.add(current[i])
+                    }
+                    result.addAll(lines)
+                    result
+                }
             }
         }
     }
