@@ -41,6 +41,7 @@ class HttpDependencyResolver(
 
         // Pre-compiled regexes to avoid compilation on every call/loop
         private val MAVEN_DEPENDENCY_REGEX = "<dependency>(.*?)</dependency>".toRegex(RegexOption.DOT_MATCHES_ALL)
+        private val MAVEN_EXCLUSION_REGEX = "<exclusion>(.*?)</exclusion>".toRegex(RegexOption.DOT_MATCHES_ALL)
         private val QUOTE_REGEX = "[\"']([^\"']+)[\"']".toRegex()
 
         private val TAG_REGEXES = mapOf(
@@ -58,8 +59,8 @@ class HttpDependencyResolver(
             MAVEN_DEPENDENCY_REGEX.findAll(content).forEach { matchResult ->
                 val block = matchResult.groupValues[1]
 
-                fun extract(tag: String): String? {
-                    return TAG_REGEXES[tag]?.find(block)?.groupValues?.get(1)?.trim()
+                fun extract(tag: String, source: String = block): String? {
+                    return TAG_REGEXES[tag]?.find(source)?.groupValues?.get(1)?.trim()
                 }
 
                 val groupId = extract("groupId")
@@ -67,11 +68,21 @@ class HttpDependencyResolver(
                 val version = extract("version")
                 val type = extract("type") ?: extract("packaging")
 
+                val exclusions = mutableListOf<org.eclipse.aether.graph.Exclusion>()
+                MAVEN_EXCLUSION_REGEX.findAll(block).forEach { excMatch ->
+                    val excBlock = excMatch.groupValues[1]
+                    val excGroupId = extract("groupId", excBlock)
+                    val excArtifactId = extract("artifactId", excBlock)
+                    if (excGroupId != null && excArtifactId != null) {
+                        exclusions.add(org.eclipse.aether.graph.Exclusion(excGroupId, excArtifactId, "*", "*"))
+                    }
+                }
+
                 if (groupId != null && artifactId != null && version != null) {
                     // DefaultArtifact format: [groupId]:[artifactId]:[extension]:[version]
                     val coords = if (type != null) "$groupId:$artifactId:$type:$version" else "$groupId:$artifactId:$version"
                     try {
-                        dependencies.add(Dependency(DefaultArtifact(coords), "compile"))
+                        dependencies.add(Dependency(DefaultArtifact(coords), "compile", false, exclusions))
                     } catch (e: Exception) {
                         callback?.onLog("[IDE] WARNING: Failed to parse Maven dependency: $coords")
                     }
