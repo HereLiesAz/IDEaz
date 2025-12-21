@@ -57,7 +57,7 @@
 #### services/
 *   `BuildService.kt`: Background service running the build toolchain.
 *   `UIInspectionService.kt` / `IdeazAccessibilityService.kt`: Accessibility Service for UI inspection (node info).
-*   `IdeazOverlayService.kt`: Foreground Service for the main visual overlay (NavRail, Console). Extends `AzNavRailOverlayService`.
+*   `IdeazOverlayService.kt`: Foreground Service for the "Selection Overlay" (System Alert Window) allowing UI inspection and interaction.
 *   `CrashReportingService.kt`: Service for reporting fatal/non-fatal errors to AI/GitHub.
 *   `ScreenshotService.kt`: Service for capturing screenshots.
 
