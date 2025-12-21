@@ -18,8 +18,8 @@ Objective: Enable users to create, edit, build (bundle), and run React Native ap
 
 ## Phase 2: The Runtime (Runner)
 *Strategy: Use a "Universal Runner" Activity that includes the React Native runtime and loads a local JS bundle.*
-- [ ] **2.1: Dependencies**
-    - [ ] Add `com.facebook.react:react-native` dependency to `app/build.gradle.kts` (or a dynamic feature module if size is a concern).
+- [x] **2.1: Dependencies**
+    - [x] Add `com.facebook.react:react-native` dependency to `app/build.gradle.kts` (or a dynamic feature module if size is a concern).
     - [ ] Ensure `hermes-engine` is included (or JSC).
     - [ ] Handle 64-bit/32-bit ABI splits if necessary.
 - [ ] **2.2: Native Module Exposure**
@@ -50,9 +50,9 @@ Objective: Enable users to create, edit, build (bundle), and run React Native ap
 
 ## Phase 4: Remote Build (CI/CD)
 *Strategy: Fallback for complex dependencies.*
-- [ ] **4.1: Workflow Injection**
-    - [ ] Create `android_ci_react_native.yml` in assets.
-    - [ ] Configure it to run `npm install`, `npx react-native bundle`, and `./gradlew assembleDebug`.
+- [x] **4.1: Workflow Injection**
+    - [x] Create `android_ci_react_native.yml` in assets (injected via ProjectConfigManager).
+    - [x] Configure it to run `npm install`, `npx react-native bundle`, and `./gradlew assembleDebug`.
 - [ ] **4.2: Artifact Retrieval**
     - [x] Update `MainViewModel` to look for `*-debug.apk` from RN builds.
 
