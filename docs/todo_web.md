@@ -35,7 +35,7 @@ Objective: Enable users to create, edit, preview, and deploy static web applicat
 - [x] **4.1: GitHub Pages Integration**
     - [x] Ensure `web_ci_pages.yml` is injected (via `ProjectConfigManager` code).
     - [x] Configure it to deploy the project root (or `dist/`) to `gh-pages` branch.
-    - [x] Auto-enable GitHub Pages via API (if possible) or instruct user.
+    - [ ] Auto-enable GitHub Pages via API (if possible) or instruct user. (Missing user instruction).
 - [x] **4.2: Git Integration**
     - [x] Ensure `GitDelegate` pushes changes correctly.
     - [x] Add "Deploy" action in UI that triggers the GitHub Pages workflow.
