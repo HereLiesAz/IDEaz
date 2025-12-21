@@ -503,11 +503,20 @@ class BuildService : Service() {
 
                 val schemaType = detectSchema(projectDir)
                 val generatedHostDir = File(buildDir, "generated/host")
-                val buildSteps = mutableListOf<BuildStep>(
-                     ProcessManifest(File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, processedManifestPath, packageName, MIN_SDK, TARGET_SDK),
-                     Aapt2Compile(aapt2Path, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK),
-                     Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, processedManifestPath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK, processAars.compiledAars, packageName)
-                )
+                val buildSteps = mutableListOf<BuildStep>()
+
+                // REACT NATIVE PRE-STEP
+                var assetsDirArg: String? = null
+                if (type == ProjectType.REACT_NATIVE) {
+                    val assetsDir = File(buildDir, "assets")
+                    if (!assetsDir.exists()) assetsDir.mkdirs()
+                    buildSteps.add(ReactNativeBuildStep(projectDir, assetsDir))
+                    assetsDirArg = assetsDir.absolutePath
+                }
+
+                buildSteps.add(ProcessManifest(File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, processedManifestPath, packageName, MIN_SDK, TARGET_SDK))
+                buildSteps.add(Aapt2Compile(aapt2Path, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK))
+                buildSteps.add(Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, processedManifestPath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK, processAars.compiledAars, packageName, assetsDirArg))
 
                 if (schemaType != null) {
                     wrappedCallback.onLog("[IDE] Detected Schema: $schemaType. Enabling Hybrid Host generation.")

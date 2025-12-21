@@ -1,6 +1,6 @@
 # React Native Implementation Plan (Partial/Stalled)
 
-**Status:** Implementation is currently stalled. Basic bundler logic exists (`SimpleJsBundler`) but is unused. The focus is on Native Android and Web first.
+**Status:** Implementation is currently in progress. Basic bundler logic exists (`SimpleJsBundler`) and is integrated into the build pipeline. Runtime support (native modules) is pending.
 
 ## 1. Bundling Strategy
 *   **Tool:** `SimpleJsBundler` (Custom Kotlin implementation).
@@ -15,17 +15,20 @@
 *   **Debug:** Requires bridging logs from JS to the IDE console (Not Implemented).
 
 ## 3. Build Service Integration
-*   **Task:** Needs a specific `ReactNativeBuildStep` in `BuildOrchestrator`.
-*   **Dependencies:** Needs `node` and `npm`/`yarn` binaries (Missing on device).
-    *   *Alternative:* Use the internal bundler (limited compatibility).
+*   **Task:** `ReactNativeBuildStep` is integrated into `BuildService`.
+*   **Dependencies:** Uses the internal bundler (no node/npm required).
 
 ## 4. Platform Decisions (From previous roadmap)
 *   **Bridge:** Use a custom Java-JS bridge (e.g. `WebViewJavascriptBridge`) or standard RN Native Modules.
 *   **Layout:** Needs a way to map standard RN views to `AccessibilityNodeInfo` for the overlay.
 *   **Hot Reload:** Initially just full reload. HMR is too complex for on-device implementation v1.
 
-## 5. Next Steps (When Resumed)
-1.  Complete `SimpleJsBundler` unit tests.
-2.  Implement `ReactNativeBuildStep` in `BuildOrchestrator`.
-3.  Create a sample React Native project template in `assets/templates/react_native`.
-4.  Verify `AndroidProjectHost` can load the bundled assets.
+## 5. Completed Steps
+- [x] Complete `SimpleJsBundler` unit tests.
+- [x] Implement `ReactNativeBuildStep` in `BuildOrchestrator` (via `BuildService`).
+- [x] Create a sample React Native project template in `assets/templates/react_native`.
+
+## 6. Next Steps
+1.  Verify `AndroidProjectHost` can load the bundled assets (requires runtime implementation).
+2.  Implement React Native Runtime (Java/Kotlin shim with JS engine or WebView).
+3.  Add support for Native Modules.
