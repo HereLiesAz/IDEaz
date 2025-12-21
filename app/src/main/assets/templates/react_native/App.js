@@ -2,33 +2,60 @@ import React from 'react';
 import { View, Text, TextInput, Button, FlatList, StyleSheet, TouchableOpacity, NativeModules } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const Stack = createNativeStackNavigator();
+const STORAGE_KEY = '@todos';
 
 const HomeScreen = ({ navigation }) => {
   const textRef = React.useRef('');
-  const [todos, setTodos] = React.useState([
-    { id: '1', title: 'Buy Milk', completed: false },
-    { id: '2', title: 'Walk the Dog', completed: true },
-  ]);
+  const [todos, setTodos] = React.useState([]);
+
+  React.useEffect(() => {
+      const loadTodos = async () => {
+          try {
+              const json = await AsyncStorage.getItem(STORAGE_KEY);
+              if (json) {
+                  setTodos(JSON.parse(json));
+              }
+          } catch (e) {
+              console.error('Failed to load todos', e);
+          }
+      };
+      loadTodos();
+  }, []);
+
+  const saveTodos = async (newTodos) => {
+      try {
+          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newTodos));
+      } catch (e) {
+          console.error('Failed to save todos', e);
+      }
+  };
 
   const addTodo = () => {
     const text = textRef.current;
     if (!text || text.trim().length === 0) return;
 
     const newTodo = { id: Date.now().toString(), title: text, completed: false };
-    setTodos([...todos, newTodo]);
-    textRef.current = ''; // Clear input ref
+    const updatedTodos = [...todos, newTodo];
+    setTodos(updatedTodos);
+    saveTodos(updatedTodos);
 
+    textRef.current = '';
     NativeModules.ToastAndroid.show('Task Added!', 0);
   };
 
   const toggleTodo = (id) => {
-    setTodos(todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+    const updatedTodos = todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t);
+    setTodos(updatedTodos);
+    saveTodos(updatedTodos);
   };
 
   const deleteTodo = (id) => {
-    setTodos(todos.filter(t => t.id !== id));
+    const updatedTodos = todos.filter(t => t.id !== id);
+    setTodos(updatedTodos);
+    saveTodos(updatedTodos);
   };
 
   const renderItem = ({ item }) => (
