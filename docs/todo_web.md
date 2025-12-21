@@ -35,7 +35,7 @@ Objective: Enable users to create, edit, preview, and deploy static web applicat
 - [x] **4.1: GitHub Pages Integration**
     - [x] Ensure `web_ci_pages.yml` is injected (via `ProjectConfigManager` code).
     - [x] Configure it to deploy the project root (or `dist/`) to `gh-pages` branch.
-    - [ ] Auto-enable GitHub Pages via API (if possible) or instruct user. (Missing user instruction).
+    - [x] Auto-enable GitHub Pages via API (if possible) or instruct user.
 - [x] **4.2: Git Integration**
     - [x] Ensure `GitDelegate` pushes changes correctly.
     - [x] Add "Deploy" action in UI that triggers the GitHub Pages workflow.
@@ -45,8 +45,8 @@ Objective: Enable users to create, edit, preview, and deploy static web applicat
     - [x] Implement "Live Reload" logic:
         - [x] Watch file changes in `filesDir` (Root directory only for MVP).
         - [x] Trigger `webView.reload()` automatically on save.
-- [ ] 5.2: Syntax Highlighting
-    - [ ] Update Editor/Log viewer (Code (`EnhancedCodeEditor`) exists but is not integrated into UI).
+- [x] 5.2: Syntax Highlighting
+    - [x] Update Editor (Integrated Sora Editor in FileContentScreen).
 
 ## Phase 6: UI & Overlay Integration
 - [x] **6.1: Overlay Support**
