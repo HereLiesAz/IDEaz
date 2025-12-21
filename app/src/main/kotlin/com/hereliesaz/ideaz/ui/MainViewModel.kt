@@ -31,9 +31,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -86,6 +83,14 @@ class MainViewModel(
             manifestVerifier = ManifestVerifier.NO_SIGNATURE_CHECKS,
             httpClient = app.okHttpClient.asZiplineHttpClient(),
         )
+    }
+
+    init {
+        viewModelScope.launch {
+            com.hereliesaz.ideaz.utils.LogcatReader.observe().collect {
+                stateDelegate.appendSystemLog(it)
+            }
+        }
     }
 
     // Helper to pipe logs to UI and State
@@ -142,32 +147,39 @@ class MainViewModel(
 
     val updateDelegate = UpdateDelegate(application, settingsViewModel, viewModelScope, logHandler::onAiLog)
 
+    private var currentZipline: app.cash.zipline.Zipline? = null
 
-    private val ziplineManifestUrlFlow = MutableStateFlow<String?>(null)
+    private fun reloadZipline(manifestPath: String) {
+        viewModelScope.launch(ziplineDispatcher) {
+            try {
+                logHandler.onBuildLog("[Zipline] Reloading from $manifestPath...")
+                currentZipline?.close()
+                currentZipline = null
 
-    init {
-        ziplineLoader.load(
-            applicationName = "guest",
-            manifestUrlFlow = ziplineManifestUrlFlow.asStateFlow().filterNotNull(),
-            freshnessChecker = object : app.cash.zipline.loader.FreshnessChecker {
-                override fun isFresh(manifest: app.cash.zipline.ZiplineManifest, freshAtEpochMs: Long) = true
-            },
-            initializer = { zipline ->
-                logHandler.onOverlayLog("Zipline Initialized")
+                // Load from file URL
+                val manifestUrl = File(manifestPath).toUri().toString()
+                val zipline = ziplineLoader.loadOnce("guest", manifestUrl) {
+                     // TODO: Configure bindings/services exposed to Guest
+                }
+                currentZipline = zipline
+
+                logHandler.onBuildLog("[Zipline] Reload complete.")
+
+            } catch (e: Exception) {
+                logHandler.onBuildLog("[Zipline] Reload failed: ${e.message}")
+                e.printStackTrace()
             }
-        ).onEach { result ->
-            if (result is app.cash.zipline.loader.LoadResult.Success) {
-                logHandler.onOverlayLog("Zipline Loaded Successfully")
-            } else if (result is app.cash.zipline.loader.LoadResult.Failure) {
-                logHandler.onOverlayLog("Zipline Load Failed: ${result.exception.message}")
-            }
-        }.launchIn(viewModelScope)
+        }
     }
 
     // Handles BroadcastReceivers
-    val systemEventDelegate = SystemEventDelegate(application, aiDelegate, overlayDelegate, stateDelegate) { path ->
-        logHandler.onOverlayLog("Hot Reloading Zipline: $path")
-        ziplineManifestUrlFlow.value = "file://$path"
+    val systemEventDelegate = SystemEventDelegate(
+        application,
+        aiDelegate,
+        overlayDelegate,
+        stateDelegate
+    ) { manifestPath ->
+        reloadZipline(manifestPath)
     }
 
     // --- PUBLIC STATE EXPOSURE (Delegated) ---
@@ -271,9 +283,6 @@ class MainViewModel(
 
     /** Clears local build caches (TODO). */
     fun clearBuildCaches(c: Context) { /* TODO */ }
-
-    /** Cancels the running local build. */
-    fun cancelLocalBuild() = buildDelegate.cancelBuild()
 
     /**
      * Downloads and installs the build tools (aapt2, d8, kotlinc) from the latest GitHub release.
@@ -527,7 +536,6 @@ class MainViewModel(
 
                 if (_artifactCheckResult.value?.isRemoteNewer == true) {
                     // logHandler.onOverlayLog("New artifact found.")
-                    cancelLocalBuild()
                     break
                 }
 

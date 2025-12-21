@@ -26,7 +26,7 @@ class SystemEventDelegate(
     private val aiDelegate: AIDelegate,
     private val overlayDelegate: OverlayDelegate,
     private val stateDelegate: StateDelegate,
-    private val onReloadZipline: (String) -> Unit
+    private val onReloadZipline: ((String) -> Unit)? = null
 ) {
 
     private val promptReceiver = object : BroadcastReceiver() {
@@ -63,13 +63,15 @@ class SystemEventDelegate(
                     val base64 = intent.getStringExtra("BASE64_SCREENSHOT")
                     if (base64 != null) overlayDelegate.onScreenshotTaken(base64)
                 }
+                "com.hereliesaz.ideaz.RELOAD_ZIPLINE" -> {
+                    val path = intent.getStringExtra("MANIFEST_PATH")
+                    if (path != null) {
+                        onReloadZipline?.invoke(path)
+                    }
+                }
                 ACTION_AI_LOG -> {
                     val msg = intent.getStringExtra(EXTRA_MESSAGE)
                     if (!msg.isNullOrBlank()) stateDelegate.appendBuildLog(msg)
-                }
-                "com.hereliesaz.ideaz.RELOAD_ZIPLINE" -> {
-                    val path = intent.getStringExtra("MANIFEST_PATH")
-                    if (!path.isNullOrBlank()) onReloadZipline(path)
                 }
             }
         }
@@ -91,8 +93,8 @@ class SystemEventDelegate(
             addAction("com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE")
             addAction("com.hereliesaz.ideaz.SELECTION_MADE")
             addAction("com.hereliesaz.ideaz.SCREENSHOT_TAKEN")
-            addAction(ACTION_AI_LOG)
             addAction("com.hereliesaz.ideaz.RELOAD_ZIPLINE")
+            addAction(ACTION_AI_LOG)
         }
 
         val visFilter = IntentFilter("com.hereliesaz.ideaz.TARGET_APP_VISIBILITY")
