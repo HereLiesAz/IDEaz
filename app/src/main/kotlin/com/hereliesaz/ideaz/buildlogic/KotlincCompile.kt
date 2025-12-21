@@ -11,7 +11,7 @@ import java.io.File
 class KotlincCompile(
     private val kotlincJarPath: String, // Unused
     private val androidJarPath: String,
-    private val srcDir: String,
+    private val sourceDirs: List<File>,
     private val outputDir: File,
     private val classpath: String,
     private val javaBinaryPath: String // Unused
@@ -19,8 +19,19 @@ class KotlincCompile(
 
     override fun execute(callback: IBuildCallback?): BuildResult {
         // Collect files for cache check
-        val srcDirFile = File(srcDir)
-        val sourceFilesList = srcDirFile.walk().filter { it.isFile && (it.extension == "kt" || it.extension == "java") }.toList()
+        val sourceFilesList = sourceDirs.flatMap { dir ->
+            if (dir.exists()) {
+                dir.walk().filter { it.isFile && (it.extension == "kt" || it.extension == "java") }.toList()
+            } else {
+                emptyList()
+            }
+        }
+
+        if (sourceFilesList.isEmpty()) {
+            callback?.onLog("Skipping KotlincCompile: No source files found.")
+            return BuildResult(true, "No sources")
+        }
+
         val classpathFiles = classpath.split(File.pathSeparator).filter { it.isNotEmpty() }.map { File(it) }
         val allInputs = sourceFilesList + classpathFiles + File(androidJarPath)
 
@@ -67,7 +78,7 @@ class KotlincCompile(
         return try {
              makeJvmIncrementally(
                 kotlinHomeDir,
-                listOf(srcDirFile),
+                sourceDirs.filter { it.exists() },
                 args,
                 collector
             )
