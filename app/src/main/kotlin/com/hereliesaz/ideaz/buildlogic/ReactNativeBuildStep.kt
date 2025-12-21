@@ -20,17 +20,7 @@ class ReactNativeBuildStep(
             // Asset Copying
             val assetsDir = File(projectDir, "assets")
             if (assetsDir.exists() && assetsDir.isDirectory) {
-                 // copyRecursively copies the content of directory to destination if it exists?
-                 // No, if destination exists, it might fail or copy INTO it.
-                 // Actually, Kotlin's copyRecursively puts 'this' file/dir to 'target'.
-                 // If 'this' is a dir, 'target' becomes that dir.
-                 // Wait, no. "Copies this file with all its children to the specified destination target path."
-                 // If source is dir and target is dir, it copies content OF source to target?
-
-                 // Let's iterate and copy to avoid ambiguity or nesting "assets" folder inside output.
-                 // The test expects `output/test.html`.
-                 // So we want content of `assets/` to go to `output/`.
-
+                 // Iterate and copy to flatten structure if needed, or ensure strict copying to output root.
                  assetsDir.walkTopDown().forEach { file ->
                      if (file.isFile) {
                          val relativePath = file.toRelativeString(assetsDir)
