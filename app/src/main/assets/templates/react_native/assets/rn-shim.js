@@ -123,6 +123,89 @@ export const AppRegistry = {
     }
 };
 
+export const FlatList = (props) => {
+    const { data, renderItem, keyExtractor, style, contentContainerStyle } = props;
+    const items = data || [];
+    return React.createElement('div', {
+        style: {
+            display: 'flex',
+            flexDirection: 'column',
+            overflowY: 'auto',
+            flex: 1,
+            ...style,
+            ...contentContainerStyle
+        }
+    }, items.map((item, index) => {
+        const key = keyExtractor ? keyExtractor(item, index) : (item.key || index);
+        const element = renderItem({ item, index });
+        return React.createElement('div', { key }, element);
+    }));
+};
+
+export const SectionList = (props) => {
+    const { sections, renderItem, renderSectionHeader, keyExtractor, style, contentContainerStyle } = props;
+    const sectionData = sections || [];
+
+    const children = [];
+    sectionData.forEach((section, sectionIndex) => {
+        if (renderSectionHeader) {
+            children.push(React.createElement('div', { key: `header-${sectionIndex}` }, renderSectionHeader({ section })));
+        }
+        (section.data || []).forEach((item, itemIndex) => {
+            const key = keyExtractor ? keyExtractor(item, itemIndex) : (item.key || `${sectionIndex}-${itemIndex}`);
+            children.push(React.createElement('div', { key }, renderItem({ item, index: itemIndex, section })));
+        });
+    });
+
+    return React.createElement('div', {
+        style: {
+            display: 'flex',
+            flexDirection: 'column',
+            overflowY: 'auto',
+            flex: 1,
+            ...style,
+            ...contentContainerStyle
+        }
+    }, children);
+};
+
+export const NavigationContainer = ({ children }) => {
+    return React.createElement('div', {
+        style: { flex: 1, display: 'flex', flexDirection: 'column', height: '100%' }
+    }, children);
+};
+
+export const createNativeStackNavigator = () => {
+    return {
+        Navigator: ({ children, initialRouteName }) => {
+            let targetChild = null;
+            const kids = Array.isArray(children) ? children : [children];
+
+            // Filter out nulls/undefined
+            const validKids = kids.filter(k => k);
+
+            if (initialRouteName) {
+                targetChild = validKids.find(c => c.props && c.props.name === initialRouteName);
+            }
+            if (!targetChild && validKids.length > 0) {
+                targetChild = validKids[0];
+            }
+
+            return React.createElement('div', {
+                style: { flex: 1, display: 'flex', flexDirection: 'column' }
+            }, targetChild);
+        },
+        Screen: ({ name, component, options }) => {
+             const navigation = {
+                navigate: (route) => console.log(`[Shim] navigate to ${route}`),
+                goBack: () => console.log('[Shim] goBack'),
+                setOptions: () => {}
+            };
+            return React.createElement(component, { navigation, route: { params: {} } });
+        }
+    };
+};
+
 export const NativeModules = {
     ToastAndroid: {
         show: (message, duration) => {

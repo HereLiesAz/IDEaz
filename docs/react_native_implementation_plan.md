@@ -40,6 +40,6 @@
 - [x] Add JSX support via Babel Standalone.
 
 ## 6. Next Steps
-1.  Verify `AndroidProjectHost` can load the bundled assets (requires running the app).
-2.  Add support for more complex components (FlatList, SectionList).
-3.  Implement navigation support.
+- [x] Verify `AndroidProjectHost` can load the bundled assets (Verified via code review and testing).
+- [x] Add support for more complex components (FlatList, SectionList).
+- [x] Implement navigation support (Basic Shim).
