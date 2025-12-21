@@ -28,6 +28,8 @@ import app.cash.zipline.loader.asZiplineHttpClient
 import com.hereliesaz.ideaz.MainApplication
 import com.hereliesaz.ideaz.BuildConfig
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -330,7 +332,19 @@ class MainViewModel(
     fun gitPull() { viewModelScope.launch { gitDelegate.pull() } }
 
     /** Performs a 'git push' operation. */
-    fun gitPush() { viewModelScope.launch { gitDelegate.push() } }
+    fun gitPush() {
+        viewModelScope.launch {
+            gitDelegate.push()
+            val appName = settingsViewModel.getAppName()
+            val user = settingsViewModel.getGithubUser()
+            if (!appName.isNullOrBlank() && !user.isNullOrBlank()) {
+                val type = ProjectType.fromString(settingsViewModel.getProjectType())
+                if (type == ProjectType.ANDROID || type == ProjectType.FLUTTER) {
+                    startArtifactPolling(user, appName)
+                }
+            }
+        }
+    }
 
     /** Stashes changes with an optional message. */
     fun gitStash(m: String?) { viewModelScope.launch { gitDelegate.stash(m) } }
@@ -471,7 +485,29 @@ class MainViewModel(
 
             // Check for remote artifacts if it's an Android project
             if (type == ProjectType.ANDROID || type == ProjectType.FLUTTER) {
-                checkForRemoteArtifact(user, appName, context)
+                startArtifactPolling(user, appName)
+            }
+        }
+    }
+
+    private var pollingJob: Job? = null
+
+    private fun startArtifactPolling(user: String, repo: String) {
+        pollingJob?.cancel()
+        pollingJob = viewModelScope.launch {
+            // logHandler.onOverlayLog("Started polling for remote artifacts...") // Too noisy?
+            val startTime = System.currentTimeMillis()
+            val timeout = 10 * 60 * 1000L // 10 minutes
+
+            while (System.currentTimeMillis() - startTime < timeout) {
+                checkForRemoteArtifact(user, repo, getApplication())
+
+                if (_artifactCheckResult.value?.isRemoteNewer == true) {
+                    // logHandler.onOverlayLog("New artifact found.")
+                    break
+                }
+
+                delay(30_000) // 30 seconds
             }
         }
     }
