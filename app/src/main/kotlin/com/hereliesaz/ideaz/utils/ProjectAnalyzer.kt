@@ -35,7 +35,8 @@ object ProjectAnalyzer {
         // 1. Check AndroidManifest.xml in standard locations
         val locations = listOf(
             "app/src/main/AndroidManifest.xml",
-            "src/main/AndroidManifest.xml"
+            "src/main/AndroidManifest.xml",
+            "android/app/src/main/AndroidManifest.xml"
         )
 
         for (path in locations) {
@@ -56,7 +57,9 @@ object ProjectAnalyzer {
             "app/build.gradle.kts",
             "app/build.gradle",
             "build.gradle.kts",
-            "build.gradle"
+            "build.gradle",
+            "android/app/build.gradle",
+            "android/app/build.gradle.kts"
         )
 
         for (path in gradleLocations) {
