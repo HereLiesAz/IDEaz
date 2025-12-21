@@ -194,6 +194,44 @@ jobs:
         path: build/app/outputs/flutter-apk/IDEaz-*-debug.apk
 """.trimIndent()
 
+    private val ANDROID_CI_REACT_NATIVE_YML = """
+name: Android CI (React Native)
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+    - name: Setup Node
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18
+        cache: 'npm'
+    - name: Install Dependencies
+      run: npm install
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+    - name: Build Android
+      run: ./gradlew assembleDebug
+    - name: Upload APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: app-debug
+        path: app/build/outputs/apk/debug/app-debug.apk
+""".trimIndent()
+
     fun ensureWorkflow(projectDir: File, type: ProjectType): Boolean {
         // We use hardcoded strings for robustness if assets are missing
         val workflows = when (type) {
@@ -203,6 +241,9 @@ jobs:
             )
             ProjectType.FLUTTER -> listOf(
                 "android_ci_flutter.yml" to ANDROID_CI_FLUTTER_YML
+            )
+            ProjectType.REACT_NATIVE -> listOf(
+                "android_ci_react_native.yml" to ANDROID_CI_REACT_NATIVE_YML
             )
             ProjectType.WEB -> listOf(
                 "web_ci_pages.yml" to WEB_CI_PAGES_YML
