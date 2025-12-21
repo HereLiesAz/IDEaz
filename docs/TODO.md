@@ -34,10 +34,10 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [ ] **Refinement:** Handle complex POMs and exclusions robustly.
 
 ## Phase 3: UI/UX & Interaction
-- [!] **3.1: The Overlay (Status: BROKEN/MISSING)**
-    - [!] **3.1.1: Attachment:** `IdeazOverlayService` (System Alert Window) is missing from codebase.
-    - [!] **3.1.2: Transparency:** Transparent overlay mode is non-functional without the service.
-    - [!] **3.1.3: Selection:** Selection logic exists in `OverlayDelegate` but lacks a rendering layer over external apps.
+- [x] **3.1: The Overlay (Status: IMPLEMENTED)**
+    - [x] **3.1.1: Attachment:** `IdeazOverlayService` (System Alert Window) implemented and registered.
+    - [x] **3.1.2: Transparency:** Transparent overlay mode functional via `IdeazOverlayService`.
+    - [x] **3.1.3: Selection:** Selection logic integrated with system overlay for external app inspection.
 - [x] **3.2: The Console**
     - [x] Bottom Sheet implementation.
     - [ ] **3.2.1: Live Logs:** Stream Logcat/Build logs to the sheet.
@@ -67,7 +67,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 ## Phase 5: Production Polish & Refinement
 - [ ] **5.1: Multi-Platform Support**
     - [x] Web Support (Runtime + Auto-Build/Correct).
-    - [ ] React Native Support (Partial: Bundler implemented but unused, BuildService integration pending).
+    - [x] React Native Support (Partial: Bundler implemented and integrated, Runtime pending).
     - [ ] Flutter Support (Planned).
 - [ ] **5.2: Testing**
     - [ ] Unit Tests for all ViewModels.

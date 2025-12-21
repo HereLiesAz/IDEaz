@@ -196,7 +196,11 @@ class BuildService : Service() {
             this,
             2,
             replyIntent,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else PendingIntent.FLAG_UPDATE_CURRENT
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            } else {
+                PendingIntent.FLAG_UPDATE_CURRENT
+            }
         )
 
         val replyAction = NotificationCompat.Action.Builder(
@@ -504,6 +508,36 @@ class BuildService : Service() {
                      Aapt2Compile(aapt2Path, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK),
                      Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, processedManifestPath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK, processAars.compiledAars, packageName)
                 )
+                if (schemaType != null) {
+                    sourceDirs.add(generatedHostDir)
+                }
+
+                buildSteps.add(KotlincCompile(kotlincJarPath!!, androidJarPath, sourceDirs, File(buildDir, "classes"), fullClasspath, javaBinaryPath!!))
+                buildSteps.add(D8Compile(d8Path!!, javaBinaryPath, androidJarPath, File(buildDir, "classes").absolutePath, File(buildDir, "classes").absolutePath, fullClasspath))
+                buildSteps.add(ApkBuild(File(buildDir, "app-signed.apk").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "classes").absolutePath))
+                buildSteps.add(ApkSign(apkSignerPath!!, javaBinaryPath, keystorePath!!, ksPass, keyAlias, File(buildDir, "app-signed.apk").absolutePath))
+
+                // --- GUEST BUILD ---
+                if (schemaType != null) {
+                    val generatedGuestDir = File(buildDir, "generated/guest")
+                    val guestSourceDir = File(projectDir, "app/src/main/zipline")
+                    val guestOutputDir = File(buildDir, "guest")
+
+                    // 1. Generate Guest Code
+                    buildSteps.add(RedwoodCodegen(javaBinaryPath!!, schemaType, generatedGuestDir, false, filesDir))
+
+                    // 2. Compile Guest Code
+                    val guestDeps = HybridToolchainManager.getGuestRuntimeClasspath(filesDir, wrappedCallback)
+                    val ziplinePlugin = HybridToolchainManager.getZiplineCompilerPluginClasspath(filesDir, wrappedCallback)
+                    val ziplinePluginJars = ziplinePlugin.filter { it.extension == "jar" }
+                    val guestSources = listOf(guestSourceDir, generatedGuestDir)
+
+                    buildSteps.add(ZiplineCompile(guestSources, guestOutputDir, guestDeps, ziplinePluginJars))
+                }
+
+                buildSteps.add(GenerateSourceMap(File(projectDir, "app/src/main/res"), buildDir, cacheDir))
+
+                val buildOrchestrator = BuildOrchestrator(buildSteps)
 
                 if (schemaType != null) {
                     wrappedCallback.onLog("[IDE] Detected Schema: $schemaType. Enabling Hybrid Host generation.")
@@ -719,10 +753,20 @@ class BuildService : Service() {
                 destDir.deleteRecursively()
                 destDir.mkdirs()
 
+                val basePath = destDir.toPath().normalize()
                 ZipInputStream(zipFile.inputStream()).use { zis ->
                     var entry = zis.nextEntry
                     while (entry != null) {
                         val newFile = File(destDir, entry.name)
+
+                        // Security: Prevent Zip Slip vulnerability
+                        val destPath = newFile.toPath().normalize()
+                        if (!destPath.startsWith(basePath)) {
+                            Log.w(TAG, "Zip Slip detected: Skipping malicious entry ${entry.name}")
+                            entry = zis.nextEntry
+                            continue
+                        }
+
                         if (entry.isDirectory) {
                             newFile.mkdirs()
                         } else {

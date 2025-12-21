@@ -128,12 +128,57 @@ jobs:
         files: app/build/outputs/apk/debug/app-debug.apk
 """.trimIndent()
 
+    private val ANDROID_CI_FLUTTER_YML = """
+name: Android CI (Flutter)
+
+on:
+  push:
+    branches: [ "**" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: actions/setup-java@v3
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+
+    - uses: subosito/flutter-action@v2
+      with:
+        channel: 'stable'
+
+    - name: Get Dependencies
+      run: flutter pub get
+
+    - name: Build APK
+      run: flutter build apk --debug
+
+    - name: Rename Artifact
+      run: |
+        VERSION=${'$'}(grep 'version:' pubspec.yaml | awk '{print $2}' | cut -d '+' -f 1)
+        mv build/app/outputs/flutter-apk/app-debug.apk IDEaz-${'$'}{VERSION}-debug.apk
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: app-debug
+        path: IDEaz-*.apk
+""".trimIndent()
+
     fun ensureWorkflow(context: Context, projectDir: File, type: ProjectType): Boolean {
         // We use hardcoded strings for robustness if assets are missing
         val workflows = when (type) {
             ProjectType.ANDROID -> listOf(
                 "android_ci_jules.yml" to ANDROID_CI_JULES_YML,
                 "release.yml" to RELEASE_YML
+            )
+            ProjectType.FLUTTER -> listOf(
+                "android_ci_flutter.yml" to ANDROID_CI_FLUTTER_YML
             )
             else -> emptyList()
         }
