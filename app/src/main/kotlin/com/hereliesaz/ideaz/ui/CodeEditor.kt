@@ -41,7 +41,7 @@ private fun syntaxHighlight(code: String): AnnotatedString {
     return buildAnnotatedString {
         append(code)
 
-        val keywordPattern = Pattern.compile("\\b(package|import|class|fun|val|var|if|else|for|while|return|true|false)\\b")
+        val keywordPattern = Pattern.compile("\\b(package|import|class|fun|val|var|if|else|for|while|return|true|false|abstract|const|do|dynamic|enum|extends|final|implements|in|interface|is|library|mixin|new|null|static|super|switch|this|throw|try|void|with|yield|async|await)\\b")
         val annotationPattern = Pattern.compile("@\\w+")
         val commentPattern = Pattern.compile("//.*|/\\*[\\s\\S]*?\\*/")
 
