@@ -49,7 +49,9 @@ class RedwoodCodegen(
                 return BuildResult(false, "Failed to resolve Redwood codegen classpath.")
             }
 
-            outputDir.mkdirs()
+            require(outputDir.mkdirs() || outputDir.isDirectory) {
+                "Failed to create Redwood codegen output directory: ${outputDir.absolutePath}"
+            }
             val command = constructCommand(classpath)
 
             val result = ProcessExecutor.executeAndStreamSync(command) { line ->
