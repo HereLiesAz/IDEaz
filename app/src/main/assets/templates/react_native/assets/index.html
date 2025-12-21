@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="./babel.min.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "./rn-shim.js",
+            "react-native": "./rn-shim.js"
+        }
+    }
+    </script>
+    <style>
+        body { margin: 0; padding: 0; height: 100vh; font-family: sans-serif; }
+    </style>
+</head>
+<body>
+    <script type="text/babel" data-type="module" src="./index.android.bundle"></script>
+</body>
+</html>
