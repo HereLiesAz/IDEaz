@@ -11,8 +11,8 @@ Objective: Enable users to create, edit, build (bundle), and run React Native ap
     - [x] Create `App.js` (Hello World component).
     - [ ] Create `index.js` (AppRegistry registration entry point).
     - [ ] Create `babel.config.js` and `metro.config.js` (standard configs).
-- [x] **1.2: Project Detection**
-    - [x] Update `ProjectAnalyzer.kt` to robustly detect RN projects.
+- [ ] **1.2: Project Detection**
+    - [ ] Update `ProjectAnalyzer.kt` to robustly detect RN projects. *(Current logic requires package.json, which is missing in template)*
     - [x] Verify `ProjectType.REACT_NATIVE` assignment.
     - [x] Ensure `MainViewModel` correctly loads the project type.
 
