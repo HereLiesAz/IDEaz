@@ -9,7 +9,6 @@ import org.eclipse.aether.collection.CollectRequest
 import org.eclipse.aether.collection.CollectResult
 import org.eclipse.aether.connector.basic.BasicRepositoryConnectorFactory
 import org.eclipse.aether.graph.Dependency
-import org.eclipse.aether.graph.Exclusion
 import org.eclipse.aether.repository.LocalRepository
 import org.eclipse.aether.repository.RemoteRepository
 import org.eclipse.aether.spi.connector.RepositoryConnectorFactory
@@ -69,13 +68,13 @@ class HttpDependencyResolver(
                 val version = extract("version")
                 val type = extract("type") ?: extract("packaging")
 
-                val exclusions = mutableListOf<Exclusion>()
+                val exclusions = mutableListOf<org.eclipse.aether.graph.Exclusion>()
                 MAVEN_EXCLUSION_REGEX.findAll(block).forEach { excMatch ->
                     val excBlock = excMatch.groupValues[1]
-                    val excGroup = extract("groupId", excBlock)
-                    val excArtifact = extract("artifactId", excBlock)
-                    if (excGroup != null && excArtifact != null) {
-                        exclusions.add(Exclusion(excGroup, excArtifact, "*", "*"))
+                    val excGroupId = extract("groupId", excBlock)
+                    val excArtifactId = extract("artifactId", excBlock)
+                    if (excGroupId != null && excArtifactId != null) {
+                        exclusions.add(org.eclipse.aether.graph.Exclusion(excGroupId, excArtifactId, "*", "*"))
                     }
                 }
 
