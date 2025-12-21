@@ -37,8 +37,17 @@ class ZiplineManifestStep(
                 signingKeys = mapOf("key1" to keyHex!!)
             )
 
-            File(guestOutputDir, "manifest.zipline.json").writeText(manifestJson)
-            callback?.onLog("[Zipline] Manifest generated.")
+            val manifestFile = File(guestOutputDir, "manifest.zipline.json")
+            manifestFile.writeText(manifestJson)
+
+            // Trigger Hot Reload
+            val intent = android.content.Intent("com.hereliesaz.ideaz.RELOAD_ZIPLINE").apply {
+                putExtra("MANIFEST_PATH", manifestFile.absolutePath)
+                setPackage(context.packageName)
+            }
+            context.sendBroadcast(intent)
+
+            callback?.onLog("[Zipline] Manifest generated. Reload triggered.")
             return BuildResult(true, "Manifest generated.")
 
         } catch (e: Exception) {
