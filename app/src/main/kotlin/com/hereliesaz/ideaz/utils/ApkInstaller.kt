@@ -42,17 +42,7 @@ object ApkInstaller {
             0
         }
 
-        val options = ActivityOptions.makeBasic()
-        if (Build.VERSION.SDK_INT >= 34) { // UPSIDE_DOWN_CAKE
-            // Allow the system to start the activity even if we are in the background (BAL protection)
-            options.setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-        }
-        if (Build.VERSION.SDK_INT >= 35) { // VANILLA_ICE_CREAM (Android 15+)
-            // Explicitly allow background activity start as creator for PendingIntent
-            options.setPendingIntentCreatorBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-        }
-
-        val pendingIntent = PendingIntent.getActivity(context, sessionId, intent, flags, options.toBundle())
+        val pendingIntent = PendingIntent.getActivity(context, sessionId, intent, flags)
         session.commit(pendingIntent.intentSender)
         session.close()
     }
@@ -81,15 +71,7 @@ object ApkInstaller {
             0
         }
 
-        val options = ActivityOptions.makeBasic()
-        if (Build.VERSION.SDK_INT >= 34) {
-            options.setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-        }
-        if (Build.VERSION.SDK_INT >= 35) {
-            options.setPendingIntentCreatorBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-        }
-
-        val pendingIntent = PendingIntent.getActivity(context, sessionId, intent, flags, options.toBundle())
+        val pendingIntent = PendingIntent.getActivity(context, sessionId, intent, flags)
         session.commit(pendingIntent.intentSender)
         session.close()
     }
