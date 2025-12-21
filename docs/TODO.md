@@ -132,7 +132,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] Implement `ZiplineManifestGenerator` (SHA-256 hashing, JSON construction).
     - [x] Implement Ed25519 signing of manifest using `LazySodiumAndroid`.
 - [ ] **11.6: Hot Reload & Runtime**
-    - [ ] Implement "Hot Reload" trigger (write manifest, broadcast `RELOAD_ZIPLINE`).
-    - [ ] Implement Host receiver to trigger `ziplineLoader.loadOnce`.
-    - [ ] Refactor `SimpleJsBundler` for Zipline module loading/bootstrapping.
+    - [x] Implement "Hot Reload" trigger (write manifest, broadcast `RELOAD_ZIPLINE`).
+    - [x] Implement Host receiver to trigger `ziplineLoader.loadOnce`.
+    - [x] Refactor `SimpleJsBundler` for Zipline module loading/bootstrapping.
     - [ ] Implement Error Handling: Capture Guest crashes and feed to Jules.
