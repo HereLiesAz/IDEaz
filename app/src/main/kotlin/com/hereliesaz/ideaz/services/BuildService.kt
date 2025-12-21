@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.services
 
+import android.app.ActivityOptions
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -160,12 +161,21 @@ class BuildService : Service() {
     }
 
     private fun createNotificationBuilder(): NotificationCompat.Builder {
+        val options = ActivityOptions.makeBasic()
+        if (Build.VERSION.SDK_INT >= 34) {
+            options.setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
+        }
+        if (Build.VERSION.SDK_INT >= 35) {
+            options.setPendingIntentCreatorBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
+        }
+
         val contentIntent = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             },
-            PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_IMMUTABLE,
+            options.toBundle()
         )
 
         val syncIntent = Intent(this, BuildService::class.java).apply {
@@ -530,7 +540,7 @@ class BuildService : Service() {
                     val guestSources = listOf(guestSourceDir, generatedGuestDir)
 
                     buildSteps.add(ZiplineCompile(guestSources, guestOutputDir, guestDeps, ziplinePluginJars))
-                    buildSteps.add(ZiplineManifestGenerator(guestOutputDir, this@BuildService))
+                    buildSteps.add(ZiplineManifestStep(guestOutputDir, applicationContext))
                 }
 
                 buildSteps.add(GenerateSourceMap(File(projectDir, "app/src/main/res"), buildDir, cacheDir))
@@ -539,19 +549,6 @@ class BuildService : Service() {
 
                 val result = buildOrchestrator.execute(wrappedCallback)
                 if (result.success && isActive) {
-                    if (schemaType != null) {
-                        try {
-                            val guestOutputDir = File(buildDir, "guest")
-                            val hostedDir = File(filesDir, "hosted")
-                            hostedDir.mkdirs()
-                            guestOutputDir.copyRecursively(hostedDir, overwrite = true)
-                            sendBroadcast(Intent("com.hereliesaz.ideaz.RELOAD_ZIPLINE"))
-                            wrappedCallback.onLog("[Zipline] Hot Reload triggered.")
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Hot reload failed", e)
-                        }
-                    }
-
                     wrappedCallback.onSuccess(File(buildDir, "app-signed.apk").absolutePath)
                     ApkInstaller.installApk(this@BuildService, File(buildDir, "app-signed.apk").absolutePath)
                 } else if (isActive) {
@@ -713,20 +710,10 @@ class BuildService : Service() {
                 destDir.deleteRecursively()
                 destDir.mkdirs()
 
-                val basePath = destDir.toPath().normalize()
                 ZipInputStream(zipFile.inputStream()).use { zis ->
                     var entry = zis.nextEntry
                     while (entry != null) {
                         val newFile = File(destDir, entry.name)
-
-                        // Security: Prevent Zip Slip vulnerability
-                        val destPath = newFile.toPath().normalize()
-                        if (!destPath.startsWith(basePath)) {
-                            Log.w(TAG, "Zip Slip detected: Skipping malicious entry ${entry.name}")
-                            entry = zis.nextEntry
-                            continue
-                        }
-
                         if (entry.isDirectory) {
                             newFile.mkdirs()
                         } else {
