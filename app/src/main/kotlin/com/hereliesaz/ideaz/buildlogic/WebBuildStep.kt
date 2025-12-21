@@ -70,9 +70,8 @@ class WebBuildStep(
     }
 
     fun minifyJs(content: String): String {
-        // Safe minification: Trim lines and remove blank lines.
+        // Safe minification: Remove blank lines only. Preserves indentation to avoid breaking multiline strings.
         return content.lines()
-            .map { it.trim() }
             .filter { it.isNotBlank() }
             .joinToString("\n")
     }
@@ -84,6 +83,6 @@ class WebBuildStep(
         return noComments.lines()
             .map { it.trim() }
             .filter { it.isNotBlank() }
-            .joinToString("")
+            .joinToString(" ")
     }
 }
