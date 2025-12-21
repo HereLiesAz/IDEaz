@@ -13,15 +13,15 @@ Objective: Enable users to create, edit, preview, and deploy static web applicat
     - [x] Verify `ProjectType.WEB` assignment.
 
 ## Phase 2: Runtime (WebProjectHost)
-- [ ] **2.1: WebView Configuration**
-    - [ ] Audit `WebProjectHost` WebView settings (JS enabled, DOM storage, File access).
-    - [ ] Ensure `WebChromeClient` and `WebViewClient` are correctly set up.
-- [ ] **2.2: Console Log Bridging**
-    - [ ] Implement `ConsoleMessage` interception in `WebChromeClient.onConsoleMessage`.
-    - [ ] Forward logs to the IDEaz "Build/Logs" bottom sheet.
-    - [ ] Prefix logs with `[WEB]` for clarity.
-- [ ] **2.3: Error Handling**
-    - [ ] Catch page load errors (404, etc.) and display a user-friendly error page or Toast.
+- [x] **2.1: WebView Configuration**
+    - [x] Audit `WebProjectHost` WebView settings (JS enabled, DOM storage, File access).
+    - [x] Ensure `WebChromeClient` and `WebViewClient` are correctly set up.
+- [x] **2.2: Console Log Bridging**
+    - [x] Implement `ConsoleMessage` interception in `WebChromeClient.onConsoleMessage`.
+    - [x] Forward logs to the IDEaz "Build/Logs" bottom sheet.
+    - [x] Prefix logs with `[WEB]` for clarity.
+- [x] **2.3: Error Handling**
+    - [x] Catch page load errors (404, etc.) and display a user-friendly error page or Toast.
 
 ## Phase 3: Build System (Local)
 *For Web, "Build" implies validation and potentially minification.*

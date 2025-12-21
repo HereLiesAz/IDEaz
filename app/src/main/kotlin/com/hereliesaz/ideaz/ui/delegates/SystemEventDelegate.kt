@@ -8,6 +8,8 @@ import android.content.IntentFilter
 import android.graphics.Rect
 import android.os.Build
 import androidx.core.content.ContextCompat
+import com.hereliesaz.ideaz.ui.web.ACTION_AI_LOG
+import com.hereliesaz.ideaz.ui.web.EXTRA_MESSAGE
 
 /**
  * Handles system-wide events via BroadcastReceivers.
@@ -60,6 +62,10 @@ class SystemEventDelegate(
                     val base64 = intent.getStringExtra("BASE64_SCREENSHOT")
                     if (base64 != null) overlayDelegate.onScreenshotTaken(base64)
                 }
+                ACTION_AI_LOG -> {
+                    val msg = intent.getStringExtra(EXTRA_MESSAGE)
+                    if (!msg.isNullOrBlank()) stateDelegate.appendBuildLog(msg)
+                }
             }
         }
     }
@@ -80,6 +86,7 @@ class SystemEventDelegate(
             addAction("com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE")
             addAction("com.hereliesaz.ideaz.SELECTION_MADE")
             addAction("com.hereliesaz.ideaz.SCREENSHOT_TAKEN")
+            addAction(ACTION_AI_LOG)
         }
 
         val visFilter = IntentFilter("com.hereliesaz.ideaz.TARGET_APP_VISIBILITY")

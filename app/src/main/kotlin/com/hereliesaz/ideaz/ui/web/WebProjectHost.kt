@@ -9,6 +9,7 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Toast
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -40,6 +41,8 @@ fun WebProjectHost(
                 domStorageEnabled = true
                 allowFileAccess = true
                 allowContentAccess = true
+                allowFileAccessFromFileURLs = true
+                allowUniversalAccessFromFileURLs = true
             }
 
             webChromeClient = object : WebChromeClient() {
@@ -59,6 +62,7 @@ fun WebProjectHost(
             webViewClient = object : WebViewClient() {
                 override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                     val msg = "[WEB] Error loading ${request?.url}: ${error?.description}"
+                    Toast.makeText(context, "Error: ${error?.description}", Toast.LENGTH_SHORT).show()
                     val intent = Intent(ACTION_AI_LOG).apply {
                         putExtra(EXTRA_MESSAGE, msg)
                         setPackage(context.packageName)
