@@ -607,8 +607,16 @@ class MainViewModel(
             // Check local APK
             val projectDir = context.filesDir.resolve(repo)
             // Look for generic APKs in typical build output
-            val apkDir = File(projectDir, "app/build/outputs/apk/debug")
-            val localApk = apkDir.walk().filter { it.extension == "apk" }.firstOrNull()
+            val possibleDirs = listOf(
+                File(projectDir, "app/build/outputs/apk/debug"),
+                File(projectDir, "android/app/build/outputs/apk/debug"),
+                File(projectDir, "build/app/outputs/flutter-apk")
+            )
+
+            val localApk = possibleDirs.asSequence()
+                .flatMap { it.walk() }
+                .filter { it.extension == "apk" }
+                .firstOrNull()
 
             var localVersion: String? = null
             if (localApk != null) {
@@ -968,10 +976,54 @@ class MainViewModel(
             }
             startFileObservation(projectDir)
             stateDelegate.setTargetAppVisible(true)
-        } else {
-            // Android, Flutter, React Native (assume APK)
-            val packageName = settingsViewModel.targetPackageName.value
+        } else if (projectType == ProjectType.REACT_NATIVE) {
+            val projectDir = settingsViewModel.getProjectPath(appName)
+            val bundleFile = File(projectDir, "build/react_native_dist/index.android.bundle")
 
+            if (bundleFile.exists()) {
+                // Parse app.json for module name
+                var moduleName = appName
+                val appJsonFile = File(projectDir, "app.json")
+                if (appJsonFile.exists()) {
+                    try {
+                        val json = org.json.JSONObject(appJsonFile.readText())
+                        moduleName = json.optString("name", appName)
+                        val expo = json.optJSONObject("expo")
+                        if (moduleName == appName && expo != null) {
+                            moduleName = expo.optString("name", appName)
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+
+                val intent = Intent(c, com.hereliesaz.ideaz.react.ReactNativeActivity::class.java).apply {
+                    putExtra("BUNDLE_PATH", bundleFile.absolutePath)
+                    putExtra("MODULE_NAME", moduleName)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                c.startActivity(intent)
+                // Switch UI state if needed, though starting activity covers it.
+                // We might want to set targetAppVisible if we want overlay?
+                // ReactNativeActivity is part of our app, so it stays in our process/task?
+                // It's a separate activity. Overlay service works over other apps.
+                // But here we are launching an activity inside our app.
+                // The overlay service might overlay our own activity if permission granted.
+                // MainScreen might be paused.
+                return
+            }
+
+            // Fallback to installed APK if bundle missing
+            val packageName = settingsViewModel.targetPackageName.value
+            launchInstalledApk(c, packageName, appName)
+        } else {
+            // Android, Flutter (assume APK)
+            val packageName = settingsViewModel.targetPackageName.value
+            launchInstalledApk(c, packageName, appName)
+        }
+    }
+
+    private fun launchInstalledApk(c: Context, packageName: String?, appName: String) {
             try {
                 if (packageName.isNullOrBlank()) {
                      // Try to detect package name if not set
@@ -993,7 +1045,6 @@ class MainViewModel(
             } catch (e: Exception) {
                 Toast.makeText(c, c.getString(R.string.error_launch_failed, e.message), Toast.LENGTH_SHORT).show()
             }
-        }
     }
 
 

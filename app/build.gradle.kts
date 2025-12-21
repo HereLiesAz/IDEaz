@@ -208,4 +208,9 @@ dependencies {
     implementation(libs.hiddenapibypass)
     implementation(libs.zipline.core)
     implementation(libs.zipline.loader)
+
+    implementation(libs.react.android)
+    implementation(libs.hermes.android)
+    implementation(libs.soloader)
+    implementation(libs.androidx.appcompat)
 }

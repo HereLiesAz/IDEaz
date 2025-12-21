@@ -359,6 +359,9 @@ class BuildService : Service() {
                         wrappedCallback.onLog("\n[IDE] No dependency file detected for Web project.")
                     }
                     updateNotification("Download finished (Web).")
+                } else if (type == ProjectType.REACT_NATIVE) {
+                    wrappedCallback.onLog("\n[IDE] 'npm install' is not currently supported on device. Dependencies are pre-bundled in the IDE runtime.")
+                    updateNotification("Download finished (RN).")
                 } else {
                     wrappedCallback.onLog("\n[IDE] Dependency download not supported for $type projects.")
                     updateNotification("Download finished ($type).")
@@ -408,6 +411,20 @@ class BuildService : Service() {
                     if (result.success && isActive) {
                         val indexHtml = File(outputDir, "index.html")
                         wrappedCallback.onSuccess(indexHtml.absolutePath)
+                    } else if (isActive) {
+                        wrappedCallback.onFailure(result.output)
+                    }
+                    return@launch
+                }
+
+                // --- REACT NATIVE BUILD ---
+                if (type == ProjectType.REACT_NATIVE) {
+                    val outputDir = File(buildDir, "react_native_dist")
+                    val step = ReactNativeBuildStep(projectDir, outputDir)
+                    val result = step.execute(wrappedCallback)
+                    if (result.success && isActive) {
+                        val bundleFile = File(outputDir, "index.android.bundle")
+                        wrappedCallback.onSuccess(bundleFile.absolutePath)
                     } else if (isActive) {
                         wrappedCallback.onFailure(result.output)
                     }

@@ -47,6 +47,9 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".react.ReactNativeActivity"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
 
         <service
             android:name=".services.BuildService"
