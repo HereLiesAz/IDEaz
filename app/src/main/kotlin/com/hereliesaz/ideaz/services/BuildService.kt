@@ -540,6 +540,7 @@ class BuildService : Service() {
                     val guestSources = listOf(guestSourceDir, generatedGuestDir)
 
                     buildSteps.add(ZiplineCompile(guestSources, guestOutputDir, guestDeps, ziplinePluginJars))
+                    buildSteps.add(ZiplineManifestStep(guestOutputDir, applicationContext))
                 }
 
                 buildSteps.add(GenerateSourceMap(File(projectDir, "app/src/main/res"), buildDir, cacheDir))
