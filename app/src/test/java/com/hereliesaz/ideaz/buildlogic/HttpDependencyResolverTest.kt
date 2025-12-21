@@ -36,11 +36,21 @@ class HttpDependencyResolverTest {
                 <version>1.1.0</version>
                 <type>aar</type>
             </dependency>
+            <dependency>
+                <groupId>com.example</groupId>
+                <artifactId>excluded-lib</artifactId>
+                <version>1.0.0</version>
+                <exclusions>
+                    <exclusion>
+                         <groupId>com.bad</groupId>
+                         <artifactId>bad-lib</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
         """.trimIndent()
 
         val dependencies = HttpDependencyResolver.parseDependencies(input, null)
-
-        assertEquals(8, dependencies.size)
+        assertEquals(9, dependencies.size)
 
         fun checkArtifact(dep: Dependency, artifactId: String, version: String, extension: String) {
             val artifact = dep.artifact
@@ -53,16 +63,24 @@ class HttpDependencyResolverTest {
         checkArtifact(dependencies[0], "commons-lang3", "3.12.0", "jar")
         checkArtifact(dependencies[1], "mylib", "1.1.0", "aar")
 
+        // Exclusions (Maven)
+        val excludedDep = dependencies[2]
+        checkArtifact(excludedDep, "excluded-lib", "1.0.0", "jar")
+        assertEquals(1, excludedDep.exclusions.size)
+        val exclusion = excludedDep.exclusions.iterator().next()
+        assertEquals("com.bad", exclusion.groupId)
+        assertEquals("bad-lib", exclusion.artifactId)
+
         // TOML
-        checkArtifact(dependencies[2], "gson", "2.8.8", "jar")
-        checkArtifact(dependencies[3], "core-splashscreen", "1.0.1", "aar")
+        checkArtifact(dependencies[3], "gson", "2.8.8", "jar")
+        checkArtifact(dependencies[4], "core-splashscreen", "1.0.1", "aar")
 
         // Gradle
-        checkArtifact(dependencies[4], "okhttp", "4.9.0", "jar")
-        checkArtifact(dependencies[5], "rxjava", "3.0.0", "jar")
-        checkArtifact(dependencies[6], "junit", "4.13.2", "jar")
+        checkArtifact(dependencies[5], "okhttp", "4.9.0", "jar")
+        checkArtifact(dependencies[6], "rxjava", "3.0.0", "jar")
+        checkArtifact(dependencies[7], "junit", "4.13.2", "jar")
 
         // Raw
-        checkArtifact(dependencies[7], "dependency", "1.0.0", "jar")
+        checkArtifact(dependencies[8], "dependency", "1.0.0", "jar")
     }
 }

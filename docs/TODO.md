@@ -31,7 +31,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] `ApkSign`
 - [x] **2.3: Dependency Resolution**
     - [x] `HttpDependencyResolver` (Maven/Aether integration).
-    - [ ] **Refinement:** Handle complex POMs and exclusions robustly.
+    - [x] **Refinement:** Handle complex POMs and exclusions robustly.
 
 ## Phase 3: UI/UX & Interaction
 - [x] **3.1: The Overlay**
@@ -44,7 +44,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] **3.2.2: Persistent Notification:** Show last 3 log lines in notification. (Verified `BuildService` notification logic).
 - [x] **3.3: Feedback Loops**
     - [x] **3.3.1: Update Popup:** "Updating, gimme a sec" dialog. (Implemented update confirmation dialog).
-    - [ ] **3.3.2: Clipboard:** Auto-copy prompt text on update.
+    - [x] **3.3.2: Clipboard:** Auto-copy prompt text on update.
 - [x] **3.4: UI Refinement**
     - [x] Reorder Settings Screen (Build Config first).
     - [x] Improve Project Load Tab layout.
@@ -122,7 +122,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] Implement Host codegen invocation (`--protocol-host`, `--widget`).
     - [x] Implement Guest codegen invocation (`--protocol-guest`, `--compose`).
     - [x] Ensure source-based schema parsing (no pre-compilation of Schema.kt).
-- [ ] **11.3: Host Compilation (Native)**
+- [x] **11.3: Host Compilation (Native)**
     - [x] Update `KotlincCompile` to include generated Host code.
     - [x] Integrate `ZiplineLoader` logic into Host (`MainViewModel`).
 - [x] **11.4: Guest Compilation (Zipline/JS)**
