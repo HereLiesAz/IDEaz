@@ -27,9 +27,6 @@ class IdeazOverlayService : Service() {
     private var overlayView: OverlayView? = null
     private var isOverlayAdded = false
 
-    // FOREGROUND_SERVICE_TYPE_SPECIAL_USE (32) is API 34+
-    private val FOREGROUND_SERVICE_TYPE_SPECIAL_USE = 32
-
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
@@ -75,7 +72,7 @@ class IdeazOverlayService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             try {
                  if (Build.VERSION.SDK_INT >= 34) {
-                     startForeground(SERVICE_ID, notification, FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+                     startForeground(SERVICE_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
                  } else {
                      startForeground(SERVICE_ID, notification)
                  }
