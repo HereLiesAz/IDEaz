@@ -519,6 +519,25 @@ class BuildService : Service() {
                 buildSteps.add(D8Compile(d8Path!!, javaBinaryPath, androidJarPath, File(buildDir, "classes").absolutePath, File(buildDir, "classes").absolutePath, fullClasspath))
                 buildSteps.add(ApkBuild(File(buildDir, "app-signed.apk").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "classes").absolutePath))
                 buildSteps.add(ApkSign(apkSignerPath!!, javaBinaryPath, keystorePath!!, ksPass, keyAlias, File(buildDir, "app-signed.apk").absolutePath))
+
+                // --- GUEST BUILD ---
+                if (schemaType != null) {
+                    val generatedGuestDir = File(buildDir, "generated/guest")
+                    val guestSourceDir = File(projectDir, "app/src/main/zipline")
+                    val guestOutputDir = File(buildDir, "guest")
+
+                    // 1. Generate Guest Code
+                    buildSteps.add(RedwoodCodegen(javaBinaryPath!!, schemaType, generatedGuestDir, false, filesDir))
+
+                    // 2. Compile Guest Code
+                    val guestDeps = HybridToolchainManager.getGuestRuntimeClasspath(filesDir, wrappedCallback)
+                    val ziplinePlugin = HybridToolchainManager.getZiplineCompilerPluginClasspath(filesDir, wrappedCallback)
+                    val ziplinePluginJars = ziplinePlugin.filter { it.extension == "jar" }
+                    val guestSources = listOf(guestSourceDir, generatedGuestDir)
+
+                    buildSteps.add(ZiplineCompile(guestSources, guestOutputDir, guestDeps, ziplinePluginJars))
+                }
+
                 buildSteps.add(GenerateSourceMap(File(projectDir, "app/src/main/res"), buildDir, cacheDir))
 
                 val buildOrchestrator = BuildOrchestrator(buildSteps)
