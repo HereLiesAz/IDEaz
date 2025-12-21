@@ -523,7 +523,10 @@ class BuildService : Service() {
                     buildSteps.add(RedwoodCodegen(javaBinaryPath!!, schemaType, generatedHostDir, true, filesDir))
                 }
 
-                val sourceDirs = mutableListOf(File(projectDir, "app/src/main/java"))
+                val sourceDirs = mutableListOf(
+                    File(projectDir, "app/src/main/java"),
+                    File(buildDir, "gen")
+                )
                 if (schemaType != null) {
                     sourceDirs.add(generatedHostDir)
                 }
