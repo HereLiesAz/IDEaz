@@ -70,6 +70,25 @@ class OverlayDelegate(
      * Toggles the selection mode.
      */
     fun toggleSelectMode(enable: Boolean) {
+        if (enable) {
+            if (!android.provider.Settings.canDrawOverlays(application)) {
+                val intent = Intent(
+                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:${application.packageName}")
+                )
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                application.startActivity(intent)
+                return
+            }
+            val serviceIntent = Intent(application, com.hereliesaz.ideaz.services.IdeazOverlayService::class.java).apply {
+                putExtra("ENABLE", true)
+            }
+            application.startForegroundService(serviceIntent)
+        } else {
+            val serviceIntent = Intent(application, com.hereliesaz.ideaz.services.IdeazOverlayService::class.java)
+            application.stopService(serviceIntent)
+        }
+
         setInternalSelectMode(enable)
 
         val broadcastIntent = Intent("com.hereliesaz.ideaz.TOGGLE_SELECT_MODE").apply {
