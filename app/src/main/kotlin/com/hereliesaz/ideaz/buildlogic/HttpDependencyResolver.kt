@@ -23,7 +23,7 @@ import java.net.URL
 
 class HttpDependencyResolver(
     private val projectDir: File,
-    private val dependenciesFile: File,
+    private val dependenciesFile: File?,
     private val localRepoDir: File,
     private val callback: IBuildCallback?
 ) : BuildStep {
@@ -159,14 +159,10 @@ class HttpDependencyResolver(
         }
     }
 
-    override fun execute(callback: IBuildCallback?): BuildResult {
-        callback?.onLog("[IDE] Starting dependency resolution...")
-        try {
-            if (!dependenciesFile.exists()) {
-                callback?.onLog("[IDE] No dependencies file found. Skipping.")
-                return BuildResult(true, "No dependencies file found.")
-            }
+    fun resolveList(dependencies: List<Dependency>): List<File> {
+        if (dependencies.isEmpty()) return emptyList()
 
+        try {
             val system = newRepositorySystem()
             val session = newRepositorySystemSession(system, localRepoDir)
             val remoteRepositories = listOf(
@@ -176,8 +172,39 @@ class HttpDependencyResolver(
             )
             callback?.onLog("[IDE] Repositories: ${remoteRepositories.joinToString { it.url }}")
 
+            val collectRequest = CollectRequest()
+            collectRequest.repositories = remoteRepositories
+            dependencies.forEach { collectRequest.addDependency(it) }
 
-            val initialDependencies = parseDependencies(dependenciesFile.readText(), callback)
+            // Using resolveDependencies with a DependencyRequest to get the full graph including .aar files
+            val dependencyRequest = org.eclipse.aether.resolution.DependencyRequest(collectRequest, null)
+            val dependencyResult = system.resolveDependencies(session, dependencyRequest)
+
+            val files = mutableListOf<File>()
+            dependencyResult.artifactResults.forEach { artifactResult ->
+                artifactResult.artifact?.file?.let {
+                    files.add(it)
+                    callback?.onLog("[IDE] Resolved artifact: ${it.absolutePath}")
+                }
+            }
+            return files
+        } catch (e: Exception) {
+            e.printStackTrace()
+            callback?.onLog("[IDE] ERROR: Dependency resolution failed: ${e.message}")
+            throw e
+        }
+    }
+
+    override fun execute(callback: IBuildCallback?): BuildResult {
+        callback?.onLog("[IDE] Starting dependency resolution...")
+        try {
+            val initialDependencies = if (dependenciesFile != null && dependenciesFile.exists()) {
+                parseDependencies(dependenciesFile.readText(), callback)
+            } else {
+                callback?.onLog("[IDE] No dependencies file found.")
+                return BuildResult(true, "No dependencies file found.")
+            }
+
             if (initialDependencies.isEmpty()) {
                 callback?.onLog("[IDE] No dependencies to resolve.")
                 return BuildResult(true, "No dependencies to resolve.")
@@ -185,34 +212,20 @@ class HttpDependencyResolver(
 
             callback?.onLog("[IDE] Resolving: ${initialDependencies.joinToString { it.artifact.toString() }}")
 
-            val collectRequest = CollectRequest()
-            collectRequest.repositories = remoteRepositories
-            initialDependencies.forEach { collectRequest.addDependency(it) }
-
-            // Using resolveDependencies with a DependencyRequest to get the full graph including .aar files
-            val dependencyRequest = org.eclipse.aether.resolution.DependencyRequest(collectRequest, null)
-            val dependencyResult = system.resolveDependencies(session, dependencyRequest)
-
-            dependencyResult.artifactResults.forEach { artifactResult ->
-                artifactResult.artifact?.file?.let {
-                    resolvedArtifacts.add(it)
-                    callback?.onLog("[IDE] Resolved artifact: ${it.absolutePath}")
-                }
-            }
+            val files = resolveList(initialDependencies)
+            resolvedArtifacts.clear()
+            resolvedArtifacts.addAll(files)
 
             callback?.onLog("[IDE] Dependency resolution finished successfully.")
             return BuildResult(true, "Dependencies resolved successfully.")
 
         } catch (e: Exception) {
             e.printStackTrace()
-            callback?.onLog("[IDE] ERROR: Dependency resolution failed: ${e.message}")
             return BuildResult(false, e.stackTraceToString())
         }
     }
 
     private fun newRepositorySystem(): RepositorySystem {
-        // RepositorySystemSupplier automatically wires up necessary services
-        // (connectors, transporters, etc.) with default implementations.
         val supplier = RepositorySystemSupplier()
         return supplier.get()
     }
