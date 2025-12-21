@@ -31,7 +31,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] `ApkSign`
 - [x] **2.3: Dependency Resolution**
     - [x] `HttpDependencyResolver` (Maven/Aether integration).
-    - [ ] **Refinement:** Handle complex POMs and exclusions robustly.
+    - [x] **Refinement:** Handle complex POMs and exclusions robustly.
 
 ## Phase 3: UI/UX & Interaction
 - [x] **3.1: The Overlay (Status: IMPLEMENTED)**
@@ -44,7 +44,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] **3.2.2: Persistent Notification:** Show last 3 log lines in notification. (Verified `BuildService` notification logic).
 - [x] **3.3: Feedback Loops**
     - [x] **3.3.1: Update Popup:** "Updating, gimme a sec" dialog. (Implemented update confirmation dialog).
-    - [ ] **3.3.2: Clipboard:** Auto-copy prompt text on update.
+    - [x] **3.3.2: Clipboard:** Auto-copy prompt text on update.
 - [x] **3.4: UI Refinement**
     - [x] Reorder Settings Screen (Build Config first).
     - [x] Improve Project Load Tab layout.
@@ -60,9 +60,9 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [x] **4.2: Workflow Injection (Initialization)**
     - [x] **4.2.1: File Creation:** Generate `android_ci_jules.yml`, `codeql.yml`, `jules.yml`, `release.yml`. (Updated templates to use branch-aware tags).
     - [x] **4.2.2: Force Push:** Logic to commit and push these files on "Save & Initialize".
-- [ ] **4.3: Error Handling Loop**
-    - [ ] **4.3.1: User Error:** If build fails (compilation), send log to Jules.
-    - [ ] **4.3.2: IDE Error:** If build crashes (exception), report to `HereLiesAz/IDEaz` with label `jules`.
+- [x] **4.3: Error Handling Loop**
+    - [x] **4.3.1: User Error:** If build fails (compilation), send log to Jules.
+    - [x] **4.3.2: IDE Error:** If build crashes (exception), report to `HereLiesAz/IDEaz` with label `jules`.
 
 ## Phase 5: Production Polish & Refinement
 - [ ] **5.1: Multi-Platform Support**
@@ -121,7 +121,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] Implement Host codegen invocation (`--protocol-host`, `--widget`).
     - [x] Implement Guest codegen invocation (`--protocol-guest`, `--compose`).
     - [x] Ensure source-based schema parsing (no pre-compilation of Schema.kt).
-- [ ] **11.3: Host Compilation (Native)**
+- [x] **11.3: Host Compilation (Native)**
     - [x] Update `KotlincCompile` to include generated Host code.
     - [x] Integrate `ZiplineLoader` logic into Host (`MainViewModel`).
 - [x] **11.4: Guest Compilation (Zipline/JS)**
@@ -132,7 +132,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] Implement `ZiplineManifestGenerator` (SHA-256 hashing, JSON construction).
     - [x] Implement Ed25519 signing of manifest using `LazySodiumAndroid`.
 - [ ] **11.6: Hot Reload & Runtime**
-    - [ ] Implement "Hot Reload" trigger (write manifest, broadcast `RELOAD_ZIPLINE`).
-    - [ ] Implement Host receiver to trigger `ziplineLoader.loadOnce`.
+    - [x] Implement "Hot Reload" trigger (write manifest, broadcast `RELOAD_ZIPLINE`).
+    - [x] Implement Host receiver to trigger `ziplineLoader.loadOnce`.
     - [ ] Refactor `SimpleJsBundler` for Zipline module loading/bootstrapping.
-    - [ ] Implement Error Handling: Capture Guest crashes and feed to Jules.
+    - [x] Implement Error Handling: Capture Guest crashes and feed to Jules.

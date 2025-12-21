@@ -111,6 +111,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_KEY_ALIAS = "key_alias"
         const val KEY_KEY_PASS = "key_pass"
         const val KEY_ZIPLINE_SIGNING_KEY_HEX = "zipline_signing_key_hex"
+        const val KEY_LAST_PROMPT = "last_prompt"
 
         val aiTasks = mapOf(
             KEY_AI_ASSIGNMENT_DEFAULT to "Default",
@@ -359,6 +360,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         getApplication<Application>().sendBroadcast(intent)
     }
     fun getTargetPackageName() = sharedPreferences.getString(KEY_TARGET_PACKAGE_NAME, "com.example.helloworld")
+
+    // --- PROMPTS ---
+    fun saveLastPrompt(prompt: String) = sharedPreferences.edit().putString(KEY_LAST_PROMPT, prompt).apply()
+    fun getLastPrompt() = sharedPreferences.getString(KEY_LAST_PROMPT, "")
 
     // --- PROJECTS ---
     private fun loadLocalProjects() { _localProjects.value = getProjectList().toList() }
