@@ -1,7 +1,6 @@
 package com.hereliesaz.ideaz.buildlogic
 
 import android.content.Context
-import android.content.Intent
 import androidx.preference.PreferenceManager
 import com.goterl.lazysodium.LazySodiumAndroid
 import com.goterl.lazysodium.SodiumAndroid
@@ -38,16 +37,17 @@ class ZiplineManifestStep(
                 signingKeys = mapOf("key1" to keyHex!!)
             )
 
-            File(guestOutputDir, "manifest.zipline.json").writeText(manifestJson)
+            val manifestFile = File(guestOutputDir, "manifest.zipline.json")
+            manifestFile.writeText(manifestJson)
 
             // Trigger Hot Reload
-            val intent = Intent("com.hereliesaz.ideaz.RELOAD_ZIPLINE").apply {
+            val intent = android.content.Intent("com.hereliesaz.ideaz.RELOAD_ZIPLINE").apply {
+                putExtra("MANIFEST_PATH", manifestFile.absolutePath)
                 setPackage(context.packageName)
-                putExtra("MANIFEST_PATH", File(guestOutputDir, "manifest.zipline.json").absolutePath)
             }
             context.sendBroadcast(intent)
 
-            callback?.onLog("[Zipline] Manifest generated. Hot Reload triggered.")
+            callback?.onLog("[Zipline] Manifest generated. Reload triggered.")
             return BuildResult(true, "Manifest generated.")
 
         } catch (e: Exception) {
