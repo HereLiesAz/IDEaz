@@ -11,6 +11,7 @@ import com.hereliesaz.aznavrail.AzButton
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.lang.EmptyLanguage
+import com.hereliesaz.ideaz.ui.editor.EditorSetup
 import java.io.File
 
 @Composable
@@ -41,9 +42,15 @@ fun FileContentScreen(
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { context ->
+                EditorSetup.ensureInitialized(context)
                 CodeEditor(context).apply {
                     setText(fileContent)
-                    setEditorLanguage(EmptyLanguage())
+                    val ext = file.extension
+                    try {
+                        setEditorLanguage(EditorSetup.createLanguage(ext))
+                    } catch (e: Exception) {
+                        setEditorLanguage(EmptyLanguage())
+                    }
                     subscribeAlways(io.github.rosemoe.sora.event.ContentChangeEvent::class.java) {
                         fileContent = this.text.toString()
                     }
