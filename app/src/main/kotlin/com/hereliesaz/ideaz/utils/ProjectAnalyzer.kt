@@ -12,6 +12,7 @@ object ProjectAnalyzer {
         if (File(projectDir, "index.html").exists()) return ProjectType.WEB
 
         // Check for Flutter
+        // Confirmed: pubspec.yaml triggers Flutter project detection
         if (File(projectDir, "pubspec.yaml").exists()) return ProjectType.FLUTTER
 
         // Check for React Native

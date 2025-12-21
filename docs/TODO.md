@@ -68,7 +68,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [ ] **5.1: Multi-Platform Support**
     - [x] Web Support (Runtime + Auto-Build/Correct).
     - [ ] React Native Support (Partial: Bundler implemented but unused, BuildService integration pending).
-    - [ ] Flutter Support (Planned).
+    - [x] Flutter Support (Implemented Phases 1-4. Phases 5-6 pending).
 - [ ] **5.2: Testing**
     - [ ] Unit Tests for all ViewModels.
     - [ ] Integration Tests for Build Pipeline.
