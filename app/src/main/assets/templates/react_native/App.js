@@ -2,10 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 const App = () => {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.text}>Hello React Native!</Text>
-    </View>
+  return React.createElement(View, { style: styles.container },
+    React.createElement(Text, { style: styles.text }, "Hello React Native!")
   );
 };
 

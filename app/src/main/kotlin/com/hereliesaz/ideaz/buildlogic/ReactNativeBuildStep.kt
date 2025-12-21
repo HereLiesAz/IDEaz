@@ -11,6 +11,18 @@ class ReactNativeBuildStep(
     override fun execute(callback: IBuildCallback?): BuildResult {
         callback?.onLog("Starting React Native Bundle...")
 
+        val projectAssets = File(projectDir, "assets")
+        if (projectAssets.exists() && projectAssets.isDirectory) {
+            callback?.onLog("Copying assets from ${projectAssets.name}...")
+            try {
+                projectAssets.copyRecursively(assetsDir, overwrite = true)
+            } catch (e: Exception) {
+                val msg = "Failed to copy assets: ${e.message}"
+                callback?.onLog(msg)
+                return BuildResult(false, msg)
+            }
+        }
+
         val bundler = SimpleJsBundler()
         val result = bundler.bundle(projectDir, assetsDir)
 
