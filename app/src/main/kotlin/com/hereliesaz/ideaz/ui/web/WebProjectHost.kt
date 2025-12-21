@@ -9,24 +9,24 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Toast
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.flow.StateFlow
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.hereliesaz.ideaz.models.ACTION_AI_LOG
+import com.hereliesaz.ideaz.models.EXTRA_MESSAGE
 import java.io.File
-
-const val ACTION_AI_LOG = "com.hereliesaz.ideaz.AI_LOG"
-const val EXTRA_MESSAGE = "MESSAGE"
 
 @Composable
 fun WebProjectHost(
     url: String,
+    reloadTrigger: StateFlow<Long>? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -40,10 +40,13 @@ fun WebProjectHost(
                 domStorageEnabled = true
                 allowFileAccess = true
                 allowContentAccess = true
+                allowFileAccessFromFileURLs = true
+                allowUniversalAccessFromFileURLs = true
             }
 
             webChromeClient = object : WebChromeClient() {
                 override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                    // Bridge console log to IDE
                     consoleMessage?.let {
                         val msg = "[WEB] ${it.message()} (${it.sourceId()}:${it.lineNumber()})"
                         val intent = Intent(ACTION_AI_LOG).apply {
@@ -59,12 +62,22 @@ fun WebProjectHost(
             webViewClient = object : WebViewClient() {
                 override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                     val msg = "[WEB] Error loading ${request?.url}: ${error?.description}"
+                    Toast.makeText(context, "Error: ${error?.description}", Toast.LENGTH_SHORT).show()
                     val intent = Intent(ACTION_AI_LOG).apply {
                         putExtra(EXTRA_MESSAGE, msg)
                         setPackage(context.packageName)
                     }
                     context.sendBroadcast(intent)
                 }
+            }
+        }
+    }
+
+    if (reloadTrigger != null) {
+        val trigger by reloadTrigger.collectAsState()
+        LaunchedEffect(trigger) {
+            if (trigger > 0L) {
+                webView.reload()
             }
         }
     }
