@@ -709,10 +709,20 @@ class BuildService : Service() {
                 destDir.deleteRecursively()
                 destDir.mkdirs()
 
+                val basePath = destDir.toPath().normalize()
                 ZipInputStream(zipFile.inputStream()).use { zis ->
                     var entry = zis.nextEntry
                     while (entry != null) {
                         val newFile = File(destDir, entry.name)
+
+                        // Security: Prevent Zip Slip vulnerability
+                        val destPath = newFile.toPath().normalize()
+                        if (!destPath.startsWith(basePath)) {
+                            Log.w(TAG, "Zip Slip detected: Skipping malicious entry ${entry.name}")
+                            entry = zis.nextEntry
+                            continue
+                        }
+
                         if (entry.isDirectory) {
                             newFile.mkdirs()
                         } else {
