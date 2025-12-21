@@ -424,6 +424,10 @@ class MainViewModel(
                 // Use default push (uses settings creds)
                 gitDelegate.push()
                 logHandler.onBuildLog("Pushed successfully. GitHub Actions will handle deployment.")
+                logHandler.onBuildLog("[Instruction] Ensure 'GitHub Pages' is enabled in repository settings (Source: gh-pages branch).")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(getApplication(), getApplication<Application>().getString(R.string.deploy_instruction_gh_pages), Toast.LENGTH_LONG).show()
+                }
             } catch (e: Exception) {
                 logHandler.onBuildLog("Deploy failed: ${e.message}")
             }
