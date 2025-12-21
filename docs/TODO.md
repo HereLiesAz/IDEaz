@@ -72,6 +72,8 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [ ] **5.2: Testing**
     - [x] Unit Tests for SettingsViewModel.
     - [ ] Unit Tests for MainViewModel (Delegates).
+    - [ ] Unit Tests for all ViewModels.
+        - [x] SettingsViewModel
     - [ ] Integration Tests for Build Pipeline.
 - [x] **5.3: Advanced Features**
     - [x] Incremental Builds.
