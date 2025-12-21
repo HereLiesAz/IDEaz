@@ -18,7 +18,8 @@ class IdeazAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         // Log.d(TAG, "onAccessibilityEvent: $event")
 
-        // Inspect on click for now
+        // Inspection logic (Disabled for production safety)
+        /*
         if (event?.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
             val root = rootInActiveWindow
             if (root != null) {
@@ -28,6 +29,7 @@ class IdeazAccessibilityService : AccessibilityService() {
                 root.recycle()
             }
         }
+        */
     }
 
     private fun dumpNode(node: AccessibilityNodeInfo, depth: Int = 0) {
