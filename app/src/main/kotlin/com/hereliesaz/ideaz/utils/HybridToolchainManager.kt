@@ -8,7 +8,6 @@ import java.io.File
 
 object HybridToolchainManager {
     // Versions for Hybrid Host components
-    // Force Recompile
     private const val REDWOOD_VERSION = "0.16.0"
     private const val ZIPLINE_VERSION = "1.17.0"
     private const val KOTLIN_VERSION = "2.0.21"
@@ -25,16 +24,16 @@ object HybridToolchainManager {
         return resolver.resolveList(listOf(Dependency(DefaultArtifact(coords), "compile")))
     }
 
-    fun downloadToolchain(filesDir: File, callback: IBuildCallback? = null) {
-        callback?.onLog("Downloading Hybrid Toolchain artifacts...")
+    fun downloadToolchain(filesDir: File, callback: IBuildCallback) {
+        callback.onLog("Downloading Hybrid Toolchain artifacts...")
         try {
             getCodegenClasspath(filesDir, callback)
             getZiplineCompilerPluginClasspath(filesDir, callback)
             getHostRuntimeClasspath(filesDir, callback)
             getGuestRuntimeClasspath(filesDir, callback)
-            callback?.onLog("Hybrid Toolchain downloaded successfully.")
+            callback.onLog("Hybrid Toolchain downloaded successfully.")
         } catch (e: Exception) {
-            callback?.onFailure("Failed to download Hybrid Toolchain: ${e.message}")
+            callback.onFailure("Failed to download Hybrid Toolchain: ${e.message}")
         }
     }
 
