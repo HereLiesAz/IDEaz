@@ -38,29 +38,6 @@ class OverlayView(context: Context) : View(context) {
 
     private var highlightRect: Rect? = null
     private var isSelectionMode = false
-    private var isUpdating = false
-
-    private val textPaint = Paint().apply {
-        color = Color.WHITE
-        textSize = 60f
-        textAlign = Paint.Align.CENTER
-        setShadowLayer(10f, 0f, 0f, Color.BLACK)
-    }
-
-    private val bgPaint = Paint().apply {
-        color = Color.argb(180, 0, 0, 0)
-        style = Paint.Style.FILL
-    }
-
-    fun showUpdating() {
-        isUpdating = true
-        invalidate()
-    }
-
-    fun hideUpdating() {
-        isUpdating = false
-        invalidate()
-    }
 
     // Drag selection state
     private var startX = 0f
@@ -68,6 +45,29 @@ class OverlayView(context: Context) : View(context) {
     private var currentX = 0f
     private var currentY = 0f
     private var isDragging = false
+
+    // Update Splash State
+    private var isUpdateSplashVisible = false
+    private val textPaint = Paint().apply {
+        color = Color.WHITE
+        textSize = 60f
+        textAlign = Paint.Align.CENTER
+        setShadowLayer(10f, 0f, 0f, Color.BLACK)
+    }
+    private val bgPaint = Paint().apply {
+        color = Color.argb(200, 0, 0, 0)
+        style = Paint.Style.FILL
+    }
+
+    fun showUpdateSplash() {
+        isUpdateSplashVisible = true
+        invalidate()
+        // Auto-hide after 3 seconds
+        postDelayed({
+            isUpdateSplashVisible = false
+            invalidate()
+        }, 3000)
+    }
 
     fun setSelectionMode(enabled: Boolean) {
         isSelectionMode = enabled
@@ -88,10 +88,9 @@ class OverlayView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        if (isUpdating) {
+        if (isUpdateSplashVisible) {
             canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
-            canvas.drawText("Updating, gimme a sec.", width / 2f, height / 2f, textPaint)
-            return
+            canvas.drawText("Updating, gimme a sec...", width / 2f, height / 2f, textPaint)
         }
 
         // Visual cue that we are in "Select Mode" (dim the screen slightly)
