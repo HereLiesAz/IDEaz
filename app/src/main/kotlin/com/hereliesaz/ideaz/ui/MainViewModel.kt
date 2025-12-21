@@ -19,6 +19,13 @@ import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ToolManager
 import com.hereliesaz.ideaz.utils.VersionUtils
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
+import java.util.concurrent.Executors
+import app.cash.zipline.loader.ZiplineLoader
+import app.cash.zipline.loader.ManifestVerifier
+import app.cash.zipline.loader.asZiplineHttpClient
+import com.hereliesaz.ideaz.MainApplication
+import com.hereliesaz.ideaz.BuildConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -61,6 +68,19 @@ class MainViewModel(
 
     // --- DELEGATES ---
     val stateDelegate = StateDelegate()
+
+    private val ziplineDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+
+    val ziplineLoader: ZiplineLoader by lazy {
+        val app = application as MainApplication
+        ZiplineLoader(
+            dispatcher = ziplineDispatcher,
+            // TODO(Phase 11.5): Implement Ed25519 signature verification.
+            // Currently utilizing NO_SIGNATURE_CHECKS to enable development of the Hybrid Host features.
+            manifestVerifier = ManifestVerifier.NO_SIGNATURE_CHECKS,
+            httpClient = app.okHttpClient.asZiplineHttpClient(),
+        )
+    }
 
     // Helper to pipe logs to UI and State
     private val logHandler = object : LogHandler {

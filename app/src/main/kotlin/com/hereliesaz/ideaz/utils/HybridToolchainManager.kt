@@ -24,16 +24,16 @@ object HybridToolchainManager {
         return resolver.resolveList(listOf(Dependency(DefaultArtifact(coords), "compile")))
     }
 
-    fun downloadToolchain(filesDir: File, callback: IBuildCallback) {
-        callback.onLog("Downloading Hybrid Toolchain artifacts...")
+    fun downloadToolchain(filesDir: File, callback: IBuildCallback? = null) {
+        callback?.onLog("Downloading Hybrid Toolchain artifacts...")
         try {
             getCodegenClasspath(filesDir, callback)
             getZiplineCompilerPluginClasspath(filesDir, callback)
             getHostRuntimeClasspath(filesDir, callback)
             getGuestRuntimeClasspath(filesDir, callback)
-            callback.onLog("Hybrid Toolchain downloaded successfully.")
+            callback?.onLog("Hybrid Toolchain downloaded successfully.")
         } catch (e: Exception) {
-            callback.onFailure("Failed to download Hybrid Toolchain: ${e.message}")
+            callback?.onFailure("Failed to download Hybrid Toolchain: ${e.message}")
         }
     }
 
