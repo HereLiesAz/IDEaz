@@ -18,7 +18,7 @@ Constraint: Local compilation of Dart is currently not possible due to missing b
 ## Phase 2: Build System (Remote Strategy)
 *Since we cannot run `flutter build apk` locally.*
 - [x] **2.1: CI Workflow Injection**
-    - [x] Create `android_ci_flutter.yml` in assets. (Implemented as constant `ANDROID_CI_FLUTTER_YML` in `ProjectConfigManager.kt`)
+    - [x] Create `android_ci_flutter.yml` in assets. (Implemented as constant in `ProjectConfigManager.kt`; template also exists in assets)
     - [x] Define steps:
         - [x] Setup Java & Flutter (`subosito/flutter-action`).
         - [x] `flutter pub get`.

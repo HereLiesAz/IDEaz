@@ -9,16 +9,14 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.ServiceInfo
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
-import androidx.preference.PreferenceManager
-import com.hereliesaz.ideaz.ui.SettingsViewModel
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import com.hereliesaz.ideaz.MainActivity
@@ -52,7 +50,11 @@ class IdeazOverlayService : Service() {
                     }
                 }
                 "com.hereliesaz.ideaz.SHOW_UPDATE_POPUP" -> {
-                    handleUpdatePopup()
+                    val prompt = intent.getStringExtra("PROMPT")
+                    if (!prompt.isNullOrBlank()) {
+                        copyToClipboard(prompt)
+                    }
+                    overlayView?.showUpdateSplash()
                 }
             }
         }
@@ -97,6 +99,7 @@ class IdeazOverlayService : Service() {
         val filter = IntentFilter().apply {
             addAction("com.hereliesaz.ideaz.TOGGLE_SELECT_MODE")
             addAction("com.hereliesaz.ideaz.HIGHLIGHT_RECT")
+            addAction("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
@@ -119,28 +122,6 @@ class IdeazOverlayService : Service() {
         } catch (e: Exception) {
             // Ignore
         }
-    }
-
-    private fun handleUpdatePopup() {
-        if (overlayView == null && Settings.canDrawOverlays(this)) {
-            setupOverlay()
-        }
-
-        // Copy Prompt
-        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-        val prompt = prefs.getString(SettingsViewModel.KEY_LAST_PROMPT, "")
-        if (!prompt.isNullOrBlank()) {
-            val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
-            val clip = ClipData.newPlainText("IDEaz Prompt", prompt)
-            clipboard.setPrimaryClip(clip)
-        }
-
-        // Show Overlay
-        overlayView?.showUpdating()
-
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-             overlayView?.hideUpdating()
-        }, 5000)
     }
 
     private fun handleSelectionMode(enable: Boolean) {
@@ -221,6 +202,16 @@ class IdeazOverlayService : Service() {
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .build()
+    }
+
+    private fun copyToClipboard(text: String) {
+        try {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("Copied Prompt", text)
+            clipboard.setPrimaryClip(clip)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     companion object {

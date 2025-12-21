@@ -13,7 +13,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] Implement `ProjectAnalyzer` for project type detection.
     - [x] Implement auto-discovery of local projects and external project registration (SAF + Native File Access).
     - [x] **1.2.5: Encrypted Settings Export/Import:** Allow user to save credentials to file.
-- [ ] **1.3: "Race to Build" Logic**
+- [x] **1.3: "Race to Build" Logic**
     - [x] **1.3.1: Artifact Detection:** Implement logic to compare Installed SHA vs Remote Release SHA vs Repo Head SHA. (Implemented manual check for updates in `MainViewModel`).
     - [x] **1.3.2: Remote Polling:** Implement loop to check GitHub Releases for new builds. (Implemented in `RemoteBuildManager`).
     - [x] **1.3.3: Local Build:** Implement background build thread with lower priority.
@@ -31,7 +31,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] `ApkSign`
 - [x] **2.3: Dependency Resolution**
     - [x] `HttpDependencyResolver` (Maven/Aether integration).
-    - [x] **Refinement:** Handle complex POMs and exclusions robustly.
+    - [ ] **Refinement:** Handle complex POMs and exclusions robustly.
 
 ## Phase 3: UI/UX & Interaction
 - [x] **3.1: The Overlay**
@@ -44,7 +44,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] **3.2.2: Persistent Notification:** Show last 3 log lines in notification. (Verified `BuildService` notification logic).
 - [x] **3.3: Feedback Loops**
     - [x] **3.3.1: Update Popup:** "Updating, gimme a sec" dialog. (Implemented update confirmation dialog).
-    - [x] **3.3.2: Clipboard:** Auto-copy prompt text on update.
+    - [x] **3.3.2: Clipboard:** Auto-copy prompt text on update. (Implemented in `IdeazOverlayService`).
 - [x] **3.4: UI Refinement**
     - [x] Reorder Settings Screen (Build Config first).
     - [x] Improve Project Load Tab layout.
@@ -68,11 +68,11 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [x] **5.1: Multi-Platform Support**
     - [x] Web Support (Runtime + Auto-Build/Correct).
     - [x] React Native Support (Partial: Bundler implemented and integrated, Runtime pending).
-    - [x] Flutter Support (Implemented Phases 1-4. Phases 5-6 pending).
-- [x] **5.2: Testing**
+    - [x] Flutter Support (Implemented Phases 1-6).
+- [ ] **5.2: Testing**
     - [x] Unit Tests for SettingsViewModel.
     - [x] Unit Tests for MainViewModel (Delegates). (StateDelegate, AIDelegate)
-    - [x] Integration Tests for Build Pipeline.
+    - [ ] Integration Tests for Build Pipeline.
 - [x] **5.3: Advanced Features**
     - [x] Incremental Builds.
     - [x] On-Device Dependency Resolution.
@@ -106,7 +106,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 
 ## Phase 10: Maintenance
 - [x] Keep `docs/` up to date.
-- [x] Monitor GitHub Issues reported by the IDE.
+- [ ] Monitor GitHub Issues reported by the IDE.
 - [x] Migrate to `androidComponents` API in `build.gradle.kts`.
 - [x] Security Hardening: Implement PBKDF2 for key derivation.
 - [x] Refactor `MainViewModel` into Delegates and add KDocs.
