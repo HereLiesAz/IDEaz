@@ -311,4 +311,17 @@ class BuildDelegate(
             }
         }
     }
+
+    fun cancelBuild() {
+        scope.launch {
+            if (isBuildServiceBound) {
+                try {
+                    buildService?.cancelBuild()
+                    onLog("Cancellation requested.\n")
+                } catch (e: Exception) {
+                    onLog("Error cancelling build: ${e.message}\n")
+                }
+            }
+        }
+    }
 }
