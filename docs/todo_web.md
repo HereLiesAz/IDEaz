@@ -25,11 +25,11 @@ Objective: Enable users to create, edit, preview, and deploy static web applicat
 
 ## Phase 3: Build System (Local)
 *For Web, "Build" implies validation and potentially minification.*
-- [ ] **3.1: Local "Build"**
-    - [ ] Implement `WebBuildStep` in `BuildService`.
-    - [ ] Step 1: Validate HTML syntax (basic check).
-    - [ ] Step 2: (Optional) Simple minification of JS/CSS using Kotlin-based regex or logic (no heavy tools).
-    - [ ] Step 3: Copy files to `dist/` or prepare for deployment.
+- [x] **3.1: Local "Build"**
+    - [x] Implement `WebBuildStep` in `BuildService`.
+    - [x] Step 1: Validate HTML syntax (basic check).
+    - [x] Step 2: (Optional) Simple minification of JS/CSS using Kotlin-based regex or logic (no heavy tools).
+    - [x] Step 3: Copy files to `dist/` or prepare for deployment.
 
 ## Phase 4: Remote Build & Deployment
 - [ ] **4.1: GitHub Pages Integration**
