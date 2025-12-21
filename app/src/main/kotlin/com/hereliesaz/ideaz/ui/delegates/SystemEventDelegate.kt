@@ -8,8 +8,8 @@ import android.content.IntentFilter
 import android.graphics.Rect
 import android.os.Build
 import androidx.core.content.ContextCompat
-import com.hereliesaz.ideaz.ui.web.ACTION_AI_LOG
-import com.hereliesaz.ideaz.ui.web.EXTRA_MESSAGE
+import com.hereliesaz.ideaz.models.ACTION_AI_LOG
+import com.hereliesaz.ideaz.models.EXTRA_MESSAGE
 
 /**
  * Handles system-wide events via BroadcastReceivers.
