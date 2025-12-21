@@ -110,7 +110,7 @@ class JulesApiClientTest {
         mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
 
         val req = SendMessageRequest("follow up")
-        JulesApiClient.sendMessage("sessions/s1", req)
+        JulesApiClient.sendMessage("s1", req)
 
         val recordedRequest = mockWebServer.takeRequest()
         assertEquals("POST", recordedRequest.method)

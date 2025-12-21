@@ -80,11 +80,11 @@ object JulesApiClient {
     suspend fun createSession(request: CreateSessionRequest): Session =
         client.createSession(request)
 
-    suspend fun sendMessage(sessionName: String, request: SendMessageRequest) =
-        client.sendMessage(sessionName, request)
+    suspend fun sendMessage(sessionId: String, request: SendMessageRequest) =
+        client.sendMessage(sessionId, request)
 
-    suspend fun listActivities(sessionName: String, pageSize: Int = 100, pageToken: String? = null) =
-        client.listActivities(sessionName, pageSize, pageToken)
+    suspend fun listActivities(sessionId: String, pageSize: Int = 100, pageToken: String? = null) =
+        client.listActivities(sessionId, pageSize, pageToken)
 
     suspend fun listSources(pageSize: Int = 100, pageToken: String? = null) =
         client.listSources(pageSize, pageToken)
