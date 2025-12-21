@@ -6,7 +6,7 @@
       "name": "support.type.property-name.css"
     },
     {
-      "match": "(:)\\s*([^;]+)(;)",
+      "match": "(:)\\s*([^;\\}]+)(;|(?=\\}))",
       "captures": {
         "1": { "name": "punctuation.separator.key-value.css" },
         "2": { "name": "support.constant.property-value.css" },

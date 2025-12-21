@@ -6,11 +6,11 @@
       "name": "keyword.control.js"
     },
     {
-      "match": "\".*?\"",
+      "match": "\"(\\\\.|[^\"\\\\])*\"",
       "name": "string.quoted.double.js"
     },
     {
-      "match": "'[^']*'",
+      "match": "'(\\\\.|[^'\\\\])*'",
       "name": "string.quoted.single.js"
     }
   ]
