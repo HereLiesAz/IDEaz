@@ -85,14 +85,6 @@ class MainViewModel(
         )
     }
 
-    init {
-        viewModelScope.launch {
-            com.hereliesaz.ideaz.utils.LogcatReader.observe().collect {
-                stateDelegate.appendSystemLog(it)
-            }
-        }
-    }
-
     // Helper to pipe logs to UI and State
     private val logHandler = object : LogHandler {
         override fun onBuildLog(msg: String) { stateDelegate.appendBuildLog(msg) }
@@ -251,6 +243,9 @@ class MainViewModel(
 
     /** Clears local build caches (TODO). */
     fun clearBuildCaches(c: Context) { /* TODO */ }
+
+    /** Cancels the running local build. */
+    fun cancelLocalBuild() = buildDelegate.cancelBuild()
 
     /**
      * Downloads and installs the build tools (aapt2, d8, kotlinc) from the latest GitHub release.
@@ -504,6 +499,7 @@ class MainViewModel(
 
                 if (_artifactCheckResult.value?.isRemoteNewer == true) {
                     // logHandler.onOverlayLog("New artifact found.")
+                    cancelLocalBuild()
                     break
                 }
 
