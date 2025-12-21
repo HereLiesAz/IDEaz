@@ -37,12 +37,12 @@ Constraint: Local compilation of Dart is currently not possible due to missing b
     - [x] `BuildService` handles download and install via `PackageInstaller` (already supported).
 
 ## Phase 4: Editor Features (Local)
-- [ ] **4.1: Syntax Highlighting**
-    - [ ] Update `EnhancedCodeEditor` (if used) or log viewer to support `.dart` syntax (basic keywords).
-- [ ] **4.2: Dependency Management (Visual)**
-    - [ ] Parse `pubspec.yaml` manually in Kotlin.
-    - [ ] Display dependencies in the "Dependencies" screen.
-    - [ ] Allow adding dependencies (modifying `pubspec.yaml` text).
+- [x] **4.1: Syntax Highlighting**
+    - [x] Update `EnhancedCodeEditor` (if used) or log viewer to support `.dart` syntax (basic keywords).
+- [x] **4.2: Dependency Management (Visual)**
+    - [x] Parse `pubspec.yaml` manually in Kotlin.
+    - [x] Display dependencies in the "Dependencies" screen.
+    - [x] Allow adding dependencies (modifying `pubspec.yaml` text).
 
 ## Phase 5: Investigation (Local Execution)
 *Research tasks for potential future on-device support.*
@@ -55,7 +55,7 @@ Constraint: Local compilation of Dart is currently not possible due to missing b
     - [ ] Can we generate a kernel snapshot remotely and download *just* the snapshot to run on a generic local engine? (Hot Update).
 
 ## Phase 6: UI & Overlay Integration
-- [ ] **6.1: Overlay Support**
-    - [ ] Flutter renders to a generic SurfaceView/TextureView.
-    - [ ] Accessibility Node mapping might be limited to what Flutter exposes to Accessibility Services.
-    - [ ] Verify `IdeazAccessibilityService` can see Flutter widgets (Semantic Nodes).
+- [x] **6.1: Overlay Support**
+    - [x] Flutter renders to a generic SurfaceView/TextureView.
+    - [x] Accessibility Node mapping might be limited to what Flutter exposes to Accessibility Services.
+    - [x] Verify `IdeazAccessibilityService` can see Flutter widgets (Semantic Nodes). (Implemented Node Traversal Logging for verification).
