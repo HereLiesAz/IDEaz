@@ -300,6 +300,26 @@ class MainViewModel(
     /** Switches to the specified branch. */
     fun switchBranch(b: String) = gitDelegate.switchBranch(b)
 
+    fun deployWebProject() {
+        val appName = settingsViewModel.getAppName()
+        val projectTypeStr = settingsViewModel.getProjectType()
+        val projectType = ProjectType.fromString(projectTypeStr)
+        if (projectType != ProjectType.WEB) return
+
+        viewModelScope.launch {
+            logHandler.onBuildLog("Deploying Web Project (Push to GitHub)...")
+            try {
+                // Ensure latest changes are committed
+                gitDelegate.commit("Deploy: ${System.currentTimeMillis()}")
+                // Use default push (uses settings creds)
+                gitDelegate.push()
+                logHandler.onBuildLog("Pushed successfully. GitHub Actions will handle deployment.")
+            } catch (e: Exception) {
+                logHandler.onBuildLog("Deploy failed: ${e.message}")
+            }
+        }
+    }
+
     // AI
 
     /** Sends a prompt to the active AI session. */

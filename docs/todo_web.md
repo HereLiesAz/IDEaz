@@ -32,13 +32,13 @@ Objective: Enable users to create, edit, preview, and deploy static web applicat
     - [x] Step 3: Copy files to `dist/` or prepare for deployment.
 
 ## Phase 4: Remote Build & Deployment
-- [ ] **4.1: GitHub Pages Integration**
-    - [ ] Create `web_ci_pages.yml` in assets.
-    - [ ] Configure it to deploy the project root (or `dist/`) to `gh-pages` branch.
-    - [ ] Auto-enable GitHub Pages via API (if possible) or instruct user.
-- [ ] **4.2: Git Integration**
-    - [ ] Ensure `GitDelegate` pushes changes correctly.
-    - [ ] Add "Deploy" action in UI that triggers the GitHub Pages workflow.
+- [x] **4.1: GitHub Pages Integration**
+    - [x] Create `web_ci_pages.yml` in assets.
+    - [x] Configure it to deploy the project root (or `dist/`) to `gh-pages` branch.
+    - [x] Auto-enable GitHub Pages via API (if possible) or instruct user.
+- [x] **4.2: Git Integration**
+    - [x] Ensure `GitDelegate` pushes changes correctly.
+    - [x] Add "Deploy" action in UI that triggers the GitHub Pages workflow.
 
 ## Phase 5: Editor Features
 - [ ] **5.1: Live Preview**

@@ -128,12 +128,41 @@ jobs:
         files: app/build/outputs/apk/debug/app-debug.apk
 """.trimIndent()
 
+    private val WEB_CI_PAGES_YML = """
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: ["main", "master"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ${'$'}{{ github.workflow }}-${'$'}{{ github.ref }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${'$'}{{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+""".trimIndent()
+
     fun ensureWorkflow(context: Context, projectDir: File, type: ProjectType): Boolean {
         // We use hardcoded strings for robustness if assets are missing
         val workflows = when (type) {
             ProjectType.ANDROID -> listOf(
                 "android_ci_jules.yml" to ANDROID_CI_JULES_YML,
                 "release.yml" to RELEASE_YML
+            )
+            ProjectType.WEB -> listOf(
+                "web_ci_pages.yml" to WEB_CI_PAGES_YML
             )
             else -> emptyList()
         }

@@ -126,6 +126,27 @@ class GitDelegate(
     }
 
     /**
+     * Commits changes with a message.
+     */
+    fun commit(message: String) {
+        scope.launch(Dispatchers.IO) {
+            try {
+                val git = getGitManager() ?: return@launch
+                if (git.hasChanges()) {
+                    git.addAll()
+                    git.commit(message)
+                    onLog("[GIT] Committed: $message\n")
+                } else {
+                    onLog("[GIT] No changes to commit.\n")
+                }
+                refreshGitData()
+            } catch (e: Exception) {
+                onLog("[GIT] Commit Error: ${e.message}\n")
+            }
+        }
+    }
+
+    /**
      * Pushes local changes to the remote repository.
      */
     fun push() {
