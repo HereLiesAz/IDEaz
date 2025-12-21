@@ -159,15 +159,18 @@ class MainViewModel(
                 // Load from file URL
                 val manifestUrl = File(manifestPath).toUri().toString()
                 val zipline = ziplineLoader.loadOnce("guest", manifestUrl) {
-                     // TODO: Configure bindings/services exposed to Guest
+                     // TODO: Configure bindings/services exposed to Guest (Requires shared interface definition)
                 }
                 currentZipline = zipline
 
                 logHandler.onBuildLog("[Zipline] Reload complete.")
 
             } catch (e: Exception) {
-                logHandler.onBuildLog("[Zipline] Reload failed: ${e.message}")
+                val msg = "[Zipline] Reload failed: ${e.message}"
+                logHandler.onBuildLog(msg)
                 e.printStackTrace()
+                // Report Guest runtime crash to Jules
+                aiDelegate.startContextualAITask("Guest Code Runtime Error. Please fix:\n$msg\n${e.stackTraceToString()}")
             }
         }
     }

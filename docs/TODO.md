@@ -60,9 +60,9 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [x] **4.2: Workflow Injection (Initialization)**
     - [x] **4.2.1: File Creation:** Generate `android_ci_jules.yml`, `codeql.yml`, `jules.yml`, `release.yml`. (Updated templates to use branch-aware tags).
     - [x] **4.2.2: Force Push:** Logic to commit and push these files on "Save & Initialize".
-- [ ] **4.3: Error Handling Loop**
-    - [ ] **4.3.1: User Error:** If build fails (compilation), send log to Jules.
-    - [ ] **4.3.2: IDE Error:** If build crashes (exception), report to `HereLiesAz/IDEaz` with label `jules`.
+- [x] **4.3: Error Handling Loop**
+    - [x] **4.3.1: User Error:** If build fails (compilation), send log to Jules.
+    - [x] **4.3.2: IDE Error:** If build crashes (exception), report to `HereLiesAz/IDEaz` with label `jules`.
 
 ## Phase 5: Production Polish & Refinement
 - [ ] **5.1: Multi-Platform Support**
@@ -135,5 +135,5 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [ ] **11.6: Hot Reload & Runtime**
     - [x] Implement "Hot Reload" trigger (write manifest, broadcast `RELOAD_ZIPLINE`).
     - [x] Implement Host receiver to trigger `ziplineLoader.loadOnce`.
-    - [x] Refactor `SimpleJsBundler` for Zipline module loading/bootstrapping.
-    - [ ] Implement Error Handling: Capture Guest crashes and feed to Jules.
+    - [ ] Refactor `SimpleJsBundler` for Zipline module loading/bootstrapping.
+    - [x] Implement Error Handling: Capture Guest crashes and feed to Jules.
