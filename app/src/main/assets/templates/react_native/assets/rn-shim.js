@@ -19,8 +19,29 @@ const React = {
 
         if (finalProps) {
             if (finalProps.style) {
-                const s = { ...finalProps.style };
+                let s = {};
+                if (Array.isArray(finalProps.style)) {
+                    finalProps.style.forEach(st => {
+                        if (st) Object.assign(s, st);
+                    });
+                } else {
+                    s = { ...finalProps.style };
+                }
+
                 if (s.textDecorationLine) s.textDecoration = s.textDecorationLine;
+
+                const dimensions = [
+                    'width', 'height', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight',
+                    'margin', 'marginTop', 'marginBottom', 'marginLeft', 'marginRight',
+                    'padding', 'paddingTop', 'paddingBottom', 'paddingLeft', 'paddingRight',
+                    'top', 'left', 'right', 'bottom',
+                    'borderWidth', 'borderRadius', 'fontSize', 'lineHeight'
+                ];
+
+                dimensions.forEach(d => {
+                    if (typeof s[d] === 'number') s[d] = s[d] + 'px';
+                });
+
                 Object.assign(el.style, s);
             }
 
