@@ -26,12 +26,13 @@ The build pipeline relies on the following essential native binaries and data fi
 
 | Tool | Type | Function | Origin / Notes |
 | :--- | :--- | :--- | :--- |
-| **aapt2** | Native | Compiles/links resources. | Static `aarch64` binary from `lzhiyong/android-sdk-tools`. Bundled as `libaapt2.so`. |
-| **kotlinc** | Native | Compiles Kotlin/Java source. | Static `aarch64` binary from `lzhiyong/android-sdk-tools`. Bundled as `libkotlinc.so`. |
-| **d8** | Native | Converts .class to .dex. | Static `aarch64` binary from `lzhiyong/android-sdk-tools`. Bundled as `libd8.so`. |
-| **apksigner** | Native | Signs the final APK. | Static `aarch64` binary from `lzhiyong/android-sdk-tools`. Bundled as `libapksigner.so`. |
-| **java** | Native | Java runtime for `kotlinc`. | Static `aarch64` binary from Termux `openjdk-17`. Bundled as `libjava.so`. |
-| **jules** | Native | AI agent CLI. | Custom-compiled Node.js package. Bundled as `libjules.so`. |
+| **aapt2** | Native | Compiles/links resources. | Static `aarch64` binary. Bundled as `libaapt2.so`. |
+| **kotlinc** | Native | Compiles Kotlin/Java source. | Static `aarch64` binary. Bundled as `libkotlinc.so`. |
+| **d8** | Native | Converts .class to .dex. | Static `aarch64` binary. Bundled as `libd8.so`. |
+| **apksigner** | Native | Signs the final APK. | Static `aarch64` binary. Bundled as `libapksigner.so`. |
+| **java** | Native | Java runtime for `kotlinc`. | Static `aarch64` binary (JDK 17). Bundled as `libjava.so`. |
+| **jules** | Native | AI agent CLI (Legacy). | Node.js runtime. Bundled as `libjules.so`. **Currently Bypassed in favor of API.** |
+| **gemini** | Native | AI agent CLI. | Gemini CLI. Bundled as `libgemini.so`. |
 | **android.jar** | Asset | Android platform API stubs. | Data-only file from Android SDK (e.g., API 36). Bundled in `assets/`. |
 | **debug.keystore**| Asset | Debug signing key. | Data-only file. Bundled in `assets/`. |
 
@@ -67,6 +68,6 @@ The `On-Device Build Service` executes the following precise sequence of command
 
 Replicating Gradle's dependency resolution is a significant challenge. IDEaz addresses this with a hybrid, managed approach.
 
-1.  **Bundled Core Libraries:** IDEaz ships with a pre-packaged set of the most common AndroidX and Material Design libraries.
+1.  **Bundled Core Libraries:** IDEaz ships with a pre-packaged set of the most common AndroidX and Material Design libraries (in `ProcessAars`).
 2.  **Simplified Dependency Declaration:** Users declare dependencies in a simple `dependencies.toml` file.
-3.  **On-Device Maven Resolver:** The Build Service includes a lightweight Maven artifact resolver (using `maven-resolver-provider` and `maven-resolver-api`) to download dependencies from Maven Central/Google Maven to a local cache.
+3.  **On-Device Maven Resolver:** The Build Service includes a lightweight Maven artifact resolver (`HttpDependencyResolver`) to download dependencies from Maven Central/Google Maven/JitPack to a local cache.

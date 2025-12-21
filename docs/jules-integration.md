@@ -31,9 +31,13 @@ Jules Tools is a lightweight command-line interface (CLI) for interacting with J
 
 Think of Jules Tools as both a command surface and a dashboard for your coding agent, designed to keep you in your flow without needing to switch to a web browser.
 
-## Installation
+### Legacy Implementation Details
+*   **Binary:** `libjules.so` (Node.js runtime + script).
+*   **Wrapper:** `JulesCliClient.kt`.
+*   **Issues:** On-device execution of the Node runtime proved unstable on certain Android API levels due to seccomp filters and signal handling.
+*   **Status:** Retained for potential future use or debugging, but not active in the production flow.
 
-[Section titled “Installation”](#installation)
+## Installation
 
 To get started, install the tool globally using npm or pnpm.
 
@@ -45,13 +49,9 @@ Once installed, the jules command will be available in your terminal.
 
 ### Authentication
 
-[Section titled “Authentication”](#authentication)
-
 Before you can use the tool, you must authenticate with your Google account.
 
 ### Login
-
-[Section titled “Login”](#login)
 
 ```
 jules login
@@ -61,8 +61,6 @@ This command will open a browser window to guide you through the Google authenti
 
 ### Logout
 
-[Section titled “Logout”](#logout)
-
 To log out from your account:
 
 ```
@@ -71,18 +69,16 @@ jules logout
 
 ## Usage
 
-[Section titled “Usage”](#usage)
-
 The CLI is built around commands and subcommands. You can get help for any command by using the -h or —help flag.
 
 ```
-# Get general helpjules help
-# Get help for a specific command (e.g., remote)jules remote --help
+# Get general help
+jules help
+# Get help for a specific command (e.g., remote)
+jules remote --help
 ```
 
 ### Global Flags
-
-[Section titled “Global Flags”](#global-flags)
 
 *   `-h`, `--help`: Displays help information for jules or a specific command.
 
@@ -92,8 +88,6 @@ The CLI is built around commands and subcommands. You can get help for any comma
 Example: `jules --theme light`
 
 ### Available Commands
-
-[Section titled “Available Commands”](#available-commands)
 
 `version`
 
@@ -117,8 +111,10 @@ The `remote` command is the primary way to interact with Jules sessions running 
 _Examples:_
 
 ```
-# List all connected repositoriesjules remote list --repo
-# List all active and past sessionsjules remote list --session
+# List all connected repositories
+jules remote list --repo
+# List all active and past sessions
+jules remote list --session
 ```
 
 `remote new`
@@ -137,7 +133,8 @@ Jules can automatically infer the repository from your current working directory
 _Example:_
 
 ```
-# Start a new session to write unit tests in the 'torvalds/linux' repojules remote new --repo torvalds/linux --session "write unit tests"
+# Start a new session to write unit tests in the 'torvalds/linux' repo
+jules remote new --repo torvalds/linux --session "write unit tests"
 ```
 
 `remote pull`
@@ -149,7 +146,8 @@ Pulls the results (e.g., code changes) from a completed session.
 _Example:_
 
 ```
-# Pull the results for session ID 123456jules remote pull --session 123456
+# Pull the results for session ID 123456
+jules remote pull --session 123456
 ```
 
 `completion`
@@ -157,12 +155,11 @@ _Example:_
 Generates an autocompletion script for your shell (e.g., bash, zsh) to enable tab completion for jules commands.
 
 ```
-# Generate completion script for bashjules completion bash
+# Generate completion script for bash
+jules completion bash
 ```
 
 ## Interactive Dashboard (TUI)
-
-[Section titled “Interactive Dashboard (TUI)”](#interactive-dashboard-tui)
 
 For a more interactive, visual experience, you can launch the Terminal User Interface (TUI) by running the jules command without any arguments.
 
