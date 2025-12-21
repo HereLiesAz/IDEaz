@@ -94,6 +94,10 @@ class StateDelegate {
     /** Sets the current Web URL. */
     fun setCurrentWebUrl(url: String?) { _currentWebUrl.value = url }
 
+    private val _webReloadTrigger = MutableStateFlow(0L)
+    val webReloadTrigger = _webReloadTrigger.asStateFlow()
+    fun triggerWebReload() { _webReloadTrigger.value = System.currentTimeMillis() }
+
     /** Clears all logs. */
     fun clearLog() { _buildLog.value = emptyList() }
 }
