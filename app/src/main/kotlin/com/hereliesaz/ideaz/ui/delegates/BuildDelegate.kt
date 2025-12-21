@@ -117,7 +117,7 @@ class BuildDelegate(
                 }
             } else {
                 onOverlayLog("Build successful. Updating...")
-                application.sendBroadcast(Intent("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP"))
+                // Broadcast moved to MainViewModel's onAndroidBuildSuccess callback
                 val buildDir = File(apkPath).parentFile
                 if (buildDir != null) {
                     val parser = SourceMapParser(buildDir)

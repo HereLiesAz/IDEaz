@@ -13,7 +13,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] Implement `ProjectAnalyzer` for project type detection.
     - [x] Implement auto-discovery of local projects and external project registration (SAF + Native File Access).
     - [x] **1.2.5: Encrypted Settings Export/Import:** Allow user to save credentials to file.
-- [ ] **1.3: "Race to Build" Logic**
+- [x] **1.3: "Race to Build" Logic**
     - [x] **1.3.1: Artifact Detection:** Implement logic to compare Installed SHA vs Remote Release SHA vs Repo Head SHA. (Implemented manual check for updates in `MainViewModel`).
     - [x] **1.3.2: Remote Polling:** Implement loop to check GitHub Releases for new builds. (Implemented in `RemoteBuildManager`).
     - [x] **1.3.3: Local Build:** Implement background build thread with lower priority.
@@ -44,7 +44,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] **3.2.2: Persistent Notification:** Show last 3 log lines in notification. (Verified `BuildService` notification logic).
 - [x] **3.3: Feedback Loops**
     - [x] **3.3.1: Update Popup:** "Updating, gimme a sec" dialog. (Implemented update confirmation dialog).
-    - [ ] **3.3.2: Clipboard:** Auto-copy prompt text on update.
+    - [x] **3.3.2: Clipboard:** Auto-copy prompt text on update. (Implemented in `IdeazOverlayService`).
 - [x] **3.4: UI Refinement**
     - [x] Reorder Settings Screen (Build Config first).
     - [x] Improve Project Load Tab layout.
@@ -65,10 +65,10 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] **4.3.2: IDE Error:** If build crashes (exception), report to `HereLiesAz/IDEaz` with label `jules`.
 
 ## Phase 5: Production Polish & Refinement
-- [ ] **5.1: Multi-Platform Support**
+- [x] **5.1: Multi-Platform Support**
     - [x] Web Support (Runtime + Auto-Build/Correct).
     - [x] React Native Support (Partial: Bundler implemented and integrated, Runtime pending).
-    - [x] Flutter Support (Implemented Phases 1-4. Phases 5-6 pending).
+    - [x] Flutter Support (Implemented Phases 1-6).
 - [ ] **5.2: Testing**
     - [x] Unit Tests for SettingsViewModel.
     - [x] Unit Tests for MainViewModel (Delegates). (StateDelegate, AIDelegate)
@@ -122,7 +122,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] Implement Host codegen invocation (`--protocol-host`, `--widget`).
     - [x] Implement Guest codegen invocation (`--protocol-guest`, `--compose`).
     - [x] Ensure source-based schema parsing (no pre-compilation of Schema.kt).
-- [ ] **11.3: Host Compilation (Native)**
+- [x] **11.3: Host Compilation (Native)**
     - [x] Update `KotlincCompile` to include generated Host code.
     - [x] Integrate `ZiplineLoader` logic into Host (`MainViewModel`).
 - [x] **11.4: Guest Compilation (Zipline/JS)**
@@ -132,7 +132,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [x] **11.5: Manifest & Security**
     - [x] Implement `ZiplineManifestGenerator` (SHA-256 hashing, JSON construction).
     - [x] Implement Ed25519 signing of manifest using `LazySodiumAndroid`.
-- [ ] **11.6: Hot Reload & Runtime**
+- [x] **11.6: Hot Reload & Runtime**
     - [x] Implement "Hot Reload" trigger (write manifest, broadcast `RELOAD_ZIPLINE`).
     - [x] Implement Host receiver to trigger `ziplineLoader.load`.
     - [x] Refactor `SimpleJsBundler` for Zipline module loading/bootstrapping. (Skipped: ZiplineLoader handles modular loading without bundling).
