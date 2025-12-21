@@ -16,6 +16,7 @@ import com.hereliesaz.ideaz.ui.delegates.*
 import com.hereliesaz.ideaz.utils.ErrorCollector
 import com.hereliesaz.ideaz.R
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
+import com.hereliesaz.ideaz.utils.ProjectFileObserver
 import com.hereliesaz.ideaz.utils.ToolManager
 import com.hereliesaz.ideaz.utils.VersionUtils
 import kotlinx.coroutines.Dispatchers
@@ -160,9 +161,20 @@ class MainViewModel(
 
     fun dismissArtifactDialog() { _artifactCheckResult.value = null }
 
+    private var fileObserver: ProjectFileObserver? = null
+
+    private fun startFileObservation(projectDir: File) {
+        fileObserver?.stopWatching()
+        fileObserver = ProjectFileObserver(projectDir.absolutePath) {
+            stateDelegate.triggerWebReload()
+        }
+        fileObserver?.startWatching()
+    }
+
     // --- LIFECYCLE ---
     override fun onCleared() {
         super.onCleared()
+        fileObserver?.stopWatching()
         buildDelegate.unbindService(getApplication())
         systemEventDelegate.cleanup()
     }
@@ -280,25 +292,45 @@ class MainViewModel(
     // GIT
 
     /** Refreshes Git status, branches, and commit history. */
-    fun refreshGitData() = gitDelegate.refreshGitData()
+    fun refreshGitData() { viewModelScope.launch { gitDelegate.refreshGitData() } }
 
     /** Performs a 'git fetch' operation. */
-    fun gitFetch() = gitDelegate.fetch()
+    fun gitFetch() { viewModelScope.launch { gitDelegate.fetch() } }
 
     /** Performs a 'git pull' operation. */
-    fun gitPull() = gitDelegate.pull()
+    fun gitPull() { viewModelScope.launch { gitDelegate.pull() } }
 
     /** Performs a 'git push' operation. */
-    fun gitPush() = gitDelegate.push()
+    fun gitPush() { viewModelScope.launch { gitDelegate.push() } }
 
     /** Stashes changes with an optional message. */
-    fun gitStash(m: String?) = gitDelegate.stash(m)
+    fun gitStash(m: String?) { viewModelScope.launch { gitDelegate.stash(m) } }
 
     /** Pops the latest stash. */
-    fun gitUnstash() = gitDelegate.unstash()
+    fun gitUnstash() { viewModelScope.launch { gitDelegate.unstash() } }
 
     /** Switches to the specified branch. */
-    fun switchBranch(b: String) = gitDelegate.switchBranch(b)
+    fun switchBranch(b: String) { viewModelScope.launch { gitDelegate.switchBranch(b) } }
+
+    fun deployWebProject() {
+        val appName = settingsViewModel.getAppName()
+        val projectTypeStr = settingsViewModel.getProjectType()
+        val projectType = ProjectType.fromString(projectTypeStr)
+        if (projectType != ProjectType.WEB) return
+
+        viewModelScope.launch {
+            logHandler.onBuildLog("Deploying Web Project (Push to GitHub)...")
+            try {
+                // Ensure latest changes are committed
+                gitDelegate.commit("Deploy: ${System.currentTimeMillis()}")
+                // Use default push (uses settings creds)
+                gitDelegate.push()
+                logHandler.onBuildLog("Pushed successfully. GitHub Actions will handle deployment.")
+            } catch (e: Exception) {
+                logHandler.onBuildLog("Deploy failed: ${e.message}")
+            }
+        }
+    }
 
     // AI
 
@@ -323,6 +355,19 @@ class MainViewModel(
 
     /** Toggles the screen selection mode. */
     fun toggleSelectMode(b: Boolean) = overlayDelegate.toggleSelectMode(b)
+
+    fun handleSelection(rect: android.graphics.Rect) {
+        overlayDelegate.onSelectionMade(rect)
+
+        if (stateDelegate.currentWebUrl.value != null) {
+            val intent = Intent("com.hereliesaz.ideaz.INSPECT_WEB").apply {
+                putExtra("X", rect.centerX().toFloat())
+                putExtra("Y", rect.centerY().toFloat())
+                setPackage(getApplication<Application>().packageName)
+            }
+            getApplication<Application>().sendBroadcast(intent)
+        }
+    }
 
     /** Clears the current screen selection. */
     fun clearSelection() = overlayDelegate.clearSelection()
@@ -772,13 +817,14 @@ class MainViewModel(
         val projectType = ProjectType.fromString(projectTypeStr)
 
         if (projectType == ProjectType.WEB) {
+            val projectDir = settingsViewModel.getProjectPath(appName)
             if (stateDelegate.currentWebUrl.value == null) {
-                val projectDir = settingsViewModel.getProjectPath(appName)
                 val indexFile = File(projectDir, "index.html")
                 if (indexFile.exists()) {
                     stateDelegate.setCurrentWebUrl("file://${indexFile.absolutePath}")
                 }
             }
+            startFileObservation(projectDir)
             stateDelegate.setTargetAppVisible(true)
         } else {
             // Android, Flutter, React Native (assume APK)
