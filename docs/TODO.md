@@ -95,7 +95,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [x] **7.3: Remove Deprecated Platforms (React Native, Flutter)** (Note: React Native implementation is partial but stalled).
 
 ## Phase 8: Build System Overhaul Investigation
-- [ ] Investigation into alternative build systems.
+- [x] Investigation into alternative build systems. (See Phase 11)
 
 ## Phase 9: Enhanced Developer Tooling
 - [x] **9.1: Implement Read-Only File Explorer**
@@ -112,86 +112,27 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [x] Fix JNA native library loading (lazysodium/jna conflict).
 - [x] Refactor Project Setup UI (Move APK Picker, reorder buttons).
 
-
-<!-- Merged Content from docs/docs/TODO.md -->
-
-# IDEaz: Granular Implementation Checklist
-
-This document is the step-by-step guide for taking IDEaz from concept to production.
-
-## Phase 1: Foundation & Infrastructure
-- [x] **1.1: Project Structure Setup**
-    - [x] Define multi-process architecture (`:app`, `:build_process`, `:inspection_service`).
-    - [x] Create `BuildService` (Foreground Service).
-    - [x] Create `UIInspectionService` (Accessibility Service).
-- [x] **1.2: Data Layer**
-    - [x] Implement `GitManager` (JGit wrapper).
-    - [x] Implement `SettingsViewModel` (SharedPreferences).
-    - [x] Implement `ProjectAnalyzer` for project type detection.
-    - [x] Implement auto-discovery of local projects and external project registration (SAF + Native File Access).
-    - [x] **1.2.5: Encrypted Settings Export/Import:** Allow user to save credentials to file.
-- [ ] **1.3: "Race to Build" Logic**
-    - [x] **1.3.1: Artifact Detection:** Implement logic to compare Installed SHA vs Remote Release SHA vs Repo Head SHA. (Implemented manual check for updates in `MainViewModel`).
-    - [x] **1.3.2: Remote Polling:** Implement loop to check GitHub Releases for new builds.
-    - [x] **1.3.3: Local Build:** Implement background build thread with lower priority.
-    - [ ] **1.3.4: Cancellation:** Implement logic to cancel local build if remote wins (and vice versa).
-
-## Phase 2: The Build Pipeline ("No-Gradle" on Device)
-- [x] **2.1: Toolchain Management**
-    - [x] `ToolManager` to extract `aapt2`, `d8`, `kotlinc`, `java`.
-- [x] **2.2: Build Steps**
-    - [x] `ProcessManifest`
-    - [x] `ProcessAars` (Extract & Compile Resources)
-    - [x] `Aapt2Compile` & `Aapt2Link`
-    - [x] `KotlincCompile`
-    - [x] `D8Compile`
-    - [x] `ApkSign`
-- [x] **2.3: Dependency Resolution**
-    - [x] `HttpDependencyResolver` (Maven/Aether integration).
-    - [ ] **Refinement:** Handle complex POMs and exclusions robustly.
-
-## Phase 3: UI/UX & Interaction
-- [x] **3.1: The Overlay**
-    - [x] **3.1.1: Attachment:** Implement Bubble Notification for persistent overlay.
-    - [x] **3.1.2: Transparency:** Ensure transparent background in IDE mode, Opaque in Settings.
-    - [x] **3.1.3: Selection:** Tap (Node) and Drag (Rect) selection logic.
-- [x] **3.2: The Console**
-    - [x] Bottom Sheet implementation.
-    - [x] **3.2.1: Live Logs:** Stream Logcat/Build logs to the sheet.
-    - [x] **3.2.2: Persistent Notification:** Show last 3 log lines in notification.
-- [x] **3.3: Feedback Loops**
-    - [x] **3.3.1: Update Popup:** "Updating, gimme a sec" dialog.
-    - [x] **3.3.2: Clipboard:** Auto-copy prompt text on update.
-- [x] **3.4: UI Refinement**
-    - [x] Reorder Settings Screen (Build Config first).
-    - [x] Improve Project Load Tab layout.
-- [x] **3.5: Dependency Management**
-    - [x] UI for viewing and adding libraries via AI.
-
-## Phase 4: AI Integration & Workflow
-- [x] **4.1: Jules Integration**
-    - [x] `JulesApiClient`.
-    - [x] **4.1.1: Session Management:** Create/Delete/Resume sessions.
-    - [x] **4.1.2: Polling:** Implement infinite polling for *activities* (not just patch).
-- [x] **4.2: Workflow Injection (Initialization)**
-    - [x] **4.2.1: File Creation:** Generate `android_ci_jules.yml`, `codeql.yml`, `jules.yml`, `release.yml`.
-    - [x] **4.2.2: Force Push:** Logic to commit and push these files on "Save & Initialize".
-- [x] **4.3: Error Handling Loop**
-    - [x] **4.3.1: User Error:** If build fails (compilation), send log to Jules.
-    - [x] **4.3.2: IDE Error:** If build crashes (exception), report to `HereLiesAz/IDEaz` with label `jules`.
-
-## Phase 5: Production Polish
-- [ ] **5.1: Multi-Platform Support**
-    - [x] Web Support (Runtime + Auto-Build/Correct).
-    - [ ] React Native Support (Partial: Bundler Implemented).
-    - [ ] Flutter Support (Planned).
-- [ ] **5.2: Testing**
-    - [ ] Unit Tests for all ViewModels.
-    - [ ] Integration Tests for Build Pipeline.
-
-## Phase 6: Maintenance
-- [x] Keep `docs/` up to date.
-- [x] Monitor GitHub Issues reported by the IDE.
-- [x] Migrate to `androidComponents` API in `build.gradle.kts`.
-- [x] Security Hardening: Implement PBKDF2 for key derivation.
-- [x] Refactor `MainViewModel` into Delegates and add KDocs.
+## Phase 11: Hybrid Host Architecture Implementation
+- [x] **11.1: Dependencies & Tooling**
+    - [x] Download/Cache `redwood-tooling-codegen` JAR & dependencies via `HttpDependencyResolver`.
+    - [x] Download/Cache `zipline-kotlin-plugin-embeddable` JAR (match Kotlin version).
+    - [x] Download Guest runtime klibs (Redwood, Zipline, Kotlin Stdlib).
+- [ ] **11.2: Code Generation (Redwood)**
+    - [ ] Implement Host codegen invocation (`--protocol-host`, `--widget`).
+    - [ ] Implement Guest codegen invocation (`--protocol-guest`, `--compose`).
+    - [ ] Ensure source-based schema parsing (no pre-compilation of Schema.kt).
+- [ ] **11.3: Host Compilation (Native)**
+    - [ ] Update `KotlincCompile` to include generated Host code.
+    - [ ] Integrate `ZiplineLoader` logic into Host (`MainActivity`).
+- [ ] **11.4: Guest Compilation (Zipline/JS)**
+    - [ ] Implement `K2JSCompiler` invocation in `BuildService`.
+    - [ ] Configure Zipline compiler plugin (`-Xplugin`, `-P plugin:zipline-api-validation=enabled`).
+    - [ ] Set up IR backend flags (`-Xir-produce-js`, `-Xir-per-module`).
+- [ ] **11.5: Manifest & Security**
+    - [ ] Implement `ZiplineManifestGenerator` (SHA-256 hashing, JSON construction).
+    - [ ] Implement Ed25519 signing of manifest using `LazySodiumAndroid`.
+- [ ] **11.6: Hot Reload & Runtime**
+    - [ ] Implement "Hot Reload" trigger (write manifest, broadcast `RELOAD_ZIPLINE`).
+    - [ ] Implement Host receiver to trigger `ziplineLoader.loadOnce`.
+    - [ ] Refactor `SimpleJsBundler` for Zipline module loading/bootstrapping.
+    - [ ] Implement Error Handling: Capture Guest crashes and feed to Jules.
