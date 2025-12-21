@@ -91,12 +91,6 @@ class OverlayDelegate(
 
         setInternalSelectMode(enable)
 
-        val broadcastIntent = Intent("com.hereliesaz.ideaz.TOGGLE_SELECT_MODE").apply {
-            putExtra("ENABLE", enable)
-            setPackage(application.packageName)
-        }
-        application.sendBroadcast(broadcastIntent)
-
         if (enable && !hasScreenCapturePermission()) {
             _requestScreenCapture.value = true
         }
