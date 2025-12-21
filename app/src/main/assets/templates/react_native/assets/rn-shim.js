@@ -1,4 +1,8 @@
 
+let hooks = [];
+let hookIndex = 0;
+let renderRoot = null;
+
 const React = {
     createElement: (tag, props, ...children) => {
         if (typeof tag === 'function') return tag(props);
@@ -90,6 +94,47 @@ const React = {
         });
 
         return el;
+    },
+
+    useState: (initialValue) => {
+        const _hookIndex = hookIndex;
+        if (hooks[_hookIndex] === undefined) {
+            hooks[_hookIndex] = initialValue;
+        }
+        const setState = (newValue) => {
+            const finalValue = typeof newValue === 'function' ? newValue(hooks[_hookIndex]) : newValue;
+            hooks[_hookIndex] = finalValue;
+            if (renderRoot) {
+                setTimeout(renderRoot, 0);
+            }
+        };
+        hookIndex++;
+        return [hooks[_hookIndex], setState];
+    },
+
+    useRef: (initialValue) => {
+        const _hookIndex = hookIndex;
+        if (hooks[_hookIndex] === undefined) {
+            hooks[_hookIndex] = { current: initialValue };
+        }
+        hookIndex++;
+        return hooks[_hookIndex];
+    },
+
+    useEffect: (callback, deps) => {
+        const _hookIndex = hookIndex;
+        const oldHook = hooks[_hookIndex];
+        const hasChanged = !oldHook || !deps || !oldHook.deps || deps.some((d, i) => d !== oldHook.deps[i]);
+
+        if (hasChanged) {
+            if (oldHook && oldHook.cleanup) oldHook.cleanup();
+            setTimeout(() => {
+                 const cleanup = callback();
+                 hooks[_hookIndex].cleanup = cleanup;
+            }, 0);
+            hooks[_hookIndex] = { deps };
+        }
+        hookIndex++;
     }
 };
 
@@ -114,10 +159,19 @@ export const StyleSheet = {
 export const AppRegistry = {
     registerComponent: (name, compProvider) => {
         console.log(`Registering component ${name}`);
+
+        renderRoot = () => {
+             hookIndex = 0;
+             document.body.innerHTML = '';
+             const Root = compProvider();
+             // Root is the component function. Invoking it runs the hooks.
+             const app = React.createElement(Root);
+             document.body.appendChild(app);
+             console.log('App re-rendered');
+        };
+
         window.addEventListener('load', () => {
-            const Root = compProvider();
-            const app = React.createElement(Root);
-            document.body.appendChild(app);
+            renderRoot();
             console.log('App mounted');
         });
     }
@@ -178,31 +232,24 @@ export const NavigationContainer = ({ children }) => {
 export const createNativeStackNavigator = () => {
     return {
         Navigator: ({ children, initialRouteName }) => {
-            let targetChild = null;
+            const [currentRoute, setCurrentRoute] = React.useState(initialRouteName || 'Home');
+
             const kids = Array.isArray(children) ? children : [children];
+            const validScreens = kids.filter(k => k && k._isScreen);
 
-            // Filter out nulls/undefined
-            const validKids = kids.filter(k => k);
+            let targetScreen = validScreens.find(s => s.props.name === currentRoute);
+            if (!targetScreen && validScreens.length > 0) targetScreen = validScreens[0];
 
-            if (initialRouteName) {
-                targetChild = validKids.find(c => c.props && c.props.name === initialRouteName);
-            }
-            if (!targetChild && validKids.length > 0) {
-                targetChild = validKids[0];
-            }
+            if (!targetScreen) return null;
 
-            return React.createElement('div', {
-                style: { flex: 1, display: 'flex', flexDirection: 'column' }
-            }, targetChild);
-        },
-        Screen: ({ name, component, options }) => {
-             const navigation = {
-                navigate: (route) => console.log(`[Shim] navigate to ${route}`),
-                goBack: () => console.log('[Shim] goBack'),
-                setOptions: () => {}
+            const navigation = {
+                navigate: (route) => setCurrentRoute(route),
+                goBack: () => console.log('goBack not impl')
             };
-            return React.createElement(component, { navigation, route: { params: {} } });
-        }
+
+            return React.createElement(targetScreen.props.component, { navigation });
+        },
+        Screen: (props) => ({ _isScreen: true, props })
     };
 };
 
