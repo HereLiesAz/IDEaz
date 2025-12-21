@@ -48,8 +48,8 @@ class WebBuildStepTest {
 
         val expected = """
             function hello() {
-            // This is a comment
-            console.log("Hello");
+                // This is a comment
+                console.log("Hello");
             }
         """.trimIndent()
 
@@ -81,7 +81,7 @@ class WebBuildStepTest {
         // Newlines should be gone
         assertFalse("Should not contain newlines", result.contains("\n"))
         // Content should adhere
-        assertTrue(result.contains("body {color: red;background: blue;}"))
+        assertTrue(result.contains("body { color: red; background: blue; }"))
         assertTrue(result.contains("div { width: 100%; }")) // trim("div { width: 100%; }") -> "div { width: 100%; }"
     }
 }

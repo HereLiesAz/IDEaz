@@ -11,11 +11,10 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.flow.StateFlow
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -27,6 +26,7 @@ import java.io.File
 @Composable
 fun WebProjectHost(
     url: String,
+    reloadTrigger: StateFlow<Long>? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -46,6 +46,7 @@ fun WebProjectHost(
 
             webChromeClient = object : WebChromeClient() {
                 override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                    // Bridge console log to IDE
                     consoleMessage?.let {
                         val msg = "[WEB] ${it.message()} (${it.sourceId()}:${it.lineNumber()})"
                         val intent = Intent(ACTION_AI_LOG).apply {
@@ -68,6 +69,15 @@ fun WebProjectHost(
                     }
                     context.sendBroadcast(intent)
                 }
+            }
+        }
+    }
+
+    if (reloadTrigger != null) {
+        val trigger by reloadTrigger.collectAsState()
+        LaunchedEffect(trigger) {
+            if (trigger > 0L) {
+                webView.reload()
             }
         }
     }

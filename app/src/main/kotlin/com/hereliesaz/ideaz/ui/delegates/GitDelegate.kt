@@ -6,7 +6,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -15,7 +14,7 @@ import java.io.File
  * and managing Git state (history, branches, status).
  *
  * @param settingsViewModel ViewModel to access Git credentials and project path.
- * @param scope CoroutineScope for background Git operations.
+ * @param scope CoroutineScope (unused in suspend functions, kept for compatibility if needed).
  * @param onLog Callback to pipe Git logs to the UI.
  * @param onProgress Callback to report operation progress.
  */
@@ -45,31 +44,27 @@ class GitDelegate(
     }
 
     private fun reportProgress(percent: Int, task: String) {
-        scope.launch {
-            onProgress(if (percent >= 100) null else percent)
-            onLog("[GIT] $task\n")
-        }
+        onProgress(if (percent >= 100) null else percent)
+        onLog("[GIT] $task\n")
     }
 
     /**
      * Refreshes the Git data (history, branches, status) from the repository.
      */
-    fun refreshGitData() {
-        scope.launch(Dispatchers.IO) {
-            val git = getGitManager() ?: return@launch
-            try {
-                // Sync current branch to settings
-                val currentBranch = git.getCurrentBranch()
-                if (currentBranch != null) {
-                    settingsViewModel.saveBranchName(currentBranch)
-                }
-
-                _commitHistory.value = git.getCommitHistory()
-                _branches.value = git.getBranches()
-                _gitStatus.value = git.getStatus()
-            } catch (e: Exception) {
-                // Log silently
+    suspend fun refreshGitData() = withContext(Dispatchers.IO) {
+        val git = getGitManager() ?: return@withContext
+        try {
+            // Sync current branch to settings
+            val currentBranch = git.getCurrentBranch()
+            if (currentBranch != null) {
+                settingsViewModel.saveBranchName(currentBranch)
             }
+
+            _commitHistory.value = git.getCommitHistory()
+            _branches.value = git.getBranches()
+            _gitStatus.value = git.getStatus()
+        } catch (e: Exception) {
+            // Log silently
         }
     }
 
@@ -94,111 +89,97 @@ class GitDelegate(
     /**
      * Fetches changes from the remote repository.
      */
-    fun fetch() {
-        scope.launch(Dispatchers.IO) {
-            try {
-                val git = getGitManager() ?: return@launch
-                val token = settingsViewModel.getGithubToken()
-                val user = settingsViewModel.getGithubUser()
-                git.fetch(user, token) { p, t -> reportProgress(p, t) }
-                refreshGitData()
-            } catch (e: Exception) {
-                onLog("[GIT] Fetch Error: ${e.message}\n")
-            }
+    suspend fun fetch() = withContext(Dispatchers.IO) {
+        try {
+            val git = getGitManager() ?: return@withContext
+            val token = settingsViewModel.getGithubToken()
+            val user = settingsViewModel.getGithubUser()
+            git.fetch(user, token) { p, t -> reportProgress(p, t) }
+            refreshGitData()
+        } catch (e: Exception) {
+            onLog("[GIT] Fetch Error: ${e.message}\n")
         }
     }
 
     /**
      * Pulls changes from the remote repository.
      */
-    fun pull() {
-        scope.launch(Dispatchers.IO) {
-            try {
-                val git = getGitManager() ?: return@launch
-                val token = settingsViewModel.getGithubToken()
-                val user = settingsViewModel.getGithubUser()
-                git.pull(user, token) { p, t -> reportProgress(p, t) }
-                refreshGitData()
-            } catch (e: Exception) {
-                onLog("[GIT] Pull Error: ${e.message}\n")
-            }
+    suspend fun pull() = withContext(Dispatchers.IO) {
+        try {
+            val git = getGitManager() ?: return@withContext
+            val token = settingsViewModel.getGithubToken()
+            val user = settingsViewModel.getGithubUser()
+            git.pull(user, token) { p, t -> reportProgress(p, t) }
+            refreshGitData()
+        } catch (e: Exception) {
+            onLog("[GIT] Pull Error: ${e.message}\n")
         }
     }
 
     /**
      * Commits changes with a message.
      */
-    fun commit(message: String) {
-        scope.launch(Dispatchers.IO) {
-            try {
-                val git = getGitManager() ?: return@launch
-                if (git.hasChanges()) {
-                    git.addAll()
-                    git.commit(message)
-                    onLog("[GIT] Committed: $message\n")
-                } else {
-                    onLog("[GIT] No changes to commit.\n")
-                }
-                refreshGitData()
-            } catch (e: Exception) {
-                onLog("[GIT] Commit Error: ${e.message}\n")
+    suspend fun commit(message: String) = withContext(Dispatchers.IO) {
+        try {
+            val git = getGitManager() ?: return@withContext
+            if (git.hasChanges()) {
+                git.addAll()
+                git.commit(message)
+                onLog("[GIT] Committed: $message\n")
+            } else {
+                onLog("[GIT] No changes to commit.\n")
             }
+            refreshGitData()
+        } catch (e: Exception) {
+            onLog("[GIT] Commit Error: ${e.message}\n")
         }
     }
 
     /**
      * Pushes local changes to the remote repository.
      */
-    fun push() {
-        scope.launch(Dispatchers.IO) {
-            try {
-                val git = getGitManager() ?: return@launch
-                val token = settingsViewModel.getGithubToken()
-                val user = settingsViewModel.getGithubUser()
-                if (token != null) {
-                    git.push(user, token) { p, t -> reportProgress(p, t) }
-                    onLog("[GIT] Push successful.\n")
-                } else {
-                    onLog("[GIT] Error: Missing Auth.\n")
-                }
-                refreshGitData()
-            } catch (e: Exception) {
-                onLog("[GIT] Push Error: ${e.message}\n")
+    suspend fun push() = withContext(Dispatchers.IO) {
+        try {
+            val git = getGitManager() ?: return@withContext
+            val token = settingsViewModel.getGithubToken()
+            val user = settingsViewModel.getGithubUser()
+            if (token != null) {
+                git.push(user, token) { p, t -> reportProgress(p, t) }
+                onLog("[GIT] Push successful.\n")
+            } else {
+                onLog("[GIT] Error: Missing Auth.\n")
             }
+            refreshGitData()
+        } catch (e: Exception) {
+            onLog("[GIT] Push Error: ${e.message}\n")
         }
     }
 
     /**
      * Stashes current changes.
      */
-    fun stash(message: String?) {
-        scope.launch(Dispatchers.IO) {
-            getGitManager()?.stash(message)
-            refreshGitData()
-            onLog("[GIT] Stashed changes.\n")
-        }
+    suspend fun stash(message: String?) = withContext(Dispatchers.IO) {
+        getGitManager()?.stash(message)
+        refreshGitData()
+        onLog("[GIT] Stashed changes.\n")
     }
 
     /**
      * Applies the latest stash.
      */
-    fun unstash() {
-        scope.launch(Dispatchers.IO) {
-            getGitManager()?.unstash()
-            refreshGitData()
-            onLog("[GIT] Unstashed changes.\n")
-        }
+    suspend fun unstash() = withContext(Dispatchers.IO) {
+        getGitManager()?.unstash()
+        refreshGitData()
+        onLog("[GIT] Unstashed changes.\n")
     }
 
     /**
      * Switches to the specified branch.
      */
-    fun switchBranch(branch: String) {
-        scope.launch(Dispatchers.IO) {
-            getGitManager()?.checkout(branch)
-            settingsViewModel.saveBranchName(branch)
-            refreshGitData()
-            onLog("[GIT] Switched to $branch.\n")
-        }
+    suspend fun switchBranch(branch: String) = withContext(Dispatchers.IO) {
+        getGitManager()?.checkout(branch)
+        settingsViewModel.saveBranchName(branch)
+        refreshGitData()
+        onLog("[GIT] Switched to $branch.\n")
     }
 }

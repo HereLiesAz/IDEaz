@@ -41,12 +41,12 @@ Objective: Enable users to create, edit, preview, and deploy static web applicat
     - [x] Add "Deploy" action in UI that triggers the GitHub Pages workflow.
 
 ## Phase 5: Editor Features
-- [ ] **5.1: Live Preview**
-    - [ ] Implement "Live Reload" logic:
-        - [ ] Watch file changes in `filesDir`.
-        - [ ] Trigger `webView.reload()` automatically on save.
+- [x] **5.1: Live Preview**
+    - [x] Implement "Live Reload" logic:
+        - [x] Watch file changes in `filesDir` (Root directory only for MVP).
+        - [x] Trigger `webView.reload()` automatically on save.
 - [ ] **5.2: Syntax Highlighting**
-    - [ ] Update Editor/Log viewer to support HTML/CSS/JS syntax.
+    - [x] Update Editor/Log viewer (Integrated Sora Editor - Basic support, Syntax Highlighting pending).
 
 ## Phase 6: UI & Overlay Integration
 - [ ] **6.1: Overlay Support**
