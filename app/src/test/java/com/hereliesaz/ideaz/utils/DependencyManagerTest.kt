@@ -53,4 +53,24 @@ class DependencyManagerTest {
         assertEquals("simple", simple?.name)
         assertEquals("1.0.0", simple?.version)
     }
+
+    @Test
+    fun testParsePubspec() {
+        val projectDir = tempFolder.newFolder("flutter_project")
+        val pubspecFile = File(projectDir, "pubspec.yaml")
+
+        pubspecFile.writeText("""
+            name: my_app
+            dependencies:
+              flutter:
+                sdk: flutter
+              cupertino_icons: ^1.0.2
+        """.trimIndent())
+
+        val deps = DependencyManager.listDependencies(projectDir)
+
+        val cupertino = deps.find { it.alias == "cupertino_icons" }
+        assertEquals("Flutter", cupertino?.group)
+        assertEquals("^1.0.2", cupertino?.version)
+    }
 }

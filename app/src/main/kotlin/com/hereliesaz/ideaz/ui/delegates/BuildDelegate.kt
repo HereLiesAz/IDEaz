@@ -146,6 +146,12 @@ class BuildDelegate(
             val typeStr = settingsViewModel.getProjectType()
             val type = ProjectType.fromString(typeStr)
 
+            if (type == ProjectType.FLUTTER) {
+                onLog("[IDE] Flutter Project detected. Triggering Remote Build (Pushing to GitHub)...\n")
+                gitDelegate.push()
+                return@launch
+            }
+
             if (type != ProjectType.WEB && !settingsViewModel.isLocalBuildEnabled()) {
                 onLog("[INFO] Local build disabled. Using GitHub Action (Remote).\n")
             }
