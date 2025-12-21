@@ -263,7 +263,7 @@ class RepoDelegate(
             val type = ProjectType.fromString(settingsViewModel.getProjectType())
             val packageName = settingsViewModel.getTargetPackageName() ?: "com.example.app"
 
-            ProjectConfigManager.ensureWorkflow(application, projectDir, type)
+            ProjectConfigManager.ensureWorkflow(projectDir, type)
             ProjectConfigManager.ensureSetupScript(projectDir)
             ProjectConfigManager.ensureAgentsSetupMd(projectDir)
 
