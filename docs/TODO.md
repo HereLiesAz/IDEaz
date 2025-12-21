@@ -34,10 +34,10 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [ ] **Refinement:** Handle complex POMs and exclusions robustly.
 
 ## Phase 3: UI/UX & Interaction
-- [x] **3.1: The Overlay (Status: IMPLEMENTED)**
+- [x] **3.1: The Overlay**
     - [x] **3.1.1: Attachment:** `IdeazOverlayService` (System Alert Window) implemented and registered.
-    - [x] **3.1.2: Transparency:** `OverlayView` handles transparent drawing.
-    - [x] **3.1.3: Selection:** `IdeazAccessibilityService` implements node hit-testing and feedback loop.
+    - [x] **3.1.2: Transparency:** Transparent overlay mode functional via `OverlayView`.
+    - [x] **3.1.3: Selection:** Drag selection implemented in `OverlayView` and integrated with `OverlayDelegate`.
 - [x] **3.2: The Console**
     - [x] Bottom Sheet implementation.
     - [x] **3.2.1: Live Logs:** Stream Logcat/Build logs to the sheet. (Implemented `LogcatReader` and System tab).
