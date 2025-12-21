@@ -6,38 +6,34 @@ This "No-Gradle" approach prioritizes speed, simplicity, and a minimal resource 
 
 ## **1. Toolchain Components**
 
-The necessary build tools are not part of the standard Android OS and must be bundled within the IDEaz application package.
+The necessary build tools are not part of the standard Android OS and must be downloaded and managed by the IDEaz application.
 
-### **1.1 Bundling Strategy**
+### **1.1 Distribution Strategy**
 
-The required command-line tools are **static, native `aarch64` binaries** (e.g., `aapt2`, `kotlinc`, `d8`, `apksigner`). They are not extracted from assets, as the `assets` directory is mounted `noexec`.
+The build tools are distributed as a **downloadable zip archive** (e.g., `tools.zip`). The `ToolManager` downloads and extracts this archive to the application's internal storage (`filesDir/local_build_tools/`).
 
-Instead, they are placed directly in the **`app/src/main/jniLibs/arm64-v8a/`** directory and **renamed to the `lib*.so` format** (e.g., `aapt2` becomes `libaapt2.so`). The `app/build.gradle.kts` file is configured with a `sourceSets` block to explicitly include this `jniLibs` directory.
-
-This forces the Android Gradle Plugin to package them into the APK's native library directory (`lib/arm64-v8a/`). At runtime, the `ToolManager` can get a direct, executable path to these tools from the `ApplicationInfo.nativeLibraryDir`, which is **not** mounted as `noexec`.
-
-Data-only files, such as `android.jar` and `debug.keystore`, are placed in `app/src/main/assets/` and are extracted to internal storage by the `ToolManager`.
+This approach avoids bundling large binaries in the APK and allows for toolchain updates without an app update. The directory structure typically includes:
+*   `tools/`: JAR files (`kotlin-compiler.jar`, `d8.jar`, `android.jar`).
+*   `native/`: Native executables (`libaapt2.so`, `libjdk.so`).
 
 ### **1.2 Core Tools**
 
-The build pipeline relies on the following essential native binaries and data files:
+The build pipeline relies on the following essential components:
 
 #### **Table 1: On-Device Build Toolchain Components**
 
-| Tool | Type | Function | Origin / Notes |
+| Tool | Type | Function | Execution Method |
 | :--- | :--- | :--- | :--- |
-| **aapt2** | Native | Compiles/links resources. | Static `aarch64` binary. Bundled as `libaapt2.so`. |
-| **kotlinc** | Native | Compiles Kotlin/Java source. | Static `aarch64` binary. Bundled as `libkotlinc.so`. |
-| **d8** | Native | Converts .class to .dex. | Static `aarch64` binary. Bundled as `libd8.so`. |
-| **apksigner** | Native | Signs the final APK. | Static `aarch64` binary. Bundled as `libapksigner.so`. |
-| **java** | Native | Java runtime for `kotlinc`. | Static `aarch64` binary (JDK 17). Bundled as `libjava.so`. |
-| **jules** | Native | AI agent CLI (Legacy). | Node.js runtime. Bundled as `libjules.so`. **Currently Bypassed in favor of API.** |
-| **gemini** | Native | AI agent CLI. | Gemini CLI. Bundled as `libgemini.so`. |
-| **android.jar** | Asset | Android platform API stubs. | Data-only file from Android SDK (e.g., API 36). Bundled in `assets/`. |
-| **debug.keystore**| Asset | Debug signing key. | Data-only file. Bundled in `assets/`. |
+| **aapt2** | Native | Compiles/links resources. | Executed directly (`libaapt2.so`). |
+| **kotlinc** | JAR | Compiles Kotlin/Java source. | Executed via Java (`java -jar kotlin-compiler.jar`). |
+| **d8** | JAR | Converts .class to .dex. | Executed via Java (`java -jar d8.jar`). |
+| **apksigner** | JAR | Signs the final APK. | Executed via Java (`java -jar apksigner.jar`). |
+| **java** | Native | Java Runtime (JDK 17). | Executed directly (`libjdk.so` / `java`). Used to run JAR tools. |
+| **android.jar** | Data | Android platform API stubs. | Classpath argument. |
+| **debug.keystore**| Data | Debug signing key. | Argument to apksigner. |
 
 ### **1.3 Toolchain Validation and Repair**
-The `ToolManager` performs a validation check on initialization. It verifies that asset-based tools (like `android.jar`) exist in the internal storage **and** are not empty (0 bytes). If a corrupt or missing file is detected, it automatically attempts to re-extract it from the APK assets. Ideally, build steps also validate their inputs before execution to provide clear error messages.
+The `ToolManager` performs a validation check on initialization. It verifies that critical files exist in the `local_build_tools` directory. If tools are missing, the user is prompted to download them (or they are downloaded automatically if configured).
 
 ## **2. The Build Sequence**
 
@@ -50,24 +46,27 @@ Before the build pipeline is invoked, the IDEaz host application ensures the pro
 
 ### **Build Execution Steps**
 
-The `On-Device Build Service` executes the following precise sequence of command-line invocations. This order is critical for correctness.
+The `On-Device Build Service` executes the following precise sequence.
 
-1.  **Step 1: Resource Compilation (aapt2 compile):** The service invokes `libaapt2.so compile`, passing it the `res/` directory.
-2.  **Step 2: Resource Linking (aapt2 link):** The service invokes `libaapt2.so link`.
-    *   **Validation:** Before execution, this step explicitly verifies the integrity of the `android.jar` file to prevent "Invalid file" errors.
-    *   **Output:** Generates `resources.apk` and `R.java`.
-3.  **Step 3: Source Code Compilation (kotlinc):** The service invokes the **`libkotlinc.so`** binary, compiling user code and the generated `R.java` against `android.jar`.
-4.  **Step 4: Dexing (d8):** The service uses **`libd8.so`** to convert `.class` files into `classes.dex`.
-5.  **Step 5: Final APK Packaging:** The `resources.apk` and `classes.dex` are zipped together into an unsigned APK.
-6.  **Step 6: Signing (apksigner):** The service invokes **`libapksigner.so`** to sign the APK with the debug keystore.
-7.  **Step 7: Source Map Generation:** *Only after a successful build*, the service runs `GenerateSourceMap`. This parses the `res/layout/` directory to map `android:id` attributes to line numbers for the UI Inspection Service.
-8.  **Step 8: Installation:** The service uses `ApkInstaller` to install the APK.
-    *   **Auto-Launch:** The `MainActivity` listens for the `ACTION_PACKAGE_REPLACED` broadcast and automatically launches the app once installation is complete.
+1.  **Step 1: Dependency Resolution:** `HttpDependencyResolver` downloads dependencies to `local-repo`.
+2.  **Step 2: Resource Processing:** `ProcessAars` extracts resources from AAR dependencies.
+3.  **Step 3: Hybrid Host Generation (Optional):** If a Redwood Schema is detected, `RedwoodCodegen` generates Host bindings.
+4.  **Step 4: Resource Compilation (aapt2 compile):** Invokes `libaapt2.so compile` on `res/`.
+5.  **Step 5: Resource Linking (aapt2 link):** Invokes `libaapt2.so link` to generate `R.java` and `resources.apk`.
+6.  **Step 6: Source Code Compilation (kotlinc):** Invokes `kotlin-compiler.jar` to compile user code + `R.java` + Host bindings.
+7.  **Step 7: Dexing (d8):** Invokes `d8.jar` to convert classes to DEX.
+8.  **Step 8: APK Packaging:** Zips `resources.apk` and `classes.dex` into an unsigned APK.
+9.  **Step 9: Signing (apksigner):** Invokes `apksigner.jar` with the debug keystore.
+10. **Step 10: Guest Code Compilation (Optional):** If Hybrid Host is active:
+    *   `RedwoodCodegen` generates Guest bindings.
+    *   `ZiplineCompile` compiles Guest code to JS.
+    *   `ZiplineManifestStep` generates signed manifest.
+11. **Step 11: Source Map Generation:** Runs `GenerateSourceMap` to map UI IDs to code lines.
+12. **Step 12: Installation:** Uses `ApkInstaller` to install the signed APK.
 
 ## **3. On-Device Dependency Resolution**
 
 Replicating Gradle's dependency resolution is a significant challenge. IDEaz addresses this with a hybrid, managed approach.
 
-1.  **Bundled Core Libraries:** IDEaz ships with a pre-packaged set of the most common AndroidX and Material Design libraries (in `ProcessAars`).
-2.  **Simplified Dependency Declaration:** Users declare dependencies in a simple `dependencies.toml` file.
-3.  **On-Device Maven Resolver:** The Build Service includes a lightweight Maven artifact resolver (`HttpDependencyResolver`) to download dependencies from Maven Central/Google Maven/JitPack to a local cache.
+1.  **Simplified Dependency Declaration:** Users declare dependencies in a simple `dependencies.toml` file.
+2.  **On-Device Maven Resolver:** The Build Service includes a lightweight Maven artifact resolver (`HttpDependencyResolver`) to download dependencies from Maven Central/Google Maven/JitPack to a local cache.
