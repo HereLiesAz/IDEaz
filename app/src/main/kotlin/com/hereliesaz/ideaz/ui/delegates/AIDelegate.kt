@@ -94,6 +94,7 @@ class AIDelegate(
      * Uses the AI model selected in settings (Jules or Gemini).
      */
     fun startContextualAITask(richPrompt: String) {
+        settingsViewModel.saveLastPrompt(richPrompt)
         onOverlayLog("Thinking...")
         _isLoadingJulesResponse.value = true
         _julesError.value = null
