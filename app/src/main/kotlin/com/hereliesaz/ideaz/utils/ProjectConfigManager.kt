@@ -160,7 +160,7 @@ jobs:
 
     - name: Rename Artifact
       run: |
-        VERSION=${'$'}(grep 'version:' pubspec.yaml | cut -d ' ' -f 2 | cut -d '+' -f 1)
+        VERSION=${'$'}(grep 'version:' pubspec.yaml | awk '{print $2}' | cut -d '+' -f 1)
         mv build/app/outputs/flutter-apk/app-debug.apk IDEaz-${'$'}{VERSION}-debug.apk
 
     - name: Upload Artifact

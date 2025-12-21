@@ -759,7 +759,14 @@ class MainViewModel(
     }
 
     fun addDependencyViaAI(coordinate: String) {
-        val prompt = "Add dependency '$coordinate' to the project. Update gradle/libs.versions.toml and app/build.gradle.kts (or build.gradle.kts) accordingly. Ensure to add version to [versions] and library to [libraries] with an alias, then implement it."
+        val typeStr = settingsViewModel.getProjectType()
+        val type = ProjectType.fromString(typeStr)
+
+        val prompt = if (type == ProjectType.FLUTTER) {
+            "Add dependency '$coordinate' to `pubspec.yaml` in the `dependencies` section."
+        } else {
+            "Add dependency '$coordinate' to the project. Update gradle/libs.versions.toml and app/build.gradle.kts (or build.gradle.kts) accordingly. Ensure to add version to [versions] and library to [libraries] with an alias, then implement it."
+        }
         aiDelegate.startContextualAITask(prompt)
     }
 
