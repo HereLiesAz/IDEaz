@@ -67,13 +67,11 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 ## Phase 5: Production Polish & Refinement
 - [ ] **5.1: Multi-Platform Support**
     - [x] Web Support (Runtime + Auto-Build/Correct).
-    - [x] React Native Support (Partial: Bundler implemented, Runtime Shim expanded with State/Lists/Navigation).
-    - [x] Flutter Support (Implemented Phases 1-6. Remote Build & Overlay Verified).
+    - [x] React Native Support (Partial: Bundler implemented and integrated, Runtime pending).
+    - [x] Flutter Support (Implemented Phases 1-4. Phases 5-6 pending).
 - [ ] **5.2: Testing**
     - [x] Unit Tests for SettingsViewModel.
-    - [ ] Unit Tests for MainViewModel (Delegates).
-    - [ ] Unit Tests for all ViewModels.
-        - [x] SettingsViewModel
+    - [x] Unit Tests for MainViewModel (Delegates). (StateDelegate, AIDelegate)
     - [ ] Integration Tests for Build Pipeline.
 - [x] **5.3: Advanced Features**
     - [x] Incremental Builds.

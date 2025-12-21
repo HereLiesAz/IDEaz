@@ -1,61 +1,52 @@
 package com.hereliesaz.ideaz.ui
 
-import android.app.Application
 import androidx.test.core.app.ApplicationProvider
-import com.hereliesaz.ideaz.ui.SettingsViewModel
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33])
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [34])
 class SettingsViewModelTest {
 
     private lateinit var viewModel: SettingsViewModel
-    private lateinit var app: Application
 
     @Before
-    fun setup() {
-        app = ApplicationProvider.getApplicationContext()
-        viewModel = SettingsViewModel(app)
+    fun setUp() {
+        viewModel = SettingsViewModel(ApplicationProvider.getApplicationContext())
     }
 
     @Test
-    fun testAppName() {
+    fun testAppNamePersistence() {
+        assertNull(viewModel.getAppName())
         viewModel.setAppName("TestApp")
         assertEquals("TestApp", viewModel.getAppName())
         assertEquals("TestApp", viewModel.currentAppName.value)
     }
 
     @Test
-    fun testGithubUser() {
-        viewModel.setGithubUser("TestUser")
-        assertEquals("TestUser", viewModel.getGithubUser())
+    fun testApiKeyPersistence() {
+        assertNull(viewModel.getApiKey())
+        viewModel.saveApiKey("secret_key")
+        assertEquals("secret_key", viewModel.getApiKey())
+        assertEquals("secret_key", viewModel.apiKey.value)
     }
 
     @Test
-    fun testRequiredKeys() {
-        // Clear keys first
-        viewModel.saveApiKey("")
-        viewModel.saveGithubToken("")
-
-        val missing = viewModel.checkRequiredKeys()
-        assertTrue(missing.contains("Jules API Key"))
-        assertTrue(missing.contains("GitHub Token"))
-
-        viewModel.saveApiKey("key")
-        viewModel.saveGithubToken("token")
-
-        val missing2 = viewModel.checkRequiredKeys()
-        assertTrue(missing2.isEmpty())
+    fun testProjectList() {
+        assertTrue(viewModel.getProjectList().isEmpty())
+        viewModel.addProject("Project1")
+        assertTrue(viewModel.getProjectList().contains("Project1"))
+        viewModel.removeProject("Project1")
+        assertFalse(viewModel.getProjectList().contains("Project1"))
     }
 
     @Test
-    fun testProjectType() {
+    fun testProjectTypePersistence() {
+        assertEquals("UNKNOWN", viewModel.getProjectType())
         viewModel.setProjectType("ANDROID")
         assertEquals("ANDROID", viewModel.getProjectType())
         assertEquals("ANDROID", viewModel.projectType.value)
