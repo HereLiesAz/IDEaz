@@ -19,6 +19,13 @@ import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ToolManager
 import com.hereliesaz.ideaz.utils.VersionUtils
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
+import java.util.concurrent.Executors
+import app.cash.zipline.loader.ZiplineLoader
+import app.cash.zipline.loader.ManifestVerifier
+import app.cash.zipline.loader.asZiplineHttpClient
+import com.hereliesaz.ideaz.MainApplication
+import com.hereliesaz.ideaz.BuildConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -61,6 +68,19 @@ class MainViewModel(
 
     // --- DELEGATES ---
     val stateDelegate = StateDelegate()
+
+    private val ziplineDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+
+    val ziplineLoader: ZiplineLoader by lazy {
+        val app = application as MainApplication
+        ZiplineLoader(
+            dispatcher = ziplineDispatcher,
+            // TODO(Phase 11.5): Implement Ed25519 signature verification.
+            // Currently utilizing NO_SIGNATURE_CHECKS to enable development of the Hybrid Host features.
+            manifestVerifier = ManifestVerifier.NO_SIGNATURE_CHECKS,
+            httpClient = app.okHttpClient.asZiplineHttpClient(),
+        )
+    }
 
     // Helper to pipe logs to UI and State
     private val logHandler = object : LogHandler {
@@ -165,6 +185,7 @@ class MainViewModel(
         super.onCleared()
         buildDelegate.unbindService(getApplication())
         systemEventDelegate.cleanup()
+        ziplineDispatcher.close()
     }
 
     /**
@@ -365,8 +386,13 @@ class MainViewModel(
     /** Creates a new GitHub repository and initializes it with the project template. */
     fun createGitHubRepository(name: String, desc: String, priv: Boolean, type: ProjectType, pkg: String, ctx: Context, onSuccess: () -> Unit) {
         repoDelegate.createGitHubRepository(name, desc, priv, type, pkg, ctx) { owner, branch ->
-            saveAndInitialize(name, owner, branch, pkg, type, ctx)
-            onSuccess()
+            viewModelScope.launch(Dispatchers.IO) {
+                com.hereliesaz.ideaz.utils.TemplateManager.copyTemplate(ctx, type, ctx.filesDir.resolve(name), pkg, name)
+                withContext(Dispatchers.Main) {
+                    saveAndInitialize(name, owner, branch, pkg, type, ctx)
+                    onSuccess()
+                }
+            }
         }
     }
 
@@ -391,7 +417,7 @@ class MainViewModel(
             buildDelegate.startBuild(context.filesDir.resolve(appName))
 
             // Check for remote artifacts if it's an Android project
-            if (type == ProjectType.ANDROID) {
+            if (type == ProjectType.ANDROID || type == ProjectType.FLUTTER) {
                 checkForRemoteArtifact(user, appName, context)
             }
         }
@@ -754,7 +780,14 @@ class MainViewModel(
     }
 
     fun addDependencyViaAI(coordinate: String) {
-        val prompt = "Add dependency '$coordinate' to the project. Update gradle/libs.versions.toml and app/build.gradle.kts (or build.gradle.kts) accordingly. Ensure to add version to [versions] and library to [libraries] with an alias, then implement it."
+        val typeStr = settingsViewModel.getProjectType()
+        val type = ProjectType.fromString(typeStr)
+
+        val prompt = if (type == ProjectType.FLUTTER) {
+            "Add dependency '$coordinate' to `pubspec.yaml` in the `dependencies` section."
+        } else {
+            "Add dependency '$coordinate' to the project. Update gradle/libs.versions.toml and app/build.gradle.kts (or build.gradle.kts) accordingly. Ensure to add version to [versions] and library to [libraries] with an alias, then implement it."
+        }
         aiDelegate.startContextualAITask(prompt)
     }
 

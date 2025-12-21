@@ -48,7 +48,7 @@ fun LibrariesScreen(
         ) {
             Box(modifier = Modifier.weight(1f)) {
                  AzTextBox(
-                    hint = "Add dependency (e.g. com.squareup.retrofit2:retrofit:2.9.0)",
+                    hint = "Add dependency...",
                     value = newDependency,
                     onValueChange = { newDependency = it },
                     onSubmit = {
@@ -65,7 +65,7 @@ fun LibrariesScreen(
         // List Area
         if (dependencies.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No dependencies found in libs.versions.toml", style = MaterialTheme.typography.bodyLarge)
+                Text("No dependencies found.", style = MaterialTheme.typography.bodyLarge)
             }
         } else {
             LazyColumn(
