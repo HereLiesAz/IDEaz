@@ -21,27 +21,40 @@ Before committing ANY changes, you **MUST** strictly adhere to the following wor
 
 ---
 
+## Critical Known Issues / Discrepancies
+*   **Missing Overlay Service:** The `IdeazOverlayService` (responsible for drawing the UI over other apps) is missing from the codebase, despite being referenced in `OverlayDelegate` logic. This means "Overlay Mode" currently works only within the app's internal hosts (`AndroidProjectHost`/`WebProjectHost`).
+*   **Tabs Order:** Documentation previously listed Project Screen tabs in incorrect order. The correct order is Setup, Load, Clone.
+
 ## Documentation Index
 
 The `docs/` folder contains the comprehensive documentation for this project. These files are an extension of this `AGENTS.md` and are **equally important**. You must read and understand them.
 
-* **`docs/file_descriptions.md`**: A map of the codebase. Read this to know where things live.
-* **`docs/AGENT_GUIDE.md`**: Detailed guide for AI agents.
-* **`docs/TODO.md`**: The master checklist.
-* **`docs/UI_UX.md`**: Visual design and interaction patterns.
-* **`docs/auth.md`**: Authentication mechanisms and specifications.
-* **`docs/conduct.md`**: Code of conduct for agents.
-* **`docs/data_layer.md`**: Data storage, API, and state management.
-* **`docs/fauxpas.md`**: Common mistakes and anti-patterns to avoid.
-* **`docs/misc.md`**: Miscellaneous info (templates, logs).
-* **`docs/performance.md`**: Performance guidelines.
-* **`docs/screens.md`**: Overview of application screens.
-* **`docs/task_flow.md`**: Operational workflows.
-* **`docs/testing.md`**: Testing strategies and requirements.
-* **`docs/workflow.md`**: CI/CD and Build processes.
+*   **`docs/file_descriptions.md`**: A map of the codebase.
+*   **`docs/AGENT_GUIDE.md`**: Detailed guide for AI agents.
+*   **`docs/TODO.md`**: The master checklist.
+*   **`docs/UI_UX.md`**: Visual design and interaction patterns.
+*   **`docs/architecture.md`**: High-level system architecture.
+*   **`docs/auth.md`**: Authentication mechanisms.
+*   **`docs/blueprint.md`**: Core vision and roadmap.
+*   **`docs/build_pipeline.md`**: Details on the build process.
+*   **`docs/conduct.md`**: Code of conduct for agents.
+*   **`docs/data_layer.md`**: Data storage, API, and state management.
+*   **`docs/error_handling.md`**: Strategy for handling and reporting errors.
+*   **`docs/fauxpas.md`**: Common mistakes and anti-patterns.
+*   **`docs/jules-integration.md`**: Details on Jules API integration.
+*   **`docs/manifest.md`**: AndroidManifest explanation.
+*   **`docs/misc.md`**: Miscellaneous info (templates, logs).
+*   **`docs/performance.md`**: Performance guidelines.
+*   **`docs/platform_decision_helper.md`**: Guide for platform support decisions.
+*   **`docs/react_native_implementation_plan.md`**: (Partial/Stalled) plan for RN support.
+*   **`docs/screens.md`**: Overview of application screens.
+*   **`docs/task_flow.md`**: Operational workflows.
+*   **`docs/testing.md`**: Testing strategies and requirements.
+*   **`docs/workflow.md`**: CI/CD and Build processes.
 
 ## Recent Changes (Summary)
-* **Refactor:** `MainViewModel` split into 6 Delegates. `ProjectScreen` split into sub-tabs.
-* **Stability:** Fixed JNA Crash and Service ANR.
-* **UI:** Updated `AzNavRail` to 5.3 (Dynamic Overlay).
-* **Fix:** `IdeBottomSheet` is now always available in `MainScreen`.
+*   **Documentation:** Updated `docs/` to match codebase reality (Missing services, tab orders).
+*   **Refactor:** `MainViewModel` split into 6 Delegates. `ProjectScreen` split into sub-tabs.
+*   **Stability:** Fixed JNA Crash and Service ANR.
+*   **UI:** Updated `AzNavRail` to 5.3 (Dynamic Overlay).
+*   **Fix:** `IdeBottomSheet` is now always available in `MainScreen`.

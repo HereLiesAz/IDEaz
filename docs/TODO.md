@@ -6,7 +6,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [x] **1.1: Project Structure Setup**
     - [x] Define multi-process architecture (`:app`, `:build_process`, `:inspection_service`).
     - [x] Create `BuildService` (Foreground Service).
-    - [x] Create `UIInspectionService` (Accessibility Service).
+    - [x] Create `UIInspectionService` (Renamed to `IdeazAccessibilityService` - Skeleton Only).
 - [x] **1.2: Data Layer**
     - [x] Implement `GitManager` (JGit wrapper).
     - [x] Implement `SettingsViewModel` (SharedPreferences).
@@ -34,10 +34,10 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [ ] **Refinement:** Handle complex POMs and exclusions robustly.
 
 ## Phase 3: UI/UX & Interaction
-- [x] **3.1: The Overlay**
-    - [x] **3.1.1: Attachment:** Implement Bubble Notification for persistent overlay.
-    - [x] **3.1.2: Transparency:** Ensure transparent background in IDE mode, Opaque in Settings.
-    - [x] **3.1.3: Selection:** Tap (Node) and Drag (Rect) selection logic.
+- [!] **3.1: The Overlay (Status: BROKEN/MISSING)**
+    - [!] **3.1.1: Attachment:** `IdeazOverlayService` (System Alert Window) is missing from codebase.
+    - [!] **3.1.2: Transparency:** Transparent overlay mode is non-functional without the service.
+    - [!] **3.1.3: Selection:** Selection logic exists in `OverlayDelegate` but lacks a rendering layer over external apps.
 - [x] **3.2: The Console**
     - [x] Bottom Sheet implementation.
     - [ ] **3.2.1: Live Logs:** Stream Logcat/Build logs to the sheet.
@@ -53,10 +53,10 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] UI for viewing and adding libraries via AI.
 
 ## Phase 4: AI Integration & Workflow
-- [ ] **4.1: Jules Integration**
+- [x] **4.1: Jules Integration**
     - [x] `JulesApiClient` (Implemented with Sources endpoint support).
-    - [ ] **4.1.1: Session Management:** Create/Delete/Resume sessions.
-    - [ ] **4.1.2: Polling:** Implement infinite polling for *activities* (not just patch).
+    - [x] **4.1.1: Session Management:** Create/Resume sessions (Implemented in `AIDelegate`).
+    - [x] **4.1.2: Polling:** Implement infinite polling for *activities* (Implemented in `AIDelegate`).
 - [x] **4.2: Workflow Injection (Initialization)**
     - [x] **4.2.1: File Creation:** Generate `android_ci_jules.yml`, `codeql.yml`, `jules.yml`, `release.yml`. (Updated templates to use branch-aware tags).
     - [x] **4.2.2: Force Push:** Logic to commit and push these files on "Save & Initialize".
@@ -67,7 +67,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 ## Phase 5: Production Polish & Refinement
 - [ ] **5.1: Multi-Platform Support**
     - [x] Web Support (Runtime + Auto-Build/Correct).
-    - [ ] React Native Support (Partial: Bundler implemented, BuildService integration pending).
+    - [ ] React Native Support (Partial: Bundler implemented but unused, BuildService integration pending).
     - [ ] Flutter Support (Planned).
 - [ ] **5.2: Testing**
     - [ ] Unit Tests for all ViewModels.
@@ -85,7 +85,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 ## Phase 6: Advanced UI/UX (Background Operations)
 - [x] **6.1: Implement Live Output Bottom Card**
 - [x] **6.2: Implement Contextual AI Overlay UI**
-    - [x] Refine interaction: Select/Interact modes, Drag/Tap selection, Inline Chat.
+    - [x] Refine interaction: Select/Interact modes, Drag/Tap selection, Inline Chat. (Note: Only works within Internal Hosts).
 - [x] **6.3: Implement Persistent Status Notification**
 - [x] **6.4: Implement Android Virtual Environment Host** (Parity with Web workflow)
 
