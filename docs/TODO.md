@@ -15,9 +15,9 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] **1.2.5: Encrypted Settings Export/Import:** Allow user to save credentials to file.
 - [ ] **1.3: "Race to Build" Logic**
     - [x] **1.3.1: Artifact Detection:** Implement logic to compare Installed SHA vs Remote Release SHA vs Repo Head SHA. (Implemented manual check for updates in `MainViewModel`).
-    - [ ] **1.3.2: Remote Polling:** Implement loop to check GitHub Releases for new builds.
+    - [x] **1.3.2: Remote Polling:** Implement loop to check GitHub Releases for new builds. (Implemented in `RemoteBuildManager`).
     - [x] **1.3.3: Local Build:** Implement background build thread with lower priority.
-    - [ ] **1.3.4: Cancellation:** Implement logic to cancel local build if remote wins (and vice versa).
+    - [x] **1.3.4: Cancellation:** Implement logic to cancel local build if remote wins (and vice versa). (Implemented "Race to Build" in `BuildDelegate`).
 
 ## Phase 2: The Build Pipeline ("No-Gradle" on Device)
 - [x] **2.1: Toolchain Management**
@@ -40,8 +40,8 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [!] **3.1.3: Selection:** Selection logic exists in `OverlayDelegate` but lacks a rendering layer over external apps.
 - [x] **3.2: The Console**
     - [x] Bottom Sheet implementation.
-    - [ ] **3.2.1: Live Logs:** Stream Logcat/Build logs to the sheet.
-    - [ ] **3.2.2: Persistent Notification:** Show last 3 log lines in notification.
+    - [x] **3.2.1: Live Logs:** Stream Logcat/Build logs to the sheet. (Implemented `LogcatReader` and System tab).
+    - [x] **3.2.2: Persistent Notification:** Show last 3 log lines in notification. (Verified `BuildService` notification logic).
 - [x] **3.3: Feedback Loops**
     - [x] **3.3.1: Update Popup:** "Updating, gimme a sec" dialog. (Implemented update confirmation dialog).
     - [ ] **3.3.2: Clipboard:** Auto-copy prompt text on update.

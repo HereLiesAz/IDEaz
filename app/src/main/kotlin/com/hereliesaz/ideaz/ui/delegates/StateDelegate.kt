@@ -25,6 +25,10 @@ class StateDelegate {
     /** The main build/system log. Capped at [MAX_LOG_SIZE] lines. */
     val buildLog = _buildLog.asStateFlow()
 
+    private val _systemLog = MutableStateFlow<List<String>>(emptyList())
+    /** The system logcat stream. Capped at [MAX_LOG_SIZE] lines. */
+    val systemLog = _systemLog.asStateFlow()
+
     private val _pendingRoute = MutableStateFlow<String?>(null)
     /** Pending navigation route to be consumed by the UI. */
     val pendingRoute = _pendingRoute.asStateFlow()
@@ -78,6 +82,30 @@ class StateDelegate {
         }
     }
 
+    fun appendSystemLog(msg: String) {
+        val lines = msg.split('\n').filter { it.isNotBlank() }
+        if (lines.isEmpty()) return
+        _systemLog.update { current ->
+            val totalSize = current.size + lines.size
+            if (totalSize <= MAX_LOG_SIZE) {
+                current + lines
+            } else {
+                val keepFromCurrent = MAX_LOG_SIZE - lines.size
+                if (keepFromCurrent <= 0) {
+                    lines.takeLast(MAX_LOG_SIZE)
+                } else {
+                    val result = java.util.ArrayList<String>(MAX_LOG_SIZE)
+                    val start = current.size - keepFromCurrent
+                    for (i in start until current.size) {
+                        result.add(current[i])
+                    }
+                    result.addAll(lines)
+                    result
+                }
+            }
+        }
+    }
+
     /** Sets the loading progress. Pass null to hide the indicator. */
     fun setLoadingProgress(p: Int?) { _loadingProgress.value = p }
 
@@ -99,5 +127,8 @@ class StateDelegate {
     fun triggerWebReload() { _webReloadTrigger.value = System.currentTimeMillis() }
 
     /** Clears all logs. */
-    fun clearLog() { _buildLog.value = emptyList() }
+    fun clearLog() {
+        _buildLog.value = emptyList()
+        _systemLog.value = emptyList()
+    }
 }
