@@ -1,4 +1,8 @@
 
+let hooks = [];
+let hookIndex = 0;
+let renderRoot = null;
+
 const React = {
     createElement: (tag, props, ...children) => {
         if (typeof tag === 'function') return tag(props);
@@ -90,6 +94,47 @@ const React = {
         });
 
         return el;
+    },
+
+    useState: (initialValue) => {
+        const _hookIndex = hookIndex;
+        if (hooks[_hookIndex] === undefined) {
+            hooks[_hookIndex] = initialValue;
+        }
+        const setState = (newValue) => {
+            const finalValue = typeof newValue === 'function' ? newValue(hooks[_hookIndex]) : newValue;
+            hooks[_hookIndex] = finalValue;
+            if (renderRoot) {
+                setTimeout(renderRoot, 0);
+            }
+        };
+        hookIndex++;
+        return [hooks[_hookIndex], setState];
+    },
+
+    useRef: (initialValue) => {
+        const _hookIndex = hookIndex;
+        if (hooks[_hookIndex] === undefined) {
+            hooks[_hookIndex] = { current: initialValue };
+        }
+        hookIndex++;
+        return hooks[_hookIndex];
+    },
+
+    useEffect: (callback, deps) => {
+        const _hookIndex = hookIndex;
+        const oldHook = hooks[_hookIndex];
+        const hasChanged = !oldHook || !deps || !oldHook.deps || deps.some((d, i) => d !== oldHook.deps[i]);
+
+        if (hasChanged) {
+            if (oldHook && oldHook.cleanup) oldHook.cleanup();
+            setTimeout(() => {
+                 const cleanup = callback();
+                 hooks[_hookIndex].cleanup = cleanup;
+            }, 0);
+            hooks[_hookIndex] = { deps };
+        }
+        hookIndex++;
     }
 };
 
@@ -114,13 +159,98 @@ export const StyleSheet = {
 export const AppRegistry = {
     registerComponent: (name, compProvider) => {
         console.log(`Registering component ${name}`);
+
+        renderRoot = () => {
+             hookIndex = 0;
+             document.body.innerHTML = '';
+             const Root = compProvider();
+             // Root is the component function. Invoking it runs the hooks.
+             const app = React.createElement(Root);
+             document.body.appendChild(app);
+             console.log('App re-rendered');
+        };
+
         window.addEventListener('load', () => {
-            const Root = compProvider();
-            const app = React.createElement(Root);
-            document.body.appendChild(app);
+            renderRoot();
             console.log('App mounted');
         });
     }
+};
+
+export const FlatList = (props) => {
+    const { data, renderItem, keyExtractor, style, contentContainerStyle } = props;
+    const items = data || [];
+    return React.createElement('div', {
+        style: {
+            display: 'flex',
+            flexDirection: 'column',
+            overflowY: 'auto',
+            flex: 1,
+            ...style,
+            ...contentContainerStyle
+        }
+    }, items.map((item, index) => {
+        const key = keyExtractor ? keyExtractor(item, index) : (item.key || index);
+        const element = renderItem({ item, index });
+        return React.createElement('div', { key }, element);
+    }));
+};
+
+export const SectionList = (props) => {
+    const { sections, renderItem, renderSectionHeader, keyExtractor, style, contentContainerStyle } = props;
+    const sectionData = sections || [];
+
+    const children = [];
+    sectionData.forEach((section, sectionIndex) => {
+        if (renderSectionHeader) {
+            children.push(React.createElement('div', { key: `header-${sectionIndex}` }, renderSectionHeader({ section })));
+        }
+        (section.data || []).forEach((item, itemIndex) => {
+            const key = keyExtractor ? keyExtractor(item, itemIndex) : (item.key || `${sectionIndex}-${itemIndex}`);
+            children.push(React.createElement('div', { key }, renderItem({ item, index: itemIndex, section })));
+        });
+    });
+
+    return React.createElement('div', {
+        style: {
+            display: 'flex',
+            flexDirection: 'column',
+            overflowY: 'auto',
+            flex: 1,
+            ...style,
+            ...contentContainerStyle
+        }
+    }, children);
+};
+
+export const NavigationContainer = ({ children }) => {
+    return React.createElement('div', {
+        style: { flex: 1, display: 'flex', flexDirection: 'column', height: '100%' }
+    }, children);
+};
+
+export const createNativeStackNavigator = () => {
+    return {
+        Navigator: ({ children, initialRouteName }) => {
+            const [currentRoute, setCurrentRoute] = React.useState(initialRouteName || 'Home');
+
+            const kids = Array.isArray(children) ? children : [children];
+            const validScreens = kids.filter(k => k && k._isScreen);
+
+            let targetScreen = validScreens.find(s => s.props.name === currentRoute);
+            if (!targetScreen && validScreens.length > 0) targetScreen = validScreens[0];
+
+            if (!targetScreen) return null;
+
+            const navigation = {
+                navigate: (route) => setCurrentRoute(route),
+                goBack: () => console.log('goBack not impl')
+            };
+
+            return React.createElement(targetScreen.props.component, { navigation });
+        },
+        Screen: (props) => ({ _isScreen: true, props })
+    };
 };
 
 export const NativeModules = {
