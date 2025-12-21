@@ -1,0 +1,17 @@
+{
+  "scopeName": "source.js",
+  "patterns": [
+    {
+      "match": "\\b(function|var|const|let|if|else|return|class|import|from|export)\\b",
+      "name": "keyword.control.js"
+    },
+    {
+      "match": "\"(\\\\.|[^\"\\\\])*\"",
+      "name": "string.quoted.double.js"
+    },
+    {
+      "match": "'(\\\\.|[^'\\\\])*'",
+      "name": "string.quoted.single.js"
+    }
+  ]
+}
