@@ -2,11 +2,14 @@ package com.hereliesaz.ideaz.ui
 
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.navigation.NavHostController
 import com.composables.core.BottomSheetState
 import com.hereliesaz.aznavrail.AzNavRail
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.aznavrail.model.AzHeaderIconShape
+import com.hereliesaz.ideaz.models.ProjectType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -28,6 +31,8 @@ fun IdeNavRail(
     isLocalBuildEnabled: Boolean = false,
     onNavigateToMainApp: (String) -> Unit = { navController.navigate(it) }
 ) {
+    val projectType by viewModel.settingsViewModel.projectType.collectAsState()
+
     AzNavRail(
         navController = navController,
         initiallyExpanded = initiallyExpanded
@@ -85,6 +90,19 @@ fun IdeNavRail(
                 }
             }
         )
+
+        if (projectType == ProjectType.WEB.name) {
+            azRailSubItem(
+                id = "deploy",
+                hostId = "main",
+                text = "Deploy",
+                onClick = {
+                    handleActionClick {
+                        viewModel.deployWebProject()
+                    }
+                }
+            )
+        }
 
         azRailSubToggle(
             id = "mode_toggle",

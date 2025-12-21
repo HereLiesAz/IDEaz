@@ -6,8 +6,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.hereliesaz.aznavrail.AzButton
 import com.hereliesaz.aznavrail.model.AzButtonShape
+import io.github.rosemoe.sora.widget.CodeEditor
+import io.github.rosemoe.sora.lang.EmptyLanguage
 import java.io.File
 
 @Composable
@@ -35,10 +38,22 @@ fun FileContentScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        OutlinedTextField(
-            value = fileContent,
-            onValueChange = { fileContent = it },
-            modifier = Modifier.fillMaxSize()
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { context ->
+                CodeEditor(context).apply {
+                    setText(fileContent)
+                    setEditorLanguage(EmptyLanguage())
+                    subscribeAlways(io.github.rosemoe.sora.event.ContentChangeEvent::class.java) {
+                        fileContent = this.text.toString()
+                    }
+                }
+            },
+            update = { editor ->
+                if (editor.text.toString() != fileContent) {
+                    editor.setText(fileContent)
+                }
+            }
         )
     }
 }

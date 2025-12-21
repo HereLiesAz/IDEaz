@@ -2,11 +2,13 @@ package com.hereliesaz.ideaz.utils
 
 import com.hereliesaz.ideaz.IBuildCallback
 import org.junit.Test
+import org.junit.Ignore
 import java.io.File
 import java.nio.file.Files
 
 class HybridToolchainManagerTest {
     @Test
+    @Ignore("Network dependency in CI environment")
     fun testDownloadToolchainAttemptsDownload() {
         val tempDir = Files.createTempDirectory("ideaz_test").toFile()
         val callback = object : IBuildCallback.Stub() {
