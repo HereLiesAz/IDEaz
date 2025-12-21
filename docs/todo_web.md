@@ -33,7 +33,7 @@ Objective: Enable users to create, edit, preview, and deploy static web applicat
 
 ## Phase 4: Remote Build & Deployment
 - [x] **4.1: GitHub Pages Integration**
-    - [x] Create `web_ci_pages.yml` in assets.
+    - [x] Ensure `web_ci_pages.yml` is injected (via `ProjectConfigManager` code).
     - [x] Configure it to deploy the project root (or `dist/`) to `gh-pages` branch.
     - [x] Auto-enable GitHub Pages via API (if possible) or instruct user.
 - [x] **4.2: Git Integration**
@@ -45,8 +45,8 @@ Objective: Enable users to create, edit, preview, and deploy static web applicat
     - [x] Implement "Live Reload" logic:
         - [x] Watch file changes in `filesDir` (Root directory only for MVP).
         - [x] Trigger `webView.reload()` automatically on save.
-- [x] 5.2: Syntax Highlighting
-    - [x] Update Editor/Log viewer (Integrated Sora Editor - Basic support, Syntax Highlighting added).
+- [ ] 5.2: Syntax Highlighting
+    - [ ] Update Editor/Log viewer (Code (`EnhancedCodeEditor`) exists but is not integrated into UI).
 
 ## Phase 6: UI & Overlay Integration
 - [x] **6.1: Overlay Support**
