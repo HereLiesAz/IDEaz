@@ -13,8 +13,59 @@ object DependencyManager {
 
     fun listDependencies(projectDir: File): List<DependencyItem> {
         val tomlFile = File(projectDir, "gradle/libs.versions.toml")
-        if (!tomlFile.exists()) return emptyList()
+        if (tomlFile.exists()) {
+            return parseToml(tomlFile)
+        }
 
+        val pubspecFile = File(projectDir, "pubspec.yaml")
+        if (pubspecFile.exists()) {
+            return parsePubspec(pubspecFile)
+        }
+
+        return emptyList()
+    }
+
+    private fun parsePubspec(file: File): List<DependencyItem> {
+        val content = file.readText()
+        val dependencies = mutableListOf<DependencyItem>()
+
+        val lines = content.lines()
+        var insideDependencies = false
+
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (trimmed == "dependencies:") {
+                insideDependencies = true
+                continue
+            }
+
+            // Check for end of block (unindented key)
+            if (insideDependencies) {
+                if (line.isNotEmpty() && !line.startsWith(" ") && !line.startsWith("#")) {
+                    insideDependencies = false
+                    continue
+                }
+
+                if (trimmed.isNotEmpty() && !trimmed.startsWith("#")) {
+                    val parts = trimmed.split(":", limit = 2)
+                    if (parts.size >= 2) {
+                        val name = parts[0].trim()
+                        val version = parts[1].trim()
+
+                        if (version.isEmpty()) {
+                            // Complex dependency (map), e.g. flutter: ... sdk: flutter
+                            dependencies.add(DependencyItem(alias = name, group = "Flutter", name = name, version = "complex"))
+                        } else {
+                            dependencies.add(DependencyItem(alias = name, group = "Flutter", name = name, version = version))
+                        }
+                    }
+                }
+            }
+        }
+        return dependencies
+    }
+
+    private fun parseToml(tomlFile: File): List<DependencyItem> {
         val content = tomlFile.readText()
         val versions = mutableMapOf<String, String>()
         val dependencies = mutableListOf<DependencyItem>()
