@@ -1,9 +1,15 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Button, NativeModules } from 'react-native';
 
 const App = () => {
   return React.createElement(View, { style: styles.container },
-    React.createElement(Text, { style: styles.text }, "Hello React Native!")
+    React.createElement(Text, { style: styles.text }, "Hello React Native!"),
+    React.createElement(Button, {
+        title: "Press Me",
+        onPress: () => {
+             NativeModules.ToastAndroid.show("Button Pressed!", 0);
+        }
+    })
   );
 };
 
