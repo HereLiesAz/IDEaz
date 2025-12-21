@@ -53,7 +53,7 @@ class RedwoodCodegen(
             val command = constructCommand(classpath)
 
             val result = ProcessExecutor.executeAndStreamSync(command) { line ->
-                 callback?.onLog("[Redwood] $line")
+                callback?.onLog("[Redwood] $line")
             }
 
             if (result.exitCode != 0) {
