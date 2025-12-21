@@ -8,7 +8,7 @@ import java.nio.file.Files
 
 class HybridToolchainManagerTest {
     @Test
-    @Ignore("Fails with NoSuchMethodError due to environment/dependency issues")
+    @Ignore("Fails with NoSuchMethodError likely due to environment/dependency issues")
     fun testDownloadToolchainAttemptsDownload() {
         val tempDir = Files.createTempDirectory("ideaz_test").toFile()
         // Pass null to avoid IBuildCallback instantiation issues in test environment
