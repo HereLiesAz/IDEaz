@@ -29,6 +29,9 @@ import com.hereliesaz.ideaz.MainApplication
 import com.hereliesaz.ideaz.BuildConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -137,8 +140,33 @@ class MainViewModel(
 
     val updateDelegate = UpdateDelegate(application, settingsViewModel, viewModelScope, logHandler::onAiLog)
 
+
+    private val ziplineManifestUrlFlow = MutableStateFlow<String?>(null)
+
+    init {
+        ziplineLoader.load(
+            applicationName = "guest",
+            manifestUrlFlow = ziplineManifestUrlFlow.asStateFlow().filterNotNull(),
+            freshnessChecker = object : app.cash.zipline.loader.FreshnessChecker {
+                override fun isFresh(manifest: app.cash.zipline.ZiplineManifest, freshAtEpochMs: Long) = true
+            },
+            initializer = { zipline ->
+                logHandler.onOverlayLog("Zipline Initialized")
+            }
+        ).onEach { result ->
+            if (result is app.cash.zipline.loader.LoadResult.Success) {
+                logHandler.onOverlayLog("Zipline Loaded Successfully")
+            } else if (result is app.cash.zipline.loader.LoadResult.Failure) {
+                logHandler.onOverlayLog("Zipline Load Failed: ${result.exception.message}")
+            }
+        }.launchIn(viewModelScope)
+    }
+
     // Handles BroadcastReceivers
-    val systemEventDelegate = SystemEventDelegate(application, aiDelegate, overlayDelegate, stateDelegate)
+    val systemEventDelegate = SystemEventDelegate(application, aiDelegate, overlayDelegate, stateDelegate) { path ->
+        logHandler.onOverlayLog("Hot Reloading Zipline: $path")
+        ziplineManifestUrlFlow.value = "file://$path"
+    }
 
     // --- PUBLIC STATE EXPOSURE (Delegated) ---
     val loadingProgress = stateDelegate.loadingProgress

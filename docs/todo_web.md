@@ -45,8 +45,8 @@ Objective: Enable users to create, edit, preview, and deploy static web applicat
     - [x] Implement "Live Reload" logic:
         - [x] Watch file changes in `filesDir` (Root directory only for MVP).
         - [x] Trigger `webView.reload()` automatically on save.
-- [ ] **5.2: Syntax Highlighting**
-    - [x] Update Editor/Log viewer (Integrated Sora Editor - Basic support, Syntax Highlighting pending).
+- [x] 5.2: Syntax Highlighting
+    - [x] Update Editor/Log viewer (Integrated Sora Editor - Basic support, Syntax Highlighting added).
 
 ## Phase 6: UI & Overlay Integration
 - [x] **6.1: Overlay Support**

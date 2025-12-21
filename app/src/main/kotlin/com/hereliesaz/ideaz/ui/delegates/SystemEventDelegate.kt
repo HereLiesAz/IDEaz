@@ -25,7 +25,8 @@ class SystemEventDelegate(
     private val application: Application,
     private val aiDelegate: AIDelegate,
     private val overlayDelegate: OverlayDelegate,
-    private val stateDelegate: StateDelegate
+    private val stateDelegate: StateDelegate,
+    private val onReloadZipline: (String) -> Unit
 ) {
 
     private val promptReceiver = object : BroadcastReceiver() {
@@ -66,6 +67,10 @@ class SystemEventDelegate(
                     val msg = intent.getStringExtra(EXTRA_MESSAGE)
                     if (!msg.isNullOrBlank()) stateDelegate.appendBuildLog(msg)
                 }
+                "com.hereliesaz.ideaz.RELOAD_ZIPLINE" -> {
+                    val path = intent.getStringExtra("MANIFEST_PATH")
+                    if (!path.isNullOrBlank()) onReloadZipline(path)
+                }
             }
         }
     }
@@ -87,6 +92,7 @@ class SystemEventDelegate(
             addAction("com.hereliesaz.ideaz.SELECTION_MADE")
             addAction("com.hereliesaz.ideaz.SCREENSHOT_TAKEN")
             addAction(ACTION_AI_LOG)
+            addAction("com.hereliesaz.ideaz.RELOAD_ZIPLINE")
         }
 
         val visFilter = IntentFilter("com.hereliesaz.ideaz.TARGET_APP_VISIBILITY")

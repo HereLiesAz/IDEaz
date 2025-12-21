@@ -135,6 +135,7 @@ dependencies {
     implementation(libs.nb.javac.android)
     implementation(libs.r8)
     implementation(libs.sora.editor)
+    implementation(libs.sora.language.textmate)
     implementation(libs.scala.compiler) {
         exclude(group = "org.jline")
     }
