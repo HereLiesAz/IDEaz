@@ -140,11 +140,11 @@ class AIDelegate(
             githubRepoContext = GitHubRepoContext(branch)
         )
 
-        val sessionName = _currentJulesSessionId.value
+        val sessionId = _currentJulesSessionId.value
 
         try {
-            val activeSessionName: String
-            if (sessionName == null) {
+            val activeSessionId: String
+            if (sessionId == null) {
                 // Create Session
                 val request = CreateSessionRequest(
                     prompt = promptText,
@@ -153,39 +153,39 @@ class AIDelegate(
                 )
                 // API Change: No projectId/location args
                 val session = JulesApiClient.createSession(request = request)
-                _currentJulesSessionId.value = session.name
+                _currentJulesSessionId.value = session.id
                 _julesResponse.value = session
-                activeSessionName = session.name
+                activeSessionId = session.id
             } else {
                 // Send Message
                 val request = SendMessageRequest(prompt = promptText)
-                JulesApiClient.sendMessage(sessionName, request)
-                activeSessionName = sessionName
+                JulesApiClient.sendMessage(sessionId, request)
+                activeSessionId = sessionId
             }
 
-            pollForResponse(activeSessionName)
+            pollForResponse(activeSessionId)
 
         } catch (e: Exception) {
             throw e
         }
     }
 
-    private suspend fun getAllActivities(sessionName: String): List<Activity> {
+    private suspend fun getAllActivities(sessionId: String): List<Activity> {
         val allActivities = mutableListOf<Activity>()
         var pageToken: String? = null
         do {
-            val response = JulesApiClient.listActivities(sessionName, pageToken = pageToken)
+            val response = JulesApiClient.listActivities(sessionId, pageToken = pageToken)
             response.activities?.let { allActivities.addAll(it) }
             pageToken = response.nextPageToken
         } while (pageToken != null)
         return allActivities
     }
 
-    private suspend fun pollForResponse(sessionName: String) {
+    private suspend fun pollForResponse(sessionId: String) {
         var attempts = 0
         while (attempts < 15) { // 45 seconds max
             delay(3000)
-            val activities = getAllActivities(sessionName)
+            val activities = getAllActivities(sessionId)
 
             val latestAgentMessage = activities.firstOrNull { it.agentMessaged != null }
 
