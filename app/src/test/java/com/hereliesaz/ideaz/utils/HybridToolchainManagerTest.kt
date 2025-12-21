@@ -3,7 +3,6 @@ package com.hereliesaz.ideaz.utils
 import com.hereliesaz.ideaz.IBuildCallback
 import org.junit.Ignore
 import org.junit.Test
-import org.junit.Ignore
 import java.io.File
 import java.nio.file.Files
 
