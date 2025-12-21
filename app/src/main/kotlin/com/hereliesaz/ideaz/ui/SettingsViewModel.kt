@@ -111,6 +111,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_KEY_ALIAS = "key_alias"
         const val KEY_KEY_PASS = "key_pass"
 
+        const val KEY_ZIPLINE_SIGNING_KEY_HEX = "zipline_signing_key_hex"
+
         val aiTasks = mapOf(
             KEY_AI_ASSIGNMENT_DEFAULT to "Default",
             KEY_AI_ASSIGNMENT_INIT to "Project Initialization",
