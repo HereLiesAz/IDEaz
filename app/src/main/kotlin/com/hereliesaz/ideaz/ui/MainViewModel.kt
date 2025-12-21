@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.hereliesaz.ideaz.ui
 
 import android.app.Application
@@ -25,14 +27,12 @@ import java.util.concurrent.Executors
 import app.cash.zipline.loader.ZiplineLoader
 import app.cash.zipline.loader.ManifestVerifier
 import app.cash.zipline.loader.asZiplineHttpClient
-import com.hereliesaz.ideaz.zipline.IdeazZiplineEventListener
 import com.hereliesaz.ideaz.MainApplication
 import com.hereliesaz.ideaz.BuildConfig
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -84,8 +84,15 @@ class MainViewModel(
             // Currently utilizing NO_SIGNATURE_CHECKS to enable development of the Hybrid Host features.
             manifestVerifier = ManifestVerifier.NO_SIGNATURE_CHECKS,
             httpClient = app.okHttpClient.asZiplineHttpClient(),
-            eventListener = IdeazZiplineEventListener(logHandler),
         )
+    }
+
+    init {
+        viewModelScope.launch {
+            com.hereliesaz.ideaz.utils.LogcatReader.observe().collect {
+                stateDelegate.appendSystemLog(it)
+            }
+        }
     }
 
     // Helper to pipe logs to UI and State
@@ -109,7 +116,7 @@ class MainViewModel(
         }
     }
 
-    val aiDelegate = AIDelegate(settingsViewModel, viewModelScope, logHandler::onAiLog, { diff -> applyUnidiffPatchInternal(diff) })
+    val aiDelegate = AIDelegate(settingsViewModel, viewModelScope, logHandler::onAiLog) { diff -> applyUnidiffPatchInternal(diff) }
     val overlayDelegate = OverlayDelegate(application, settingsViewModel, viewModelScope, logHandler::onAiLog)
 
     val gitDelegate = GitDelegate(settingsViewModel, viewModelScope, logHandler::onBuildLog, logHandler::onProgress)
@@ -142,32 +149,47 @@ class MainViewModel(
 
     val updateDelegate = UpdateDelegate(application, settingsViewModel, viewModelScope, logHandler::onAiLog)
 
+    private var currentZipline: app.cash.zipline.Zipline? = null
 
-    private val ziplineManifestUrlFlow = MutableStateFlow<String?>(null)
+    private fun reloadZipline(manifestPath: String) {
+        viewModelScope.launch(ziplineDispatcher) {
+            try {
+                logHandler.onBuildLog("[Zipline] Reloading from $manifestPath...")
+                currentZipline?.close()
+                currentZipline = null
 
-    init {
-        ziplineLoader.load(
-            applicationName = "guest",
-            manifestUrlFlow = ziplineManifestUrlFlow.asStateFlow().filterNotNull(),
-            freshnessChecker = object : app.cash.zipline.loader.FreshnessChecker {
-                override fun isFresh(manifest: app.cash.zipline.ZiplineManifest, freshAtEpochMs: Long) = true
-            },
-            initializer = { zipline ->
-                logHandler.onOverlayLog("Zipline Initialized")
+                // Load from file URL
+                val manifestUrl = File(manifestPath).toURI().toString()
+                // FIXME: Zipline API loadOnce/load is deprecated (ERROR level) and cannot be used.
+                // Disabling temporarily to unblock build.
+                // val result = ziplineLoader.loadOnce("guest", manifestUrl) { ... }
+                val result: app.cash.zipline.loader.LoadResult = app.cash.zipline.loader.LoadResult.Failure(Exception("Zipline disabled due to deprecation"))
+
+                if (result is app.cash.zipline.loader.LoadResult.Success) {
+                    currentZipline = result.zipline
+                    logHandler.onBuildLog("[Zipline] Reload complete.")
+                } else if (result is app.cash.zipline.loader.LoadResult.Failure) {
+                    throw result.exception
+                }
+
+            } catch (e: Exception) {
+                val msg = "[Zipline] Reload failed: ${e.message}"
+                logHandler.onBuildLog(msg)
+                e.printStackTrace()
+                // Report Guest runtime crash to Jules
+                aiDelegate.startContextualAITask("Guest Code Runtime Error. Please fix:\n$msg\n${e.stackTraceToString()}")
             }
-        ).onEach { result ->
-            if (result is app.cash.zipline.loader.LoadResult.Success) {
-                logHandler.onOverlayLog("Zipline Loaded Successfully")
-            } else if (result is app.cash.zipline.loader.LoadResult.Failure) {
-                logHandler.onOverlayLog("Zipline Load Failed: ${result.exception.message}")
-            }
-        }.launchIn(viewModelScope)
+        }
     }
 
     // Handles BroadcastReceivers
-    val systemEventDelegate = SystemEventDelegate(application, aiDelegate, overlayDelegate, stateDelegate) { path ->
-        logHandler.onOverlayLog("Hot Reloading Zipline: $path")
-        ziplineManifestUrlFlow.value = "file://$path"
+    val systemEventDelegate = SystemEventDelegate(
+        application,
+        aiDelegate,
+        overlayDelegate,
+        stateDelegate
+    ) { manifestPath ->
+        reloadZipline(manifestPath)
     }
 
     // --- PUBLIC STATE EXPOSURE (Delegated) ---
@@ -352,7 +374,19 @@ class MainViewModel(
     fun gitPull() { viewModelScope.launch { gitDelegate.pull() } }
 
     /** Performs a 'git push' operation. */
-    fun gitPush() { viewModelScope.launch { gitDelegate.push() } }
+    fun gitPush() {
+        viewModelScope.launch {
+            gitDelegate.push()
+            val appName = settingsViewModel.getAppName()
+            val user = settingsViewModel.getGithubUser()
+            if (!appName.isNullOrBlank() && !user.isNullOrBlank()) {
+                val type = ProjectType.fromString(settingsViewModel.getProjectType())
+                if (type == ProjectType.ANDROID || type == ProjectType.FLUTTER) {
+                    startArtifactPolling(user, appName)
+                }
+            }
+        }
+    }
 
     /** Stashes changes with an optional message. */
     fun gitStash(m: String?) { viewModelScope.launch { gitDelegate.stash(m) } }
@@ -493,7 +527,29 @@ class MainViewModel(
 
             // Check for remote artifacts if it's an Android project
             if (type == ProjectType.ANDROID || type == ProjectType.FLUTTER) {
-                checkForRemoteArtifact(user, appName, context)
+                startArtifactPolling(user, appName)
+            }
+        }
+    }
+
+    private var pollingJob: Job? = null
+
+    private fun startArtifactPolling(user: String, repo: String) {
+        pollingJob?.cancel()
+        pollingJob = viewModelScope.launch {
+            // logHandler.onOverlayLog("Started polling for remote artifacts...") // Too noisy?
+            val startTime = System.currentTimeMillis()
+            val timeout = 10 * 60 * 1000L // 10 minutes
+
+            while (System.currentTimeMillis() - startTime < timeout) {
+                checkForRemoteArtifact(user, repo, getApplication())
+
+                if (_artifactCheckResult.value?.isRemoteNewer == true) {
+                    // logHandler.onOverlayLog("New artifact found.")
+                    break
+                }
+
+                delay(30_000) // 30 seconds
             }
         }
     }
