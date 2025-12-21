@@ -15,15 +15,15 @@ interface JulesApi {
         @Body request: CreateSessionRequest
     ): Session
 
-    @POST("{name}:sendMessage")
+    @POST("sessions/{id}:sendMessage")
     suspend fun sendMessage(
-        @Path(value = "name", encoded = true) name: String,
+        @Path("id") id: String,
         @Body request: SendMessageRequest
     ): Unit
 
-    @GET("{name}/activities")
+    @GET("sessions/{id}/activities")
     suspend fun listActivities(
-        @Path(value = "name", encoded = true) name: String,
+        @Path("id") id: String,
         @Query("pageSize") pageSize: Int = 100,
         @Query("pageToken") pageToken: String? = null
     ): ListActivitiesResponse

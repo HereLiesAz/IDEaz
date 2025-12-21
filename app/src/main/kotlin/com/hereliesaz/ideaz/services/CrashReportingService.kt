@@ -124,7 +124,7 @@ class CrashReportingService : Service() {
                         prompt = "AUTOMATED REPORT ($type):\n\n$errorData\n\n$MANDATORY_INSTRUCTION"
                     )
 
-                    JulesApiClient.sendMessage(session.name, messageRequest)
+                    JulesApiClient.sendMessage(session.id, messageRequest)
                     Log.d(TAG, "Report submitted via Jules Session.")
                 }
 
