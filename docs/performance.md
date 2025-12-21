@@ -1,30 +1,5 @@
 # Performance Guidelines
 
-## 1. Build Speed
-*   **Caching:** `BuildCacheManager` caches intermediate outputs (`.flat`, `.dex`).
-    *   **Rule:** If inputs (source file hash + dependency hash) haven't changed, skip the step.
-*   **Parallelism:**
-    *   Downloading dependencies (`HttpDependencyResolver`) should be parallelized.
-    *   **Note:** `aapt2` and `d8` are CPU intensive; avoid running them concurrently with UI heavy tasks.
-
-## 2. UI Responsiveness
-*   **Overlay:** The overlay service runs in a separate process (`:inspection_service`) to avoid jank in the main UI, but AIDL calls are synchronous by default.
-    *   **Fix:** Use `oneway` in AIDL for non-blocking notifications.
-*   **Lists:** Use `LazyColumn` for logs. Limit the buffer size (e.g., 1000 lines) to prevent OOM.
-
-## 3. Memory Management
-*   **Large Files:** Do not read entire APKs or large source files into String variables. Use Streams.
-*   **Bitmaps:** Recycle bitmaps in `ScreenshotService`.
-
-## 4. Network
-*   **Timeouts:** Set generous timeouts (60s) for AI requests as LLMs can be slow.
-*   **Retry:** Implement exponential backoff for network failures (`RetryInterceptor`).
-
-
-<!-- Merged Content from docs/docs/performance.md -->
-
-# Performance Guidelines
-
 ## 1. Threading & Concurrency
 *   **Main Thread:** Keep the Main Thread free. No disk I/O, no network calls, no heavy computation.
 *   **Coroutines:** Use `Dispatchers.IO` for blocking operations (File I/O, Network).
@@ -41,16 +16,21 @@
 ## 3. Build Speed
 *   **Configuration Cache:** Enabled in `gradle.properties` (`org.gradle.configuration-cache=true`) to significantly reduce configuration time on subsequent builds.
 *   **Incremental Builds:** The `BuildOrchestrator` attempts to skip steps if inputs haven't changed.
-*   **Parallelism:** Future improvements should run independent steps (e.g., compiling different modules) in parallel.
-*   **Caching:** `HttpDependencyResolver` caches artifacts in `filesDir/local-repo`. `BuildCacheManager` caches intermediate build artifacts (classes, resources).
+    *   `BuildCacheManager` caches intermediate outputs (`.flat`, `.dex`).
+*   **Parallelism:**
+    *   Downloading dependencies (`HttpDependencyResolver`) should be parallelized.
+    *   Future improvements should run independent steps (e.g., compiling different modules) in parallel.
+    *   **Note:** `aapt2` and `d8` are CPU intensive; avoid running them concurrently with UI heavy tasks.
 
-## 4. UI Rendering
-*   **Lazy Lists:** Use `LazyColumn` for logs and long lists.
+## 4. UI Rendering / Responsiveness
+*   **Overlay:** The overlay service runs in a separate process (`:inspection_service`) to avoid jank in the main UI, but AIDL calls are synchronous by default.
+    *   **Fix:** Use `oneway` in AIDL for non-blocking notifications.
+*   **Lazy Lists:** Use `LazyColumn` for logs and long lists. Limit buffer size (e.g. 1000 lines).
 *   **Recomposition:** Use `remember` and `derivedStateOf` to minimize recomposition.
-*   **Overlays:** The `IdeazOverlayService` overlay should be lightweight. Avoid complex layouts in the overlay.
 *   **Haze/Blur:** Haze effects are expensive; use sparingly or disable on low-end devices.
 
 ## 5. Network
 *   **Polling:** The AI polling loop (`AIDelegate`) uses an adaptive interval (e.g., 3s) to balance responsiveness and data usage.
-*   **Data Usage:** Avoid re-downloading dependencies if they exist in the cache.
+*   **Timeouts:** Set generous timeouts (60s) for AI requests as LLMs can be slow.
+*   **Retry:** Implement exponential backoff for network failures (`RetryInterceptor`).
 *   **Compression:** Ensure API responses are GZIP compressed.
