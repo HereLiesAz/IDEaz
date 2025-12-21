@@ -10,7 +10,7 @@ object HybridToolchainManager {
     // Versions for Hybrid Host components
     private const val REDWOOD_VERSION = "0.16.0"
     private const val ZIPLINE_VERSION = "1.17.0"
-    private const val KOTLIN_VERSION = "2.2.21"
+    private const val KOTLIN_VERSION = "2.0.21"
 
     private fun getResolver(filesDir: File, callback: IBuildCallback?): HttpDependencyResolver {
         val toolsDir = File(filesDir, "tools/hybrid")
@@ -56,7 +56,12 @@ object HybridToolchainManager {
     }
 
     fun getGuestRuntimeClasspath(filesDir: File, callback: IBuildCallback? = null): List<File> {
-         // Guest (JS) also needs these klibs/jars.
-         return getHostRuntimeClasspath(filesDir, callback)
+        val resolver = getResolver(filesDir, callback)
+        val deps = listOf(
+            Dependency(DefaultArtifact("app.cash.redwood:redwood-compose:$REDWOOD_VERSION"), "compile"),
+            Dependency(DefaultArtifact("app.cash.zipline:zipline:$ZIPLINE_VERSION"), "compile"),
+            Dependency(DefaultArtifact("org.jetbrains.kotlin:kotlin-stdlib:$KOTLIN_VERSION"), "compile")
+        )
+        return resolver.resolveList(deps)
     }
 }
