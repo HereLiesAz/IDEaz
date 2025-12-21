@@ -22,7 +22,6 @@ Before committing ANY changes, you **MUST** strictly adhere to the following wor
 ---
 
 ## Critical Known Issues / Discrepancies
-*   **Missing Overlay Service:** The `IdeazOverlayService` (responsible for drawing the UI over other apps) is missing from the codebase, despite being referenced in `OverlayDelegate` logic. This means "Overlay Mode" currently works only within the app's internal hosts (`AndroidProjectHost`/`WebProjectHost`).
 *   **Tabs Order:** Documentation previously listed Project Screen tabs in incorrect order. The correct order is Setup, Load, Clone.
 
 ## Documentation Index

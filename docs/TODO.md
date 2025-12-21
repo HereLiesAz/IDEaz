@@ -15,7 +15,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] **1.2.5: Encrypted Settings Export/Import:** Allow user to save credentials to file.
 - [ ] **1.3: "Race to Build" Logic**
     - [x] **1.3.1: Artifact Detection:** Implement logic to compare Installed SHA vs Remote Release SHA vs Repo Head SHA. (Implemented manual check for updates in `MainViewModel`).
-    - [ ] **1.3.2: Remote Polling:** Implement loop to check GitHub Releases for new builds.
+    - [x] **1.3.2: Remote Polling:** Implement loop to check GitHub Releases for new builds.
     - [x] **1.3.3: Local Build:** Implement background build thread with lower priority.
     - [ ] **1.3.4: Cancellation:** Implement logic to cancel local build if remote wins (and vice versa).
 
@@ -34,10 +34,10 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [ ] **Refinement:** Handle complex POMs and exclusions robustly.
 
 ## Phase 3: UI/UX & Interaction
-- [!] **3.1: The Overlay (Status: BROKEN/MISSING)**
-    - [!] **3.1.1: Attachment:** `IdeazOverlayService` (System Alert Window) is missing from codebase.
-    - [!] **3.1.2: Transparency:** Transparent overlay mode is non-functional without the service.
-    - [!] **3.1.3: Selection:** Selection logic exists in `OverlayDelegate` but lacks a rendering layer over external apps.
+- [x] **3.1: The Overlay (Status: IMPLEMENTED)**
+    - [x] **3.1.1: Attachment:** `IdeazOverlayService` (System Alert Window) implemented and registered.
+    - [x] **3.1.2: Transparency:** `OverlayView` handles transparent drawing.
+    - [x] **3.1.3: Selection:** `IdeazAccessibilityService` implements node hit-testing and feedback loop.
 - [x] **3.2: The Console**
     - [x] Bottom Sheet implementation.
     - [ ] **3.2.1: Live Logs:** Stream Logcat/Build logs to the sheet.
