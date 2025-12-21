@@ -4,15 +4,15 @@ This document details the step-by-step plan for implementing full React Native s
 Objective: Enable users to create, edit, build (bundle), and run React Native applications directly on the device.
 
 ## Phase 1: Project Initialization & Templates
-- [ ] **1.1: Create React Native Template**
+- [x] **1.1: Create React Native Template**
     - [x] Create directory `app/src/main/assets/templates/react_native/`.
-    - [ ] Create `package.json` with standard dependencies (react, react-native). *(Note: Template currently contains `dependencies.toml` instead)*
+    - [x] Create `package.json` with standard dependencies (react, react-native).
     - [x] Create `app.json` (name, displayName).
     - [x] Create `App.js` (Hello World component).
-    - [ ] Create `index.js` (AppRegistry registration entry point).
-    - [ ] Create `babel.config.js` and `metro.config.js` (standard configs).
-- [ ] **1.2: Project Detection**
-    - [ ] Update `ProjectAnalyzer.kt` to robustly detect RN projects. *(Current logic requires package.json, which is missing in template)*
+    - [x] Create `index.js` (AppRegistry registration entry point).
+    - [x] Create `babel.config.js` and `metro.config.js` (standard configs).
+- [x] **1.2: Project Detection**
+    - [x] Update `ProjectAnalyzer.kt` to robustly detect RN projects. *(Verified via ProjectAnalyzerTest)*
     - [x] Verify `ProjectType.REACT_NATIVE` assignment.
     - [x] Ensure `MainViewModel` correctly loads the project type.
 
