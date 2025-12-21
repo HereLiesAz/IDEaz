@@ -114,14 +114,14 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [x] Refactor Project Setup UI (Move APK Picker, reorder buttons).
 
 ## Phase 11: Hybrid Host Architecture Implementation
-- [ ] **11.1: Dependencies & Tooling**
-    - [ ] Download/Cache `redwood-tooling-codegen` JAR & dependencies via `HttpDependencyResolver`.
-    - [ ] Download/Cache `zipline-kotlin-plugin-embeddable` JAR (match Kotlin version).
-    - [ ] Download Guest runtime klibs (Redwood, Zipline, Kotlin Stdlib).
-- [ ] **11.2: Code Generation (Redwood)**
-    - [ ] Implement Host codegen invocation (`--protocol-host`, `--widget`).
-    - [ ] Implement Guest codegen invocation (`--protocol-guest`, `--compose`).
-    - [ ] Ensure source-based schema parsing (no pre-compilation of Schema.kt).
+- [x] **11.1: Dependencies & Tooling**
+    - [x] Download/Cache `redwood-tooling-codegen` JAR & dependencies via `HttpDependencyResolver`.
+    - [x] Download/Cache `zipline-kotlin-plugin-embeddable` JAR (match Kotlin version).
+    - [x] Download Guest runtime klibs (Redwood, Zipline, Kotlin Stdlib).
+- [x] **11.2: Code Generation (Redwood)**
+    - [x] Implement Host codegen invocation (`--protocol-host`, `--widget`).
+    - [x] Implement Guest codegen invocation (`--protocol-guest`, `--compose`).
+    - [x] Ensure source-based schema parsing (no pre-compilation of Schema.kt).
 - [ ] **11.3: Host Compilation (Native)**
     - [ ] Update `KotlincCompile` to include generated Host code.
     - [ ] Integrate `ZiplineLoader` logic into Host (`MainActivity`).
