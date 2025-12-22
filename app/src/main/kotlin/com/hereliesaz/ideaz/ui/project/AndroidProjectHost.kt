@@ -5,8 +5,10 @@ import android.content.Context
 import android.content.Intent
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
+import android.util.Log
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.widget.Toast
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -64,35 +66,45 @@ private fun createVirtualDisplay(context: Context, holder: SurfaceHolder, width:
     if (width <= 0 || height <= 0) return null
 
     return try {
-        // Try creating with standard flags. Private display (0) is safest but restrict cross-app launch.
-        // Public (1) requires permission.
-        // We attempt 0 for now. If target app shares UID or security allows, it works.
-        // Otherwise it might launch on main display.
+        // Use PRESENTATION flag (8) which implies Public but is allowed for non-system apps
+        // to create a secondary display where we can launch other activities.
+        // Standard FLAG_PUBLIC (1) requires CAPTURE_VIDEO_OUTPUT permission.
         dm.createVirtualDisplay(
             "IDEaz-Virtual",
             width,
             height,
             metrics.densityDpi,
             holder.surface,
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC
+            DisplayManager.VIRTUAL_DISPLAY_FLAG_PRESENTATION
         )
     } catch (e: Exception) {
+        Log.e("AndroidProjectHost", "Failed to create virtual display", e)
         e.printStackTrace()
+        Toast.makeText(context, "Virtual Display Error: ${e.message}", Toast.LENGTH_LONG).show()
         null
     }
 }
 
 private fun launchTargetApp(context: Context, packageName: String, virtualDisplay: VirtualDisplay?) {
-    if (virtualDisplay == null) return
+    if (virtualDisplay == null) {
+        Log.e("AndroidProjectHost", "Virtual Display is null, cannot launch app")
+        return
+    }
     try {
         val intent = context.packageManager.getLaunchIntentForPackage(packageName)
         if (intent != null) {
+            Log.d("AndroidProjectHost", "Launching $packageName on display ${virtualDisplay.display.displayId}")
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             val options = ActivityOptions.makeBasic()
             options.setLaunchDisplayId(virtualDisplay.display.displayId)
             context.startActivity(intent, options.toBundle())
+        } else {
+            Log.e("AndroidProjectHost", "Intent for package $packageName is null")
+            Toast.makeText(context, "App not found: $packageName", Toast.LENGTH_SHORT).show()
         }
     } catch (e: Exception) {
+        Log.e("AndroidProjectHost", "Failed to launch target app", e)
         e.printStackTrace()
+        Toast.makeText(context, "Launch Error: ${e.message}", Toast.LENGTH_LONG).show()
     }
 }
