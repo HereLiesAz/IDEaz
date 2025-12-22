@@ -31,9 +31,9 @@ IDEaz minimizes user wait time by racing a local build against a remote CI build
 *   **Trigger:** User clicks "Save & Initialize" in Setup Tab.
 *   **Actions:**
     1.  **Inject Workflows:** The IDE *must* force-push the following files to `.github/workflows/`:
-        *   `build-and-release.yml` (Replaces `android_ci_jules.yml` and `release.yml`)
-        *   `codeql.yml`
-        *   `jules.yml`
+        *   `android_ci_jules.yml` (CI/CD logic)
+        *   `release.yml` (Release logic)
+        *   `codeql.yml` (Security scanning, optional)
     2.  **Inject Environment:** Force-push `setup_env.sh` and `AGENTS_SETUP.md` to root.
     3.  **Start Build:** Initiate the "Race to Build".
 
