@@ -530,9 +530,25 @@ class BuildService : Service() {
                     sourceDirs.add(generatedHostDir)
                 }
 
+                // --- PYTHON INJECTION ---
+                val pythonInjector = PythonInjector(resolver.resolvedArtifacts, buildDir)
+                val pythonResult = pythonInjector.execute(wrappedCallback)
+                if (!pythonResult.success && isActive) {
+                    wrappedCallback.onFailure(pythonResult.output)
+                    return@launch
+                }
+
                 buildSteps.add(KotlincCompile(kotlincJarPath!!, androidJarPath, sourceDirs, File(buildDir, "classes"), fullClasspath, javaBinaryPath!!))
                 buildSteps.add(D8Compile(d8Path!!, javaBinaryPath, androidJarPath, File(buildDir, "classes").absolutePath, File(buildDir, "classes").absolutePath, fullClasspath))
-                buildSteps.add(ApkBuild(File(buildDir, "app-signed.apk").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "classes").absolutePath))
+
+                // Updated ApkBuild to include Native Libs and Assets
+                buildSteps.add(ApkBuild(
+                    finalApkPath = File(buildDir, "app-signed.apk").absolutePath,
+                    resourcesApkPath = File(buildDir, "app.apk").absolutePath,
+                    classesDir = File(buildDir, "classes").absolutePath,
+                    jniLibsDir = File(buildDir, "intermediates/jniLibs").absolutePath,
+                    assetsDir = File(buildDir, "intermediates/assets").absolutePath
+                ))
                 buildSteps.add(ApkSign(apkSignerPath!!, javaBinaryPath, keystorePath!!, ksPass, keyAlias, File(buildDir, "app-signed.apk").absolutePath))
 
                 // --- GUEST BUILD ---
