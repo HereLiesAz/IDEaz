@@ -70,7 +70,7 @@ class ProjectAnalyzerTest {
 
     @Test
     fun detectReactNativeProject() {
-        val projectDir = tempFolder.newFolder("rn_project")
+        val projectDir = tempFolder.newFolder("react_native_project")
         File(projectDir, "package.json").createNewFile()
         File(projectDir, "app.json").createNewFile()
 

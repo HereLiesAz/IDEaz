@@ -221,6 +221,16 @@ jobs:
         cache: 'npm'
     - name: Install Dependencies
       run: npm install
+    - name: Bundle JS
+      run: |
+        npx react-native bundle --platform android --dev false --entry-file index.js --bundle-output index.android.bundle --assets-dest assets
+    - name: Upload Bundle
+      uses: actions/upload-artifact@v3
+      with:
+        name: js-bundle
+        path: |
+          index.android.bundle
+          assets/
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
     - name: Build Android
@@ -247,6 +257,9 @@ jobs:
             )
             ProjectType.WEB -> listOf(
                 "web_ci_pages.yml" to WEB_CI_PAGES_YML
+            )
+            ProjectType.REACT_NATIVE -> listOf(
+                "android_ci_react_native.yml" to ANDROID_CI_REACT_NATIVE_YML
             )
             else -> emptyList()
         }
