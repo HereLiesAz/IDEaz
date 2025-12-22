@@ -15,7 +15,7 @@
 ## 2. Main Host Screen (`MainScreen.kt`)
 *   **Role:** The container for the IDE management UI (Docked Mode) and the Embedded App Host.
 *   **Components:**
-    *   `IdeNavRail`: Navigation bar (Project, Git, Settings).
+    *   `IdeNavRail`: Navigation bar (Project, Git, Settings, Files, Libs).
     *   `IdeBottomSheet`: The Global Console.
     *   `LiveOutputBottomCard`: Floating status indicator.
     *   `AndroidProjectHost`: Hosts the target Android app in a Virtual Display (replaces pure Overlay for some use cases).
@@ -51,7 +51,20 @@
     *   Stash/Unstash controls.
     *   Force Update Init Files (Menu option).
 
-## 6. Settings Screen (`SettingsScreen.kt`)
+## 6. Developer Tools (Auxiliary)
+These screens are for low-level debugging and management, bypassing the "Post-Code" abstraction when necessary.
+
+*   **File Explorer (`FileExplorerScreen.kt`):**
+    *   **Role:** Direct filesystem access to the project directory.
+    *   **Features:** Navigate directories, open files.
+    *   **Context:** Useful for verifying generated code or assets.
+*   **File Viewer (`FileContentScreen.kt`):**
+    *   **Role:** Read-only (or limited edit) view of file content with syntax highlighting.
+*   **Dependency Manager (`LibrariesScreen.kt`):**
+    *   **Role:** Manage project dependencies.
+    *   **Features:** View installed libraries, check for updates, view failed dependency errors.
+
+## 7. Settings Screen (`SettingsScreen.kt`)
 *   **Role:** Configuration.
 *   **Visuals:** **Opaque Background** (Transparency is not allowed here).
 *   **Sections:**
@@ -63,6 +76,6 @@
     6.  **Permissions:** System permission status/requests.
     7.  **Preferences/Theme/Logs/Updates/Debug.**
 
-## 7. Web Runtime (Embedded in `MainScreen.kt`)
+## 8. Web Runtime (Embedded in `MainScreen.kt`)
 *   **Role:** Host for Web projects.
 *   **Component:** `WebProjectHost` (WebView) integrated directly into `MainScreen` as the bottom layer.
