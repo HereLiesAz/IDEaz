@@ -1,6 +1,6 @@
-# React Native Implementation Plan (Functional)
+# React Native Implementation Plan (Archived)
 
-**Status:** Implementation is functional. Bundler logic is integrated and verified. Runtime shim (WebView-based) supports components, Native Modules, JSX (via Babel), and Navigation with history stack.
+**Status:** COMPLETED. Implementation is fully functional. Bundler logic is integrated into `BuildService` and verified. Runtime uses `ReactNativeActivity` (Native) with `SimpleJsBundler`.
 
 ## 1. Bundling Strategy
 *   **Tool:** `SimpleJsBundler` (Custom Kotlin implementation).
@@ -42,7 +42,9 @@
 - [x] Implement Shim Support for `useState`, `useEffect`, `useRef`.
 - [x] Create comprehensive ToDo List sample app in template (Verified and Fixed input handling).
 
-## 6. Next Steps
+## 6. Next Steps (Completed)
 - [x] Verify `AndroidProjectHost` can load the bundled assets (Verified via code review and testing).
 - [x] Add support for more complex components (FlatList, SectionList).
 - [x] Implement navigation support (Stack Navigation with `goBack` support).
+- [x] Integrate `SimpleJsBundler` with `BuildService`.
+- [x] Implement Native `ReactNativeActivity` runner.
