@@ -344,7 +344,9 @@ class BuildService : Service() {
                 val type = ProjectAnalyzer.detectProjectType(projectDir)
 
                 if (type == ProjectType.ANDROID) {
-                    val resolver = HttpDependencyResolver(projectDir, File(projectDir, "dependencies.toml"), localRepoDir, wrappedCallback)
+                    val versionCatalog = File(projectDir, "gradle/libs.versions.toml")
+                    val depFile = if (versionCatalog.exists()) versionCatalog else File(projectDir, "dependencies.toml")
+                    val resolver = HttpDependencyResolver(projectDir, depFile, localRepoDir, wrappedCallback)
                     val resolverResult = resolver.execute()
                     if (resolverResult.success && isActive) {
                         wrappedCallback.onLog("\n[IDE] Dependencies downloaded successfully.")
@@ -419,6 +421,7 @@ class BuildService : Service() {
 
                 // --- REACT NATIVE BUILD ---
                 if (type == ProjectType.REACT_NATIVE) {
+                    // Integrated SimpleJsBundler for local build
                     val outputDir = File(buildDir, "react_native_dist")
                     val step = ReactNativeBuildStep(projectDir, outputDir)
                     val result = step.execute(wrappedCallback)
@@ -432,7 +435,9 @@ class BuildService : Service() {
                 }
 
                 // --- ANDROID BUILD ---
-                val resolver = HttpDependencyResolver(projectDir, File(projectDir, "dependencies.toml"), localRepoDir, wrappedCallback)
+                val versionCatalog = File(projectDir, "gradle/libs.versions.toml")
+                val depFile = if (versionCatalog.exists()) versionCatalog else File(projectDir, "dependencies.toml")
+                val resolver = HttpDependencyResolver(projectDir, depFile, localRepoDir, wrappedCallback)
                 val resolverResult = resolver.execute()
                 if (!resolverResult.success && isActive) {
                     wrappedCallback.onFailure("Dependency resolution failed: ${resolverResult.output}")

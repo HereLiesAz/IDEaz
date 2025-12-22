@@ -3,6 +3,9 @@ package com.hereliesaz.ideaz.buildlogic
 import java.io.File
 import org.json.JSONObject
 
+/**
+ * Basic bundler for React Native projects without Node.js.
+ */
 class SimpleJsBundler {
     data class Result(val success: Boolean, val output: String)
 

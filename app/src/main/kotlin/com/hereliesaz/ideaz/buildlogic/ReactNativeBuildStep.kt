@@ -3,6 +3,9 @@ package com.hereliesaz.ideaz.buildlogic
 import com.hereliesaz.ideaz.IBuildCallback
 import java.io.File
 
+/**
+ * Build step for React Native bundling.
+ */
 class ReactNativeBuildStep(
     private val projectDir: File,
     private val outputDir: File
