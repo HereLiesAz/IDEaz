@@ -12,3 +12,8 @@
 **Vulnerability:** `BuildService.startRemoteBuild` extracted artifacts without validating that the destination path was within the target directory, allowing potential file overwrite via path traversal (Zip Slip).
 **Learning:** `ZipInputStream` entries can contain `../` sequences. Always validate `entry.name` or the resulting `canonicalPath` / `toPath().normalize()`.
 **Prevention:** Use `destinationPath.startsWith(basePath)` check after normalizing both paths when extracting zips.
+
+## 2025-05-25 - [WebView File Access Vulnerability]
+**Vulnerability:** WebView configured with `allowUniversalAccessFromFileURLs = true`.
+**Learning:** This setting allows JavaScript in a file:// URL to read ANY other file on the device that the app has access to (e.g. shared preferences with API keys), bypassing the Same-Origin Policy.
+**Prevention:** Always set `allowUniversalAccessFromFileURLs = false` (default) unless absolutely necessary and scoped carefully.
