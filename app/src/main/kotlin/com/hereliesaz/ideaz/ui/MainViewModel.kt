@@ -1118,7 +1118,6 @@ class MainViewModel(
                 (log.contains("FileNotFoundException") && !log.contains("build.gradle")) ||
                 log.contains("OutOfMemoryError") ||
                 log.contains("No space left on device") ||
-                log.contains("Permission denied") ||
                 log.contains("Exit code 139") || // Segfault
                 log.contains("Exit code 134") || // Abort
                 log.contains("Signal 11") ||
