@@ -208,4 +208,5 @@ dependencies {
     implementation(libs.hiddenapibypass)
     implementation(libs.zipline.core)
     implementation(libs.zipline.loader)
+    implementation(libs.react.native)
 }
