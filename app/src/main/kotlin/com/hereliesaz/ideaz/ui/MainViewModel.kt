@@ -962,6 +962,13 @@ class MainViewModel(
      * Launches the target application (APK or Web).
      */
     fun launchTargetApp(c: Context) {
+        // Suppress launch if the Artifact Selection dialog is open.
+        // This ensures the user isn't interrupted while deciding whether to use the remote artifact.
+        if (_artifactCheckResult.value != null) {
+            logHandler.onBuildLog("[IDE] Launch suppressed: Artifact selection dialog is open.")
+            return
+        }
+
         val appName = settingsViewModel.getAppName() ?: return
         val projectTypeStr = settingsViewModel.getProjectType()
         val projectType = ProjectType.fromString(projectTypeStr)
@@ -1108,7 +1115,14 @@ class MainViewModel(
         val isIdeError = log.contains("[IDE] Failed") ||
                 log.contains("tools not found") ||
                 log.contains("com.hereliesaz.ideaz") ||
-                (log.contains("FileNotFoundException") && !log.contains("build.gradle"))
+                (log.contains("FileNotFoundException") && !log.contains("build.gradle")) ||
+                log.contains("OutOfMemoryError") ||
+                log.contains("No space left on device") ||
+                log.contains("Permission denied") ||
+                log.contains("Exit code 139") || // Segfault
+                log.contains("Exit code 134") || // Abort
+                log.contains("Signal 11") ||
+                log.contains("Signal 6")
 
         if (isIdeError) {
             if (settingsViewModel.isReportIdeErrorsEnabled()) {
@@ -1117,17 +1131,17 @@ class MainViewModel(
                     val result = com.hereliesaz.ideaz.utils.GithubIssueReporter.reportError(
                         getApplication(),
                         token,
-                        Throwable("Build Failure (Detected via Log)"),
-                        "Build failed with suspected IDE error",
+                        Throwable("Build Failure (Environment/Infrastructure Issue)"),
+                        "Build failed with suspected IDE/Environment error",
                         log
                     )
-                    logHandler.onOverlayLog("IDE Error reported: $result")
+                    logHandler.onOverlayLog("Environment/IDE Error reported: $result")
                 }
             } else {
-                logHandler.onOverlayLog("IDE Error detected. Reporting disabled.")
+                logHandler.onOverlayLog("Environment/IDE Error detected. Reporting disabled.")
             }
         } else {
-            // Project Error -> Jules Session
+            // Project Error -> Jules Session (appropriate repository context)
             aiDelegate.startContextualAITask("Build Failed. Fix this:\n$log")
         }
     }
