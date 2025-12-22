@@ -130,6 +130,94 @@ class HttpDependencyResolver(
             return dependencies.distinctBy { it.artifact.toString() }
         }
 
+        fun parseVersionCatalog(content: String, callback: IBuildCallback? = null): List<Dependency> {
+            val versions = mutableMapOf<String, String>()
+            val dependencies = mutableListOf<Dependency>()
+
+            try {
+                // 1. Parse Versions
+                val versionsSection = content.substringAfter("[versions]", "").substringBefore("[libraries]")
+                versionsSection.lineSequence().forEach { line ->
+                    val trimmed = line.trim()
+                    if (trimmed.isNotEmpty() && !trimmed.startsWith("#") && trimmed.contains("=")) {
+                        val parts = trimmed.split("=")
+                        if (parts.size >= 2) {
+                            val key = parts[0].trim()
+                            val value = parts[1].trim().replace("\"", "").replace("'", "")
+                            versions[key] = value
+                        }
+                    }
+                }
+
+                // 2. Parse Libraries
+                val librariesSection = content.substringAfter("[libraries]", "").substringBefore("[plugins]")
+                librariesSection.lineSequence().forEach { line ->
+                    val trimmed = line.trim()
+                    if (trimmed.isNotEmpty() && !trimmed.startsWith("#") && trimmed.contains("=")) {
+                        val parts = trimmed.split("=", limit = 2)
+                        if (parts.size >= 2) {
+                            val value = parts[1].trim()
+                            var coords: String? = null
+
+                            if (value.startsWith("{")) {
+                                // { module = "group:name", version.ref = "ver" }
+                                val moduleMatch = Regex("""module\s*=\s*["']([^"']+)["']""").find(value)
+                                val versionRefMatch = Regex("""version\.ref\s*=\s*["']([^"']+)["']""").find(value)
+                                val versionMatch = Regex("""version\s*=\s*["']([^"']+)["']""").find(value)
+
+                                if (moduleMatch != null) {
+                                    val module = moduleMatch.groupValues[1]
+                                    var version = "?"
+                                    if (versionRefMatch != null) {
+                                        val ref = versionRefMatch.groupValues[1]
+                                        version = versions[ref] ?: "latest.release" // Fallback
+                                    } else if (versionMatch != null) {
+                                        version = versionMatch.groupValues[1]
+                                    }
+                                    coords = "$module:$version"
+                                } else {
+                                    // Maybe group/name format?
+                                    val groupMatch = Regex("""group\s*=\s*["']([^"']+)["']""").find(value)
+                                    val nameMatch = Regex("""name\s*=\s*["']([^"']+)["']""").find(value)
+                                    if (groupMatch != null && nameMatch != null) {
+                                        val group = groupMatch.groupValues[1]
+                                        val name = nameMatch.groupValues[1]
+                                        var version = "?"
+                                        if (versionRefMatch != null) {
+                                            val ref = versionRefMatch.groupValues[1]
+                                            version = versions[ref] ?: "latest.release"
+                                        } else if (versionMatch != null) {
+                                            version = versionMatch.groupValues[1]
+                                        }
+                                        coords = "$group:$name:$version"
+                                    }
+                                }
+
+                            } else {
+                                // alias = "group:name:version"
+                                val cleanValue = value.replace("\"", "").replace("'", "")
+                                if (cleanValue.contains(":")) {
+                                    coords = cleanValue
+                                }
+                            }
+
+                            if (coords != null) {
+                                try {
+                                    dependencies.add(Dependency(DefaultArtifact(coords), "compile"))
+                                } catch (e: Exception) {
+                                    callback?.onLog("[IDE] WARNING: Failed to parse catalog dependency: $coords")
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            return dependencies
+        }
+
         fun checkForUpdate(dependency: Dependency, callback: IBuildCallback? = null): String? {
             try {
                 val artifact = dependency.artifact
@@ -211,7 +299,12 @@ class HttpDependencyResolver(
         callback?.onLog("[IDE] Starting dependency resolution...")
         try {
             val initialDependencies = if (dependenciesFile != null && dependenciesFile.exists()) {
-                parseDependencies(dependenciesFile.readText(), callback)
+                val content = dependenciesFile.readText()
+                if (dependenciesFile.name.endsWith(".toml") && (content.contains("[libraries]") || content.contains("[versions]"))) {
+                    parseVersionCatalog(content, callback)
+                } else {
+                    parseDependencies(content, callback)
+                }
             } else {
                 callback?.onLog("[IDE] No dependencies file found.")
                 return BuildResult(true, "No dependencies file found.")
