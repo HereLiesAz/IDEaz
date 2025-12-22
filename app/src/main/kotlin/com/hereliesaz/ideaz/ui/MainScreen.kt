@@ -85,7 +85,7 @@ fun MainScreen(
 
                             if (downChange != null) {
                                 val sheetHeightFactor = when (sheetState.currentDetent) {
-                                    FullyExpanded -> 0.95f
+                                    FullyExpanded -> 0.8f
                                     Halfway -> 0.5f
                                     Peek -> 0.2f
                                     AlmostHidden -> 0.01f

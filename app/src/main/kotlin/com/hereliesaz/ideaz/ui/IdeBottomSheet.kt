@@ -87,7 +87,7 @@ fun IdeBottomSheet(
     }
 
     val contentHeight = when (sheetState.currentDetent) {
-        fullyExpandedDetent -> screenHeight * 0.95f
+        fullyExpandedDetent -> screenHeight * 0.8f
         halfwayDetent -> screenHeight * 0.5f
         peekDetent -> screenHeight * 0.25f
         else -> 0.dp
