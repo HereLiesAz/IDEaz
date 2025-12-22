@@ -133,28 +133,37 @@ class HttpDependencyResolver(
         fun parseVersionCatalog(content: String, callback: IBuildCallback? = null): List<Dependency> {
             val versions = mutableMapOf<String, String>()
             val dependencies = mutableListOf<Dependency>()
+            val libraryLines = mutableListOf<String>()
+            var currentSection = ""
 
             try {
-                // 1. Parse Versions
-                val versionsSection = content.substringAfter("[versions]", "").substringBefore("[libraries]")
-                versionsSection.lineSequence().forEach { line ->
-                    val trimmed = line.substringBefore("#").trim()
-                    if (trimmed.isNotEmpty() && trimmed.contains("=")) {
-                        val parts = trimmed.split("=", limit = 2)
-                        if (parts.size >= 2) {
-                            val key = parts[0].trim()
-                            val value = parts[1].trim().replace("\"", "").replace("'", "")
-                            versions[key] = value
+                content.lineSequence().forEach { rawLine ->
+                    val line = rawLine.substringBefore("#").trim()
+                    if (line.isEmpty()) return@forEach
+
+                    if (line.startsWith("[") && line.endsWith("]")) {
+                        currentSection = line.removeSurrounding("[", "]").trim()
+                        return@forEach
+                    }
+
+                    if (currentSection == "versions") {
+                        if (line.contains("=")) {
+                            val parts = line.split("=", limit = 2)
+                            if (parts.size >= 2) {
+                                val key = parts[0].trim()
+                                val value = parts[1].trim().replace("\"", "").replace("'", "")
+                                versions[key] = value
+                            }
                         }
+                    } else if (currentSection == "libraries") {
+                        libraryLines.add(line)
                     }
                 }
 
-                // 2. Parse Libraries
-                val librariesSection = content.substringAfter("[libraries]", "").substringBefore("[plugins]")
-                librariesSection.lineSequence().forEach { line ->
-                    val trimmed = line.substringBefore("#").trim()
-                    if (trimmed.isNotEmpty() && trimmed.contains("=")) {
-                        val parts = trimmed.split("=", limit = 2)
+                // Process libraries after collecting versions (handles out-of-order sections)
+                libraryLines.forEach { line ->
+                    if (line.contains("=")) {
+                        val parts = line.split("=", limit = 2)
                         if (parts.size >= 2) {
                             val value = parts[1].trim()
                             var coords: String? = null
@@ -170,7 +179,7 @@ class HttpDependencyResolver(
                                     var version = "?"
                                     if (versionRefMatch != null) {
                                         val ref = versionRefMatch.groupValues[1]
-                                        version = versions[ref] ?: "latest.release" // Fallback
+                                        version = versions[ref] ?: "latest.release"
                                     } else if (versionMatch != null) {
                                         version = versionMatch.groupValues[1]
                                     }

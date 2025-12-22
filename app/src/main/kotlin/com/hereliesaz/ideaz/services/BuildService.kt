@@ -421,6 +421,7 @@ class BuildService : Service() {
 
                 // --- REACT NATIVE BUILD ---
                 if (type == ProjectType.REACT_NATIVE) {
+                    // Integrated SimpleJsBundler for local build
                     val outputDir = File(buildDir, "react_native_dist")
                     val step = ReactNativeBuildStep(projectDir, outputDir)
                     val result = step.execute(wrappedCallback)
