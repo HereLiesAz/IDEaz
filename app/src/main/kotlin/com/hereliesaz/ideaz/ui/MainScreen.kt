@@ -19,12 +19,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.changedToDown
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.navigation.compose.rememberNavController
 import com.composables.core.SheetDetent
 import com.composables.core.rememberBottomSheetState
+import kotlinx.coroutines.launch
 import com.hereliesaz.ideaz.ui.web.WebProjectHost
 import com.hereliesaz.ideaz.ui.project.AndroidProjectHost
 import androidx.compose.ui.platform.LocalConfiguration
@@ -48,7 +52,7 @@ fun MainScreen(
     val screenHeight = config.screenHeightDp.dp
 
     val supportedDetents = remember {
-        listOf(SheetDetent.Hidden, AlmostHidden, Peek, Halfway)
+        listOf(SheetDetent.Hidden, AlmostHidden, Peek, Halfway, FullyExpanded)
     }
     val sheetState = rememberBottomSheetState(
         detents = supportedDetents,
@@ -69,7 +73,43 @@ fun MainScreen(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
     ) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .pointerInput(sheetState) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val downChange = event.changes.firstOrNull { it.changedToDown() }
+
+                            if (downChange != null) {
+                                val sheetHeightFactor = when (sheetState.currentDetent) {
+                                    FullyExpanded -> 0.8f
+                                    Halfway -> 0.5f
+                                    Peek -> 0.2f
+                                    AlmostHidden -> 0.01f
+                                    else -> 0f
+                                }
+                                val screenHeightPx = size.height
+                                val sheetTopY = screenHeightPx * (1f - sheetHeightFactor)
+
+                                if (downChange.position.y < sheetTopY) {
+                                    val targetDetent = when (sheetState.currentDetent) {
+                                        FullyExpanded -> Halfway
+                                        Halfway -> Peek
+                                        Peek -> AlmostHidden
+                                        else -> null
+                                    }
+                                    if (targetDetent != null) {
+                                        scope.launch { sheetState.animateTo(targetDetent) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+        ) {
 
             Row(modifier = Modifier.fillMaxSize()) {
                 // Navigation Rail
@@ -166,6 +206,7 @@ fun MainScreen(
                 viewModel = viewModel,
                 peekDetent = Peek,
                 halfwayDetent = Halfway,
+                fullyExpandedDetent = FullyExpanded,
                 screenHeight = screenHeight,
                 onSendPrompt = { viewModel.sendPrompt(it) }
             )
