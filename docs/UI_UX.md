@@ -46,6 +46,7 @@ The interaction model revolves around the **Live App** and the **IDE Overlay**.
 A versatile bottom sheet that provides visibility into the background processes.
 *   **Tabs:** Build, Git, AI, All.
 *   **Content:** Log output from respective sources.
+*   **Empty State:** Displays context-aware messages (e.g., "No build logs yet") when no logs are available for the selected tab.
 *   **Theming:** High contrast (Dark Grey/White in Dark Mode, Light Grey/Black in Light Mode).
 
 ### 3. The Update Popup
