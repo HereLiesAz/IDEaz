@@ -108,15 +108,9 @@ object GithubIssueReporter {
                 )
                 Log.d(TAG, "Issue created successfully: #${response.number}")
 
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Bug report sent (Issue #${response.number})", Toast.LENGTH_LONG).show()
-                }
                 return "Reported automatically: ${response.htmlUrl} [Hash: $errorHash, PID: $pid]"
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to post issue via API. Falling back to browser.", e)
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Auto-report failed. Opening browser...", Toast.LENGTH_SHORT).show()
-                }
             }
         }
 
