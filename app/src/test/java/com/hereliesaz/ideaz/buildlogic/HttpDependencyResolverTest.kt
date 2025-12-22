@@ -112,4 +112,23 @@ class HttpDependencyResolverTest {
         assertNotNull(okhttp)
         assertEquals("4.9.0", okhttp?.artifact?.version)
     }
+
+    @Test
+    fun testParseVersionCatalogWithComments() {
+        val input = """
+            [versions]
+            kotlin = "1.8.0" # This is a comment
+
+            [libraries]
+            # Comment line
+            test-lib = "com.example:lib:1.0.0" # Inline comment
+        """.trimIndent()
+
+        val dependencies = HttpDependencyResolver.parseVersionCatalog(input, null)
+        assertEquals(1, dependencies.size)
+
+        val lib = dependencies[0]
+        assertEquals("lib", lib.artifact.artifactId)
+        assertEquals("1.0.0", lib.artifact.version)
+    }
 }
