@@ -138,9 +138,9 @@ class HttpDependencyResolver(
                 // 1. Parse Versions
                 val versionsSection = content.substringAfter("[versions]", "").substringBefore("[libraries]")
                 versionsSection.lineSequence().forEach { line ->
-                    val trimmed = line.trim()
-                    if (trimmed.isNotEmpty() && !trimmed.startsWith("#") && trimmed.contains("=")) {
-                        val parts = trimmed.split("=")
+                    val trimmed = line.substringBefore("#").trim()
+                    if (trimmed.isNotEmpty() && trimmed.contains("=")) {
+                        val parts = trimmed.split("=", limit = 2)
                         if (parts.size >= 2) {
                             val key = parts[0].trim()
                             val value = parts[1].trim().replace("\"", "").replace("'", "")
@@ -152,8 +152,8 @@ class HttpDependencyResolver(
                 // 2. Parse Libraries
                 val librariesSection = content.substringAfter("[libraries]", "").substringBefore("[plugins]")
                 librariesSection.lineSequence().forEach { line ->
-                    val trimmed = line.trim()
-                    if (trimmed.isNotEmpty() && !trimmed.startsWith("#") && trimmed.contains("=")) {
+                    val trimmed = line.substringBefore("#").trim()
+                    if (trimmed.isNotEmpty() && trimmed.contains("=")) {
                         val parts = trimmed.split("=", limit = 2)
                         if (parts.size >= 2) {
                             val value = parts[1].trim()
