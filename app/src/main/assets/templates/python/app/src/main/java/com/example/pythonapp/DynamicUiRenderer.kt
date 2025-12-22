@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.key
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -87,7 +88,9 @@ fun DynamicUiRenderer(
 @Composable
 fun RenderChildren(children: JSONArray, onAction: (String) -> Unit) {
     for (i in 0 until children.length()) {
-        val child = children.getJSONObject(i)
-        DynamicUiRenderer(child, onAction)
+        key(i) {
+            val child = children.getJSONObject(i)
+            DynamicUiRenderer(child, onAction)
+        }
     }
 }

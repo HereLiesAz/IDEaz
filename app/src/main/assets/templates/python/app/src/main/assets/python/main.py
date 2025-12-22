@@ -1,5 +1,4 @@
 import json
-import threading
 import sys
 import importlib
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -34,17 +33,22 @@ def render_ui():
     ).to_dict()
 
 class RequestHandler(BaseHTTPRequestHandler):
+    def _send_ui_response(self):
+        """Sends the current UI state as a JSON response."""
+        self.send_response(200)
+        self.send_header("Content-type", "application/json")
+        self.end_headers()
+        try:
+            response = json.dumps(render_ui())
+            self.wfile.write(response.encode('utf-8'))
+        except Exception as e:
+            # Fallback for rendering errors to show in UI if possible
+            err = json.dumps({"type": "Text", "properties": {"text": f"Error: {str(e)}", "color": "#FF0000"}})
+            self.wfile.write(err.encode('utf-8'))
+
     def do_GET(self):
         if self.path == "/ui":
-            self.send_response(200)
-            self.send_header("Content-type", "application/json")
-            self.end_headers()
-            try:
-                response = json.dumps(render_ui())
-                self.wfile.write(response.encode('utf-8'))
-            except Exception as e:
-                err = json.dumps({"type": "Text", "properties": {"text": f"Error: {str(e)}", "color": "#FF0000"}})
-                self.wfile.write(err.encode('utf-8'))
+            self._send_ui_response()
         else:
             self.send_response(404)
             self.end_headers()
@@ -62,11 +66,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 elif action == "decrement":
                     state["counter"] -= 1
 
-                self.send_response(200)
-                self.send_header("Content-type", "application/json")
-                self.end_headers()
-                response = json.dumps(render_ui())
-                self.wfile.write(response.encode('utf-8'))
+                self._send_ui_response()
             except Exception as e:
                 self.send_response(500)
                 self.end_headers()
