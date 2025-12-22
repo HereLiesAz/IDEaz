@@ -161,21 +161,12 @@ class BuildService : Service() {
     }
 
     private fun createNotificationBuilder(): NotificationCompat.Builder {
-        val options = ActivityOptions.makeBasic()
-        if (Build.VERSION.SDK_INT >= 34) {
-            options.setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-        }
-        if (Build.VERSION.SDK_INT >= 35) {
-            options.setPendingIntentCreatorBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-        }
-
         val contentIntent = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             },
-            PendingIntent.FLAG_IMMUTABLE,
-            options.toBundle()
+            PendingIntent.FLAG_IMMUTABLE
         )
 
         val syncIntent = Intent(this, BuildService::class.java).apply {
