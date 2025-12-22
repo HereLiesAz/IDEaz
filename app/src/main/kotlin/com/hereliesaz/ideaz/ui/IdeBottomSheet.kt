@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
@@ -17,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.composables.core.BottomSheet
@@ -149,23 +151,54 @@ fun IdeBottomSheet(
                             }
                         }
 
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f)
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                        ) {
-                            itemsIndexed(
-                                items = filteredMessages,
-                                // Use stable keys if possible. For simple logs, index + content hash is okay-ish.
-                                key = { index, message -> "$index-${message.hashCode()}" }
-                            ) { _, message ->
-                                Text(
-                                    text = message,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
+                        if (filteredMessages.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f)
+                                    .padding(horizontal = 16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                        modifier = Modifier.padding(bottom = 8.dp)
+                                    )
+                                    Text(
+                                        text = when (selectedTab) {
+                                            1 -> "No build logs yet"
+                                            2 -> "No git activity recorded"
+                                            3 -> "No AI interactions yet"
+                                            4 -> "No system events"
+                                            else -> "No logs available"
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        } else {
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f)
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                itemsIndexed(
+                                    items = filteredMessages,
+                                    // Use stable keys if possible. For simple logs, index + content hash is okay-ish.
+                                    key = { index, message -> "$index-${message.hashCode()}" }
+                                ) { _, message ->
+                                    Text(
+                                        text = message,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                             }
                         }
 
