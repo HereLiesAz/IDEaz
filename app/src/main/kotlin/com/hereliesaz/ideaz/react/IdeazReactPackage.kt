@@ -5,6 +5,9 @@ import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.uimanager.ViewManager
 
+/**
+ * Package exposing native modules to React Native.
+ */
 class IdeazReactPackage : ReactPackage {
 
     override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {

@@ -11,6 +11,10 @@ import com.facebook.soloader.SoLoader
 import com.hereliesaz.ideaz.BuildConfig
 import java.io.File
 
+/**
+ * React Native Runner Activity.
+ * Hosted by the IDE to run user RN projects locally.
+ */
 class ReactNativeActivity : AppCompatActivity(), DefaultHardwareBackBtnHandler {
     private var mReactRootView: ReactRootView? = null
     private var mReactInstanceManager: ReactInstanceManager? = null
