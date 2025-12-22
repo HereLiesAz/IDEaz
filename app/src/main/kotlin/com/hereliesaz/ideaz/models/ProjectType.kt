@@ -5,6 +5,7 @@ enum class ProjectType(val displayName: String) {
     WEB("Web"),
     FLUTTER("Flutter"), // Supported via Remote Build
     REACT_NATIVE("React Native"),
+    PYTHON("Python"),
     OTHER("Other"),
     UNKNOWN("Unknown");
 
