@@ -41,6 +41,7 @@
 *   `ApkBuild.kt` / `ApkSign.kt`: APK packaging and signing.
 *   `HttpDependencyResolver.kt`: Resolves and downloads Maven dependencies.
 *   `WebBuildStep.kt`: Builds Web projects.
+*   `ReactNativeBuildStep.kt`: Build step for React Native bundling.
 *   `SimpleJsBundler.kt`: Basic bundler for React Native projects.
 *   `ProcessManifest.kt`: Manifest merging/processing.
 *   `ProcessAars.kt`: AAR extraction and resource processing.
@@ -73,6 +74,11 @@
 *   `GitScreen.kt`: Git management UI.
 *   `SettingsScreen.kt`: Settings UI.
 *   `theme/`: Theme definitions (Color, Type, Theme).
+
+#### react/
+*   `ReactNativeActivity.kt`: Runner activity for React Native projects.
+*   `IdeazReactPackage.kt`: Exposes native modules to RN.
+*   `IdeazNativeModule.kt`: The native module implementation.
 
 #### ui/delegates/
 *   `AIDelegate.kt`: Manages AI sessions and Jules interaction.
