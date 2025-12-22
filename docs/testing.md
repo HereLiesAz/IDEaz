@@ -23,14 +23,14 @@
 *   **Framework:** Compose UI Test (Not yet fully implemented).
 *   **Manual Template:** `app/src/main/assets/project/` contains a sample app "BluSnu".
 *   **Procedure:**
-    1.  **Initialize:** Load BluSnu, click "Save & Initialize". Verify workflows are pushed to GitHub.
+    1.  **Initialize:** Load BluSnu, click "Save & Initialize". Verify `build-and-release.yml` and others are pushed to GitHub.
     2.  **Race:** Push a commit to GitHub from another device. Verify IDE picks it up and updates.
     3.  **Overlay:** Interact with the app. Verify overlay appears/disappears correctly and drag-to-select works.
     4.  **Error:** Intentionally break the build (e.g., delete a brace). Verify Jules is prompted to fix it.
     5.  **Console:** Verify logs appear in real-time.
 
 ## 4. CI/CD (`.github/workflows/`)
-*   **Host CI:** GitHub Actions builds the IDEaz app itself (`android_ci_jules.yml`).
+*   **Host CI:** GitHub Actions builds the IDEaz app itself (`build-and-release.yml`).
 *   **Checks:** Lint, Unit Tests, Build.
 *   **Self-Hosting:** Ideally, IDEaz should be able to build itself, but currently we rely on GitHub Actions for release artifacts.
 

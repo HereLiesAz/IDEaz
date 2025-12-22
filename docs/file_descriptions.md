@@ -45,6 +45,7 @@
 *   `ProcessManifest.kt`: Manifest merging/processing.
 *   `ProcessAars.kt`: AAR extraction and resource processing.
 *   `GenerateSourceMap.kt`: Generates source maps for UI inspection.
+*   `RedwoodCodegen.kt`, `ZiplineCompile.kt`, `ZiplineManifestGenerator.kt`, `ZiplineManifestStep.kt`: Hybrid Host toolchain steps.
 
 #### git/
 *   `GitManager.kt`: Wrapper around JGit for version control operations.
@@ -56,7 +57,7 @@
 
 #### services/
 *   `BuildService.kt`: Background service running the build toolchain.
-*   `UIInspectionService.kt` / `IdeazAccessibilityService.kt`: Accessibility Service for UI inspection (node info).
+*   `IdeazAccessibilityService.kt`: Accessibility Service for UI inspection (node info retrieval).
 *   `IdeazOverlayService.kt`: Foreground Service for the "Selection Overlay" (System Alert Window) allowing UI inspection and interaction.
 *   `CrashReportingService.kt`: Service for reporting fatal/non-fatal errors to AI/GitHub.
 *   `ScreenshotService.kt`: Service for capturing screenshots.
@@ -65,7 +66,7 @@
 *   `MainViewModel.kt`: Central logic for the UI, state management, and orchestration.
 *   `SettingsViewModel.kt`: Manages user preferences.
 *   `MainScreen.kt`: The main Compose screen.
-*   `ProjectScreen.kt`: Project management UI (Load/Create/Clone).
+*   `ProjectScreen.kt`: Project management UI.
 *   `IdeBottomSheet.kt`: The global log and chat console.
 *   `IdeNavRail.kt`: Navigation component.
 *   `AiModels.kt`: Enum/Object for AI model selection.
@@ -89,7 +90,8 @@
 *   `WebProjectHost.kt`: Embeds Web projects via WebView.
 
 #### utils/
-*   `ToolManager.kt`: Installs and locates native tools (`aapt2`, `java`, etc.).
+*   `ToolManager.kt`: Installs and locates build tools (downloaded to `filesDir/local_build_tools`).
+*   `HybridToolchainManager.kt`: Manages Redwood/Zipline toolchain dependencies.
 *   `TemplateManager.kt`: Manages project template copying and customization.
 *   `ProjectAnalyzer.kt`: Detects project types and configurations.
 *   `ProcessExecutor.kt`: Helper to run native shell commands.
@@ -110,13 +112,3 @@
 *   `index.md`: The homepage content.
 *   `_layouts/`: HTML templates for the site.
 *   `assets/`: CSS and other static assets.
-
-## jniLibs/ (app/src/main/jniLibs)
-*   `arm64-v8a/`: Native binaries for on-device build tools (renamed as `.so`).
-    *   `libaapt2.so`: aapt2 binary.
-    *   `libkotlinc.so`: kotlinc binary.
-    *   `libd8.so`: d8 binary.
-    *   `libapksigner.so`: apksigner.jar (wrapped or binary).
-    *   `libjava.so`: JDK 17 java binary.
-    *   `libjules.so`: Node.js runtime for Jules CLI (Legacy).
-    *   `libgemini.so`: Gemini CLI binary.

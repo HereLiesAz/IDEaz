@@ -24,15 +24,14 @@ The `MainViewModel` was becoming a God Class. It has been refactored into **Dele
 *   **`RepoDelegate`:** Handles GitHub API interactions (forking, cloning).
 *   **`OverlayDelegate`:** Manages the visual overlay state and selection logic.
 *   **`SystemEventDelegate`:** Handles broadcast receivers (Package install, etc).
-*   **`UpdateDelegate`:** Checks for IDEaz self-updates.
+*   **`UpdateDelegate`:** Checks for self-updates.
 *   **`StateDelegate`:** Holds the mutable state variables.
 
 ## 3. The Services
-*   **`IdeazOverlayService` (Target):** The UI Overlay and "Main Window" of the IDE. Designed to extend `AzNavRailOverlayService` (v5.2+) to provide a dynamically sized system alert window.
-    *   *Note: Current implementation status is flux. Codebase may reflect a transition period where this service is being refactored or is temporarily disabled in favor of activity-based hosting for debugging.*
-*   **`BuildService`:** A background (foreground) service that runs Gradle tasks and APK installation. It runs in a separate process (`:build_process`) to prevent UI freezes.
-*   **`CrashReportingService`:** Catches and reports fatal crashes. Runs in a separate process (`:crash_reporter`).
-*   **`UIInspectionService` / `IdeazAccessibilityService`:** An Accessibility Service used to retrieve Node Information (`AccessibilityNodeInfo`) for element selection and highlighting.
+*   **`IdeazOverlayService` (Visual Layer):** A **Foreground Service** running as a `TYPE_APPLICATION_OVERLAY` window. It provides the "Main Window" of the IDE (NavRail, Console, Contextual Chat) which floats over the target application. It handles the drawing of selection rectangles.
+*   **`IdeazAccessibilityService` (Inspection Layer):** An **Accessibility Service** that retrieves `AccessibilityNodeInfo` from the window hierarchy. It allows the IDE to "see" the UI elements under a user's tap or drag selection.
+*   **`BuildService` (Execution Layer):** A **Foreground Service** running in a separate process (`:build_process`). It orchestrates the entire build toolchain (aapt2, kotlinc, d8) and handles APK installation to prevent UI freezes in the main app.
+*   **`CrashReportingService` (Safety Layer):** A dedicated service running in its own process (`:crash_reporter`) to ensure fatal crashes are reported to the API even if the main app dies.
 
 ## 4. Data Flow
 *   **State:** UI components observe `MainViewModel.state` (which delegates to `StateDelegate`).
@@ -42,6 +41,7 @@ The `MainViewModel` was becoming a God Class. It has been refactored into **Dele
 ## 5. File System
 *   **Projects:** Stored in `context.filesDir/projects/`.
 *   **Imports:** Copied from `content://` URI to internal storage (`filesDir/projects/Imported_Project_Name`). Direct editing of external files (SAF) is not supported for performance and permission reasons.
+*   **Tools:** Downloaded to `context.filesDir/local_build_tools/`.
 *   **Temp:** `context.cacheDir` used for download buffers.
 
 ## 6. Networking

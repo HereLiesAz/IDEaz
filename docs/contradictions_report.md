@@ -1,29 +1,36 @@
 # Documentation Contradictions & Discrepancies Report
 
-This report highlights glaring contradictions between the project documentation and the actual source code, identified during a comprehensive audit.
+This report highlights glaring contradictions between the project documentation and the actual source code, identified during a comprehensive audit and subsequently resolved.
 
-## 1. Critical Discrepancy: Missing Overlay Service
-*   **Documentation:** `docs/architecture.md`, `docs/screens.md`, and `docs/file_descriptions.md` heavily reference an `IdeazOverlayService` (sometimes referred to as `UIInspectionService` or extending `AzNavRailOverlayService`). It is described as the "Main Window" and the core mechanism for the "Post-Code" overlay interface over other apps.
-*   **Source Code:** **The `IdeazOverlayService.kt` file is completely missing.** The `services/` directory contains only `BuildService`, `CrashReportingService`, `ScreenshotService`, and a skeleton `IdeazAccessibilityService`.
-*   **Impact:** The core "Overlay" feature described in the architecture (drawing UI over external apps) is currently non-functional. The `OverlayDelegate` sends broadcasts (`HIGHLIGHT_RECT`) into the void as there is no receiver service to draw the highlights.
-*   **Current State:** The IDE currently relies on `AndroidProjectHost` (Virtual Display) and `WebProjectHost` (WebView) embedded within the `MainScreen` Activity to provide a simulated environment where overlay features (Contextual Chat) can be rendered via Jetpack Compose.
+## Resolved Contradictions
 
-## 2. Project Screen Tabs Order
-*   **Documentation:** `docs/screens.md` listed the tabs as "Load", "Clone", "Create", "Setup".
-*   **Source Code:** `ProjectScreen.kt` defines the tabs as `listOf("Setup", "Load", "Clone")`. "Create" is handled as a state within "Setup" or "Clone".
-*   **Status:** Documentation has been updated to match the code.
+### 1. Service Architecture & Naming
+*   **Contradiction:** Documentation (`architecture.md`, `screens.md`, `file_descriptions.md`) frequently referenced a `UIInspectionService`, sometimes describing it as an Accessibility Service and sometimes as the Overlay Service.
+*   **Reality:** The code has two distinct services:
+    *   `IdeazAccessibilityService.kt` (Accessibility Service): Handles `AccessibilityNodeInfo` retrieval (Inspection).
+    *   `IdeazOverlayService.kt` (Foreground Service): Handles the `OverlayView` (Visuals) via `TYPE_APPLICATION_OVERLAY`.
+*   **Resolution:** Documentation has been updated to explicitly name and describe these two services and their distinct roles. `UIInspectionService` references have been removed.
 
-## 3. Unused/Deprecated Components
-*   **JulesCliClient:** `docs/file_descriptions.md` listed this. The code exists but is unused and deprecated in favor of `JulesApiClient`.
-*   **SimpleJsBundler:** Listed as "Not yet integrated". Code confirms it is unused.
-*   **React Native Support:** Documentation states support is partial/stalled. Code confirms `ProjectAnalyzer` detects it, but `BuildService` has no specific local build steps for it (likely falling back to Android logic or Remote Build).
+### 2. Build Pipeline & Toolchain
+*   **Contradiction:** `docs/build_pipeline.md` claimed that build tools (`aapt2`, `kotlinc`, `d8`) were static `aarch64` binaries bundled in `jniLibs` and executed natively.
+*   **Reality:** `ToolManager.kt` implements a download-based strategy (`tools.zip` -> `filesDir/local_build_tools`). Most tools are JARs (`kotlin-compiler.jar`, `d8.jar`) executed via the bundled `java` binary. `jniLibs` is unused.
+*   **Resolution:** `docs/build_pipeline.md` and `docs/file_descriptions.md` have been rewritten to reflect the downloadable JAR-based toolchain.
 
-## 4. Settings Screen Sections
-*   **Documentation:** `docs/screens.md` missed the "AI Assignments" section and had a slightly different order for other sections.
-*   **Source Code:** `SettingsScreen.kt` includes a dedicated section for assigning AI models to tasks (Overlay vs Chat) which was not documented.
-*   **Status:** Documentation has been updated.
+### 3. Project Screen Tabs
+*   **Contradiction:** `docs/screens.md` listed tabs as "Create, Load, Clone" or "Load, Clone, Create". `AGENTS.md` noted the correct order.
+*   **Reality:** `ProjectScreen.kt` defines the tabs as `Setup`, `Load`, `Clone`. "Create" is a mode within the "Setup" tab.
+*   **Resolution:** `docs/screens.md` has been updated to match the code.
 
-## 5. Accessibility Service
-*   **Documentation:** References `UIInspectionService` as the Accessibility Service.
-*   **Source Code:** The file is named `IdeazAccessibilityService.kt` and is currently a skeleton implementation with no inspection logic.
-*   **Status:** Documentation has been updated to reflect the correct filename and status.
+### 4. CI/CD Workflow Names
+*   **Contradiction:** `docs/workflow.md` and `docs/testing.md` referred to `android_ci_jules.yml` and `release.yml`.
+*   **Reality:** The actual workflow file is `build-and-release.yml`, which handles both CI and Release logic.
+*   **Resolution:** All workflow documentation has been updated to reference `build-and-release.yml`.
+
+### 5. Missing Feature Documentation
+*   **Contradiction:** `docs/build_pipeline.md` did not mention the Hybrid Host (Redwood/Zipline) build steps, despite Phase 11 being marked complete.
+*   **Reality:** `BuildService.kt` includes steps for `RedwoodCodegen`, `ZiplineCompile`, and `ZiplineManifestStep`.
+*   **Resolution:** Added "Hybrid Host Generation" steps to `docs/build_pipeline.md`.
+
+## Remaining / Minor Notes
+*   **JulesCliClient:** Exists in code but is marked as Legacy/Reference. Documentation now reflects this.
+*   **React Native:** Support remains partial. Documentation accurately reflects this status.
