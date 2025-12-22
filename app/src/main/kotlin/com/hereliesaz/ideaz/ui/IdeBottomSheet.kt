@@ -30,10 +30,11 @@ fun IdeBottomSheet(
     viewModel: MainViewModel,
     peekDetent: SheetDetent,
     halfwayDetent: SheetDetent,
+    fullyExpandedDetent: SheetDetent,
     screenHeight: Dp,
     onSendPrompt: (String) -> Unit
 ) {
-    val isHalfwayExpanded = sheetState.currentDetent == halfwayDetent
+    val isHalfwayExpanded = sheetState.currentDetent == halfwayDetent || sheetState.currentDetent == fullyExpandedDetent
     val logMessages by viewModel.filteredLog.collectAsState(initial = emptyList())
     val clipboardManager = LocalClipboardManager.current
     val coroutineScope = rememberCoroutineScope()
@@ -86,6 +87,7 @@ fun IdeBottomSheet(
     }
 
     val contentHeight = when (sheetState.currentDetent) {
+        fullyExpandedDetent -> screenHeight * 0.95f
         halfwayDetent -> screenHeight * 0.5f
         peekDetent -> screenHeight * 0.25f
         else -> 0.dp
