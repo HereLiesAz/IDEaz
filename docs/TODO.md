@@ -31,7 +31,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] `ApkSign`
 - [x] **2.3: Dependency Resolution**
     - [x] `HttpDependencyResolver` (Maven/Aether integration).
-    - [ ] **Refinement:** Handle complex POMs and exclusions robustly.
+    - [x] **Refinement:** Handle complex POMs and exclusions robustly (Added Version Catalog support).
 
 ## Phase 3: UI/UX & Interaction
 - [x] **3.1: The Overlay**

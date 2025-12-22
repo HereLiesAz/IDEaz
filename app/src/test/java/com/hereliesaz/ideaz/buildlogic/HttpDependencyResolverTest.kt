@@ -83,4 +83,52 @@ class HttpDependencyResolverTest {
         // Raw
         checkArtifact(dependencies[8], "dependency", "1.0.0", "jar")
     }
+
+    @Test
+    fun testParseVersionCatalog() {
+        val input = """
+            [versions]
+            kotlin = "1.8.0"
+            retrofit = "2.9.0"
+
+            [libraries]
+            kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
+            retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
+            okhttp = "com.squareup.okhttp3:okhttp:4.9.0"
+        """.trimIndent()
+
+        val dependencies = HttpDependencyResolver.parseVersionCatalog(input, null)
+        assertEquals(3, dependencies.size)
+
+        val kotlin = dependencies.find { it.artifact.artifactId == "kotlin-stdlib" }
+        assertNotNull(kotlin)
+        assertEquals("1.8.0", kotlin?.artifact?.version)
+
+        val retrofit = dependencies.find { it.artifact.artifactId == "retrofit" }
+        assertNotNull(retrofit)
+        assertEquals("2.9.0", retrofit?.artifact?.version)
+
+        val okhttp = dependencies.find { it.artifact.artifactId == "okhttp" }
+        assertNotNull(okhttp)
+        assertEquals("4.9.0", okhttp?.artifact?.version)
+    }
+
+    @Test
+    fun testParseVersionCatalogWithComments() {
+        val input = """
+            [versions]
+            kotlin = "1.8.0" # This is a comment
+
+            [libraries]
+            # Comment line
+            test-lib = "com.example:lib:1.0.0" # Inline comment
+        """.trimIndent()
+
+        val dependencies = HttpDependencyResolver.parseVersionCatalog(input, null)
+        assertEquals(1, dependencies.size)
+
+        val lib = dependencies[0]
+        assertEquals("lib", lib.artifact.artifactId)
+        assertEquals("1.0.0", lib.artifact.version)
+    }
 }
