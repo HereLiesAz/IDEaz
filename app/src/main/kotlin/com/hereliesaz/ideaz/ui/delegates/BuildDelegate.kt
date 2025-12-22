@@ -206,7 +206,10 @@ class BuildDelegate(
          injectResizeableActivity(dir)
 
          // Commit & Push synchronously
-         gitDelegate.commit("Remote Build Trigger: ${System.currentTimeMillis()}")
+         if (!gitDelegate.commit("Remote Build Trigger: ${System.currentTimeMillis()}")) {
+             onLog("Error: Commit failed. Aborting remote build.\n")
+             return
+         }
 
          onLog("[IDE] Pushing to remote...\n")
          gitDelegate.push()
@@ -233,7 +236,10 @@ class BuildDelegate(
          injectResizeableActivity(dir)
 
          // Commit synchronously to ensure HEAD represents current state
-         gitDelegate.commit("Race Build Trigger: ${System.currentTimeMillis()}")
+         if (!gitDelegate.commit("Race Build Trigger: ${System.currentTimeMillis()}")) {
+             onLog("Error: Commit failed. Aborting race build.\n")
+             return
+         }
 
          val headSha = gitDelegate.getHeadSha()
          if (headSha == null) {

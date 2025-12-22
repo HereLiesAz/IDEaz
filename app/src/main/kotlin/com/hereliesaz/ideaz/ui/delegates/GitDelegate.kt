@@ -118,10 +118,11 @@ class GitDelegate(
 
     /**
      * Commits changes with a message.
+     * @return true if successful or no changes, false if failed.
      */
-    suspend fun commit(message: String) = withContext(Dispatchers.IO) {
+    suspend fun commit(message: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            val git = getGitManager() ?: return@withContext
+            val git = getGitManager() ?: return@withContext false
             if (git.hasChanges()) {
                 git.addAll()
                 git.commit(message)
@@ -130,8 +131,11 @@ class GitDelegate(
                 onLog("[GIT] No changes to commit.\n")
             }
             refreshGitData()
+            true
         } catch (e: Exception) {
             onLog("[GIT] Commit Error: ${e.message}\n")
+            e.printStackTrace()
+            false
         }
     }
 
