@@ -67,6 +67,17 @@ class AIDelegate(
     }
 
     /**
+     * Clears the current session state.
+     * Should be called when switching projects to prevent context leakage.
+     */
+    fun clearSession() {
+        _currentJulesSessionId.value = null
+        _julesResponse.value = null
+        _julesHistory.value = emptyList()
+        _julesError.value = null
+    }
+
+    /**
      * Fetches the list of active sessions associated with the specified repository.
      * Filters sessions based on the 'source' context.
      */
