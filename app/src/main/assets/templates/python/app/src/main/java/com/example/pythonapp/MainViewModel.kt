@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,7 +28,7 @@ class MainViewModel : ViewModel() {
 
     private fun startPolling() {
         viewModelScope.launch(Dispatchers.IO) {
-            while (true) {
+            while (isActive) {
                 try {
                     val json = fetchUi()
                     _uiState.value = json
