@@ -86,6 +86,11 @@ class ProcessManifest(
                 app.setAttribute("android:extractNativeLibs", "true")
             }
 
+            // Inject android:usesCleartextTraffic="true" for localhost HTTP communication (SDUI)
+            if (!app.hasAttribute("android:usesCleartextTraffic")) {
+                app.setAttribute("android:usesCleartextTraffic", "true")
+            }
+
             // Inject permissions (INTERNET for SDUI localhost, FOREGROUND_SERVICE for Python host)
             val permissions = listOf("android.permission.INTERNET", "android.permission.FOREGROUND_SERVICE")
             for (perm in permissions) {
