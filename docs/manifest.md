@@ -71,8 +71,8 @@
 * **Class: IdeazOverlayService (Service)**
     * **Type:** `android:permission="android.permission.FOREGROUND_SERVICE"`, `android:foregroundServiceType="specialUse"` (or `manifest` dependent).
     * **Permissions:** `SYSTEM_ALERT_WINDOW`, `FOREGROUND_SERVICE`.
-    * Description (Does): Hosts the main UI overlay (`AzNavRail`, `IdeBottomSheet`).
-* **Class: UIInspectionService (AccessibilityService)**
+    * Description (Does): Hosts the main UI overlay (`OverlayView`) as a system alert window.
+* **Class: IdeazAccessibilityService (AccessibilityService)**
     * **Permissions:** `BIND_ACCESSIBILITY_SERVICE`.
     * Description (Does): Retrieves Node Info for inspection.
 * **Class: CrashReportingService (Service)**
@@ -82,7 +82,7 @@
 ### E. Core Utilities
 
 * **Class: ToolManager**
-    * Description (Does): Locates native tools. Validates asset files (`android.jar`) on load and repairs them if they are 0-byte/corrupt.
+    * Description (Does): Locates build tools. Downloads/Validates tools zip in `filesDir/local_build_tools`.
 * **Class: GithubIssueReporter**
     * Description (Does): Utilities to post GitHub issues. Takes a `Throwable` and `contextMessage`, creates a formatted markdown bug report, and posts it to the `HereLiesAz/IDEaz` GitHub repo via API. Falls back to a browser intent if the API fails.
 * **Class: MainActivity**

@@ -12,7 +12,7 @@
 ### 1.2 Initialization (Activation)
 1.  **User Action:** Clicks "Save & Initialize" in Setup Tab.
 2.  **System:**
-    *   **Injects Workflows:** Force-pushes `android_ci_jules.yml`, `codeql.yml`, `jules.yml`, `release.yml`.
+    *   **Injects Workflows:** Force-pushes `build-and-release.yml` (Merged CI/CD), `codeql.yml`, `jules.yml`.
     *   **Injects Scripts:** Force-pushes `setup_env.sh`, `AGENTS_SETUP.md`.
     *   **Starts Build:** Initiates the "Race to Build".
 
@@ -35,7 +35,7 @@ To minimize wait time, the IDE races a local build against a remote one.
 2.  **Prompt:** User inputs instruction ("Make this button blue").
 3.  **Enrichment:** `AIDelegate` captures:
     *   Screenshot (cropped).
-    *   View Hierarchy (from `AccessibilityNodeInfo`).
+    *   View Hierarchy (from `IdeazAccessibilityService`).
 4.  **Request:** `JulesApiClient.createSession` sends the prompt + context.
 5.  **AI Processing:**
     *   Jules reads source.
