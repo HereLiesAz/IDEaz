@@ -27,6 +27,7 @@ class RemoteBuildManager(
 
         var runId: Long? = null
         var attempts = 0
+        var effectiveSha: String? = headSha
 
         // 1. Find the Workflow Run
         while (runId == null && attempts < 20 && coroutineContext.isActive) {
@@ -47,7 +48,23 @@ class RemoteBuildManager(
         }
 
         if (runId == null) {
-            onLog("Remote Build: Workflow run not found for commit $headSha.\n")
+            onLog("Remote Build: Workflow run not found for commit $headSha. Falling back to latest workflow run...\n")
+            try {
+                // Fallback: Fetch the latest workflow run regardless of SHA
+                val runs = api.listWorkflowRuns(user, repo, headSha = null)
+                val run = runs.workflowRuns.firstOrNull()
+                if (run != null) {
+                    runId = run.id
+                    effectiveSha = null
+                    onLog("Remote Build Fallback: Using Run ID: $runId (Status: ${run.status}, Conclusion: ${run.conclusion})\n")
+                }
+            } catch (e: Exception) {
+                onLog("Remote Build Fallback Failed: ${e.message}\n")
+            }
+        }
+
+        if (runId == null) {
+            onLog("Remote Build: No workflow runs found.\n")
             return null
         }
 
@@ -58,7 +75,7 @@ class RemoteBuildManager(
         while ((status == "queued" || status == "in_progress") && coroutineContext.isActive) {
             delay(5000)
             try {
-                val runs = api.listWorkflowRuns(user, repo, headSha = headSha)
+                val runs = api.listWorkflowRuns(user, repo, headSha = effectiveSha)
                 val run = runs.workflowRuns.find { it.id == runId }
                 if (run != null) {
                     status = run.status
