@@ -67,12 +67,12 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 ## Phase 5: Production Polish & Refinement
 - [x] **5.1: Multi-Platform Support**
     - [x] Web Support (Runtime + Auto-Build/Correct).
-    - [x] React Native Support (Partial: Bundler implemented and integrated, Runtime pending).
+    - [x] React Native Support (Bundler, Runtime, and Templates implemented).
     - [x] Flutter Support (Implemented Phases 1-6).
 - [ ] **5.2: Testing**
     - [x] Unit Tests for SettingsViewModel.
     - [x] Unit Tests for MainViewModel (Delegates). (StateDelegate, AIDelegate)
-    - [ ] Integration Tests for Build Pipeline.
+    - [x] Integration Tests for Build Pipeline. (Implemented in `BuildPipelineTest.kt`)
 - [x] **5.3: Advanced Features**
     - [x] Incremental Builds.
     - [x] On-Device Dependency Resolution.
@@ -93,7 +93,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 ## Phase 7: Web Support
 - [x] **7.1: Lay Groundwork for Multi-Platform Support**
 - [x] **7.2: Implement Web Design Support**
-- [x] **7.3: Remove Deprecated Platforms (React Native, Flutter)** (Note: React Native implementation is partial but stalled).
+- [x] **7.3: Remove Deprecated Platforms (React Native, Flutter)** (Note: Platforms are now fully supported. Removal cancelled).
 
 ## Phase 8: Build System Overhaul Investigation
 - [x] Investigation into alternative build systems. (See Phase 11)
