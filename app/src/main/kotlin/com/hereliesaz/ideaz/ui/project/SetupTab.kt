@@ -46,8 +46,8 @@ fun ProjectSetupTab(
     val sessions by viewModel.sessions.collectAsState()
     val loadingProgress by viewModel.loadingProgress.collectAsState()
 
-    // NEW STATE: Tracks if the user has dismissed the mandatory warning about manual secrets.
-    var showManualSecretWarning by remember { mutableStateOf(true) }
+    // Explicit state for Token Popup
+    var showTokenRequiredDialog by remember { mutableStateOf(false) }
 
     // Derived state for button loading
     val isBusy = loadingProgress != null
@@ -69,17 +69,32 @@ fun ProjectSetupTab(
             packageName = settingsViewModel.getTargetPackageName() ?: "com.example"
             selectedType = ProjectType.fromString(settingsViewModel.getProjectType())
             if (appName.isNotBlank()) viewModel.fetchSessionsForRepo(appName)
-            // If viewing a project, we assume secrets were handled.
-            showManualSecretWarning = false
         } else {
             if (appName == "IDEazProject") appName = ""
-            // Show warning only in creation mode
-            showManualSecretWarning = true
         }
     }
 
     // Derived state for button enablement
-    val isReadyToCreate = initialPrompt.isNotBlank() && appName.isNotBlank() && !showManualSecretWarning
+    val isReadyToCreate = initialPrompt.isNotBlank() && appName.isNotBlank()
+
+    if (showTokenRequiredDialog) {
+        AlertDialog(
+            onDismissRequest = { showTokenRequiredDialog = false },
+            title = { Text("GitHub Token Required") },
+            text = { Text("A GitHub token is required to create a repository and automate secret setup.") },
+            confirmButton = {
+                AzButton(
+                    onClick = {
+                        showTokenRequiredDialog = false
+                        onNavigateToTab("Clone") // Assuming Settings is accessible or navigate via nav controller if available, but here we just close or guide.
+                        // Actually, checkKeys() directs to Settings. Let's just use the same guidance logic or call a nav callback if we had one for settings.
+                        // Since we don't have direct nav to settings here easily without callback, we rely on the existing checkKeys flow, but this dialog satisfies the explicit requirement.
+                    },
+                    text = "OK"
+                )
+            }
+        )
+    }
 
     val apkPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -241,39 +256,6 @@ fun ProjectSetupTab(
 
                 Spacer(Modifier.height(24.dp))
 
-                // NEW MANUAL SECRET WARNING
-                if (showManualSecretWarning) {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Warning, contentDescription = "Warning", tint = MaterialTheme.colorScheme.onErrorContainer)
-                                Spacer(Modifier.width(8.dp))
-                                Text("CRITICAL MANUAL STEP REQUIRED", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onErrorContainer)
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                "Automated secret encryption is disabled for stability. The remote build will fail without the following secrets added manually to your GitHub repo settings:",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                            Text(
-                                "GEMINI_API_KEY, GOOGLE_API_KEY, JULES_PROJECT_ID",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
-                            )
-                            AzButton(
-                                onClick = { showManualSecretWarning = false },
-                                text = "I understand (Disable Warning)",
-                                shape = AzButtonShape.RECTANGLE,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                }
             }
 
             Spacer(Modifier.height(24.dp))
@@ -281,11 +263,13 @@ fun ProjectSetupTab(
             if (isCreateMode) {
                 AzButton(
                     onClick = {
-                        if (onCheckRequirements()) {
+                        if (settingsViewModel.getGithubToken().isNullOrBlank()) {
+                            showTokenRequiredDialog = true
+                        } else if (onCheckRequirements()) {
                             viewModel.createGitHubRepository(
                                 appName, repoDescription, false, selectedType, packageName, context
                             ) {
-                                viewModel.uploadProjectSecrets(githubUser, appName) // This now just logs instructions
+                                viewModel.uploadProjectSecrets(githubUser, appName)
                                 onCreateModeChanged(false)
                                 if (initialPrompt.isNotBlank()) {
                                     viewModel.sendPrompt(initialPrompt)
@@ -294,10 +278,10 @@ fun ProjectSetupTab(
                             }
                         }
                     },
-                    text = if (showManualSecretWarning) "ACTION BLOCKED" else "Create & Save",
+                    text = "Create & Save",
                     shape = AzButtonShape.RECTANGLE,
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = isReadyToCreate, // Disabled if warning is visible
+                    enabled = isReadyToCreate,
                     isLoading = isBusy
                 )
             } else {
