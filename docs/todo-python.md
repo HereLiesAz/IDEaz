@@ -27,15 +27,15 @@ This document details the step-by-step plan to implement Python support in IDEaz
     - [x] Initialize `com.chaquo.python.Python` with `AndroidPlatform`.
 
 ## Phase 3: The SDUI Template & Runtime
-- [ ] **3.1: Python Project Template**
-    - [ ] Create `app/src/main/assets/templates/python/` directory. (Created partial structure for Phase 2).
-    - [ ] Create `main.py`: Entry point with a basic HTTP server (Flask/FastAPI/http.server) binding to localhost.
-    - [ ] Create `ui_schema.py`: Helper classes/functions to generate the JSON UI schema.
-- [ ] **3.2: Android Host Template**
-    - [ ] Create `MainActivity.kt` for the Python template.
-    - [ ] Implement `PythonService` (Foreground Service) to host the Python process/server.
-    - [ ] Implement `DynamicUiRenderer` (Composable) to consume JSON and render UI.
-    - [ ] Implement `UiState` and `ViewModel` to poll/stream data from the local Python server.
+- [x] **3.1: Python Project Template**
+    - [x] Create `app/src/main/assets/templates/python/` directory.
+    - [x] Create `main.py`: Entry point with a basic HTTP server (Flask/FastAPI/http.server) binding to localhost.
+    - [x] Create `ui_schema.py`: Helper classes/functions to generate the JSON UI schema.
+- [x] **3.2: Android Host Template**
+    - [x] Create `MainActivity.kt` for the Python template.
+    - [x] Implement `PythonService` (Foreground Service) to host the Python process/server.
+    - [x] Implement `DynamicUiRenderer` (Composable) to consume JSON and render UI.
+    - [x] Implement `UiState` and `ViewModel` to poll/stream data from the local Python server.
 
 ## Phase 4: Hot Reload Implementation
 - [ ] **4.1: File Watching**

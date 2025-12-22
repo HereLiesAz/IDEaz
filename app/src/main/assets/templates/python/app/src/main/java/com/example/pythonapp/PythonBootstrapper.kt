@@ -19,15 +19,12 @@ object PythonBootstrapper {
 
         try {
             val pythonDir = File(context.filesDir, "python")
-            if (!pythonDir.exists()) {
-                Log.d(TAG, "Extracting Python assets...")
-                extractAssets(context, "python", pythonDir)
-            } else {
-                // TODO: Version check or force update?
-                // For now, we assume if it exists, it's good.
-                // Ideally, compare timestamps or versions.
-                // Re-extracting every time is slow.
-            }
+
+            // Always extract assets to ensure code updates are applied
+            // In production, we might want a version/timestamp check, but for IDE/dev usage,
+            // always-overwrite is safer for the "Edit-Run" loop.
+            Log.d(TAG, "Extracting Python assets...")
+            extractAssets(context, "python", pythonDir)
 
             // Set environment variables
             // Note: Standard Chaquopy sets this up via AndroidPlatform,
@@ -51,7 +48,16 @@ object PythonBootstrapper {
             Log.d(TAG, "Initializing Python...")
             val platform = AndroidPlatform(context)
             Python.start(platform)
-            Log.d(TAG, "Python initialized successfully")
+
+            // Add pythonDir to sys.path so user modules (main.py) can be found
+            val py = Python.getInstance()
+            val sys = py.getModule("sys")
+            val path = sys["path"]
+            // "pythonDir" contains the contents of "assets/python/"
+            // So if main.py was in assets/python/main.py, it is now at files/python/main.py
+            path?.callAttr("append", pythonDir.absolutePath)
+
+            Log.d(TAG, "Python initialized successfully. sys.path updated.")
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize Python", e)

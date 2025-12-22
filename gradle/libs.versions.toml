@@ -136,6 +136,7 @@ androidx-room-compiler = { group = "androidx.room", name = "room-compiler", vers
 zipline-core = { module = "app.cash.zipline:zipline", version.ref = "zipline" }
 zipline-loader = { module = "app.cash.zipline:zipline-loader", version.ref = "zipline" }
 chaquopy-runtime = { module = "com.chaquo.python:runtime", version.ref = "chaquopy" }
+chaquopy-target = { module = "com.chaquo.python.runtime:python-3.8.16-android-15", version.ref = "chaquopy" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

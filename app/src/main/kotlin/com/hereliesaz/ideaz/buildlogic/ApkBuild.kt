@@ -44,13 +44,22 @@ class ApkBuild(
                     ZipFile(resApk).use { zip ->
                         zip.entries().asSequence().forEach { entry ->
                             // Avoid duplicates if classes.dex or libs exist in base
-                            // We do NOT filter assets/python/ here anymore, to preserve user source code.
-                            // Runtime assets (stdlib) are injected separately via assetsDir.
                             if (entry.name == "classes.dex" || entry.name.startsWith("lib/")) {
                                 return@forEach
                             }
 
+                            // Important: Preserve compression method (STORED vs DEFLATED)
+                            // resources.arsc MUST be STORED (uncompressed)
                             val newEntry = ZipEntry(entry.name)
+                            if (entry.method == ZipEntry.STORED) {
+                                newEntry.method = ZipEntry.STORED
+                                newEntry.size = entry.size
+                                newEntry.compressedSize = entry.size
+                                newEntry.crc = entry.crc
+                            } else {
+                                newEntry.method = ZipEntry.DEFLATED // Default
+                            }
+
                             out.putNextEntry(newEntry)
                             zip.getInputStream(entry).use { it.copyTo(out) }
                             out.closeEntry()
@@ -60,6 +69,7 @@ class ApkBuild(
 
                 // 2. Add classes.dex
                 val dexEntry = ZipEntry("classes.dex")
+                // classes.dex is usually DEFLATED, which is default
                 out.putNextEntry(dexEntry)
                 FileInputStream(dexFile).use { it.copyTo(out) }
                 out.closeEntry()
@@ -71,6 +81,12 @@ class ApkBuild(
                         libDir.walkTopDown().filter { it.isFile }.forEach { file ->
                             val relativePath = file.relativeTo(libDir).path.replace("\\", "/")
                             val zipPath = "lib/$relativePath"
+
+                            // Native libs should often be uncompressed for direct mmap (extractNativeLibs=false),
+                            // BUT since we are using extractNativeLibs=true (manual extraction or default),
+                            // compression is allowed. However, storing them uncompressed is generally better for startup
+                            // if we switch strategies later. For now, default DEFLATED is fine with extractNativeLibs=true.
+
                             out.putNextEntry(ZipEntry(zipPath))
                             FileInputStream(file).use { it.copyTo(out) }
                             out.closeEntry()
