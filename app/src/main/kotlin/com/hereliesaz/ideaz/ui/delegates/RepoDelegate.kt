@@ -245,6 +245,27 @@ class RepoDelegate(
                 val generatedPackage = "com.$sanitizedUser.$sanitizedApp"
                 settingsViewModel.saveTargetPackageName(generatedPackage)
 
+                // Clone logic:
+                // Check if already cloned
+                val projectDir = settingsViewModel.getProjectPath(appName)
+                val git = GitManager(projectDir)
+                if (!git.isRepo()) {
+                    onOverlayLog("Cloning $owner/$appName...")
+                    val token = settingsViewModel.getGithubToken()
+
+                    // CRITICAL FIX: Ensure clone runs on IO dispatcher to avoid main thread hang
+                    withContext(Dispatchers.IO) {
+                        try {
+                            git.clone(owner, appName, owner, token) { p, t ->
+                                onGitProgress(p, t)
+                            }
+                        } catch (e: Exception) {
+                            throw Exception("Clone failed: ${e.message}", e)
+                        }
+                    }
+                    onOverlayLog("Clone complete.")
+                }
+
                 onSuccess(owner, defaultBranch)
             } catch (e: Exception) {
                 onOverlayLog("Error loading repository: ${e.message}")
