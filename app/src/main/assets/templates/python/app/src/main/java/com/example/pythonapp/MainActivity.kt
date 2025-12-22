@@ -37,8 +37,9 @@ class MainActivity : ComponentActivity() {
                     val uiState by viewModel.uiState.collectAsState()
                     val error by viewModel.error.collectAsState()
 
-                    if (uiState != null) {
-                        DynamicUiRenderer(component = uiState!!, onAction = { viewModel.sendAction(it) })
+                    val state = uiState
+                    if (state != null) {
+                        DynamicUiRenderer(component = state, onAction = { viewModel.sendAction(it) })
                     } else {
                         Box(contentAlignment = Alignment.Center) {
                             if (error != null) {
