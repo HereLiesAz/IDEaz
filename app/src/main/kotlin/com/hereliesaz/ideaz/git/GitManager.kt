@@ -86,8 +86,20 @@ class GitManager(private val projectDir: File) {
      * stages all changes in the working directory (equivalent to `git add .`).
      */
     fun addAll() {
-        Git.open(projectDir).use { git ->
-            git.add().addFilepattern(".").call()
+        try {
+            Git.open(projectDir).use { git ->
+                git.add().addFilepattern(".").call()
+            }
+        } catch (e: Exception) {
+            val indexLock = File(projectDir, ".git/index.lock")
+            if (indexLock.exists()) {
+                indexLock.delete()
+                Git.open(projectDir).use { git ->
+                    git.add().addFilepattern(".").call()
+                }
+            } else {
+                throw e
+            }
         }
     }
 
