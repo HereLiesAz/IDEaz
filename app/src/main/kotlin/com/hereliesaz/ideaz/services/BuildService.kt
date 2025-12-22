@@ -64,6 +64,7 @@ class BuildService : Service() {
     private var currentProjectPath: String? = null
     private var lastNotificationUpdate = 0L
     private var pendingNotificationUpdate: Job? = null
+    private var fileObserver: android.os.FileObserver? = null
 
     private val binder = object : IBuildService.Stub() {
         override fun startBuild(projectPath: String, callback: IBuildCallback) = this@BuildService.startBuild(projectPath, callback)
@@ -79,6 +80,7 @@ class BuildService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        fileObserver?.stopWatching()
         serviceScope.cancel()
     }
 
@@ -381,6 +383,9 @@ class BuildService : Service() {
                 updateNotification("Starting build...")
 
                 val projectDir = File(projectPath)
+
+                // Start Hot Reload Watcher
+                startHotReloadWatcher(projectDir)
                 val type = ProjectAnalyzer.detectProjectType(projectDir)
 
                 val prefs = PreferenceManager.getDefaultSharedPreferences(this@BuildService)
@@ -530,9 +535,25 @@ class BuildService : Service() {
                     sourceDirs.add(generatedHostDir)
                 }
 
+                // --- PYTHON INJECTION ---
+                val pythonInjector = PythonInjector(resolver.resolvedArtifacts, buildDir)
+                val pythonResult = pythonInjector.execute(wrappedCallback)
+                if (!pythonResult.success && isActive) {
+                    wrappedCallback.onFailure(pythonResult.output)
+                    return@launch
+                }
+
                 buildSteps.add(KotlincCompile(kotlincJarPath!!, androidJarPath, sourceDirs, File(buildDir, "classes"), fullClasspath, javaBinaryPath!!))
                 buildSteps.add(D8Compile(d8Path!!, javaBinaryPath, androidJarPath, File(buildDir, "classes").absolutePath, File(buildDir, "classes").absolutePath, fullClasspath))
-                buildSteps.add(ApkBuild(File(buildDir, "app-signed.apk").absolutePath, File(buildDir, "app.apk").absolutePath, File(buildDir, "classes").absolutePath))
+
+                // Updated ApkBuild to include Native Libs and Assets
+                buildSteps.add(ApkBuild(
+                    finalApkPath = File(buildDir, "app-signed.apk").absolutePath,
+                    resourcesApkPath = File(buildDir, "app.apk").absolutePath,
+                    classesDir = File(buildDir, "classes").absolutePath,
+                    jniLibsDir = File(buildDir, "intermediates/jniLibs").absolutePath,
+                    assetsDir = File(buildDir, "intermediates/assets").absolutePath
+                ))
                 buildSteps.add(ApkSign(apkSignerPath!!, javaBinaryPath, keystorePath!!, ksPass, keyAlias, File(buildDir, "app-signed.apk").absolutePath))
 
                 // --- GUEST BUILD ---
@@ -599,5 +620,43 @@ class BuildService : Service() {
             return relative.removeSuffix(".kt")
         }
         return null
+    }
+
+    private fun startHotReloadWatcher(projectDir: File) {
+        fileObserver?.stopWatching()
+        val pythonSrcDir = File(projectDir, "app/src/main/assets/python")
+        if (!pythonSrcDir.exists()) return
+
+        fileObserver = object : android.os.FileObserver(pythonSrcDir.absolutePath, CLOSE_WRITE) {
+            override fun onEvent(event: Int, path: String?) {
+                if (path == null) return
+                // Debounce or immediate? Immediate for now.
+                // We need to read the file and send broadcast.
+                // Cannot call suspend functions or IO on this thread safely without scope.
+                serviceScope.launch(Dispatchers.IO) {
+                    try {
+                        val file = File(pythonSrcDir, path)
+                        if (file.exists() && file.isFile) {
+                            val content = file.readText()
+                            val packageName = ProjectAnalyzer.detectPackageName(projectDir)
+
+                            if (packageName != null) {
+                                val intent = Intent("com.ideaz.ACTION_RELOAD_PYTHON")
+                                intent.putExtra("path", path)
+                                intent.putExtra("content", content)
+                                intent.setPackage(packageName)
+                                sendBroadcast(intent)
+                                Log.d(TAG, "Sent Hot Reload broadcast for $path to $packageName")
+                                updateNotification("Hot Reload: $path")
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Hot Reload failed", e)
+                    }
+                }
+            }
+        }
+        fileObserver?.startWatching()
+        Log.d(TAG, "Started Hot Reload watcher on ${pythonSrcDir.absolutePath}")
     }
 }
