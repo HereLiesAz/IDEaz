@@ -53,10 +53,14 @@ fun WebProjectHost(
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
+                // IDEaz: Enabled to allow loading the project's own files from local storage.
                 allowFileAccess = true
-                allowContentAccess = true
-                allowFileAccessFromFileURLs = true
-                allowUniversalAccessFromFileURLs = true
+                // SENTINEL: Disabled to prevent access to Android content providers (contacts, etc.).
+                allowContentAccess = false
+                // SENTINEL: Disabled to prevent XHR/fetch requests to other file URLs, mitigating local file theft.
+                allowFileAccessFromFileURLs = false
+                // SENTINEL: CRITICAL FIX. Disabled to prevent cross-origin file access (e.g., reading SharedPreferences from index.html).
+                allowUniversalAccessFromFileURLs = false
             }
 
             addJavascriptInterface(IdeazJsInterface(context), "Ideaz")
