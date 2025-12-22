@@ -261,7 +261,16 @@ interface GitHubApi {
 object GitHubApiClient {
     private const val BASE_URL = "https://api.github.com/"
 
+    private var cachedToken: String? = null
+    @Volatile
+    private var cachedService: GitHubApi? = null
+
+    @Synchronized
     fun createService(token: String): GitHubApi {
+        if (token == cachedToken && cachedService != null) {
+            return cachedService!!
+        }
+
         val authInterceptor = Interceptor { chain ->
             val request = chain.request().newBuilder()
                 .header("Authorization", "Bearer $token")
@@ -282,11 +291,15 @@ object GitHubApiClient {
 
         val json = Json { ignoreUnknownKeys = true }
 
-        return Retrofit.Builder()
+        val service = Retrofit.Builder()
             .baseUrl(BASE_URL)
             .client(client)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(GitHubApi::class.java)
+
+        cachedToken = token
+        cachedService = service
+        return service
     }
 }

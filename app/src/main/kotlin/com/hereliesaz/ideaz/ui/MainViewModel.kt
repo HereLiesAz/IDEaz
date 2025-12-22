@@ -541,6 +541,7 @@ class MainViewModel(
     /** Saves project configuration and triggers the initial build/setup. */
     fun saveAndInitialize(appName: String, user: String, branch: String, pkg: String, type: ProjectType, context: Context, initialPrompt: String? = null) {
         viewModelScope.launch {
+            aiDelegate.clearSession()
             settingsViewModel.saveProjectConfig(appName, user, branch)
             settingsViewModel.saveTargetPackageName(pkg)
             settingsViewModel.setProjectType(type.name)
@@ -727,6 +728,7 @@ class MainViewModel(
     /** Loads a local project by name. */
     fun loadProject(name: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
+            aiDelegate.clearSession()
             settingsViewModel.setAppName(name)
             val user = settingsViewModel.getGithubUser()
             if (!user.isNullOrBlank()) repoDelegate.uploadProjectSecrets(user, name)
