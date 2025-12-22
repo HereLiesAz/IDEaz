@@ -43,8 +43,10 @@ class ApkBuild(
                 if (resApk.exists()) {
                     ZipFile(resApk).use { zip ->
                         zip.entries().asSequence().forEach { entry ->
-                            // Avoid duplicates if classes.dex or libs exist in base (unlikely but safe)
-                            if (entry.name == "classes.dex" || entry.name.startsWith("lib/") || entry.name.startsWith("assets/python/")) {
+                            // Avoid duplicates if classes.dex or libs exist in base
+                            // We do NOT filter assets/python/ here anymore, to preserve user source code.
+                            // Runtime assets (stdlib) are injected separately via assetsDir.
+                            if (entry.name == "classes.dex" || entry.name.startsWith("lib/")) {
                                 return@forEach
                             }
 
@@ -67,18 +69,7 @@ class ApkBuild(
                     val libDir = File(jniLibsDir)
                     if (libDir.exists()) {
                         libDir.walkTopDown().filter { it.isFile }.forEach { file ->
-                            // Structure: intermediates/jniLibs/{abi}/libfoo.so
-                            // Output: lib/{abi}/libfoo.so
-                            // The jniLibsDir passed in is likely 'intermediates/jniLibs' or 'intermediates/jniLibs/arm64-v8a'
-                            // Let's assume passed path is 'intermediates/jniLibs' containing abi folders,
-                            // OR 'intermediates/jniLibs/abi'.
-                            // Based on PythonInjector, we export to 'intermediates/jniLibs/{abi}'.
-                            // If we pass 'intermediates/jniLibs', we get structure.
-
                             val relativePath = file.relativeTo(libDir).path.replace("\\", "/")
-                            // If libDir is 'intermediates/jniLibs', relative is 'arm64-v8a/lib.so'.
-                            // Zip Path should be 'lib/arm64-v8a/lib.so'.
-
                             val zipPath = "lib/$relativePath"
                             out.putNextEntry(ZipEntry(zipPath))
                             FileInputStream(file).use { it.copyTo(out) }
@@ -87,15 +78,11 @@ class ApkBuild(
                     }
                 }
 
-                // 4. Add Extra Assets (assets/python/...)
+                // 4. Add Extra Assets (assets/...)
                 if (assetsDir != null) {
                     val assetRoot = File(assetsDir)
                     if (assetRoot.exists()) {
                         assetRoot.walkTopDown().filter { it.isFile }.forEach { file ->
-                            // Structure: intermediates/assets/python/stdlib.zip
-                            // Output: assets/python/stdlib.zip
-                            // If assetsDir passed is 'intermediates/assets', relative is 'python/stdlib.zip'.
-
                             val relativePath = file.relativeTo(assetRoot).path.replace("\\", "/")
                             val zipPath = "assets/$relativePath"
                             out.putNextEntry(ZipEntry(zipPath))

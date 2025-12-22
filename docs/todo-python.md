@@ -18,17 +18,17 @@ This document details the step-by-step plan to implement Python support in IDEaz
     - [x] Inject `android.permission.FOREGROUND_SERVICE` (if moving to a service-based host).
 
 ## Phase 2: The Runtime Bootstrap
-- [ ] **2.1: Bootstrap Logic**
-    - [ ] Create `PythonBootstrapper.kt` (or similar utility) in the project templates.
-    - [ ] Implement `initialize(context: Context)` function.
-    - [ ] Implement logic to check if `filesDir/python` exists; if not, extract `assets/python` to `filesDir`.
-    - [ ] Set `PYTHONHOME` environment variable to `filesDir/python`.
-    - [ ] Call `System.loadLibrary("chaquopy_java")` (and `libpython` if needed).
-    - [ ] Initialize `com.chaquo.python.Python` with `AndroidPlatform`.
+- [x] **2.1: Bootstrap Logic**
+    - [x] Create `PythonBootstrapper.kt` (or similar utility) in the project templates.
+    - [x] Implement `initialize(context: Context)` function.
+    - [x] Implement logic to check if `filesDir/python` exists; if not, extract `assets/python` to `filesDir`.
+    - [x] Set `PYTHONHOME` environment variable to `filesDir/python`. (Handled by AndroidPlatform/bootstrap).
+    - [x] Call `System.loadLibrary("chaquopy_java")` (and `libpython` if needed).
+    - [x] Initialize `com.chaquo.python.Python` with `AndroidPlatform`.
 
 ## Phase 3: The SDUI Template & Runtime
 - [ ] **3.1: Python Project Template**
-    - [ ] Create `app/src/main/assets/templates/python/` directory.
+    - [ ] Create `app/src/main/assets/templates/python/` directory. (Created partial structure for Phase 2).
     - [ ] Create `main.py`: Entry point with a basic HTTP server (Flask/FastAPI/http.server) binding to localhost.
     - [ ] Create `ui_schema.py`: Helper classes/functions to generate the JSON UI schema.
 - [ ] **3.2: Android Host Template**
