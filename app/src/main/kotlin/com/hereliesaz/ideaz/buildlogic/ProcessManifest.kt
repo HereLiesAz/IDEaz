@@ -73,9 +73,41 @@ class ProcessManifest(
 
             // 4. Inject Application Tag if missing
             val appList = root.getElementsByTagName("application")
+            val app: Element
             if (appList.length == 0) {
-                val newApp = doc.createElement("application")
-                root.appendChild(newApp)
+                app = doc.createElement("application")
+                root.appendChild(app)
+            } else {
+                app = appList.item(0) as Element
+            }
+
+            // Inject android:extractNativeLibs="true" for Python/Chaquopy (Required for loading .so directly)
+            if (!app.hasAttribute("android:extractNativeLibs")) {
+                app.setAttribute("android:extractNativeLibs", "true")
+            }
+
+            // Inject android:usesCleartextTraffic="true" for localhost HTTP communication (SDUI)
+            if (!app.hasAttribute("android:usesCleartextTraffic")) {
+                app.setAttribute("android:usesCleartextTraffic", "true")
+            }
+
+            // Inject permissions (INTERNET for SDUI localhost, FOREGROUND_SERVICE for Python host)
+            val permissions = listOf("android.permission.INTERNET", "android.permission.FOREGROUND_SERVICE")
+            for (perm in permissions) {
+                val existingPerms = root.getElementsByTagName("uses-permission")
+                var exists = false
+                for (i in 0 until existingPerms.length) {
+                    val node = existingPerms.item(i) as Element
+                    if (node.getAttribute("android:name") == perm) {
+                        exists = true
+                        break
+                    }
+                }
+                if (!exists) {
+                    val newPerm = doc.createElement("uses-permission")
+                    newPerm.setAttribute("android:name", perm)
+                    root.insertBefore(newPerm, root.firstChild)
+                }
             }
 
             // 5. Fix android:exported

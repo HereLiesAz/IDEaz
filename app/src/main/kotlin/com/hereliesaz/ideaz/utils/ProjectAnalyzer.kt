@@ -11,6 +11,11 @@ object ProjectAnalyzer {
         // Check for Web
         if (File(projectDir, "index.html").exists()) return ProjectType.WEB
 
+        // Check for Python (must be checked before Android as it shares structure)
+        if (File(projectDir, "app/src/main/assets/python/main.py").exists()) {
+            return ProjectType.PYTHON
+        }
+
         // Check for Flutter
         // Confirmed: pubspec.yaml triggers Flutter project detection
         if (File(projectDir, "pubspec.yaml").exists()) return ProjectType.FLUTTER
