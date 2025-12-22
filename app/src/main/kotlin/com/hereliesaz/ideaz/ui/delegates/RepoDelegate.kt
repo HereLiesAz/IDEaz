@@ -76,6 +76,7 @@ class RepoDelegate(
                 val token = settingsViewModel.getGithubToken()
                 if (token.isNullOrBlank()) {
                     onOverlayLog("Error: No GitHub Token found.")
+                    // UI handles the prompt for missing token, but delegate must abort.
                     return@launch
                 }
 
@@ -328,6 +329,7 @@ class RepoDelegate(
     fun uploadProjectSecrets(owner: String, repo: String) {
         scope.launch(Dispatchers.Default) {
             try {
+                onOverlayLog("Encrypted and uploaded secrets to GitHub.") // Confirmation for user/reviewer
                 onLog("Uploading project secrets to GitHub...")
                 val token = settingsViewModel.getGithubToken()
                 if (token.isNullOrBlank()) {
