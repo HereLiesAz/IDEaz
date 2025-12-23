@@ -17,3 +17,8 @@
 **Vulnerability:** WebView configured with `allowUniversalAccessFromFileURLs = true`.
 **Learning:** This setting allows JavaScript in a file:// URL to read ANY other file on the device that the app has access to (e.g. shared preferences with API keys), bypassing the Same-Origin Policy.
 **Prevention:** Always set `allowUniversalAccessFromFileURLs = false` (default) unless absolutely necessary and scoped carefully.
+
+## 2025-05-27 - [AI Prompt Injection via Broadcast]
+**Vulnerability:** `SystemEventDelegate` used `RECEIVER_EXPORTED` for `AI_PROMPT` broadcasts, allowing any app on the device to trigger AI tasks and potentially inject prompts.
+**Learning:** Dynamic broadcast receivers are exported by default. On Android 13+ (Tiramisu), always use `RECEIVER_NOT_EXPORTED` for internal broadcasts.
+**Prevention:** Use `intent.setPackage(packageName)` on senders and `RECEIVER_NOT_EXPORTED` on receivers to secure internal communication.
