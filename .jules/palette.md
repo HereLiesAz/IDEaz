@@ -14,3 +14,7 @@ This journal records critical UX/accessibility learnings discovered during devel
 ## 2025-12-21 - Empty States for Async Data
 **Learning:** Empty lists without feedback confuse users ("Is it loading? Is it broken?").
 **Action:** Always provide a descriptive Empty State for lists, explaining *why* it's empty (e.g., "No repos found" vs "Not authenticated") and guiding the user's next step.
+
+## 2024-05-22 - Action Buttons in Empty States
+**Learning:** Text-only empty states (e.g. "No token found") leave users stranded.
+**Action:** Always provide a direct action button (e.g. "Go to Settings") in empty states to unblock the user.

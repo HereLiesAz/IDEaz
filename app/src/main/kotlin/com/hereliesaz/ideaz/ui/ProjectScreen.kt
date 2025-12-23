@@ -340,7 +340,8 @@ fun ProjectScreen(
                             isCreateMode = true // Enable Create mode
                             tabIndex = tabs.indexOf("Setup")
                         }
-                    }
+                    },
+                    onNavigateToSettings = { navController.navigate("settings") }
                 )
                 "Load" -> ProjectLoadTab(viewModel, settingsViewModel, context) {
                     if(checkLoadRequirements()) {
