@@ -16,11 +16,15 @@
 *   **`apksigner`:** Used for signing the final APK.
 
 ## External Libraries
-*   **JGit:** Used for Git operations.
-*   **Retrofit:** Used for API calls.
-*   **Composables Core:** Used for the Bottom Sheet implementation.
+*   **JGit:** Used for Git operations (org.eclipse.jgit).
+*   **Retrofit:** Used for API calls (com.squareup.retrofit2).
+*   **Maven Resolver (Aether):** Used for dependency resolution.
+*   **Composables Core:** Used for the Bottom Sheet implementation (compose-unstyled-core).
 *   **AzNavRail:** Used for the Navigation Rail and Overlay Service logic.
-*   **Sora Editor:** Used for the code editor UI components.
+*   **Sora Editor:** Used for the code editor UI components (io.github.rosemoe.sora-editor).
+*   **Zipline:** Used for hybrid host architecture (app.cash.zipline).
+*   **LazySodium:** Used for crypto operations (com.goterl.lazysodium).
+*   **Generative AI:** Google AI Client (com.google.ai.client.generativeai).
 
 ## Constraints & Known Issues
 *   **Transparency:** The IDE overlay background MUST be transparent during "Interact/Select" modes, but **Settings and Setup screens must be Opaque**.
