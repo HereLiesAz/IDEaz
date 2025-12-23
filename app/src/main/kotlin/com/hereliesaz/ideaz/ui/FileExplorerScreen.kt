@@ -29,7 +29,8 @@ fun FileExplorerScreen(
     var currentPath by remember(projectDir) { mutableStateOf(projectDir) }
 
     val files = remember(currentPath) {
-        currentPath?.listFiles()?.sortedBy { it.isDirectory }?.sortedBy { it.name } ?: emptyList()
+        // Bolt: Optimized sorting - Single pass, Directories first, then alphabetical
+        currentPath?.listFiles()?.sortedWith(compareBy({ !it.isDirectory }, { it.name })) ?: emptyList()
     }
 
     if (appName == null || projectDir == null || !projectDir.exists()) {
@@ -60,7 +61,7 @@ fun FileExplorerScreen(
                     )
                 }
             }
-            items(files) { file ->
+            items(files, key = { it.absolutePath }) { file ->
                 Text(
                     text = if (file.isDirectory) "${file.name}/" else file.name,
                     modifier = Modifier.clickable {
