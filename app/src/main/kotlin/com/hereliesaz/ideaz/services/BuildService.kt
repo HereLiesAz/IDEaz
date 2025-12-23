@@ -94,6 +94,7 @@ class BuildService : Service() {
                 val input = remoteInput.getCharSequence(EXTRA_TEXT_REPLY).toString()
                 val promptIntent = Intent("com.hereliesaz.ideaz.AI_PROMPT").apply {
                     putExtra("PROMPT", input)
+                    setPackage(packageName)
                 }
                 sendBroadcast(promptIntent)
             }

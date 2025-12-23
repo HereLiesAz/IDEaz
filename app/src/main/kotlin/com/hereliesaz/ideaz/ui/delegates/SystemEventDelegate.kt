@@ -100,10 +100,10 @@ class SystemEventDelegate(
         val visFilter = IntentFilter("com.hereliesaz.ideaz.TARGET_APP_VISIBILITY")
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            application.registerReceiver(promptReceiver, promptFilter, Context.RECEIVER_EXPORTED)
+            application.registerReceiver(promptReceiver, promptFilter, Context.RECEIVER_NOT_EXPORTED)
             application.registerReceiver(visibilityReceiver, visFilter, Context.RECEIVER_NOT_EXPORTED)
         } else {
-            ContextCompat.registerReceiver(application, promptReceiver, promptFilter, ContextCompat.RECEIVER_EXPORTED)
+            ContextCompat.registerReceiver(application, promptReceiver, promptFilter, ContextCompat.RECEIVER_NOT_EXPORTED)
             ContextCompat.registerReceiver(application, visibilityReceiver, visFilter, ContextCompat.RECEIVER_NOT_EXPORTED)
         }
     }
