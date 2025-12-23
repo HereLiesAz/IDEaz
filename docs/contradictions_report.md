@@ -1,36 +1,50 @@
-# Documentation Contradictions & Discrepancies Report
+# Documentation vs. Codebase Contradictions Report
 
-This report highlights glaring contradictions between the project documentation and the actual source code, identified during a comprehensive audit and subsequently resolved.
+This report documents discrepancies identified between the project's documentation and the actual source code state as of the current audit.
 
-## Resolved Contradictions
+## 1. File Structure Discrepancies (`docs/file_descriptions.md`)
 
-### 1. Service Architecture & Naming
-*   **Contradiction:** Documentation (`architecture.md`, `screens.md`, `file_descriptions.md`) frequently referenced a `UIInspectionService`, sometimes describing it as an Accessibility Service and sometimes as the Overlay Service.
-*   **Reality:** The code has two distinct services:
-    *   `IdeazAccessibilityService.kt` (Accessibility Service): Handles `AccessibilityNodeInfo` retrieval (Inspection).
-    *   `IdeazOverlayService.kt` (Foreground Service): Handles the `OverlayView` (Visuals) via `TYPE_APPLICATION_OVERLAY`.
-*   **Resolution:** Documentation has been updated to explicitly name and describe these two services and their distinct roles. `UIInspectionService` references have been removed.
+*   **`JulesApiClient` Location:**
+    *   **Docs:** Lists `app/src/main/kotlin/com/hereliesaz/ideaz/api/JulesApiClient.kt`.
+    *   **Code:** Actual location is `app/src/main/kotlin/com/hereliesaz/ideaz/jules/JulesApiClient.kt`.
+*   **Missing Build Logic:**
+    *   **Docs:** Missing references to new build steps in `buildlogic/`: `PythonInjector.kt`, `ScalaCompile.kt`, `SmaliCompile.kt`, `RemoteBuildManager.kt`, `JavaCompile.kt`.
+*   **Missing UI Screens:**
+    *   **Docs:** Missing `LibrariesScreen.kt` (Dependency Manager) and `FileExplorerScreen.kt`.
+    *   **Code:** These screens exist and are reachable via `IdeNavRail`.
+*   **Missing Utils:**
+    *   **Docs:** Missing numerous utility classes in `utils/`: `BackupManager.kt`, `DependencyManager.kt`, `EnvironmentSetup.kt`, `ProjectConfigManager.kt`, etc.
+*   **Assets:**
+    *   **Docs:** Claims workflows reside in `app/src/main/assets/workflows/`.
+    *   **Code:** This directory does not exist. Workflows are hardcoded as strings in `ProjectConfigManager.kt`.
 
-### 2. Build Pipeline & Toolchain
-*   **Contradiction:** `docs/build_pipeline.md` claimed that build tools (`aapt2`, `kotlinc`, `d8`) were static `aarch64` binaries bundled in `jniLibs` and executed natively.
-*   **Reality:** `ToolManager.kt` implements a download-based strategy (`tools.zip` -> `filesDir/local_build_tools`). Most tools are JARs (`kotlin-compiler.jar`, `d8.jar`) executed via the bundled `java` binary. `jniLibs` is unused.
-*   **Resolution:** `docs/build_pipeline.md` and `docs/file_descriptions.md` have been rewritten to reflect the downloadable JAR-based toolchain.
+## 2. Core Philosophy Discrepancies (`docs/blueprint.md`)
 
-### 3. Project Screen Tabs
-*   **Contradiction:** `docs/screens.md` listed tabs as "Create, Load, Clone" or "Load, Clone, Create". `AGENTS.md` noted the correct order.
-*   **Reality:** `ProjectScreen.kt` defines the tabs as `Setup`, `Load`, `Clone`. "Create" is a mode within the "Setup" tab.
-*   **Resolution:** `docs/screens.md` has been updated to match the code.
+*   **"Post-Code" vs. File Explorer:**
+    *   **Docs:** Emphasize a "Post-Code" or "No-Code" environment where users interact via the overlay.
+    *   **Code:** Includes a functional `FileExplorerScreen` and `CodeEditor`, reachable via the "Files" tab. While potentially for debugging, its prominence contradicts the strict "Post-Code" messaging.
 
-### 4. CI/CD Workflow Names
-*   **Contradiction:** `docs/workflow.md` and `docs/testing.md` referred to `android_ci_jules.yml` and `release.yml`.
-*   **Reality:** The actual workflow file is `build-and-release.yml`, which handles both CI and Release logic.
-*   **Resolution:** All workflow documentation has been updated to reference `build-and-release.yml`.
+## 3. Workflow Configuration (`docs/workflow.md`, `docs/data_layer.md`)
 
-### 5. Missing Feature Documentation
-*   **Contradiction:** `docs/build_pipeline.md` did not mention the Hybrid Host (Redwood/Zipline) build steps, despite Phase 11 being marked complete.
-*   **Reality:** `BuildService.kt` includes steps for `RedwoodCodegen`, `ZiplineCompile`, and `ZiplineManifestStep`.
-*   **Resolution:** Added "Hybrid Host Generation" steps to `docs/build_pipeline.md`.
+*   **Merged Workflows:**
+    *   **Docs:** `workflow.md` claims `build-and-release.yml` replaces separate `android_ci_jules.yml` and `release.yml`.
+    *   **Code:** `ProjectConfigManager.kt` explicitly injects `android_ci_jules.yml` and `release.yml` separately.
+*   **Asset Injection:**
+    *   **Docs:** `data_layer.md` states workflows are injected from `assets/workflows`.
+    *   **Code:** They are injected from hardcoded strings in `ProjectConfigManager.kt`.
 
-## Remaining / Minor Notes
-*   **JulesCliClient:** Exists in code but is marked as Legacy/Reference. Documentation now reflects this.
-*   **React Native:** Support is now fully implemented (Native Runner + Bundler).
+## 4. UI/Screen Definitions (`docs/screens.md`)
+
+*   **Missing Screens:**
+    *   Does not document the **File Explorer** ("Files" tab) or **Dependency Manager** ("Libs" tab).
+
+## 5. API/Package Discrepancies
+
+*   **Jules API:** The documentation places `JulesApiClient` in the `api` package, but the code has moved it to a dedicated `jules` package, likely to separate the Agentic Interface from standard REST clients.
+
+## Remediation Plan
+
+The documentation update plan includes:
+1.  Updating `file_descriptions.md` to reflect the actual file tree.
+2.  Updating `screens.md` to include the developer tools (Files, Libs).
+3.  Updating `data_layer.md` and `workflow.md` to correct the workflow injection mechanism and filenames.
