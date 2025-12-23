@@ -31,7 +31,8 @@ fun ProjectCloneTab(
     settingsViewModel: SettingsViewModel,
     context: Context,
     onRepoSelected: (GitHubRepoResponse) -> Unit,
-    onCreateNewSelected: () -> Unit
+    onCreateNewSelected: () -> Unit,
+    onNavigateToSettings: () -> Unit
 ) {
     val ownedRepos by viewModel.ownedRepos.collectAsState()
     val loadingProgress by viewModel.loadingProgress.collectAsState()
@@ -128,6 +129,14 @@ fun ProjectCloneTab(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        if (!hasToken) {
+                            Spacer(Modifier.height(16.dp))
+                            AzButton(
+                                onClick = onNavigateToSettings,
+                                text = "Go to Settings",
+                                shape = AzButtonShape.RECTANGLE
+                            )
+                        }
                     }
                 }
             }
