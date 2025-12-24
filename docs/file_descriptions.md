@@ -68,10 +68,10 @@
 *   `ProjectHistory.kt`: History tracking model.
 
 #### services/
-*   `BuildService.kt`: Background service running the build toolchain.
+*   `BuildService.kt`: Background service running the build toolchain (runs in `:build_process`).
 *   `IdeazAccessibilityService.kt`: Accessibility Service for UI inspection (node info retrieval).
 *   `IdeazOverlayService.kt`: Foreground Service for the "Selection Overlay" (System Alert Window) allowing UI inspection and interaction.
-*   `CrashReportingService.kt`: Service for reporting fatal/non-fatal errors to AI/GitHub.
+*   `CrashReportingService.kt`: Service for reporting fatal/non-fatal errors to AI/GitHub (runs in `:crash_reporter`).
 *   `ScreenshotService.kt`: Service for capturing screenshots.
 
 #### ui/

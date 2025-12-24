@@ -59,7 +59,8 @@ These screens are for low-level debugging and management, bypassing the "Post-Co
     *   **Features:** Navigate directories, open files.
     *   **Context:** Useful for verifying generated code or assets.
 *   **File Viewer (`FileContentScreen.kt`):**
-    *   **Role:** Read-only (or limited edit) view of file content with syntax highlighting.
+    *   **Role:** **Emergency/Debug Tool.** View and edit file content with syntax highlighting.
+    *   **Note:** Direct code editing is discouraged in the "Post-Code" philosophy but provided as a fail-safe for when the AI cannot resolve an issue.
 *   **Dependency Manager (`LibrariesScreen.kt`):**
     *   **Role:** Manage project dependencies.
     *   **Features:** View installed libraries, check for updates, view failed dependency errors.

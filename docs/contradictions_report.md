@@ -42,9 +42,17 @@ This report documents discrepancies identified between the project's documentati
 
 *   **Jules API:** The documentation places `JulesApiClient` in the `api` package, but the code has moved it to a dedicated `jules` package, likely to separate the Agentic Interface from standard REST clients.
 
+## 6. Hybrid Host / Zipline Status
+
+*   **Zipline:**
+    *   **Docs:** `TODO.md` marked Zipline integration as complete.
+    *   **Code:** `MainViewModel.kt` explicitly disables Zipline loading due to API deprecation (`// FIXME: Zipline API loadOnce/load is deprecated...`).
+
 ## Remediation Plan
 
 The documentation update plan includes:
 1.  Updating `file_descriptions.md` to reflect the actual file tree.
-2.  Updating `screens.md` to include the developer tools (Files, Libs).
+2.  Updating `screens.md` to include the developer tools (Files, Libs) and clarify the Editor's role.
 3.  Updating `data_layer.md` and `workflow.md` to correct the workflow injection mechanism and filenames.
+4.  Updating `TODO.md` to reflect the blocked status of Zipline.
+5.  Updating `misc.md` to include missing key libraries.
