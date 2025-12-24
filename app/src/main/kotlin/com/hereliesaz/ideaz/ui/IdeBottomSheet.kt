@@ -37,10 +37,32 @@ fun IdeBottomSheet(
     onSendPrompt: (String) -> Unit
 ) {
     val isHalfwayExpanded = sheetState.currentDetent == halfwayDetent || sheetState.currentDetent == fullyExpandedDetent
-    val logMessages by viewModel.filteredLog.collectAsState(initial = emptyList())
+
+    // --- OPTIMIZATION: Collect specific log streams directly ---
+    // This avoids filtering the main log on every recomposition/update.
+    val logMessages by viewModel.filteredLog.collectAsState(initial = emptyList()) // "All"
+    val gitLog by viewModel.stateDelegate.gitLog.collectAsState()
+    val aiLog by viewModel.stateDelegate.aiLog.collectAsState()
+    val pureBuildLog by viewModel.stateDelegate.pureBuildLog.collectAsState()
+    val systemLogMessages by viewModel.stateDelegate.systemLog.collectAsState()
+
     val clipboardManager = LocalClipboardManager.current
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+
+    // Tabs
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val tabs = listOf("All", "Build", "Git", "AI", "System")
+
+    // --- OPTIMIZATION: Simple selection instead of expensive filtering ---
+    // The lists are already prepared by StateDelegate.
+    val filteredMessages = when (selectedTab) {
+        1 -> pureBuildLog
+        2 -> gitLog
+        3 -> aiLog
+        4 -> systemLogMessages
+        else -> logMessages
+    }
 
     // --- OPTIMIZED AUTO-SCROLL ---
     // Avoid animateScrollToItem which is heavy and causes high CPU/ANRs during fast updates.
@@ -56,10 +78,10 @@ fun IdeBottomSheet(
         }
     }
 
-    LaunchedEffect(logMessages.size) {
-        if (autoScrollEnabled && logMessages.isNotEmpty()) {
+    LaunchedEffect(filteredMessages.size) { // Observe filteredMessages size
+        if (autoScrollEnabled && filteredMessages.isNotEmpty()) {
             // Use scrollToItem (instant) instead of animateScrollToItem (heavy)
-            listState.scrollToItem(logMessages.size - 1)
+            listState.scrollToItem(filteredMessages.size - 1)
         }
     }
 
@@ -96,23 +118,6 @@ fun IdeBottomSheet(
     }
 
     val bottomBufferHeight = screenHeight * 0.075f
-
-    // Tabs
-    var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("All", "Build", "Git", "AI", "System")
-
-    val systemLogMessages by viewModel.stateDelegate.systemLog.collectAsState()
-
-    // Memoize filtered logs to avoid expensive re-filtering on every recomposition
-    val filteredMessages = remember(logMessages, systemLogMessages, selectedTab) {
-        when (selectedTab) {
-            1 -> logMessages.filter { !it.contains("[AI]") && !it.contains("[GIT]") }
-            2 -> logMessages.filter { it.contains("[GIT]") }
-            3 -> logMessages.filter { it.contains("[AI]") }
-            4 -> systemLogMessages
-            else -> logMessages
-        }
-    }
 
     MaterialTheme(colorScheme = customColorScheme) {
         BottomSheet(
@@ -190,8 +195,10 @@ fun IdeBottomSheet(
                             ) {
                                 itemsIndexed(
                                     items = filteredMessages,
-                                    // Use stable keys if possible. For simple logs, index + content hash is okay-ish.
-                                    key = { index, message -> "$index-${message.hashCode()}" }
+                                    // OPTIMIZATION: Use index as key for append-only log lists.
+                                    // Since we now use stable sub-lists, the index within that list is stable.
+                                    // This avoids allocating a new String "$index-$hash" for every item on every recomposition.
+                                    key = { index, _ -> index }
                                 ) { _, message ->
                                     Text(
                                         text = message,

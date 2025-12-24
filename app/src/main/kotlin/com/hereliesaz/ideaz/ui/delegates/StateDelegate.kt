@@ -25,6 +25,18 @@ class StateDelegate {
     /** The main build/system log. Capped at [MAX_LOG_SIZE] lines. */
     val buildLog = _buildLog.asStateFlow()
 
+    private val _gitLog = MutableStateFlow<List<String>>(emptyList())
+    /** Log containing only Git-related messages. */
+    val gitLog = _gitLog.asStateFlow()
+
+    private val _aiLog = MutableStateFlow<List<String>>(emptyList())
+    /** Log containing only AI-related messages. */
+    val aiLog = _aiLog.asStateFlow()
+
+    private val _pureBuildLog = MutableStateFlow<List<String>>(emptyList())
+    /** Log containing only build messages (excluding Git and AI). */
+    val pureBuildLog = _pureBuildLog.asStateFlow()
+
     private val _systemLog = MutableStateFlow<List<String>>(emptyList())
     /** The system logcat stream. Capped at [MAX_LOG_SIZE] lines. */
     val systemLog = _systemLog.asStateFlow()
@@ -49,7 +61,24 @@ class StateDelegate {
     /** Appends multiple lines to the build log with a size cap. */
     fun appendBuildLogLines(lines: List<String>) {
         if (lines.isEmpty()) return
-        _buildLog.update { current ->
+
+        // Append to main log
+        _buildLog.appendCapped(lines)
+
+        // Distribute to specific logs
+        val gitLines = lines.filter { it.contains("[GIT]") }
+        if (gitLines.isNotEmpty()) _gitLog.appendCapped(gitLines)
+
+        val aiLines = lines.filter { it.contains("[AI]") }
+        if (aiLines.isNotEmpty()) _aiLog.appendCapped(aiLines)
+
+        val pureLines = lines.filter { !it.contains("[GIT]") && !it.contains("[AI]") }
+        if (pureLines.isNotEmpty()) _pureBuildLog.appendCapped(pureLines)
+    }
+
+    /** Helper to append lines with a cap, reusing list creation logic. */
+    private fun MutableStateFlow<List<String>>.appendCapped(lines: List<String>) {
+         this.update { current ->
             val totalSize = current.size + lines.size
             if (totalSize <= MAX_LOG_SIZE) {
                 current + lines
@@ -85,25 +114,7 @@ class StateDelegate {
     fun appendSystemLog(msg: String) {
         val lines = msg.split('\n').filter { it.isNotBlank() }
         if (lines.isEmpty()) return
-        _systemLog.update { current ->
-            val totalSize = current.size + lines.size
-            if (totalSize <= MAX_LOG_SIZE) {
-                current + lines
-            } else {
-                val keepFromCurrent = MAX_LOG_SIZE - lines.size
-                if (keepFromCurrent <= 0) {
-                    lines.takeLast(MAX_LOG_SIZE)
-                } else {
-                    val result = java.util.ArrayList<String>(MAX_LOG_SIZE)
-                    val start = current.size - keepFromCurrent
-                    for (i in start until current.size) {
-                        result.add(current[i])
-                    }
-                    result.addAll(lines)
-                    result
-                }
-            }
-        }
+        _systemLog.appendCapped(lines)
     }
 
     /** Sets the loading progress. Pass null to hide the indicator. */
@@ -129,6 +140,9 @@ class StateDelegate {
     /** Clears all logs. */
     fun clearLog() {
         _buildLog.value = emptyList()
+        _gitLog.value = emptyList()
+        _aiLog.value = emptyList()
+        _pureBuildLog.value = emptyList()
         _systemLog.value = emptyList()
     }
 }
