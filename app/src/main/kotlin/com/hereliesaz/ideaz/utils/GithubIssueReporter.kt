@@ -26,8 +26,25 @@ object GithubIssueReporter {
     private const val KEY_PREFIX_TIMESTAMP = "report_timestamp_"
     private const val COOLDOWN_MS = 24 * 60 * 60 * 1000L // 24 hours
 
+    // Regex patterns for sensitive data sanitization
+    private val sensitivePatterns = listOf(
+        Regex("Bearer [a-zA-Z0-9_\\-\\.]+"),
+        Regex("key=[a-zA-Z0-9_\\-]+"),
+        Regex("token=[a-zA-Z0-9_\\-]+"),
+        Regex("ghp_[a-zA-Z0-9]+"),
+        Regex("AIza[0-9A-Za-z-_]{35}")
+    )
+
     private val reportMutex = Mutex()
     private val reportedHashes = mutableSetOf<Int>()
+
+    internal fun sanitizeContent(input: String): String {
+        var result = input
+        sensitivePatterns.forEach { regex ->
+            result = regex.replace(result, "***REDACTED***")
+        }
+        return result
+    }
 
     /**
      * Attempts to report an error to GitHub.
@@ -65,12 +82,15 @@ object GithubIssueReporter {
             return "Skipped (Duplicate report within 24h) [Hash: $errorHash, PID: $pid]"
         }
 
-        val logSection = if (logContent != null) {
+        val sanitizedLogContent = logContent?.let { sanitizeContent(it) }
+        val sanitizedStackTrace = sanitizeContent(stackTrace)
+
+        val logSection = if (sanitizedLogContent != null) {
             """
 
             **Log Output:**
             ```
-            ${logContent.takeLast(2000)}
+            ${sanitizedLogContent.takeLast(2000)}
             ```
             """.trimIndent()
         } else ""
@@ -83,7 +103,7 @@ object GithubIssueReporter {
             
             **Stack Trace:**
             ```
-            ${stackTrace.take(3000)}
+            ${sanitizedStackTrace.take(3000)}
             ```
             $logSection
 
