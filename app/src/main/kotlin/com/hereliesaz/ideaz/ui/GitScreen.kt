@@ -4,8 +4,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.hereliesaz.aznavrail.AzButton
@@ -56,22 +59,30 @@ fun GitScreen(
         Text("Branches", style = MaterialTheme.typography.headlineSmall)
 
         // Branch Tree
-        LazyColumn(modifier = Modifier.height(200.dp)) {
-             item {
-                 BranchTree(branches) { branch ->
-                     selectedBranch = branch
-                     viewModel.switchBranch(branch)
-                 }
-             }
+        if (branches.isEmpty()) {
+            GitEmptyState("No branches found")
+        } else {
+            LazyColumn(modifier = Modifier.height(200.dp)) {
+                item {
+                    BranchTree(branches) { branch ->
+                        selectedBranch = branch
+                        viewModel.switchBranch(branch)
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
         Text("Status", style = MaterialTheme.typography.headlineSmall)
 
-        LazyColumn(modifier = Modifier.height(100.dp)) {
-            items(gitStatus) { status ->
-                Text(status)
+        if (gitStatus.isEmpty()) {
+            GitEmptyState("Working tree clean")
+        } else {
+            LazyColumn(modifier = Modifier.height(100.dp)) {
+                items(gitStatus) { status ->
+                    Text(status)
+                }
             }
         }
 
@@ -79,10 +90,39 @@ fun GitScreen(
 
         Text("Commit History", style = MaterialTheme.typography.headlineSmall)
 
-        LazyColumn {
-            items(commitHistory) { commit ->
-                Text(commit)
+        if (commitHistory.isEmpty()) {
+            GitEmptyState("No history available")
+        } else {
+            LazyColumn {
+                items(commitHistory) { commit ->
+                    Text(commit)
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun GitEmptyState(message: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                imageVector = Icons.Default.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
