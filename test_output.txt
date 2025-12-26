@@ -1,0 +1,110 @@
+Calculating task graph as configuration cache cannot be reused because the file system entry '../home/jules/Android/sdk/build-tools/35.0.0/aapt' has been created.
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+> Task :app:generateDebugBuildConfig
+> Task :app:generateDebugResValues
+> Task :app:processDebugNavigationResources
+> Task :app:checkDebugAarMetadata
+> Task :app:compileDebugAidl
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:packageDebugResources
+> Task :app:compileDebugNavigationResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:javaPreCompileDebug
+> Task :app:javaPreCompileDebugUnitTest
+> Task :app:mergeDebugShaders
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:processDebugMainManifest
+> Task :app:parseDebugLocalResources
+> Task :app:processDebugManifest
+> Task :app:mergeDebugAssets
+> Task :app:processDebugManifestForPackage
+> Task :app:processDebugUnitTestManifest
+> Task :app:mergeDebugResources
+> Task :app:processDebugResources
+> Task :app:packageDebugUnitTestForUnitTest
+> Task :app:generateDebugUnitTestConfig
+> Task :app:compileDebugKotlin
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/HttpDependencyResolver.kt:294:42 'var file: File!' is deprecated. Deprecated in Java.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/HttpDependencyResolver.kt:349:25 'constructor(p0: File!): LocalRepository' is deprecated. Deprecated in Java.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/PythonInjector.kt:60:29 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'File?'.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/ReactNativeBuildStep.kt:31:31 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'File?'.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/buildlogic/ReactNativeBuildStep.kt:31:63 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'File?'.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/react/ReactNativeActivity.kt:63:15 'fun onBackPressed(): Unit' is deprecated. This method has been deprecated in favor of using the
+      {@link OnBackPressedDispatcher} via {@link #getOnBackPressedDispatcher()}.
+      The OnBackPressedDispatcher controls how back button events are dispatched
+      to one or more {@link OnBackPressedCallback} objects.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/react/ReactNativeActivity.kt:82:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/react/ReactNativeActivity.kt:86:19 'fun onBackPressed(): Unit' is deprecated. This method has been deprecated in favor of using the
+      {@link OnBackPressedDispatcher} via {@link #getOnBackPressedDispatcher()}.
+      The OnBackPressedDispatcher controls how back button events are dispatched
+      to one or more {@link OnBackPressedCallback} objects.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/services/BuildService.kt:631:44 'constructor(p0: String!, p1: Int): FileObserver' is deprecated. Deprecated in Java.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/services/IdeazAccessibilityService.kt:93:22 'fun recycle(): Unit' is deprecated. Deprecated in Java.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/services/IdeazAccessibilityService.kt:95:18 'fun recycle(): Unit' is deprecated. Deprecated in Java.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/services/IdeazAccessibilityService.kt:97:18 'fun recycle(): Unit' is deprecated. Deprecated in Java.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/services/IdeazAccessibilityService.kt:119:31 'fun recycle(): Unit' is deprecated. Deprecated in Java.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/services/IdeazAccessibilityService.kt:123:23 'fun recycle(): Unit' is deprecated. Deprecated in Java.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/IdeBottomSheet.kt:49:28 'val LocalClipboardManager: ProvidableCompositionLocal<ClipboardManager>' is deprecated. Use LocalClipboard instead which supports suspend functions.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/IdeBottomSheet.kt:135:29 'fun TabRow(selectedTabIndex: Int, modifier: Modifier = ..., containerColor: Color = ..., contentColor: Color = ..., indicator: ComposableFunction1<List<TabPosition>, Unit> = ..., divider: ComposableFunction0<Unit> = ..., tabs: ComposableFunction0<Unit>): Unit' is deprecated. Replaced with PrimaryTabRow and SecondaryTabRow.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/IdeBottomSheet.kt:142:56 'fun Indicator(modifier: Modifier = ..., height: Dp = ..., color: Color = ...): Unit' is deprecated. Use SecondaryIndicator instead.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/IdeBottomSheet.kt:143:65 'fun Modifier.tabIndicatorOffset(currentTabPosition: TabPosition): Modifier' is deprecated. Solely for use alongside deprecated TabRowDefaults.Indicator method. For recommended PrimaryIndicator and SecondaryIndicator methods, please use TabIndicatorScope.tabIndicatorOffset method.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/SettingsScreen.kt:86:26 'val LocalLifecycleOwner: ProvidableCompositionLocal<LifecycleOwner>' is deprecated. Moved to lifecycle-runtime-compose library in androidx.lifecycle.compose package.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/SettingsScreen.kt:928:18 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes ExposedDropdownMenuAnchorType and enabled parameters.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/SettingsScreen.kt:975:18 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes ExposedDropdownMenuAnchorType and enabled parameters.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/SettingsScreen.kt:1025:18 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes ExposedDropdownMenuAnchorType and enabled parameters.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/project/CreateTab.kt:51:41 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes ExposedDropdownMenuAnchorType and enabled parameters.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/project/SetupTab.kt:200:41 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes ExposedDropdownMenuAnchorType and enabled parameters.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/web/WebProjectHost.kt:48:26 'val LocalLifecycleOwner: ProvidableCompositionLocal<LifecycleOwner>' is deprecated. Moved to lifecycle-runtime-compose library in androidx.lifecycle.compose package.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/web/WebProjectHost.kt:61:17 'var allowFileAccessFromFileURLs: Boolean' is deprecated. Deprecated in Java.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/ui/web/WebProjectHost.kt:63:17 'var allowUniversalAccessFromFileURLs: Boolean' is deprecated. Deprecated in Java.
+w: file:///app/app/src/main/kotlin/com/hereliesaz/ideaz/utils/ProjectConfigManager.kt:261:13 Duplicate branch condition in 'when'.
+
+> Task :app:processDebugJavaRes
+> Task :app:compileDebugJavaWithJavac
+> Task :app:bundleDebugClassesToCompileJar
+> Task :app:bundleDebugClassesToRuntimeJar
+
+> Task :app:compileDebugUnitTestKotlin
+w: file:///app/app/src/test/java/com/hereliesaz/ideaz/buildlogic/RemoteBuildManagerTest.kt:62:115 'fun create(contentType: MediaType?, content: String): ResponseBody' is deprecated. Moved to extension function. Put the 'content' argument first to fix Java.
+
+> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processDebugUnitTestJavaRes
+
+> Task :app:testDebugUnitTest
+
+ContentSanitizerTest > sanitize removes key query params FAILED
+    org.junit.ComparisonFailure at ContentSanitizerTest.kt:20
+
+ContentSanitizerTest > sanitize removes token query params FAILED
+    org.junit.ComparisonFailure at ContentSanitizerTest.kt:28
+
+6 tests completed, 2 failed
+
+> Task :app:testDebugUnitTest FAILED
+
+[Incubating] Problems report is available at: file:///app/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:testDebugUnitTest'.
+> There were failing tests. See the report at: file:///app/app/build/reports/tests/testDebugUnitTest/index.html
+
+* Try:
+> Run with --scan to generate a Build Scan (Powered by Develocity).
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.1.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 2m 56s
+32 actionable tasks: 32 executed
+Configuration cache entry stored.

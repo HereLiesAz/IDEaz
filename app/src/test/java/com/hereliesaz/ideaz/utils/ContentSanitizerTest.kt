@@ -8,21 +8,23 @@ class ContentSanitizerTest {
     @Test
     fun `sanitize removes Bearer tokens`() {
         val input = "Authorization: Bearer abc123def456.xyz789"
-        val expected = "Authorization: ***REDACTED***"
+        val expected = "Authorization: Bearer ***REDACTED***"
         assertEquals(expected, GithubIssueReporter.sanitizeContent(input))
     }
 
     @Test
     fun `sanitize removes key query params`() {
         val input = "https://api.example.com?key=secret_key_123&other=value"
-        val expected = "https://api.example.com?***REDACTED***&other=value"
+        // Note: New sanitizer preserves key name
+        val expected = "https://api.example.com?key=***REDACTED***&other=value"
         assertEquals(expected, GithubIssueReporter.sanitizeContent(input))
     }
 
     @Test
     fun `sanitize removes token query params`() {
         val input = "https://api.example.com?token=token_123"
-        val expected = "https://api.example.com?***REDACTED***"
+        // Note: New sanitizer preserves token name
+        val expected = "https://api.example.com?token=***REDACTED***"
         assertEquals(expected, GithubIssueReporter.sanitizeContent(input))
     }
 

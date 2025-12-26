@@ -26,7 +26,9 @@ object CrashHandler {
     }
 
     private fun handleCrash(context: Context, thread: Thread, throwable: Throwable) {
-        Log.e(TAG, "Fatal Crash on thread ${thread.name}", throwable)
+        // Sanitize the crash log before printing to Logcat to prevent secret leakage
+        val sanitizedMsg = LogSanitizer.sanitize("Fatal Crash on thread ${thread.name}\n" + throwable.stackTraceToString())
+        Log.e(TAG, sanitizedMsg)
 
         try {
             val sw = StringWriter()
