@@ -9,7 +9,7 @@
 ## 2. Memory Management
 *   **Large Objects:** Avoid loading large files (like entire APKs) into memory. Use streams.
 *   **Bitmaps:** Recycle bitmaps if manually managing them (though Compose handles this mostly).
-*   **Accessibility Nodes:** In `UIInspectionService`, recycle `AccessibilityNodeInfo` objects to prevent leaks.
+*   **Accessibility Nodes:** In `IdeazAccessibilityService`, recycle `AccessibilityNodeInfo` objects to prevent leaks.
 *   **JGit:** Close `Git` instances immediately after use.
 *   **View Leaks:** Be careful with passing `Activity` or `View` references to background threads or Singletons.
 
