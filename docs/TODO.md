@@ -6,7 +6,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [x] **1.1: Project Structure Setup**
     - [x] Define multi-process architecture (`:app`, `:build_process`, `:inspection_service`).
     - [x] Create `BuildService` (Foreground Service).
-    - [x] Create `UIInspectionService` (Renamed to `IdeazAccessibilityService` - Skeleton Only).
+    - [x] Create `IdeazAccessibilityService` (Inspection) and `IdeazOverlayService` (Visual).
 - [x] **1.2: Data Layer**
     - [x] Implement `GitManager` (JGit wrapper).
     - [x] Implement `SettingsViewModel` (SharedPreferences).

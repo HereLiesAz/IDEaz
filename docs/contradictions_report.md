@@ -1,58 +1,27 @@
-# Documentation vs. Codebase Contradictions Report
+# Audit Report & Contradictions
 
-This report documents discrepancies identified between the project's documentation and the actual source code state as of the current audit.
+## Overview
+This document serves as a record of discrepancies found between the documentation and the codebase as of Phase 11. It highlights areas where the implementation has diverged from the original plan or where documentation has lagged behind refactoring efforts.
 
-## 1. File Structure Discrepancies (`docs/file_descriptions.md`)
+## Critical Contradictions
 
-*   **`JulesApiClient` Location:**
-    *   **Docs:** Lists `app/src/main/kotlin/com/hereliesaz/ideaz/api/JulesApiClient.kt`.
-    *   **Code:** Actual location is `app/src/main/kotlin/com/hereliesaz/ideaz/jules/JulesApiClient.kt`.
-*   **Missing Build Logic:**
-    *   **Docs:** Missing references to new build steps in `buildlogic/`: `PythonInjector.kt`, `ScalaCompile.kt`, `SmaliCompile.kt`, `RemoteBuildManager.kt`, `JavaCompile.kt`.
-*   **Missing UI Screens:**
-    *   **Docs:** Missing `LibrariesScreen.kt` (Dependency Manager) and `FileExplorerScreen.kt`.
-    *   **Code:** These screens exist and are reachable via `IdeNavRail`.
-*   **Missing Utils:**
-    *   **Docs:** Missing numerous utility classes in `utils/`: `BackupManager.kt`, `DependencyManager.kt`, `EnvironmentSetup.kt`, `ProjectConfigManager.kt`, etc.
-*   **Assets:**
-    *   **Docs:** Claims workflows reside in `app/src/main/assets/workflows/`.
-    *   **Code:** This directory does not exist. Workflows are hardcoded as strings in `ProjectConfigManager.kt`.
+### 1. Zipline Hybrid Host (Phase 11)
+*   **Documentation:** `docs/TODO.md` implies that Zipline integration for the Hybrid Host architecture is largely implemented, with only the final "Hot Reload & Runtime" step blocked. `docs/file_descriptions.md` lists Zipline-related build logic.
+*   **Codebase:** `MainViewModel.kt` explicitly disables the Zipline loader (`ziplineLoader.loadOnce`) due to API deprecation issues (`loadOnce`/`load` are deprecated/removed in the version used).
+*   **Status:** The feature is technically present in the codebase (toolchain, signing, manifest generation) but is **functionally disabled** at the runtime entry point. This represents a major blocker for the "Hybrid Host" vision.
 
-## 2. Core Philosophy Discrepancies (`docs/blueprint.md`)
+### 2. Service Architecture Naming
+*   **Documentation:** Various documents (`TODO.md`, `performance.md`, `misc.md`) referred to `UIInspectionService`.
+*   **Codebase:** The functionality was split and renamed early in development:
+    *   `IdeazAccessibilityService`: Handles the Accessibility API interactions for inspecting UI nodes.
+    *   `IdeazOverlayService`: Handles the visual overlay window and user interaction.
+*   **Status:** Documentation has been updated to reflect these accurate names.
 
-*   **"Post-Code" vs. File Explorer:**
-    *   **Docs:** Emphasize a "Post-Code" or "No-Code" environment where users interact via the overlay.
-    *   **Code:** Includes a functional `FileExplorerScreen` and `CodeEditor`, reachable via the "Files" tab. While potentially for debugging, its prominence contradicts the strict "Post-Code" messaging.
+## Minor Discrepancies
 
-## 3. Workflow Configuration (`docs/workflow.md`, `docs/data_layer.md`)
+### 1. Documentation Index
+*   **Status:** `AGENTS.md` and `docs/file_descriptions.md` were audited and are now consistent with the filesystem.
 
-*   **Merged Workflows:**
-    *   **Docs:** `workflow.md` claims `build-and-release.yml` replaces separate `android_ci_jules.yml` and `release.yml`.
-    *   **Code:** `ProjectConfigManager.kt` explicitly injects `android_ci_jules.yml` and `release.yml` separately.
-*   **Asset Injection:**
-    *   **Docs:** `data_layer.md` states workflows are injected from `assets/workflows`.
-    *   **Code:** They are injected from hardcoded strings in `ProjectConfigManager.kt`.
-
-## 4. UI/Screen Definitions (`docs/screens.md`)
-
-*   **Missing Screens:**
-    *   Does not document the **File Explorer** ("Files" tab) or **Dependency Manager** ("Libs" tab).
-
-## 5. API/Package Discrepancies
-
-*   **Jules API:** The documentation places `JulesApiClient` in the `api` package, but the code has moved it to a dedicated `jules` package, likely to separate the Agentic Interface from standard REST clients.
-
-## 6. Hybrid Host / Zipline Status
-
-*   **Zipline:**
-    *   **Docs:** `TODO.md` marked Zipline integration as complete.
-    *   **Code:** `MainViewModel.kt` explicitly disables Zipline loading due to API deprecation (`// FIXME: Zipline API loadOnce/load is deprecated...`).
-
-## Remediation Plan
-
-The documentation update plan includes:
-1.  Updating `file_descriptions.md` to reflect the actual file tree.
-2.  Updating `screens.md` to include the developer tools (Files, Libs) and clarify the Editor's role.
-3.  Updating `data_layer.md` and `workflow.md` to correct the workflow injection mechanism and filenames.
-4.  Updating `TODO.md` to reflect the blocked status of Zipline.
-5.  Updating `misc.md` to include missing key libraries.
+## Recommendations
+1.  **Resolve Zipline Blocker:** The next major engineering task must be to upgrade the Zipline dependency to a stable version and refactor `MainViewModel` to use the non-deprecated API, or pivot to an alternative hot-reload mechanism.
+2.  **Continuous Documentation:** Agents must strictly adhere to the "Update Documentation" step in `AGENTS.md` to prevent future drift, especially during large refactors like the `MainViewModel` delegation.
