@@ -72,7 +72,7 @@ class MainViewModel(
 ) : AndroidViewModel(application) {
 
     // --- DELEGATES ---
-    val stateDelegate = StateDelegate()
+    val stateDelegate = StateDelegate(viewModelScope)
 
     private val ziplineDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
 
