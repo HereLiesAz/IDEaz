@@ -1,6 +1,7 @@
 package com.hereliesaz.ideaz.ui.delegates
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -20,7 +21,11 @@ class StateDelegateTest {
     fun setUp() {
         testScope = TestScope()
         // Use backgroundScope for the long-running consumer loop
-        stateDelegate = StateDelegate(testScope.backgroundScope)
+        // Pass StandardTestDispatcher linked to the TestScope's scheduler to control timing
+        stateDelegate = StateDelegate(
+            testScope.backgroundScope,
+            StandardTestDispatcher(testScope.testScheduler)
+        )
     }
 
     @Test
