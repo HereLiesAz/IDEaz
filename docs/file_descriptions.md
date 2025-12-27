@@ -90,6 +90,15 @@
 *   `CodeEditor.kt`: Compose component for code display.
 *   `theme/`: Theme definitions (Color, Type, Theme).
 
+#### ui/editor/
+*   `EditorSetup.kt`: Initializes the code editor engine.
+*   `JavaAnalyzer.kt`: Java syntax analysis helper.
+
+#### ui/inspection/
+*   `InspectionEvents.kt`: Events for UI inspection.
+*   `OverlayCanvas.kt`: Canvas for drawing inspection overlays.
+*   `OverlayView.kt`: View for handling overlay interactions.
+
 #### react/
 *   `ReactNativeActivity.kt`: Runner activity for React Native projects.
 *   `IdeazReactPackage.kt`: Exposes native modules to RN.
