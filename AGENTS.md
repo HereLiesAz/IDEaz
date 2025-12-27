@@ -17,7 +17,7 @@ Before committing ANY changes, you **MUST** strictly adhere to the following wor
     * `b` (Minor): Incremented by Agents for **Major Features/Functions**.
     * `c` (Patch): Incremented by Agents for **Small Functions/Bug Fixes**.
     * `d` (Build): Incremented programmatically by CI.
-* **Instruction:** When completing a task, you MUST update the `minor` or `patch` variables in `app/build.gradle.kts` appropriately.
+* **Instruction:** When completing a task, you MUST update the `minor` or `patch` values in `version.properties` appropriately.
 
 ---
 

@@ -69,3 +69,7 @@ To minimize user wait time, the IDE employs a dual-build strategy:
 ## 5. Agent Constraints
 *   **Polling:** Polling for AI progress must **NEVER** time out. Agents need time to think and setup. Poll for *activities*, not just the final result.
 *   **Environment:** The user never touches a file. The AI handles the file system.
+
+## 6. Developer Tools (Power Users)
+*   **File Explorer & Editor:** While the core philosophy is "post-code," a read-write File Explorer and basic Code Editor (`FileExplorerScreen`, `CodeEditor`) are available via the Navigation Rail.
+*   **Purpose:** These tools are intended for debugging, quick fixes, or inspecting AI-generated code, not for primary development. They serve as an escape hatch when the AI workflow is blocked.

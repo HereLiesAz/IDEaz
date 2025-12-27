@@ -1,27 +1,39 @@
-# Audit Report & Contradictions
+# Report on Documentation Contradictions & Discrepancies
 
-## Overview
-This document serves as a record of discrepancies found between the documentation and the codebase as of Phase 11. It highlights areas where the implementation has diverged from the original plan or where documentation has lagged behind refactoring efforts.
+This report details "glaring contradictions" found between the project documentation, memory/instructions, and the actual codebase state.
 
-## Critical Contradictions
+## 1. The "No-Code" Vision vs. Reality
 
-### 1. Zipline Hybrid Host (Phase 11)
-*   **Documentation:** `docs/TODO.md` implies that Zipline integration for the Hybrid Host architecture is largely implemented, with only the final "Hot Reload & Runtime" step blocked. `docs/file_descriptions.md` lists Zipline-related build logic.
-*   **Codebase:** `MainViewModel.kt` explicitly disables the Zipline loader (`ziplineLoader.loadOnce`) due to API deprecation issues (`loadOnce`/`load` are deprecated/removed in the version used).
-*   **Status:** The feature is technically present in the codebase (toolchain, signing, manifest generation) but is **functionally disabled** at the runtime entry point. This represents a major blocker for the "Hybrid Host" vision.
+*   **Contradiction:** The documentation (`docs/blueprint.md`, `README.md`) strongly asserts that IDEaz is a "Post-Code" IDE where the user "never touches a file" and interacts primarily with the running application.
+*   **Reality:** The codebase contains fully functional developer tools:
+    *   `FileExplorerScreen.kt`: A read-write file explorer.
+    *   `CodeEditor.kt`: A code editor with syntax highlighting.
+    *   `FileContentScreen.kt`: A screen allowing users to edit and save file content.
+*   **Resolution:** `docs/blueprint.md` has been updated to acknowledge these features as "Developer Tools" intended for power users and debugging, rather than primary development flow.
 
-### 2. Service Architecture Naming
-*   **Documentation:** Various documents (`TODO.md`, `performance.md`, `misc.md`) referred to `UIInspectionService`.
-*   **Codebase:** The functionality was split and renamed early in development:
-    *   `IdeazAccessibilityService`: Handles the Accessibility API interactions for inspecting UI nodes.
-    *   `IdeazOverlayService`: Handles the visual overlay window and user interaction.
-*   **Status:** Documentation has been updated to reflect these accurate names.
+## 2. The `min-app` Module & "Repository-Less" Architecture
 
-## Minor Discrepancies
+*   **Contradiction:** System memory stated that "The `min-app` project module implements a 'Repository-Less' architecture...".
+*   **Reality:**
+    *   No `min-app` directory exists in the codebase.
+    *   `settings.gradle.kts` only includes the `:app` module.
+    *   The architecture relies on local JGit repositories stored in `filesDir/projects/`.
+*   **Status:** This appears to be a hallucinated or obsolete memory. The documentation correctly describes the current file-system-based architecture.
 
-### 1. Documentation Index
-*   **Status:** `AGENTS.md` and `docs/file_descriptions.md` were audited and are now consistent with the filesystem.
+## 3. Versioning Instructions
 
-## Recommendations
-1.  **Resolve Zipline Blocker:** The next major engineering task must be to upgrade the Zipline dependency to a stable version and refactor `MainViewModel` to use the non-deprecated API, or pivot to an alternative hot-reload mechanism.
-2.  **Continuous Documentation:** Agents must strictly adhere to the "Update Documentation" step in `AGENTS.md` to prevent future drift, especially during large refactors like the `MainViewModel` delegation.
+*   **Contradiction:** `AGENTS.md` instructed agents to "update the `minor` or `patch` variables in `app/build.gradle.kts`".
+*   **Reality:** `app/build.gradle.kts` reads version information from a root `version.properties` file. It does not contain hardcoded version variables.
+*   **Resolution:** `AGENTS.md` has been updated to point to `version.properties`.
+
+## 4. Jules CLI vs. API
+
+*   **Contradiction:** `docs/jules-integration.md` (and memory) mentions the Jules CLI (`JulesCliClient`) as a component, but also notes it is unreliable.
+*   **Reality:** `JulesCliClient.kt` exists but is largely unused in favor of `JulesApiClient.kt` (Retrofit implementation), which is used by `AIDelegate`.
+*   **Status:** The documentation (`docs/jules-integration.md`) was already accurate in describing the CLI as "Legacy/Reference" and "Bypassed". No change needed.
+
+## 5. Build System Confusion
+
+*   **Contradiction:** Some documentation implies a "No-Gradle" build system on-device (`BuildService` implementing `Aapt2Compile`, etc.), while other parts discuss standard Gradle.
+*   **Reality:** The project implements *both*. The `app` itself is built with Gradle, but it *contains* a custom build system (`com.hereliesaz.ideaz.buildlogic`) to build *user projects* on-device without Gradle.
+*   **Status:** This is consistent with the `docs/architecture.md` describing the execution layer.
