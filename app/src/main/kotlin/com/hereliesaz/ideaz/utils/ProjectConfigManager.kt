@@ -258,8 +258,9 @@ jobs:
             ProjectType.WEB -> listOf(
                 "web_ci_pages.yml" to WEB_CI_PAGES_YML
             )
-            ProjectType.REACT_NATIVE -> listOf(
-                "android_ci_react_native.yml" to ANDROID_CI_REACT_NATIVE_YML
+            ProjectType.PYTHON -> listOf(
+                "android_ci_jules.yml" to ANDROID_CI_JULES_YML,
+                "release.yml" to RELEASE_YML
             )
             else -> emptyList()
         }
@@ -325,7 +326,8 @@ jobs:
     fun ensureVersioning(projectDir: File, type: ProjectType): Boolean {
         var modified = false
         val androidRoot = when(type) {
-            ProjectType.ANDROID -> projectDir
+            ProjectType.ANDROID, ProjectType.PYTHON -> projectDir
+            ProjectType.FLUTTER, ProjectType.REACT_NATIVE -> File(projectDir, "android")
             else -> null
         }
 
