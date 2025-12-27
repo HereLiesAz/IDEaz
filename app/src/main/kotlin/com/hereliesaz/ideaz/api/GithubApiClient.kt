@@ -164,6 +164,12 @@ data class ForkRepoRequest(
     val name: String? = null,
     @SerialName("default_branch_only") val defaultBranchOnly: Boolean = true
 )
+
+@Serializable
+data class GitHubPagesResponse(
+    val status: String?, // "built", "building", "errored", or null
+    @SerialName("html_url") val htmlUrl: String?
+)
 // --- END NEW ---
 
 interface GitHubApi {
@@ -190,6 +196,12 @@ interface GitHubApi {
         @Path("secret_name") secretName: String,
         @Body request: CreateSecretRequest
     ): retrofit2.Response<Unit>
+
+    @retrofit2.http.GET("repos/{owner}/{repo}/pages")
+    suspend fun getPages(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String
+    ): retrofit2.Response<GitHubPagesResponse>
 
     // --- NEW: Create Issue Endpoint ---
     @POST("repos/{owner}/{repo}/issues")
