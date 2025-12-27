@@ -6,6 +6,9 @@ import com.hereliesaz.ideaz.models.ACTION_AI_LOG
 import com.hereliesaz.ideaz.models.EXTRA_MESSAGE
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertTrue
 import org.junit.Ignore
 import org.junit.Test
@@ -21,15 +24,16 @@ import org.robolectric.shadows.ShadowLooper
 class SystemEventDelegateTest {
 
     @Test
-    fun testAiLogBroadcast() {
+    fun testAiLogBroadcast() = runTest {
         val app = RuntimeEnvironment.getApplication()
         val scope = CoroutineScope(Dispatchers.Unconfined)
+        val testScope = TestScope()
 
         // Instantiate real delegates
         val settingsVM = SettingsViewModel(app)
         val aiDelegate = AIDelegate(settingsVM, scope, {}, { true })
         val overlayDelegate = OverlayDelegate(app, settingsVM, scope, {})
-        val stateDelegate = StateDelegate()
+        val stateDelegate = StateDelegate(testScope)
 
         // Instantiate SystemEventDelegate (registers receivers)
         val systemEventDelegate = SystemEventDelegate(app, aiDelegate, overlayDelegate, stateDelegate) {}
@@ -41,6 +45,8 @@ class SystemEventDelegateTest {
 
         app.sendBroadcast(intent)
         ShadowLooper.idleMainLooper()
+
+        testScope.advanceUntilIdle() // Process channel in StateDelegate
 
         // Verify logs
         val logs = stateDelegate.buildLog.value
