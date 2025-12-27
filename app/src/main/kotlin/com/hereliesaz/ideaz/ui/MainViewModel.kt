@@ -428,8 +428,63 @@ class MainViewModel(
                 withContext(Dispatchers.Main) {
                     Toast.makeText(getApplication(), getApplication<Application>().getString(R.string.deploy_instruction_gh_pages), Toast.LENGTH_LONG).show()
                 }
+
+                // Start Polling for Deployment
+                val user = settingsViewModel.getGithubUser()
+                if (appName != null && user != null) {
+                    startWebDeploymentPolling(user, appName)
+                }
+
             } catch (e: Exception) {
                 logHandler.onBuildLog("Deploy failed: ${e.message}")
+            }
+        }
+    }
+
+    private fun startWebDeploymentPolling(user: String, repo: String) {
+        pollingJob?.cancel()
+        pollingJob = viewModelScope.launch {
+            logHandler.onBuildLog("Polling GitHub Pages status for $user/$repo...")
+            val startTime = System.currentTimeMillis()
+            val timeout = 10 * 60 * 1000L // 10 minutes
+
+            while (System.currentTimeMillis() - startTime < timeout) {
+                val token = settingsViewModel.getGithubToken()
+                if (token.isNullOrBlank()) {
+                    logHandler.onBuildLog("GitHub token missing, stopping poll.")
+                    break
+                }
+
+                try {
+                    val service = GitHubApiClient.createService(token)
+                    val response = service.getPages(user, repo)
+
+                    if (response.isSuccessful) {
+                        val body = response.body()
+                        val status = body?.status
+                        val url = body?.htmlUrl
+
+                        if (status == "built" && url != null) {
+                            logHandler.onBuildLog("Deployment successful! Loading: $url")
+                            stateDelegate.setCurrentWebUrl(url)
+                            stateDelegate.setTargetAppVisible(true)
+                            break
+                        } else {
+                            logHandler.onBuildLog("Deployment status: $status...")
+                        }
+                    } else if (response.code() == 404) {
+                         // Pages not enabled or not yet ready
+                        logHandler.onBuildLog("Waiting for GitHub Pages to be available (404)...")
+                    } else {
+                        logHandler.onBuildLog("Error polling pages: Code ${response.code()}")
+                    }
+
+                } catch (e: Exception) {
+                    logHandler.onBuildLog("Error polling pages: ${e.message}")
+                    e.printStackTrace()
+                }
+
+                delay(15_000) // 15 seconds
             }
         }
     }
