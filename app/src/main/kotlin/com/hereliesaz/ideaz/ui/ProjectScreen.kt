@@ -321,6 +321,9 @@ fun ProjectScreen(
                     onNavigateToTab = { tabName ->
                         val idx = tabs.indexOf(tabName)
                         if (idx != -1) tabIndex = idx
+                    },
+                    onSelectApk = {
+                        apkPickerLauncher.launch("application/vnd.android.package-archive")
                     }
                 )
                 "Clone" -> ProjectCloneTab(
