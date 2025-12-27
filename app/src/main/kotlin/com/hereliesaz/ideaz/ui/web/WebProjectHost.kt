@@ -61,6 +61,8 @@ fun WebProjectHost(
                 allowFileAccessFromFileURLs = false
                 // SENTINEL: CRITICAL FIX. Disabled to prevent cross-origin file access (e.g., reading SharedPreferences from index.html).
                 allowUniversalAccessFromFileURLs = false
+                // SENTINEL: Enable Safe Browsing to protect against known threats (phishing, malware).
+                safeBrowsingEnabled = true
             }
 
             addJavascriptInterface(IdeazJsInterface(context), "Ideaz")

@@ -306,7 +306,7 @@ fun ProjectSetupTab(
                 AzButton(
                     onClick = {
                         checkAndRequestStoragePermission(context) {
-                            apkPickerLauncher.launch(arrayOf("application/vnd.android.package-archive"))
+                            onSelectApk()
                         }
                     },
                     text = "Pick APK",
