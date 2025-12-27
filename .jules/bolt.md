@@ -15,3 +15,7 @@
 ## 2024-05-27 - Filtered StateFlow for High-Frequency Lists
 **Learning:** Filtering a large list (like build logs) inside a Composable's `remember` or derived state on every update is O(N) on the UI thread. For high-frequency updates (e.g., active build logs), this causes frame drops.
 **Action:** Perform the filtering once at the data ingestion point (ViewModel/Delegate). Maintain separate `StateFlow`s for each filter category (e.g., `gitLog`, `aiLog`). This shifts the cost to O(1) (per new item) and keeps the UI read operations cheap.
+
+## 2024-05-28 - Log Batching for High-Frequency Events
+**Learning:** Emitting a StateFlow update for every single log line during a build (which can output hundreds of lines per second) overwhelms the UI thread, causing dropped frames and jank, even with optimized Compose lists.
+**Action:** Implement a `Channel`-based buffer that collects logs and flushes them in batches (e.g., every 100ms). This drastically reduces the number of state emissions and recompositions.

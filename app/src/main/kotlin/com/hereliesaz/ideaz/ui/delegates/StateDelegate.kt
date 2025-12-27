@@ -1,16 +1,95 @@
 package com.hereliesaz.ideaz.ui.delegates
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 /**
  * Delegate responsible for holding and managing shared UI state.
  * Centralizes state flows for logs, progress, visibility, and navigation.
+ *
+ * Performance Note:
+ * Implements log batching via a Channel to prevent O(N^2) list copying and excessive UI recompositions
+ * when logs are streaming in rapidly (e.g., from BuildService or AI).
  */
-class StateDelegate {
+class StateDelegate(
+    scope: CoroutineScope
+) {
     companion object {
         private const val MAX_LOG_SIZE = 1000
+        private const val BATCH_INTERVAL_MS = 100L
+    }
+
+    private sealed interface LogEvent {
+        data class Build(val msg: String) : LogEvent
+        data class Ai(val msg: String) : LogEvent
+        data class System(val msg: String) : LogEvent
+        data class BatchLines(val lines: List<String>) : LogEvent
+    }
+
+    private val logChannel = Channel<LogEvent>(Channel.UNLIMITED)
+
+    init {
+        scope.launch {
+            val buffer = mutableListOf<LogEvent>()
+            while (true) {
+                // Wait for the first item
+                val first = logChannel.receive()
+                buffer.add(first)
+
+                // Wait a bit to collect more items (debouncing/batching)
+                delay(BATCH_INTERVAL_MS)
+
+                // Drain the channel of currently available items
+                var result = logChannel.tryReceive()
+                while (result.isSuccess) {
+                    buffer.add(result.getOrThrow())
+                    result = logChannel.tryReceive()
+                }
+
+                // Process the batch
+                if (buffer.isNotEmpty()) {
+                    processLogBatch(buffer)
+                    buffer.clear()
+                }
+            }
+        }
+    }
+
+    private fun processLogBatch(events: List<LogEvent>) {
+        val allLines = ArrayList<String>(events.size)
+        val systemLines = ArrayList<String>()
+
+        // Single pass to categorize logs
+        for (event in events) {
+            when (event) {
+                is LogEvent.Build -> {
+                    event.msg.split('\n').filterTo(allLines) { it.isNotBlank() }
+                }
+                is LogEvent.Ai -> {
+                    val lines = event.msg.split('\n').filter { it.isNotBlank() }
+                    lines.mapTo(allLines) { "[AI] $it" }
+                }
+                is LogEvent.System -> {
+                    event.msg.split('\n').filterTo(systemLines) { it.isNotBlank() }
+                }
+                is LogEvent.BatchLines -> {
+                    allLines.addAll(event.lines)
+                }
+            }
+        }
+
+        if (allLines.isNotEmpty()) {
+            appendBuildLogLinesInternal(allLines)
+        }
+
+        if (systemLines.isNotEmpty()) {
+            _systemLog.appendCapped(systemLines)
+        }
     }
 
     private val _loadingProgress = MutableStateFlow<Int?>(null)
@@ -54,12 +133,17 @@ class StateDelegate {
 
     /** Appends a message to the build log. Splits by newline if necessary. */
     fun appendBuildLog(msg: String) {
-        val lines = msg.split('\n').filter { it.isNotBlank() }
-        appendBuildLogLines(lines)
+        logChannel.trySend(LogEvent.Build(msg))
     }
 
     /** Appends multiple lines to the build log with a size cap. */
     fun appendBuildLogLines(lines: List<String>) {
+        if (lines.isEmpty()) return
+        logChannel.trySend(LogEvent.BatchLines(lines))
+    }
+
+    /** Internal method to actually update the StateFlows. Called by the batch processor. */
+    private fun appendBuildLogLinesInternal(lines: List<String>) {
         if (lines.isEmpty()) return
 
         // Append to main log
@@ -104,17 +188,11 @@ class StateDelegate {
 
     /** Appends an AI message to the log (prefixed with [AI]) with a size cap. */
     fun appendAiLog(msg: String) {
-        val lines = msg.split('\n').filter { it.isNotBlank() }
-        if (lines.isNotEmpty()) {
-            val prefixed = lines.map { "[AI] $it" }
-            appendBuildLogLines(prefixed)
-        }
+        logChannel.trySend(LogEvent.Ai(msg))
     }
 
     fun appendSystemLog(msg: String) {
-        val lines = msg.split('\n').filter { it.isNotBlank() }
-        if (lines.isEmpty()) return
-        _systemLog.appendCapped(lines)
+        logChannel.trySend(LogEvent.System(msg))
     }
 
     /** Sets the loading progress. Pass null to hide the indicator. */
