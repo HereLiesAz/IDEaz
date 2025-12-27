@@ -11,12 +11,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -302,6 +307,15 @@ fun ProjectScreen(
             tabs.forEachIndexed { index, title ->
                 Tab(
                     text = { Text(title) },
+                    icon = {
+                        val icon = when (title) {
+                            "Setup" -> Icons.Default.Build
+                            "Load" -> Icons.Default.FolderOpen
+                            "Clone" -> Icons.Default.CloudDownload
+                            else -> Icons.Default.Build
+                        }
+                        Icon(icon, contentDescription = null)
+                    },
                     selected = tabIndex == index,
                     onClick = { tabIndex = index }
                 )
