@@ -1,6 +1,8 @@
 package com.hereliesaz.ideaz.ui.delegates
 
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +19,8 @@ import kotlinx.coroutines.launch
  * when logs are streaming in rapidly (e.g., from BuildService or AI).
  */
 class StateDelegate(
-    scope: CoroutineScope
+    scope: CoroutineScope,
+    dispatcher: CoroutineDispatcher = Dispatchers.Default
 ) {
     companion object {
         private const val MAX_LOG_SIZE = 1000
@@ -34,7 +37,7 @@ class StateDelegate(
     private val logChannel = Channel<LogEvent>(Channel.UNLIMITED)
 
     init {
-        scope.launch {
+        scope.launch(dispatcher) {
             val buffer = mutableListOf<LogEvent>()
             while (true) {
                 // Wait for the first item
