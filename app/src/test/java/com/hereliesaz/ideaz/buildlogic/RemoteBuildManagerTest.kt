@@ -49,6 +49,7 @@ class RemoteBuildManagerTest {
         override suspend fun getBranchProtection(owner: String, repo: String, branch: String) = throw NotImplementedError()
         override suspend fun getReleases(owner: String, repo: String) = throw NotImplementedError()
         override suspend fun getArtifacts(owner: String, repo: String) = throw NotImplementedError()
+        override suspend fun getPages(owner: String, repo: String) = Response.success(GitHubPagesResponse("built", "https://example.com"))
 
         override suspend fun listWorkflowRuns(owner: String, repo: String, headSha: String?, perPage: Int): GitHubWorkflowRunsResponse {
             return GitHubWorkflowRunsResponse(runs.size, runs)
