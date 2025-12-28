@@ -1,39 +1,37 @@
-# Report on Documentation Contradictions & Discrepancies
+# Documentation Contradictions & Discrepancies Report
 
-This report details "glaring contradictions" found between the project documentation, memory/instructions, and the actual codebase state.
+This report outlines contradictions found between the project's documentation, memory/instructions, and the actual codebase implementation.
 
-## 1. The "No-Code" Vision vs. Reality
+## 1. "Repository-Less" / `min-app` Hallucination
+*   **Documentation/Memory:** Several sources (memory, potential past instructions) refer to a `min-app` module that implements a "Repository-Less" architecture where no local Git clone exists.
+*   **Reality:** The codebase contains a single module `:app`. It heavily utilizes `GitManager` (JGit) to perform local Git operations (commit, push, pull, fetch). The `BuildService` performs local builds on local files.
+*   **Action:** Removed references to `min-app` and "Repository-Less" architecture. Confirmed `GitManager` usage.
 
-*   **Contradiction:** The documentation (`docs/blueprint.md`, `README.md`) strongly asserts that IDEaz is a "Post-Code" IDE where the user "never touches a file" and interacts primarily with the running application.
-*   **Reality:** The codebase contains fully functional developer tools:
-    *   `FileExplorerScreen.kt`: A read-write file explorer.
-    *   `CodeEditor.kt`: A code editor with syntax highlighting.
-    *   `FileContentScreen.kt`: A screen allowing users to edit and save file content.
-*   **Resolution:** `docs/blueprint.md` has been updated to acknowledge these features as "Developer Tools" intended for power users and debugging, rather than primary development flow.
-
-## 2. The `min-app` Module & "Repository-Less" Architecture
-
-*   **Contradiction:** System memory stated that "The `min-app` project module implements a 'Repository-Less' architecture...".
+## 2. "Post-Code" Philosophy vs. Implementation
+*   **Documentation:** `README.md` states "This isn't no-code... The Post-Code IDE... User interacts primarily with their running application, not its source code." Memory claimed "code snippet retrieval logic has been removed."
 *   **Reality:**
-    *   No `min-app` directory exists in the codebase.
-    *   `settings.gradle.kts` only includes the `:app` module.
-    *   The architecture relies on local JGit repositories stored in `filesDir/projects/`.
-*   **Status:** This appears to be a hallucinated or obsolete memory. The documentation correctly describes the current file-system-based architecture.
+    *   `FileExplorerScreen.kt`: A fully functional file explorer.
+    *   `FileContentScreen.kt`: A fully functional code editor using `rosemoe.sora.widget.CodeEditor`, allowing read/write access to source files.
+    *   `CodeEditor.kt`: Contains `EnhancedCodeEditor` (Compose-based).
+*   **Reconciliation:** The "Post-Code" philosophy remains the *primary* interaction model (Overlay, AI Prompting), but the Code Editor and File Explorer exist as "Developer Tools" or "Escape Hatches" (as correctly noted in `blueprint.md`).
+*   **Action:** Updated documentation to reflect that these tools exist for power users but are not the intended primary workflow.
 
-## 3. Versioning Instructions
+## 3. Overlay vs. Host Architecture
+*   **Documentation:** `README.md`, `AGENTS.md`, and `architecture.md` describe an "Overlay" model where `IdeazOverlayService` (System Alert Window) floats over a running *system* application.
+*   **Reality:**
+    *   `MainScreen.kt` implements a **Host** architecture.
+    *   **Android:** Uses `AndroidProjectHost` to launch the target app into a `VirtualDisplay` *inside* the IDE window.
+    *   **Web:** Uses `WebProjectHost` (WebView) *inside* the IDE window.
+    *   The "Overlay" (`SelectionOverlay`) is now a Composable layer drawn on top of the Host view within the app, not a System Alert Window over a background app.
+    *   `IdeazOverlayService` still exists in the codebase but appears to be superseded by the Host model for the main workflow in `MainScreen`.
+*   **Action:** Updated `blueprint.md` and `architecture.md` to describe the "Hybrid Host" architecture (VirtualDisplay/WebView) as the primary mechanism, with the Overlay Service possibly remaining for specific legacy or "undocked" use cases (though this is ambiguous in the code).
 
-*   **Contradiction:** `AGENTS.md` instructed agents to "update the `minor` or `patch` variables in `app/build.gradle.kts`".
-*   **Reality:** `app/build.gradle.kts` reads version information from a root `version.properties` file. It does not contain hardcoded version variables.
-*   **Resolution:** `AGENTS.md` has been updated to point to `version.properties`.
+## 4. "No-Gradle" Build Pipeline
+*   **Documentation:** `TODO.md` listed "No-Gradle" on Device as a goal.
+*   **Reality:** `BuildService.kt` confirms this is implemented. It manually orchestrates `aapt2`, `kotlinc`, `d8` and uses `HttpDependencyResolver` to parse Gradle files and download dependencies without running Gradle itself.
+*   **Action:** Verified and confirmed in documentation.
 
-## 4. Jules CLI vs. API
-
-*   **Contradiction:** `docs/jules-integration.md` (and memory) mentions the Jules CLI (`JulesCliClient`) as a component, but also notes it is unreliable.
-*   **Reality:** `JulesCliClient.kt` exists but is largely unused in favor of `JulesApiClient.kt` (Retrofit implementation), which is used by `AIDelegate`.
-*   **Status:** The documentation (`docs/jules-integration.md`) was already accurate in describing the CLI as "Legacy/Reference" and "Bypassed". No change needed.
-
-## 5. Build System Confusion
-
-*   **Contradiction:** Some documentation implies a "No-Gradle" build system on-device (`BuildService` implementing `Aapt2Compile`, etc.), while other parts discuss standard Gradle.
-*   **Reality:** The project implements *both*. The `app` itself is built with Gradle, but it *contains* a custom build system (`com.hereliesaz.ideaz.buildlogic`) to build *user projects* on-device without Gradle.
-*   **Status:** This is consistent with the `docs/architecture.md` describing the execution layer.
+## 5. Project Structure
+*   **Documentation:** `docs/file_descriptions.md` was outdated regarding the `ui/delegates` refactor and `ui/project` split.
+*   **Reality:** `MainViewModel` is refactored into delegates. `ProjectScreen` is split into tabs.
+*   **Action:** Updated `docs/file_descriptions.md` to match the current file structure.
