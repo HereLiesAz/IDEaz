@@ -50,9 +50,11 @@ The `docs/` folder contains the comprehensive documentation for this project. Th
 *   **`docs/task_flow.md`**: Operational workflows.
 *   **`docs/testing.md`**: Testing strategies and requirements.
 *   **`docs/workflow.md`**: CI/CD and Build processes.
+*   **`docs/contradictions_report.md`**: A report on documentation vs codebase contradictions.
 
 ## Recent Changes (Summary)
-*   **Documentation:** Updated `docs/` to match codebase reality (Missing services, tab orders).
+*   **Documentation:** Updated `docs/` to match codebase reality (Clarified Host Architecture, Removed non-existent modules).
+*   **Architecture:** Confirmed Hybrid Host (VirtualDisplay/WebView) as primary interaction model.
 *   **Refactor:** `MainViewModel` split into 6 Delegates. `ProjectScreen` split into sub-tabs.
 *   **Stability:** Fixed JNA Crash and Service ANR.
 *   **UI:** Updated `AzNavRail` to 5.3 (Dynamic Overlay).
