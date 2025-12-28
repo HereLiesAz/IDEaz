@@ -4,7 +4,7 @@
 IDEaz (com.hereliesaz.ideaz) is a mobile IDE that redefines app development. It is not a text editor; it is a **visual creation engine**. The user interacts primarily with their running application, not its source code.
 
 *   **Core Loop:** Run App -> Visual Select -> AI Prompt -> AI Edit -> Compile -> Run.
-*   **The "Invisible" Overlay:** The IDE provides a transparent overlay over the user's running app.
+*   **The Hybrid Host & Overlay:** The IDE hosts the running app internally (VirtualDisplay/WebView) or overlays it, providing a unified interaction layer.
 *   **Interaction:**
     *   **Select:** User taps a component or drags to select an area.
     *   **Prompt:** A text input appears near the selection.
@@ -38,11 +38,13 @@ To minimize user wait time, the IDE employs a dual-build strategy:
 
 ## 3. User Experience (UI/UX)
 
-### 3.1 The Overlay
-*   **Attachment:** The overlay "sticks" to the target application package. It is visible ONLY when the target app is in the foreground.
-*   **Transparency:**
-    *   **IDE Mode (Interact/Select):** Background is transparent.
-    *   **Settings/Setup Screens:** Background is **Opaque** (Solid). Transparency here is a bug.
+### 3.1 The Host & Overlay Architecture
+*   **Host Mode (Primary):** The IDE runs the target app inside itself.
+    *   **Android:** Uses `AndroidProjectHost` (VirtualDisplay) to render the running APK within the IDE window.
+    *   **Web:** Uses `WebProjectHost` (WebView) to render the web app.
+*   **Selection Overlay:** A Composable layer sits on top of the Host view (`SelectionOverlay`), intercepting touches for drag-selection and prompting.
+*   **System Overlay (Legacy/Fallback):** `IdeazOverlayService` (System Alert Window) exists to provide overlay capabilities when the app is running externally or for specific accessibility inspection tasks, but the Host mode is the primary integrated experience.
+*   **Transparency:** In Host mode, the overlay is part of the composition. In System Overlay mode, the window background is transparent.
 *   **Update Popup:** When a background build finishes, a popup ("Updating, gimme a sec") appears. Text in the prompt box is auto-copied to clipboard.
 
 ### 3.2 The Console (Bottom Card)

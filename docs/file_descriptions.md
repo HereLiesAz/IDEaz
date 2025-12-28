@@ -87,11 +87,11 @@
 *   `FileExplorerScreen.kt`: Developer tool for file browsing.
 *   `FileContentScreen.kt`: Developer tool for file viewing/editing.
 *   `LibrariesScreen.kt`: Dependency management UI.
-*   `CodeEditor.kt`: Compose component for code display.
+*   `CodeEditor.kt`: Compose component for code display (Legacy/Simple).
 *   `theme/`: Theme definitions (Color, Type, Theme).
 
 #### ui/editor/
-*   `EditorSetup.kt`: Initializes the code editor engine.
+*   `EditorSetup.kt`: Initializes the code editor engine (Rosemoe Sora).
 *   `JavaAnalyzer.kt`: Java syntax analysis helper.
 
 #### ui/inspection/
@@ -115,7 +115,7 @@
 *   `UpdateDelegate.kt`: Handles application self-updates.
 
 #### ui/project/
-*   `LoadTab.kt`, `CloneTab.kt`, `SetupTab.kt`, `CreateTab.kt`: Sub-screens for ProjectScreen.
+*   `LoadTab.kt`, `CloneTab.kt`, `SetupTab.kt`: Sub-screens for ProjectScreen.
 *   `AndroidProjectHost.kt`: Embeds the target Android app via VirtualDisplay.
 *   `WebProjectHost.kt`: Embeds Web projects via WebView.
 
