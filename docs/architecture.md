@@ -1,17 +1,17 @@
 # IDEaz: Architecture
 
 ## 1. The Core Loop
-The IDE is designed as an **Overlay**. It sits on top of the user's running app.
+The IDE is designed as a **Hybrid Host & Overlay**. It hosts the user's running app internally or overlays it.
 
-1.  **User Interacts:** The user uses their app normally.
-2.  **User Selects:** The user drags a box over an area they want to change.
+1.  **User Interacts:** The user uses their app (hosted within `AndroidProjectHost` or `WebProjectHost`).
+2.  **User Selects:** The user drags a box over an area they want to change using the `SelectionOverlay`.
 3.  **User Prompts:** The user types "Make this button blue".
 4.  **IDE Acts:**
     *   Finds the relevant source code (via `ProjectAnalyzer` or Source Maps).
     *   Sends the prompt + code + context to the AI (Jules/Gemini).
     *   Receives a diff/patch.
-    *   Applies the patch.
-    *   Triggers a background build.
+    *   Applies the patch via `GitManager`.
+    *   Triggers a background build via `BuildService`.
 5.  **Update:** The app reloads (Hot Reload or Reinstall).
 
 ## 2. The Delegate Pattern
@@ -28,9 +28,9 @@ The `MainViewModel` was becoming a God Class. It has been refactored into **Dele
 *   **`StateDelegate`:** Holds the mutable state variables.
 
 ## 3. The Services
-*   **`IdeazOverlayService` (Visual Layer):** A **Foreground Service** running as a `TYPE_APPLICATION_OVERLAY` window. It provides the "Main Window" of the IDE (NavRail, Console, Contextual Chat) which floats over the target application. It handles the drawing of selection rectangles.
-*   **`IdeazAccessibilityService` (Inspection Layer):** An **Accessibility Service** that retrieves `AccessibilityNodeInfo` from the window hierarchy. It allows the IDE to "see" the UI elements under a user's tap or drag selection.
 *   **`BuildService` (Execution Layer):** A **Foreground Service** running in a separate process (`:build_process`). It orchestrates the entire build toolchain (aapt2, kotlinc, d8) and handles APK installation to prevent UI freezes in the main app.
+*   **`IdeazOverlayService` (Visual Layer - Legacy/System):** A **Foreground Service** running as a `TYPE_APPLICATION_OVERLAY` window. While the main UI now uses `MainScreen`'s internal composition for overlays (`SelectionOverlay`), this service remains for system-level overlay capabilities and potentially for un-docked interactions.
+*   **`IdeazAccessibilityService` (Inspection Layer):** An **Accessibility Service** that retrieves `AccessibilityNodeInfo` from the window hierarchy. It allows the IDE to "see" the UI elements under a user's tap or drag selection.
 *   **`CrashReportingService` (Safety Layer):** A dedicated service running in its own process (`:crash_reporter`) to ensure fatal crashes are reported to the API even if the main app dies.
 
 ## 4. Data Flow
