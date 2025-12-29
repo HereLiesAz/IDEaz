@@ -37,11 +37,13 @@
 *   **Role:** Entry point.
 *   **Tabs:**
     *   **Setup:** **INITIALIZATION happens here.**
+        *   **States:** View/Edit existing setup OR "Create New" mode.
         *   Displays Sessions.
         *   "Create" mode allows generating from template.
         *   "Save & Initialize" button triggers workflow injection and first build.
+        *   "Add Docs" button allows triggering documentation generation.
     *   **Load:** Select existing local project. **Includes "Add External Project" / "Grant Storage Permission" button below the list.** -> **Transitions to Setup Tab.**
-    *   **Clone:** Search/Clone from GitHub.
+    *   **Clone:** Search/Clone from GitHub. -> **Transitions to Setup Tab.**
 
 ## 5. Git Screen (`GitScreen.kt`)
 *   **Role:** Version control management.

@@ -90,20 +90,6 @@
 *   `CodeEditor.kt`: Compose component for code display (Legacy/Simple).
 *   `theme/`: Theme definitions (Color, Type, Theme).
 
-#### ui/editor/
-*   `EditorSetup.kt`: Initializes the code editor engine (Rosemoe Sora).
-*   `JavaAnalyzer.kt`: Java syntax analysis helper.
-
-#### ui/inspection/
-*   `InspectionEvents.kt`: Events for UI inspection.
-*   `OverlayCanvas.kt`: Canvas for drawing inspection overlays.
-*   `OverlayView.kt`: View for handling overlay interactions.
-
-#### react/
-*   `ReactNativeActivity.kt`: Runner activity for React Native projects.
-*   `IdeazReactPackage.kt`: Exposes native modules to RN.
-*   `IdeazNativeModule.kt`: The native module implementation.
-
 #### ui/delegates/
 *   `AIDelegate.kt`: Manages AI sessions and Jules interaction.
 *   `BuildDelegate.kt`: Manages BuildService binding and execution.
@@ -114,10 +100,26 @@
 *   `SystemEventDelegate.kt`: Handles BroadcastReceivers for system events.
 *   `UpdateDelegate.kt`: Handles application self-updates.
 
+#### ui/editor/
+*   `EditorSetup.kt`: Initializes the code editor engine (Rosemoe Sora).
+*   `JavaAnalyzer.kt`: Java syntax analysis helper.
+
+#### ui/inspection/
+*   `InspectionEvents.kt`: Events for UI inspection.
+*   `OverlayCanvas.kt`: Canvas for drawing inspection overlays.
+*   `OverlayView.kt`: View for handling overlay interactions.
+
 #### ui/project/
-*   `LoadTab.kt`, `CloneTab.kt`, `SetupTab.kt`: Sub-screens for ProjectScreen.
+*   `LoadTab.kt`: Project loading UI logic.
+*   `CloneTab.kt`: Project cloning UI logic.
+*   `SetupTab.kt`: Project creation and setup UI logic.
 *   `AndroidProjectHost.kt`: Embeds the target Android app via VirtualDisplay.
 *   `WebProjectHost.kt`: Embeds Web projects via WebView.
+
+#### react/
+*   `ReactNativeActivity.kt`: Runner activity for React Native projects.
+*   `IdeazReactPackage.kt`: Exposes native modules to RN.
+*   `IdeazNativeModule.kt`: The native module implementation.
 
 #### utils/
 *   `ToolManager.kt`: Installs and locates build tools (downloaded to `filesDir/local_build_tools`).
@@ -143,6 +145,7 @@
 
 ## docs/
 (See `AGENTS.md` for index)
+*   `contradictions_report.md`: A living document tracking contradictions between docs and code.
 
 ## website/
 *   `_config.yml`: Jekyll configuration for the project website.
