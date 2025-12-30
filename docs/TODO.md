@@ -131,7 +131,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] Set up IR backend flags (`-Xir-produce-js`, `-Xir-per-module`).
 - [x] **11.5: Manifest & Security**
     - [x] Implement `ZiplineManifestGenerator` (SHA-256 hashing, JSON construction).
-    - [x] Implement Ed25519 signing of manifest using `LazySodiumAndroid`.
+    - [ ] Implement Ed25519 signing of manifest using `LazySodiumAndroid` (TODO).
 - [ ] **11.6: Hot Reload & Runtime** (BLOCKED: Zipline API Deprecation)
     - [x] Implement "Hot Reload" trigger (write manifest, broadcast `RELOAD_ZIPLINE`).
     - [x] Implement Host receiver to trigger `ziplineLoader.load`. (Disabled in `MainViewModel` due to API issues).
