@@ -68,7 +68,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [x] **5.1: Multi-Platform Support**
     - [x] Web Support (Runtime + Auto-Build/Correct).
     - [x] React Native Support (Bundler, Runtime, and Templates implemented).
-    - [x] Flutter Support (Implemented Phases 1-6).
+    - [x] Flutter Support (Implemented via Remote Build, Templates available).
 - [ ] **5.2: Testing**
     - [x] Unit Tests for SettingsViewModel.
     - [x] Unit Tests for MainViewModel (Delegates). (StateDelegate, AIDelegate)
