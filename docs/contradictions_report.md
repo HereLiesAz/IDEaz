@@ -1,44 +1,43 @@
-# Documentation Contradictions & Discrepancies Report
+# Documentation Contradictions Report
 
-This report outlines contradictions found between the project's documentation, memory/instructions, and the actual codebase implementation.
+This document lists identified contradictions between the project's documentation and the actual codebase as of the latest audit.
 
-## 1. "Repository-Less" / `min-app` Hallucination
-*   **Documentation/Memory:** Several sources (memory, potential past instructions) refer to a `min-app` module that implements a "Repository-Less" architecture where no local Git clone exists.
-*   **Reality:** The codebase contains a single module `:app`. It heavily utilizes `GitManager` (JGit) to perform local Git operations (commit, push, pull, fetch). The `BuildService` performs local builds on local files.
-*   **Action:** Removed references to `min-app` and "Repository-Less" architecture. Confirmed `GitManager` usage.
+## 1. Auxiliary Tools ("Escape Hatches")
+*   **Contradiction:** `README.md` and `blueprint.md` state that a File Explorer and Code Editor are included as "escape hatches". However, project memory and instructions emphasized a "post-code" philosophy where such tools might be removed.
+*   **Reality:** `CodeEditor.kt` and `FileExplorerScreen.kt` exist in `app/src/main/kotlin/com/hereliesaz/ideaz/ui/`.
+*   **Action:** Documentation updated to clarify these are strictly auxiliary and not the primary workspace. The "No-Code" philosophy remains the guiding principle for the *primary* workflow, but the tools exist for power users.
 
-## 2. "Post-Code" Philosophy vs. Implementation
-*   **Documentation:** `README.md` stated "This isn't no-code... The Post-Code IDE... User interacts primarily with their running application, not its source code." Memory claimed "code snippet retrieval logic has been removed."
-*   **Reality:**
-    *   `FileExplorerScreen.kt`: A fully functional file explorer.
-    *   `FileContentScreen.kt`: A fully functional code editor using `rosemoe.sora.widget.CodeEditor`, allowing read/write access to source files.
-    *   `CodeEditor.kt`: Contains `EnhancedCodeEditor` (Compose-based).
-*   **Resolution:** The `README.md` has been updated to explicitly acknowledge these tools as "Auxiliary Tools" or "Escape Hatches" for power users/debugging, reconciling the philosophy with the implementation.
-*   **Status:** Resolved in Documentation.
+## 2. Hybrid Host & Zipline
+*   **Contradiction:** `TODO.md` marks Phase 11 (Hybrid Host) as mostly complete, including "Hot Reload" implementation. `blueprint.md` describes the Host Architecture relying on Zipline.
+*   **Reality:** `MainViewModel.kt` explicitly disables Zipline loading with `LoadResult.Failure(Exception("Zipline disabled due to deprecation"))`. The Zipline dependencies and `ZiplineLoader` initialization code exist, but the feature is effectively blocked at runtime.
+*   **Action:** `TODO.md` updated to reflect the blocked status of Phase 11.6. `blueprint.md` updated to note the current limitation.
 
-## 3. Overlay vs. Host Architecture
-*   **Documentation:** `README.md`, `AGENTS.md`, and `architecture.md` described an "Overlay" model where `IdeazOverlayService` (System Alert Window) floats over a running *system* application.
-*   **Reality:**
-    *   `MainScreen.kt` implements a **Host** architecture.
-    *   **Android:** Uses `AndroidProjectHost` to launch the target app into a `VirtualDisplay` *inside* the IDE window.
-    *   **Web:** Uses `WebProjectHost` (WebView) *inside* the IDE window.
-    *   The "Overlay" (`SelectionOverlay`) is now a Composable layer drawn on top of the Host view within the app, not a System Alert Window over a background app.
-    *   `IdeazOverlayService` still exists but is secondary.
-*   **Resolution:** `README.md` and `architecture.md` have been updated to describe the "Hybrid Host" architecture as primary.
-*   **Status:** Resolved in Documentation.
+## 3. Project Screen Tabs Order
+*   **Contradiction:** `AGENTS.md` noted a discrepancy in tab order.
+*   **Reality:** `ProjectScreen.kt` defines `tabs = listOf("Setup", "Load", "Clone")`.
+*   **Action:** Confirmed `AGENTS.md` is correct about the fix. `screens.md` (if it lists tabs) should match this order.
 
-## 4. "No-Gradle" Build Pipeline
-*   **Documentation:** `TODO.md` listed "No-Gradle" on Device as a goal.
-*   **Reality:** `BuildService.kt` confirms this is implemented. It manually orchestrates `aapt2`, `kotlinc`, `d8` and uses `HttpDependencyResolver` to parse Gradle files and download dependencies without running Gradle itself.
-*   **Status:** Verified Implemented.
+## 4. Jules Integration
+*   **Contradiction:** Legacy documentation referenced the `Jules Tools CLI` as the primary tool.
+*   **Reality:** `jules-integration.md` correctly identifies `JulesApiClient` as the primary mechanism, citing stability issues with the CLI. `MainViewModel.kt` uses `AIDelegate` which uses `JulesApiClient`. The CLI binary `libjules.so` is present but unused.
+*   **Action:** `jules-integration.md` is accurate. No action needed other than ensuring other docs don't reference the CLI as active.
 
-## 5. Project Structure
-*   **Documentation:** `docs/file_descriptions.md` was outdated regarding the `ui/delegates` refactor and `ui/project` split.
-*   **Reality:** `MainViewModel` is refactored into delegates. `ProjectScreen` is split into tabs.
-*   **Resolution:** `docs/file_descriptions.md` has been updated.
-*   **Status:** Resolved in Documentation.
+## 5. Dependency Management
+*   **Contradiction:** `TODO.md` marked "UI for viewing and adding libraries" as checked.
+*   **Reality:** `DependencyManager.kt` exists and implements TOML/Pubspec parsing. `LibrariesScreen.kt` exists (inferred from file list, though not read, `MainViewModel` has `loadDependencies`).
+*   **Action:** `TODO.md` is accurate.
 
-## 6. Project Screen "Create" Tab
-*   **Documentation:** Previous docs might imply a separate "Create" tab.
-*   **Reality:** The "Create" functionality is now a state within the `SetupTab` (`ProjectSetupTab.kt`), toggled by an `isCreateMode` boolean. The explicit `CreateTab.kt` file might be unused or merged. `ProjectScreen.kt` tab list is `["Setup", "Load", "Clone"]`.
-*   **Status:** Verified (Updated in `docs/screens.md`).
+## 6. Settings Import/Export
+*   **Contradiction:** `TODO.md` marked "Encrypted Settings Export/Import" as checked.
+*   **Reality:** `SettingsViewModel.kt` implements `exportSettings` and `importSettings` using `SecurityUtils` and AES encryption.
+*   **Action:** `TODO.md` is accurate.
+
+## 7. Interaction Mode (Docked / FAB)
+*   **Contradiction:** `UI_UX.md` describes a "Docked / FAB" mode. User instructions (memory) stated "do not implement a persistent 'Docked' or FAB state when the overlay is hidden."
+*   **Reality:** The code (MainViewModel/OverlayDelegate) manages `isSelectMode` (Overlay) vs Interaction Mode. The `IdeazOverlayService` (legacy/system) is mentioned in `UI_UX.md` as supporting this. The `AzNavRail` library likely handles the FAB behavior.
+*   **Action:** `UI_UX.md` has been updated to reflect the "Dynamic Overlay" behavior which shrinks but stays visible, rather than a separate "FAB Mode" state that persists when the overlay is "hidden". (The overlay is never truly hidden in Interaction mode, just minimized).
+
+## 8. Build Service
+*   **Contradiction:** `README.md` implies a "Race to Build" where local and remote builds race.
+*   **Reality:** `BuildService.kt` implements the local build. `MainViewModel` (via `BuildDelegate`) handles the remote artifact checking. The "race" logic exists in the sense that both are triggered/checked.
+*   **Action:** `blueprint.md` accurately describes this "Race to Build" strategy.
