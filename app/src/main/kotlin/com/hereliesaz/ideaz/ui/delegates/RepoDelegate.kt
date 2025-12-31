@@ -350,7 +350,6 @@ class RepoDelegate(
     fun uploadProjectSecrets(owner: String, repo: String) {
         scope.launch(Dispatchers.Default) {
             try {
-                onOverlayLog("Encrypted and uploaded secrets to GitHub.") // Confirmation for user/reviewer
                 onLog("Uploading project secrets to GitHub...")
                 val token = settingsViewModel.getGithubToken()
                 if (token.isNullOrBlank()) {
@@ -364,7 +363,11 @@ class RepoDelegate(
                 val publicKey = try {
                     service.getRepoPublicKey(owner, repo)
                 } catch (e: Exception) {
-                    onLog("Error fetching public key: ${e.message}")
+                    if (e.message?.contains("404") == true) {
+                        onLog("Warning: Repository not found (404). Skipping secrets upload.")
+                    } else {
+                        onLog("Error fetching public key: ${e.message}")
+                    }
                     return@launch
                 }
 
@@ -410,6 +413,7 @@ class RepoDelegate(
                     }
                 }
                 onLog("Secrets uploaded successfully.")
+                onOverlayLog("Encrypted and uploaded secrets to GitHub.")
 
             } catch (e: Throwable) {
                 onLog("Error uploading secrets: ${e.message}")

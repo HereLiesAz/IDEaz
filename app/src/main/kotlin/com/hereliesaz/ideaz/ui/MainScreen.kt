@@ -111,72 +111,75 @@ fun MainScreen(
                 }
         ) {
 
-            Row(modifier = Modifier.fillMaxSize()) {
-                // Navigation Rail
-                Box {
-                    IdeNavRail(
-                        navController = navController,
-                        viewModel = viewModel,
-                        context = context,
-                        onShowPromptPopup = {
-                            // Show the prompt input dialog
-                            isPromptPopupVisible = true
-                        },
-                        handleActionClick = { it() },
-                        isIdeVisible = isIdeVisible,
-                        onToggleMode = {
-                            if (currentWebUrl != null) {
-                                viewModel.toggleSelectMode(!viewModel.isSelectMode.value)
-                            }
-                        },
-                        sheetState = sheetState,
-                        scope = scope,
-                        isLocalBuildEnabled = isLocalBuildEnabled,
-                        onNavigateToMainApp = { route ->
-                            viewModel.clearSelection()
-                            // Exit App View (Web or Android)
-                            viewModel.stateDelegate.setTargetAppVisible(false)
-                            navController.navigate(route) {
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        }
-                    )
-                }
-
-                // Content
-                Box(modifier = Modifier.weight(1f).fillMaxSize()) {
-                    if (isIdeVisible) {
-                        if (currentWebUrl != null) {
-                            // Web Mode: Show WebView
-                            currentWebUrl?.let { webUrl ->
-                                WebProjectHost(
-                                    url = webUrl,
-                                    reloadTrigger = viewModel.stateDelegate.webReloadTrigger,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                        } else {
-                            // Android Mode: Show Virtual Environment
-                            val targetPackage by viewModel.settingsViewModel.targetPackageName.collectAsState()
-                            if (targetPackage != null) {
-                                AndroidProjectHost(
-                                    packageName = targetPackage!!,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
+            // LAYER 1: Content (Full Screen)
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (isIdeVisible) {
+                    if (currentWebUrl != null) {
+                        // Web Mode: Show WebView
+                        currentWebUrl?.let { webUrl ->
+                            WebProjectHost(
+                                url = webUrl,
+                                reloadTrigger = viewModel.stateDelegate.webReloadTrigger,
+                                modifier = Modifier.fillMaxSize()
+                            )
                         }
                     } else {
-                        // IDE Mode: Show Settings/Project screens
-                        IdeNavHost(
-                            modifier = Modifier.fillMaxSize(),
-                            navController = navController,
-                            viewModel = viewModel,
-                            settingsViewModel = viewModel.settingsViewModel,
-                            onThemeToggle = onThemeToggle
-                        )
+                        // Android Mode: Show Virtual Environment
+                        val targetPackage by viewModel.settingsViewModel.targetPackageName.collectAsState()
+                        if (targetPackage != null) {
+                            AndroidProjectHost(
+                                packageName = targetPackage!!,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                     }
+                } else {
+                    // IDE Mode: Show Settings/Project screens
+                    IdeNavHost(
+                        modifier = Modifier.fillMaxSize(),
+                        navController = navController,
+                        viewModel = viewModel,
+                        settingsViewModel = viewModel.settingsViewModel,
+                        onThemeToggle = onThemeToggle
+                    )
                 }
+            }
+
+            // LAYER 2: Navigation Rail (Overlay, Aligned Start)
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .align(Alignment.CenterStart)
+                    .zIndex(Z_INDEX_NAV_RAIL)
+            ) {
+                IdeNavRail(
+                    navController = navController,
+                    viewModel = viewModel,
+                    context = context,
+                    onShowPromptPopup = {
+                        // Show the prompt input dialog
+                        isPromptPopupVisible = true
+                    },
+                    handleActionClick = { it() },
+                    isIdeVisible = isIdeVisible,
+                    onToggleMode = {
+                        if (currentWebUrl != null) {
+                            viewModel.toggleSelectMode(!viewModel.isSelectMode.value)
+                        }
+                    },
+                    sheetState = sheetState,
+                    scope = scope,
+                    isLocalBuildEnabled = isLocalBuildEnabled,
+                    onNavigateToMainApp = { route ->
+                        viewModel.clearSelection()
+                        // Exit App View (Web or Android)
+                        viewModel.stateDelegate.setTargetAppVisible(false)
+                        navController.navigate(route) {
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                )
             }
 
             // LAYER 2.5: Selection Overlay

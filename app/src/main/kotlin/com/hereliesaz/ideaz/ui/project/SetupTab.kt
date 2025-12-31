@@ -303,19 +303,20 @@ fun ProjectSetupTab(
 
                 Spacer(Modifier.height(8.dp))
 
-                AzButton(
-                    onClick = {
-                        checkAndRequestStoragePermission(context) {
-                            onSelectApk()
-                        }
-                    },
-                    text = "Pick APK",
-                    shape = AzButtonShape.RECTANGLE,
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isBusy
-                )
-
-                Spacer(Modifier.height(8.dp))
+                if (selectedType == ProjectType.ANDROID) {
+                    AzButton(
+                        onClick = {
+                            checkAndRequestStoragePermission(context) {
+                                onSelectApk()
+                            }
+                        },
+                        text = "Pick APK",
+                        shape = AzButtonShape.RECTANGLE,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isBusy
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
 
                 AzButton(
                     onClick = {
