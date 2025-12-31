@@ -12,12 +12,11 @@ The interaction model revolves around the **Live App** and the **IDE Overlay**.
 
 ## Modes of Operation
 
-### 1. Interaction Mode (Docked / FAB)
+### 1. Interaction Mode (Dynamic Overlay)
 *   **Purpose:** Allow the user to use their app normally.
-*   **State:** `IdeazOverlayService` window (for the Rail) is **dynamic** (managed by `AzNavRail`). It shrinks to wrap the content (Rail/FAB) when stationary to unblock the underlying app, and expands to full screen during drag operations to ensure smooth movement.
-*   **Visuals:** The user sees their app cleanly with the Rail docked.
-    *   **FAB Mode:** Long-press the rail header to collapse it into a Floating Action Button (FAB). The FAB can be dragged around the screen.
-*   **Trigger:** User taps "Interact" or toggles the mode. Long-press header for FAB.
+*   **State:** `IdeazOverlayService` window (for the Rail) is **dynamic** (managed by `AzNavRail`). It automatically shrinks to wrap the content (Rail) when stationary to unblock the underlying app, and expands to full screen during drag operations to ensure smooth movement.
+*   **Visuals:** The user sees their app cleanly with the Rail docked. The overlay is effectively transparent/minimized where not needed.
+*   **Trigger:** User taps "Interact" or toggles the mode.
 
 ### 2. Selection Mode
 *   **Purpose:** Allow the user to select UI elements to modify.
