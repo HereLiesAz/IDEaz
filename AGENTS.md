@@ -22,6 +22,8 @@ Before committing ANY changes, you **MUST** strictly adhere to the following wor
 ---
 
 ## Critical Known Issues / Discrepancies
+*   **Zipline:** Zipline-based Hot Reload logic is currently **DISABLED** in `MainViewModel.kt` due to API deprecation issues, despite the build pipeline supporting code generation.
+*   **Jules CLI:** The `JulesCliClient` is **DEPRECATED** and unused. All AI interactions use the `JulesApiClient` (HTTP).
 *   **Tabs Order:** Documentation previously listed Project Screen tabs in incorrect order. The correct order is Setup, Load, Clone.
 
 ## Documentation Index

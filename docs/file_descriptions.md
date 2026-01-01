@@ -24,7 +24,7 @@
 *   `ApiClient.kt`: Retrofit client builder.
 *   `GeminiApiClient.kt`: Client for Gemini API.
 *   `GithubApiClient.kt`: Client for GitHub API.
-*   `JulesCliClient.kt`: Wrapper for the local `jules` CLI binary (Legacy/Reference).
+*   `JulesCliClient.kt`: (Deprecated/Unused) Wrapper for the local `jules` CLI binary.
 *   `models.kt`: Data classes for API responses.
 *   `AuthInterceptor.kt`: Adds API keys to requests.
 *   `LoggingInterceptor.kt`: Logs API requests/responses.
@@ -51,18 +51,18 @@
 *   `ProcessManifest.kt`: Manifest merging/processing.
 *   `ProcessAars.kt`: AAR extraction and resource processing.
 *   `GenerateSourceMap.kt`: Generates source maps for UI inspection.
-*   `PythonInjector.kt`: Injects Python runtime assets.
+*   `PythonInjector.kt`: Injects Python runtime assets (Chaquopy).
 *   `ScalaCompile.kt`: Scala compilation support (Experimental).
 *   `SmaliCompile.kt` / `BaksmaliDecompile.kt`: Smali toolchain steps.
 *   `RemoteBuildManager.kt`: Manages remote build execution.
-*   `RedwoodCodegen.kt`, `ZiplineCompile.kt`, `ZiplineManifestGenerator.kt`, `ZiplineManifestStep.kt`: Hybrid Host toolchain steps.
+*   `RedwoodCodegen.kt`, `ZiplineCompile.kt`, `ZiplineManifestGenerator.kt`, `ZiplineManifestStep.kt`: Hybrid Host toolchain steps (Code generation is active, but Runtime loading is currently disabled in `MainViewModel`).
 
 #### git/
 *   `GitManager.kt`: Wrapper around JGit for version control operations.
 
 #### models/
 *   `Project.kt`: Project metadata model.
-*   `ProjectType.kt`: Enum for supported project types.
+*   `ProjectType.kt`: Enum for supported project types (Android, Web, React Native, Flutter, Python).
 *   `SourceMapEntry.kt`: Model for source mapping.
 *   `IdeazProjectConfig.kt`: Configuration model.
 *   `ProjectHistory.kt`: History tracking model.
