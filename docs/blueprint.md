@@ -40,7 +40,7 @@ To minimize user wait time, the IDE employs a dual-build strategy:
 
 ### 3.1 The Host & Overlay Architecture
 *   **Host Mode (Primary):** The IDE runs the target app inside itself.
-    *   **Android:** Uses `AndroidProjectHost` (VirtualDisplay) to render the running APK within the IDE window.
+    *   **Android:** Uses `AndroidProjectHost` (VirtualDisplay - Experimental) to render the running APK within the IDE window.
         *   **Note:** Zipline-based Hot Reload features are present in the build pipeline (`RedwoodCodegen`, `ZiplineCompile`) but the runtime loader in `MainViewModel` is currently **disabled** due to API deprecation.
     *   **Web:** Uses `WebProjectHost` (WebView) to render the web app.
 *   **Selection Overlay:** A Composable layer sits on top of the Host view (`SelectionOverlay`), intercepting touches for drag-selection and prompting.
