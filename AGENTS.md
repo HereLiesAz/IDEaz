@@ -56,7 +56,7 @@ The `docs/` folder contains the comprehensive documentation for this project. Th
 
 ## Recent Changes (Summary)
 *   **Documentation:** Updated `docs/` to match codebase reality (Clarified Host Architecture, Removed non-existent modules).
-*   **Architecture:** Confirmed Hybrid Host (VirtualDisplay/WebView) as primary interaction model.
+*   **Architecture:** Confirmed Hybrid Host (VirtualDisplay[Experimental]/WebView) as primary interaction model.
 *   **Refactor:** `MainViewModel` split into 6 Delegates. `ProjectScreen` split into sub-tabs.
 *   **Stability:** Fixed JNA Crash and Service ANR.
 *   **UI:** Updated `AzNavRail` to 5.3 (Dynamic Overlay).
