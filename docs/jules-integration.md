@@ -1,6 +1,6 @@
 # Jules Integration (API & CLI)
 
-The IDEaz application integrates with the Jules AI Coding Agent using a hybrid approach. While the `Jules Tools CLI` is packaged with the application, the primary interaction mechanism on Android is now the `Jules API` client (`JulesApiClient`) due to execution stability issues with the CLI binary on some devices.
+The IDEaz application integrates with the Jules AI Coding Agent using a direct API approach. The `Jules Tools CLI` integration is **DEPRECATED** and unused due to execution stability issues on Android. The primary interaction mechanism is the `Jules API` client (`JulesApiClient`).
 
 ## Jules API Client (`JulesApiClient`)
 
