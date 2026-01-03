@@ -29,6 +29,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] `KotlincCompile`
     - [x] `D8Compile`
     - [x] `ApkSign`
+    - [x] **Python Injection:** `PythonInjector.kt` (Implemented).
 - [x] **2.3: Dependency Resolution**
     - [x] `HttpDependencyResolver` (Maven/Aether integration).
     - [x] **Refinement:** Handle complex POMs and exclusions robustly (Added Version Catalog support).
@@ -50,7 +51,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] Improve Project Load Tab layout.
     - [x] Enhance Accessibility in Settings (Headings, Semantics, Touch Targets).
 - [x] **3.5: Dependency Management**
-    - [x] UI for viewing and adding libraries via AI.
+    - [x] UI for viewing and adding libraries via AI (`LibrariesScreen`).
 
 ## Phase 4: AI Integration & Workflow
 - [x] **4.1: Jules Integration**
@@ -69,6 +70,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] Web Support (Runtime + Auto-Build/Correct).
     - [x] React Native Support (Bundler, Runtime, and Templates implemented).
     - [x] Flutter Support (Implemented via Remote Build, Templates available).
+    - [x] Python Support (Runtime injection).
 - [ ] **5.2: Testing**
     - [x] Unit Tests for SettingsViewModel.
     - [x] Unit Tests for MainViewModel (Delegates). (StateDelegate, AIDelegate)
@@ -99,10 +101,10 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [x] Investigation into alternative build systems. (See Phase 11)
 
 ## Phase 9: Enhanced Developer Tooling
-- [x] **9.1: Implement Read-Only File Explorer**
+- [x] **9.1: Implement Read-Only File Explorer** (Implemented `FileExplorerScreen` as Escape Hatch).
 - [x] **9.2: Implement Git Integration Screen**
 - [x] **9.3: Refactor Logging UI**
-- [x] **9.4: Implement Dependencies Screen**
+- [x] **9.4: Implement Dependencies Screen** (Implemented `LibrariesScreen`).
 
 ## Phase 10: Maintenance
 - [x] Keep `docs/` up to date.
@@ -112,6 +114,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [x] Refactor `MainViewModel` into Delegates and add KDocs.
 - [x] Fix JNA native library loading (lazysodium/jna conflict).
 - [x] Refactor Project Setup UI (Move APK Picker, reorder buttons).
+- [x] Update Project Screen tabs order (Setup, Load, Clone).
 
 ## Phase 11: Hybrid Host Architecture Implementation
 - [x] **11.1: Dependencies & Tooling**
