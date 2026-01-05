@@ -140,3 +140,10 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] Implement Host receiver to trigger `ziplineLoader.load`. (Disabled in `MainViewModel` due to API issues).
     - [x] Refactor `SimpleJsBundler` for Zipline module loading/bootstrapping. (Skipped: ZiplineLoader handles modular loading without bundling).
     - [x] Implement Error Handling: Capture Guest crashes and feed to Jules.
+
+## Phase 12: Documentation & Cleanup
+- [x] **12.1: Contradiction Audit**
+    - [x] Verify "min-app" removal.
+    - [x] Verify Project Screen Tabs order.
+    - [x] Clarify Remote-Only Flutter support.
+    - [x] Update `contradictions_report.md`.
