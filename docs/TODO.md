@@ -115,6 +115,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [x] Fix JNA native library loading (lazysodium/jna conflict).
 - [x] Refactor Project Setup UI (Move APK Picker, reorder buttons).
 - [x] Update Project Screen tabs order (Setup, Load, Clone).
+- [x] Configure CI to sign release APKs using Repository Secrets.
 
 ## Phase 11: Hybrid Host Architecture Implementation
 - [x] **11.1: Dependencies & Tooling**
