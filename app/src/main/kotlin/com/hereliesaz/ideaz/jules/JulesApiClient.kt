@@ -75,17 +75,17 @@ object JulesApiClient : IJulesApiClient {
     }
 
     override suspend fun listSessions(pageSize: Int, pageToken: String?) =
-        client.listSessions(pageSize = pageSize, pageToken = pageToken)
+        client.listSessions(pageSize, pageToken)
 
     override suspend fun createSession(request: CreateSessionRequest): Session =
-        client.createSession(request = request)
+        client.createSession(request)
 
     override suspend fun sendMessage(sessionId: String, request: SendMessageRequest) =
-        client.sendMessage(id = sessionId, request = request)
+        client.sendMessage(sessionId, request)
 
     override suspend fun listActivities(sessionId: String, pageSize: Int, pageToken: String?) =
-        client.listActivities(id = sessionId, pageSize = pageSize, pageToken = pageToken)
+        client.listActivities(sessionId, pageSize, pageToken)
 
     override suspend fun listSources(pageSize: Int, pageToken: String?) =
-        client.listSources(pageSize = pageSize, pageToken = pageToken)
+        client.listSources(pageSize, pageToken)
 }

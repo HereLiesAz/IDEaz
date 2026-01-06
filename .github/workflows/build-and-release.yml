@@ -54,14 +54,48 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Prepare Keystore from Secrets
+        env:
+          KEYSTORE_PRIVATE: ${{ secrets.KEYSTORE_PRIVATE }}
+          KEYSTORE_CHAIN: ${{ secrets.KEYSTORE_CHAIN }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          if [ -n "$KEYSTORE_PRIVATE" ] && [ -n "$KEYSTORE_CHAIN" ]; then
+             echo "Reconstructing Keystore from Secrets..."
+             echo "$KEYSTORE_PRIVATE" > private.key
+             echo "$KEYSTORE_CHAIN" > chain.crt
+
+             # Create PKCS12 Keystore
+             openssl pkcs12 -export -in chain.crt -inkey private.key -out release.keystore \
+               -name "$KEY_ALIAS" -passout pass:"$KEYSTORE_PASSWORD"
+
+             echo "KEYSTORE_FILE=$(pwd)/release.keystore" >> $GITHUB_ENV
+             # Ensure Gradle uses the same password for the key as the store (OpenSSL default behavior)
+             echo "KEY_PASSWORD=$KEYSTORE_PASSWORD" >> $GITHUB_ENV
+          else
+             echo "Warning: KEYSTORE_PRIVATE or KEYSTORE_CHAIN not set. Skipping release signing setup."
+          fi
+
       - name: Build with Gradle
         id: gradle-build
+        env:
+           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+           # KEYSTORE_FILE is set in previous step if successful
         run: |
           set +e
           export BUILD_NUMBER=$(git rev-list --count HEAD)
           
-          # Build the APK
-          ./gradlew assembleDebug -PversionBuild=$BUILD_NUMBER --build-cache > build.log 2>&1
+          # Build the APK (Release)
+          if [ -n "$KEYSTORE_FILE" ]; then
+              echo "Building Release APK with Signing..."
+              ./gradlew assembleRelease -PversionBuild=$BUILD_NUMBER --build-cache > build.log 2>&1
+          else
+              echo "Building Debug APK (Fallback)..."
+              ./gradlew assembleDebug -PversionBuild=$BUILD_NUMBER --build-cache > build.log 2>&1
+          fi
           
           EXIT_CODE=$?
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
@@ -126,7 +160,7 @@ jobs:
 
           VERSION_NAME="$MAJOR.$MINOR.$PATCH.$BUILD_NUMBER"
           
-          TAG_NAME="latest-debug-v${MAJOR}.${MINOR}"
+          TAG_NAME="latest-release-v${MAJOR}.${MINOR}"
           
           # Dynamic App Name from settings.gradle
           if [ -f "settings.gradle.kts" ]; then
@@ -137,15 +171,21 @@ jobs:
              APP_NAME="App"
           fi
           
-          # Locate built APK
-          APK_ORIGINAL=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          # Locate built APK (Prefer Release, fallback to Debug)
+          APK_ORIGINAL=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -z "$APK_ORIGINAL" ]; then
+             APK_ORIGINAL=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+             SUFFIX="-debug"
+          else
+             SUFFIX="-release"
+          fi
           
           if [ -z "$APK_ORIGINAL" ]; then
              echo "Error: No APK found to release!"
              exit 1
           fi
 
-          TARGET_NAME="${APP_NAME}-${VERSION_NAME}-debug.apk"
+          TARGET_NAME="${APP_NAME}-${VERSION_NAME}${SUFFIX}.apk"
           
           # Rename for release
           mv "$APK_ORIGINAL" "$TARGET_NAME"
@@ -169,14 +209,14 @@ jobs:
           if gh release view $TAG_NAME > /dev/null 2>&1; then
              echo "Updating existing release..."
              gh release edit $TAG_NAME --prerelease \
-               --title "Latest Debug Build ($TAG_NAME)" \
+               --title "Latest Release ($TAG_NAME)" \
                --notes "Auto-build from commit $GITHUB_SHA" \
                --target $GITHUB_SHA
              gh release upload $TAG_NAME "$APK_FILE" --clobber
           else
              echo "Creating new release..."
              gh release create $TAG_NAME "$APK_FILE" --prerelease \
-               --title "Latest Debug Build ($TAG_NAME)" \
+               --title "Latest Release ($TAG_NAME)" \
                --notes "Auto-build from commit $GITHUB_SHA" \
                --target $GITHUB_SHA
           fi
