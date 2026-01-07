@@ -135,6 +135,7 @@ androidComponents.onVariants { variant ->
 }
 
 dependencies {
+    // Kotlin Compiler Embeddable for runtime compilation
     implementation(libs.kotlin.compiler.embeddable)
     implementation(libs.jaxb.api)
     implementation(libs.javax.annotation.api)
