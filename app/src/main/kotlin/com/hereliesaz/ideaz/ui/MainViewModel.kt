@@ -15,6 +15,8 @@ import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.services.CrashReportingService
 import com.hereliesaz.ideaz.ui.delegates.*
+import com.hereliesaz.ideaz.ui.editor.EditorViewModel
+import com.hereliesaz.ideaz.services.JsCompilerService
 import com.hereliesaz.ideaz.utils.ErrorCollector
 import com.hereliesaz.ideaz.R
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
@@ -70,6 +72,11 @@ class MainViewModel(
     application: Application,
     val settingsViewModel: SettingsViewModel
 ) : AndroidViewModel(application) {
+
+    // Editor ViewModel (Lazy instantiation)
+    val editorViewModel: EditorViewModel by lazy {
+        EditorViewModel(JsCompilerService(application))
+    }
 
     // --- DELEGATES ---
     val stateDelegate = StateDelegate(viewModelScope)
