@@ -119,7 +119,7 @@ fun MainScreen(
                         currentWebUrl?.let { webUrl ->
                             WebProjectHost(
                                 url = webUrl,
-                                reloadTrigger = viewModel.stateDelegate.webReloadTrigger,
+                                reloadTrigger = viewModel.editorViewModel.hotReloadEvent,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }

@@ -3,6 +3,8 @@ package com.hereliesaz.ideaz.services
 import android.content.Context
 import com.hereliesaz.ideaz.utils.AssetExtractor
 import org.jetbrains.kotlin.cli.common.arguments.K2JSCompilerArguments
+import org.jetbrains.kotlin.cli.common.messages.MessageRenderer
+import org.jetbrains.kotlin.cli.common.messages.PrintingMessageCollector
 import org.jetbrains.kotlin.cli.js.K2JSCompiler
 import org.jetbrains.kotlin.config.Services
 import java.io.ByteArrayOutputStream
@@ -20,47 +22,46 @@ class JsCompilerService(private val context: Context) {
 
     @Synchronized // Single threaded. We aren't Google.
     fun compile(sourceCode: String): Result {
-        val sourceFile = File(context.cacheDir, "main.kt")
-        sourceFile.writeText(sourceCode)
+        val sourceFile = File.createTempFile("main", ".kt", context.cacheDir)
+        try {
+            sourceFile.writeText(sourceCode)
 
-        val logStream = ByteArrayOutputStream()
-        val printStream = PrintStream(logStream)
+            val logStream = ByteArrayOutputStream()
+            val printStream = PrintStream(logStream)
 
-        // Construct K2JSCompilerArguments as requested, but we must manually convert to strings
-        // because the embeddable compiler's exec() method only accepts string varargs.
-        val k2Args = K2JSCompilerArguments().apply {
-            moduleKind = "plain"
-            // Use this@JsCompilerService to avoid shadowing by K2JSCompilerArguments.outputFile
-            outputFile = this@JsCompilerService.outputFile.absolutePath
-            sourceMap = true
-            // metaInfo = true // Property 'metaInfo' is unresolved in this compiler version
-            irProduceJs = true // The modern way
-            libraries = stdLibPath
-            freeArgs = listOf(sourceFile.absolutePath)
-            // Suppress warnings because we are insecure about our code
-            suppressWarnings = true
-            verbose = false
+            val k2Args = K2JSCompilerArguments().apply {
+                moduleKind = "plain"
+                // Use this@JsCompilerService to avoid shadowing by K2JSCompilerArguments.outputFile
+                outputFile = this@JsCompilerService.outputFile.absolutePath
+                sourceMap = true
+                irProduceJs = true // The modern way
+                libraries = stdLibPath
+                freeArgs = listOf(sourceFile.absolutePath)
+                // Suppress warnings because we are insecure about our code
+                suppressWarnings = true
+                verbose = false
+            }
+
+            val messageCollector = PrintingMessageCollector(
+                printStream,
+                MessageRenderer.PLAIN_FULL_PATHS,
+                k2Args.verbose
+            )
+
+            val exitCode = compiler.exec(
+                messageCollector,
+                Services.EMPTY,
+                k2Args
+            )
+
+            return Result(
+                success = exitCode.code == 0,
+                logs = logStream.toString()
+            )
+        } finally {
+            if (sourceFile.exists()) {
+                sourceFile.delete()
+            }
         }
-
-        // Manual conversion to arguments list
-        val argsList = mutableListOf<String>()
-        k2Args.outputFile?.let { argsList.add("-output"); argsList.add(it) }
-        k2Args.moduleKind?.let { argsList.add("-module-kind"); argsList.add(it) }
-        if (k2Args.sourceMap) argsList.add("-source-map")
-        if (k2Args.irProduceJs) argsList.add("-Xir-produce-js")
-        k2Args.libraries?.let { argsList.add("-libraries"); argsList.add(it) }
-        if (k2Args.suppressWarnings) argsList.add("-nowarn")
-        if (k2Args.verbose) argsList.add("-verbose")
-        argsList.addAll(k2Args.freeArgs)
-
-        val exitCode = compiler.exec(
-            printStream,
-            *argsList.toTypedArray()
-        )
-
-        return Result(
-            success = exitCode.code == 0,
-            logs = logStream.toString()
-        )
     }
 }

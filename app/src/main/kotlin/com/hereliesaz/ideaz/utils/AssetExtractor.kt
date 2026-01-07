@@ -26,19 +26,44 @@ object AssetExtractor {
         // Extract if file missing OR version changed
         if (!destFile.exists() || currentVersion != storedVersion) {
             try {
+                // Extract stdlib jar
                 context.assets.open("kotlin-stdlib-js.jar").use { input ->
                     FileOutputStream(destFile).use { output ->
                         input.copyTo(output)
                     }
                 }
+
+                // Also extract www/index.html
+                val wwwDir = File(context.filesDir, "www")
+                if (!wwwDir.exists()) wwwDir.mkdirs()
+                val indexFile = File(wwwDir, "index.html")
+                context.assets.open("www/index.html").use { input ->
+                    FileOutputStream(indexFile).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+
                 // Update stored version only on success
                 prefs.edit().putLong(KEY_ASSET_VERSION, currentVersion).apply()
             } catch (e: Exception) {
                 e.printStackTrace()
-                // If extraction fails, we might still return the path if file exists,
-                // but if it doesn't exist, the app will likely crash later.
-                // We assume reliable assets.
             }
+        } else {
+             // Ensure index.html exists even if version matches (e.g. dev)
+             val wwwDir = File(context.filesDir, "www")
+             if (!wwwDir.exists()) wwwDir.mkdirs()
+             val indexFile = File(wwwDir, "index.html")
+             if (!indexFile.exists()) {
+                 try {
+                     context.assets.open("www/index.html").use { input ->
+                        FileOutputStream(indexFile).use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                 } catch (e: Exception) {
+                     e.printStackTrace()
+                 }
+             }
         }
         return destFile.absolutePath
     }

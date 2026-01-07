@@ -12,11 +12,13 @@ import com.hereliesaz.aznavrail.model.AzButtonShape
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.lang.EmptyLanguage
 import com.hereliesaz.ideaz.ui.editor.EditorSetup
+import com.hereliesaz.ideaz.ui.editor.EditorViewModel
 import java.io.File
 
 @Composable
 fun FileContentScreen(
-    filePath: String
+    filePath: String,
+    viewModel: EditorViewModel? = null
 ) {
     val file = File(filePath)
     var fileContent by remember { mutableStateOf(file.readText()) }
@@ -52,7 +54,11 @@ fun FileContentScreen(
                         setEditorLanguage(EmptyLanguage())
                     }
                     subscribeAlways(io.github.rosemoe.sora.event.ContentChangeEvent::class.java) {
-                        fileContent = this.text.toString()
+                        val newText = this.text.toString()
+                        fileContent = newText
+                        if (file.extension == "kt") {
+                            viewModel?.onCodeChange(newText)
+                        }
                     }
                 }
             },
