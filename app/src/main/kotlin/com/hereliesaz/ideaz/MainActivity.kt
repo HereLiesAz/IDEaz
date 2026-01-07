@@ -16,13 +16,18 @@ import com.hereliesaz.ideaz.ui.MainScreen
 import com.hereliesaz.ideaz.ui.theme.IDEazTheme
 import androidx.core.content.ContextCompat
 import com.hereliesaz.ideaz.utils.AssetExtractor
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        AssetExtractor.extractStdLib(this)
+        lifecycleScope.launch(Dispatchers.IO) {
+            AssetExtractor.extractStdLib(applicationContext)
+        }
 
         // Handle route from intent if any
         handleIntent(intent)
