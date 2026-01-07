@@ -42,20 +42,16 @@ class JsCompilerService(private val context: Context) {
             verbose = false
         }
 
-        // Manual conversion to arguments list
-        val argsList = mutableListOf<String>()
-        k2Args.outputFile?.let { argsList.add("-output"); argsList.add(it) }
-        k2Args.moduleKind?.let { argsList.add("-module-kind"); argsList.add(it) }
-        if (k2Args.sourceMap) argsList.add("-source-map")
-        if (k2Args.irProduceJs) argsList.add("-Xir-produce-js")
-        k2Args.libraries?.let { argsList.add("-libraries"); argsList.add(it) }
-        if (k2Args.suppressWarnings) argsList.add("-nowarn")
-        if (k2Args.verbose) argsList.add("-verbose")
-        argsList.addAll(k2Args.freeArgs)
+        val messageCollector = org.jetbrains.kotlin.cli.common.messages.PrintingMessageCollector(
+            printStream,
+            org.jetbrains.kotlin.cli.common.messages.MessageRenderer.PLAIN_FULL_PATHS,
+            k2Args.verbose
+        )
 
         val exitCode = compiler.exec(
-            printStream,
-            *argsList.toTypedArray()
+            messageCollector,
+            org.jetbrains.kotlin.config.Services.EMPTY,
+            k2Args
         )
 
         return Result(
