@@ -15,10 +15,14 @@ import androidx.compose.ui.Modifier
 import com.hereliesaz.ideaz.ui.MainScreen
 import com.hereliesaz.ideaz.ui.theme.IDEazTheme
 import androidx.core.content.ContextCompat
+import com.hereliesaz.ideaz.utils.AssetExtractor
+
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        AssetExtractor.extractStdLib(this)
 
         // Handle route from intent if any
         handleIntent(intent)
