@@ -5,6 +5,7 @@ import java.io.File
 import java.io.FileOutputStream
 
 object AssetExtractor {
+    @Synchronized
     fun requireStdLib(context: Context): String {
         val libDir = File(context.filesDir, "lib")
         if (!libDir.exists()) libDir.mkdirs()
