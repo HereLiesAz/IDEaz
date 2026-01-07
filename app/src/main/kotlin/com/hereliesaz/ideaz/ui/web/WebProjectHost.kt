@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.Flow
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -41,7 +41,7 @@ class IdeazJsInterface(private val context: Context) {
 @Composable
 fun WebProjectHost(
     url: String,
-    reloadTrigger: StateFlow<Long>? = null,
+    reloadTrigger: Flow<Long>? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -57,10 +57,10 @@ fun WebProjectHost(
                 allowFileAccess = true
                 // SENTINEL: Disabled to prevent access to Android content providers (contacts, etc.).
                 allowContentAccess = false
-                // SENTINEL: Disabled to prevent XHR/fetch requests to other file URLs, mitigating local file theft.
-                allowFileAccessFromFileURLs = false
-                // SENTINEL: CRITICAL FIX. Disabled to prevent cross-origin file access (e.g., reading SharedPreferences from index.html).
-                allowUniversalAccessFromFileURLs = false
+                // IDEaz: Enabled to allow loading app.js relative to index.html
+                allowFileAccessFromFileURLs = true
+                // IDEaz: Enabled to allow cross-origin requests for local files (modules, imports)
+                allowUniversalAccessFromFileURLs = true
                 // SENTINEL: Enable Safe Browsing to protect against known threats (phishing, malware).
                 safeBrowsingEnabled = true
             }
@@ -97,10 +97,11 @@ fun WebProjectHost(
     }
 
     if (reloadTrigger != null) {
-        val trigger by reloadTrigger.collectAsState()
+        val trigger by reloadTrigger.collectAsState(initial = 0L)
         LaunchedEffect(trigger) {
             if (trigger > 0L) {
-                webView.reload()
+                // Trigger hot reload via JS instead of full page reload
+                webView.evaluateJavascript("hotReload($trigger)", null)
             }
         }
     }
