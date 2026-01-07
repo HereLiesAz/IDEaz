@@ -57,10 +57,10 @@ fun WebProjectHost(
                 allowFileAccess = true
                 // SENTINEL: Disabled to prevent access to Android content providers (contacts, etc.).
                 allowContentAccess = false
-                // IDEaz: Enabled to allow loading app.js relative to index.html
-                allowFileAccessFromFileURLs = true
-                // IDEaz: Enabled to allow cross-origin requests for local files (modules, imports)
-                allowUniversalAccessFromFileURLs = true
+                // SENTINEL: Disabled to prevent XHR/fetch requests to other file URLs, mitigating local file theft.
+                allowFileAccessFromFileURLs = false
+                // SENTINEL: CRITICAL FIX. Disabled to prevent cross-origin file access (e.g., reading SharedPreferences from index.html).
+                allowUniversalAccessFromFileURLs = false
                 // SENTINEL: Enable Safe Browsing to protect against known threats (phishing, malware).
                 safeBrowsingEnabled = true
             }
