@@ -26,7 +26,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         lifecycleScope.launch(Dispatchers.IO) {
-            AssetExtractor.extractStdLib(applicationContext)
+            AssetExtractor.requireStdLib(applicationContext)
         }
 
         // Handle route from intent if any

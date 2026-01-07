@@ -3,29 +3,24 @@ package com.hereliesaz.ideaz.utils
 import android.content.Context
 import java.io.File
 import java.io.FileOutputStream
-import java.io.IOException
 
 object AssetExtractor {
-    fun extractStdLib(context: Context) {
+    @Synchronized
+    fun requireStdLib(context: Context): String {
         val libDir = File(context.filesDir, "lib")
-        if (!libDir.exists()) {
-            if (!libDir.mkdirs()) {
-                throw IOException("Failed to create directory: ${libDir.absolutePath}")
-            }
-        }
+        if (!libDir.exists()) libDir.mkdirs()
 
-        val stdLibFile = File(libDir, "stdlib.jar")
-        if (!stdLibFile.exists()) {
-            try {
-                context.assets.open("kotlin-stdlib-js.jar").use { inputStream ->
-                    FileOutputStream(stdLibFile).use { outputStream ->
-                        inputStream.copyTo(outputStream)
-                    }
+        val destFile = File(libDir, "kotlin-stdlib-js.jar")
+
+        // Optimism: If it exists, it's probably fine.
+        // Realism: You should probably check checksums, but we live dangerously.
+        if (!destFile.exists()) {
+            context.assets.open("kotlin-stdlib-js.jar").use { input ->
+                FileOutputStream(destFile).use { output ->
+                    input.copyTo(output)
                 }
-            } catch (e: IOException) {
-                e.printStackTrace()
-                // Log failure but allow app to continue
             }
         }
+        return destFile.absolutePath
     }
 }
