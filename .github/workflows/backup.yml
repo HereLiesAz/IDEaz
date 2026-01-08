@@ -1,4 +1,4 @@
-name: "Context Backup (Surgical + Manifest)"
+name: "Context Backup (Universal Surgical)"
 
 on:
   workflow_dispatch:
@@ -26,24 +26,35 @@ jobs:
           # --- CONFIGURATION ---
           
           # 1. TRASH (Dead to us. Never listed, never read.)
-          # Updated to include build_test, libs, captured
-          TRASH_DIRS="build out bin obj .gradle .idea .vscode .git node_modules captures captured .cxx generated build_test libs"
+          TRASH_DIRS="build out bin obj .gradle .idea .vscode .git node_modules captures captured .cxx generated build_test libs venv __pycache__ .dart_tool .next .nuxt dist site-packages .pytest_cache"
           TRASH_FILES="package-lock.json yarn.lock local.properties .DS_Store Thumbs.db"
 
           # 2. WHITELIST (We read the content of these.)
           EXTENSIONS=(
-              # JVM
+              # JVM / Android
               "kt" "kts" "java" "xml" "gradle" "properties" "pro" "toml"
-              # NDK
+              
+              # NDK / Native
               "cpp" "c" "cc" "h" "hpp" "ld" "S" "cmake" "in"
-              # Web/Config/Workflows
-              "json" "yaml" "yml" "md" "txt" "sql" "html" "css" "js"
+              
+              # Web (JS/TS/Frameworks)
+              "js" "jsx" "ts" "tsx" "html" "css" "vue" "svelte" "json"
+              
+              # Flutter / Dart
+              "dart" "arb"
+              
+              # Python
+              "py" "ipynb" "ini" "cfg"
+              
+              # Config / Data / Docs (UPDATED)
+              "yaml" "yml" "sql" "env"
+              "md" "markdown" "rst" "adoc" "txt"
           )
           
           # Specific critical filenames
-          CRITICAL_FILES=("CMakeLists.txt" "Android.mk" "Application.mk" "Makefile")
+          CRITICAL_FILES=("CMakeLists.txt" "Android.mk" "Application.mk" "Makefile" "Dockerfile" "docker-compose.yml" "requirements.txt" "Gemfile" "Rakefile" "LICENSE" "README")
 
-          echo -e "\033[36m[+] Starting Surgical Extraction with Manifest...\033[0m"
+          echo -e "\033[36m[+] Starting Universal Surgical Extraction...\033[0m"
 
           # Helper: Check for binary content
           is_binary() {
