@@ -44,6 +44,10 @@ minapp/.idea/
 gha-creds-*.json
 # gemini-cli settings
 .gemini/
+test-output*.txt
+test_output*.txt
+test_log*.txt
+test-log*.txt
 
 # GitHub App credentials
 gha-creds-*.json
