@@ -127,7 +127,9 @@ class MainViewModel(
         settingsViewModel,
         viewModelScope,
         logHandler::onAiLog,
-        { diff -> applyUnidiffPatchInternal(diff) }
+        { diff -> applyUnidiffPatchInternal(diff) },
+        jsCompilerService = JsCompilerService(application),
+        onWebReload = { stateDelegate.triggerWebReload() }
     )
     val overlayDelegate = OverlayDelegate(application, settingsViewModel, viewModelScope, logHandler::onAiLog)
 
@@ -1040,9 +1042,15 @@ class MainViewModel(
         if (projectType == ProjectType.WEB) {
             val projectDir = settingsViewModel.getProjectPath(appName)
             if (stateDelegate.currentWebUrl.value == null) {
-                val indexFile = File(projectDir, "index.html")
-                if (indexFile.exists()) {
-                    stateDelegate.setCurrentWebUrl("file://${indexFile.absolutePath}")
+                // For Web Projects with Kotlin/JS, we rely on the extracted www/index.html
+                // which references the compiled app.js.
+                val wwwDir = File(c.filesDir, "www")
+                val indexFile = File(wwwDir, "index.html")
+                // Fallback to project source index.html if www/index.html is missing
+                val fileToLoad = if (indexFile.exists()) indexFile else File(projectDir, "index.html")
+
+                if (fileToLoad.exists()) {
+                    stateDelegate.setCurrentWebUrl("file://${fileToLoad.absolutePath}")
                 }
             }
             startFileObservation(projectDir)
