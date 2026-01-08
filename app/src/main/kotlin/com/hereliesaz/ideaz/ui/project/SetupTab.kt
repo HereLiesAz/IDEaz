@@ -197,7 +197,7 @@ fun ProjectSetupTab(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 TextField(
-                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    modifier = Modifier.run { @Suppress("DEPRECATION") menuAnchor() }.fillMaxWidth(),
                     readOnly = true,
                     value = selectedType.displayName,
                     onValueChange = {},

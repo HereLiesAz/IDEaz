@@ -51,7 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -925,7 +925,7 @@ fun AiAssignmentDropdown(
             colors = ExposedDropdownMenuDefaults.textFieldColors(),
             modifier = Modifier
                 .fillMaxWidth()
-                .menuAnchor()
+                .run { @Suppress("DEPRECATION") menuAnchor() }
         )
 
         ExposedDropdownMenu(
@@ -972,7 +972,7 @@ fun LogLevelDropdown(
             colors = ExposedDropdownMenuDefaults.textFieldColors(),
             modifier = Modifier
                 .fillMaxWidth()
-                .menuAnchor()
+                .run { @Suppress("DEPRECATION") menuAnchor() }
         )
 
         ExposedDropdownMenu(
@@ -1022,7 +1022,7 @@ fun ThemeDropdown(
             colors = ExposedDropdownMenuDefaults.textFieldColors(),
             modifier = Modifier
                 .fillMaxWidth()
-                .menuAnchor()
+                .run { @Suppress("DEPRECATION") menuAnchor() }
         )
 
         ExposedDropdownMenu(
