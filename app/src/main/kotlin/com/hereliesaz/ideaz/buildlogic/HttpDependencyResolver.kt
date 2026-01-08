@@ -118,7 +118,11 @@ class HttpDependencyResolver(
 
                     if (groupId != null && artifactId != null && version != null) {
                         val coords = if (type != null) "$groupId:$artifactId:$type:$version" else "$groupId:$artifactId:$version"
-                        dependencies.add(Dependency(DefaultArtifact(coords), "compile", false, exclusions))
+                        try {
+                            dependencies.add(Dependency(DefaultArtifact(coords), "compile", false, exclusions))
+                        } catch (e: IllegalArgumentException) {
+                            callback?.onLog("[IDE] WARNING: Invalid dependency coordinates: $coords")
+                        }
                     }
 
                 } catch (e: Exception) {
