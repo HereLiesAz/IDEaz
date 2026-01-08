@@ -8,6 +8,7 @@ import com.facebook.react.common.LifecycleState
 import com.facebook.react.modules.core.DefaultHardwareBackBtnHandler
 import com.facebook.react.shell.MainReactPackage
 import com.facebook.soloader.SoLoader
+import androidx.activity.OnBackPressedCallback
 import com.hereliesaz.ideaz.BuildConfig
 import java.io.File
 
@@ -18,6 +19,7 @@ import java.io.File
 class ReactNativeActivity : AppCompatActivity(), DefaultHardwareBackBtnHandler {
     private var mReactRootView: ReactRootView? = null
     private var mReactInstanceManager: ReactInstanceManager? = null
+    private var backCallback: OnBackPressedCallback? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,10 +59,25 @@ class ReactNativeActivity : AppCompatActivity(), DefaultHardwareBackBtnHandler {
         mReactRootView?.startReactApplication(mReactInstanceManager, moduleName, null)
 
         setContentView(mReactRootView)
+
+        backCallback = object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (mReactInstanceManager != null) {
+                    mReactInstanceManager?.onBackPressed()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
+                }
+            }
+        }
+        onBackPressedDispatcher.addCallback(this, backCallback!!)
     }
 
     override fun invokeDefaultOnBackPressed() {
-        super.onBackPressed()
+        backCallback?.isEnabled = false
+        onBackPressedDispatcher.onBackPressed()
+        backCallback?.isEnabled = true
     }
 
     override fun onPause() {
@@ -77,13 +94,5 @@ class ReactNativeActivity : AppCompatActivity(), DefaultHardwareBackBtnHandler {
         super.onDestroy()
         mReactInstanceManager?.onHostDestroy(this)
         mReactRootView?.unmountReactApplication()
-    }
-
-    override fun onBackPressed() {
-        if (mReactInstanceManager != null) {
-            mReactInstanceManager?.onBackPressed()
-        } else {
-            super.onBackPressed()
-        }
     }
 }

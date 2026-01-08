@@ -48,7 +48,7 @@ fun ProjectCreateTab(
             var expanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
                 TextField(
-                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    modifier = Modifier.run { @Suppress("DEPRECATION") menuAnchor() }.fillMaxWidth(),
                     readOnly = true,
                     value = selectedType.displayName,
                     onValueChange = {},
