@@ -90,10 +90,13 @@ class IdeazAccessibilityService : AccessibilityService() {
                 // Root is passed in, findLeafNode checks it.
                 // If it returns a child, it does NOT recycle root.
                 // So we must recycle root.
+                @Suppress("DEPRECATION")
                 root.recycle()
             }
+            @Suppress("DEPRECATION")
             leaf.recycle()
         } else {
+            @Suppress("DEPRECATION")
             root.recycle()
         }
     }
@@ -116,10 +119,12 @@ class IdeazAccessibilityService : AccessibilityService() {
                     // If leaf is different from child, it means child was just a container.
                     // We recycle child if it's not the returned leaf.
                     if (leaf != child) {
+                        @Suppress("DEPRECATION")
                         child.recycle()
                     }
                     return leaf
                 }
+                @Suppress("DEPRECATION")
                 child.recycle() // Child didn't contain it
             }
         }
