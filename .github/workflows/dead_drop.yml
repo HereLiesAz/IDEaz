@@ -1,0 +1,81 @@
+name: "Context Dead Drop"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  drop-package:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate and Upload
+        shell: powershell
+        run: |
+          # --- 1. Generate Context (Condensed for brevity, same logic as before) ---
+          $BackupPrefix = "project_backup"
+          $Timestamp    = Get-Date -Format "yyyyMMdd_HHmmss"
+          $Root         = Get-Location
+          $OutFile      = Join-Path $Root "${BackupPrefix}_full_${Timestamp}.txt"
+          
+          # Ignored: .git, existing backups
+          $ForceExclude = @("${BackupPrefix}*", ".git")
+          # Binary extensions to skip
+          $BinaryExtensions = @(".png", ".jpg", ".exe", ".dll", ".zip", ".pdf", ".db", ".mp4", ".class", ".jar")
+
+          function Test-IsBinary($Path) {
+              try {
+                  if ($BinaryExtensions -contains [System.IO.Path]::GetExtension($Path).ToLower()) { return $true }
+                  $bytes = Get-Content $Path -Encoding Byte -TotalCount 1024 -ErrorAction SilentlyContinue
+                  if (!$bytes) { return $false }
+                  if ($bytes -contains 0) { return $true }
+                  return $false
+              } catch { return $true }
+          }
+
+          Write-Host "Generating context..." -ForegroundColor Cyan
+          
+          # Git-aware file listing
+          if ((Test-Path ".git") -and (Get-Command "git" -ErrorAction SilentlyContinue)) {
+              $Files = git ls-files -c -o --exclude-standard
+              $FileList = $Files | ForEach-Object { Join-Path $Root $_ }
+          } else {
+              $FileList = Get-ChildItem -Recurse -File | Select-Object -ExpandProperty FullName
+          }
+
+          # Write File
+          $Writer = [System.IO.StreamWriter]::new($OutFile)
+          foreach ($f in $FileList) {
+              $name = Split-Path $f -Leaf
+              if ($ForceExclude | Where-Object { $name -like $_ }) { continue }
+              
+              $rel = $f.Substring($Root.Path.Length + 1)
+              $Writer.WriteLine(">>> $rel")
+              if (Test-IsBinary $f) {
+                  $Writer.WriteLine("[BINARY]")
+              } else {
+                  try { $Writer.WriteLine([System.IO.File]::ReadAllText($f)) } catch { $Writer.WriteLine("[ERROR]") }
+              }
+              $Writer.WriteLine("`n")
+          }
+          $Writer.Close()
+
+          # --- 2. The Dead Drop ---
+          Write-Host "Uploading to ephemeral storage..." -ForegroundColor Yellow
+          
+          # Upload to file.io (Expires: 1 download or 1 day, whichever comes first)
+          try {
+              $response = Invoke-RestMethod -Uri "https://file.io/?expires=1d" -Method Post -InFile $OutFile
+              
+              Write-Host "`n==========================================" -ForegroundColor Green
+              Write-Host "      PAYLOAD SECURED. ONE-TIME LINK:     " -ForegroundColor Green
+              Write-Host "      $($response.link)"                       -ForegroundColor White
+              Write-Host "==========================================" -ForegroundColor Green
+              Write-Host "WARNING: Link burns after one use." -ForegroundColor Red
+          } catch {
+              Write-Error "Upload failed. Service might be down."
+          }
