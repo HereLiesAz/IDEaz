@@ -33,9 +33,30 @@ object AssetExtractor {
                     }
                 }
 
-                // Also extract www/index.html
+                // Extract kotlin.js from the jar
                 val wwwDir = File(context.filesDir, "www")
                 if (!wwwDir.exists()) wwwDir.mkdirs()
+
+                try {
+                    java.util.zip.ZipFile(destFile).use { zip ->
+                        // Try root or standard paths
+                        val entry = zip.getEntry("kotlin.js")
+                            ?: zip.getEntry("META-INF/resources/kotlin.js")
+                            ?: zip.getEntry("default/kotlin.js")
+
+                        if (entry != null) {
+                            zip.getInputStream(entry).use { input ->
+                                FileOutputStream(File(wwwDir, "kotlin.js")).use { output ->
+                                    input.copyTo(output)
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
+                // Also extract www/index.html
                 val indexFile = File(wwwDir, "index.html")
                 context.assets.open("www/index.html").use { input ->
                     FileOutputStream(indexFile).use { output ->

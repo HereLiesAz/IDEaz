@@ -88,6 +88,15 @@ android {
         aidl = true
     }
 
+    // Configurable fields for Build Tools repository
+    val toolsOwner = project.findProperty("build.tools.owner") as? String ?: "HereLiesAz"
+    val toolsRepo = project.findProperty("build.tools.repo") as? String ?: "IDEaz-buildtools"
+
+    defaultConfig {
+        buildConfigField("String", "BUILD_TOOLS_OWNER", "\"$toolsOwner\"")
+        buildConfigField("String", "BUILD_TOOLS_REPO", "\"$toolsRepo\"")
+    }
+
     packaging {
         jniLibs.useLegacyPackaging = true
         resources {
