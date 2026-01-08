@@ -3,6 +3,10 @@ name: "Context Dead Drop (Sterilized)"
 on:
   workflow_dispatch:
 
+# Explicitly request only what is needed: Read access to the code.
+permissions:
+  contents: read
+
 jobs:
   drop-package:
     runs-on: windows-latest
@@ -107,10 +111,10 @@ jobs:
               $response = Invoke-RestMethod -Uri "https://file.io/?expires=1d" -Method Post -InFile $OutFile
               $link = $response.link
               
-              # Write to Console (Just in case)
+              # Write to Console
               Write-Host "`nLINK: $link" -ForegroundColor Green
               
-              # Write to Job Summary (The "Billboard")
+              # Write to Job Summary
               "## 📦 Context Payload Ready" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
               "**Download Link (One-time use):**" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
               "[$link]($link)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
