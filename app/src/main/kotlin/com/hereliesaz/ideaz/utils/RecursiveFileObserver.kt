@@ -18,9 +18,12 @@ class RecursiveFileObserver(
     private val observers = mutableListOf<FileObserver>()
     private val TAG = "RecursiveFileObserver"
 
+    private val visited = mutableSetOf<String>()
+
     @Synchronized
     fun startWatching() {
         stopWatching() // Clean up existing observers
+        visited.clear()
 
         val root = File(rootPath)
         if (!root.exists() || !root.isDirectory) return
@@ -30,27 +33,12 @@ class RecursiveFileObserver(
 
         while (stack.isNotEmpty()) {
             val dir = stack.pop()
-            val observer = object : FileObserver(dir.absolutePath, mask or FileObserver.CREATE or FileObserver.DELETE or FileObserver.MOVED_TO or FileObserver.MOVED_FROM) {
-                override fun onEvent(event: Int, path: String?) {
-                    val fullPath = if (path != null) File(dir, path).absolutePath else null
 
-                    // Handle new directories created
-                    if ((event and FileObserver.CREATE) != 0 || (event and FileObserver.MOVED_TO) != 0) {
-                         if (fullPath != null) {
-                             val file = File(fullPath)
-                             if (file.isDirectory) {
-                                 // Watch the new directory (and its children if any, though likely empty on create)
-                                 startWatchingDir(file)
-                             }
-                         }
-                    }
+            // Prevent infinite recursion (symlinks)
+            val canonicalPath = dir.canonicalPath
+            if (!visited.add(canonicalPath)) continue
 
-                    // Forward event
-                    onEvent(event, if (path != null) File(dir, path).absolutePath else null)
-                }
-            }
-            observer.startWatching()
-            observers.add(observer)
+            startWatchingDir(dir)
 
             dir.listFiles()?.forEach {
                 if (it.isDirectory) {
@@ -60,21 +48,38 @@ class RecursiveFileObserver(
         }
     }
 
-    private fun startWatchingDir(dir: File) {
-         val observer = object : FileObserver(dir.absolutePath, mask or FileObserver.CREATE or FileObserver.DELETE or FileObserver.MOVED_TO or FileObserver.MOVED_FROM) {
-                override fun onEvent(event: Int, path: String?) {
-                     // Recurse for nested creations
-                     val fullPath = if (path != null) File(dir, path).absolutePath else null
-                     if ((event and FileObserver.CREATE) != 0 || (event and FileObserver.MOVED_TO) != 0) {
-                         if (fullPath != null) {
-                             val file = File(fullPath)
-                             if (file.isDirectory) {
-                                 startWatchingDir(file)
-                             }
-                         }
+    private fun handleEvent(event: Int, path: String?, dir: File) {
+        val fullPath = if (path != null) File(dir, path).absolutePath else null
+
+        // Handle new directories created
+        if ((event and FileObserver.CREATE) != 0 || (event and FileObserver.MOVED_TO) != 0) {
+                if (fullPath != null) {
+                    val file = File(fullPath)
+                    if (file.isDirectory) {
+                        // Watch the new directory
+                        startWatchingDir(file)
                     }
-                    onEvent(event, fullPath)
                 }
+        }
+
+        // Forward event
+        onEvent(event, fullPath)
+    }
+
+    private fun startWatchingDir(dir: File) {
+         @Suppress("DEPRECATION")
+         val observer = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+             object : FileObserver(dir, mask or FileObserver.CREATE or FileObserver.DELETE or FileObserver.MOVED_TO or FileObserver.MOVED_FROM) {
+                    override fun onEvent(event: Int, path: String?) {
+                         handleEvent(event, path, dir)
+                    }
+             }
+         } else {
+             object : FileObserver(dir.absolutePath, mask or FileObserver.CREATE or FileObserver.DELETE or FileObserver.MOVED_TO or FileObserver.MOVED_FROM) {
+                    override fun onEvent(event: Int, path: String?) {
+                         handleEvent(event, path, dir)
+                    }
+             }
          }
          observer.startWatching()
          synchronized(observers) {

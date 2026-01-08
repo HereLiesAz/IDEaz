@@ -38,6 +38,7 @@ class JsCompilerService(private val context: Context) {
             val k2Args = K2JSCompilerArguments().apply {
                 moduleKind = "plain"
                 // Use this@JsCompilerService to avoid shadowing by K2JSCompilerArguments.outputFile
+                @Suppress("DEPRECATION")
                 outputFile = this@JsCompilerService.outputFile.absolutePath
                 sourceMap = true
                 irProduceJs = true // The modern way
