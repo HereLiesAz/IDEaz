@@ -47,9 +47,34 @@ class EditorViewModel(
         }
     }
 
+    private var projectDir: java.io.File? = null
+
+    fun setProjectDir(dir: java.io.File) {
+        projectDir = dir
+    }
+
+    private var currentFile: java.io.File? = null
+
+    fun setCurrentFile(file: java.io.File) {
+        currentFile = file
+    }
+
     private suspend fun compileCode(sourceCode: String) {
+        val dir = projectDir
+        if (dir == null) return
+
         withContext(Dispatchers.IO) {
-            val result = compilerService.compile(sourceCode)
+            // Save current content before compiling
+            val file = currentFile
+            if (file != null) {
+                try {
+                    file.writeText(sourceCode)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
+            val result = compilerService.compileProject(dir)
             _compilationResult.value = result
             if (result.success) {
                 _hotReloadEvent.emit(System.currentTimeMillis())
