@@ -28,7 +28,8 @@ class ReactNativeBuildStep(
                      if (file.isFile) {
                          val relativePath = file.toRelativeString(assetsDir)
                          val targetFile = File(outputDir, relativePath)
-                         if (!targetFile.parentFile.exists()) targetFile.parentFile.mkdirs()
+                         val parent = targetFile.parentFile
+                         if (parent != null && !parent.exists()) parent.mkdirs()
                          file.copyTo(targetFile, overwrite = true)
                      }
                  }

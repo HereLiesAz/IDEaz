@@ -25,10 +25,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        lifecycleScope.launch(Dispatchers.IO) {
-            AssetExtractor.requireStdLib(applicationContext)
-        }
-
         // Handle route from intent if any
         handleIntent(intent)
 

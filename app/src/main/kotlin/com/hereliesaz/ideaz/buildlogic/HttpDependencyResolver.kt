@@ -39,53 +39,95 @@ class HttpDependencyResolver(
     companion object {
         private const val TAG = "HttpDependencyResolver"
 
-        // Pre-compiled regexes to avoid compilation on every call/loop
-        private val MAVEN_DEPENDENCY_REGEX = "<dependency>(.*?)</dependency>".toRegex(RegexOption.DOT_MATCHES_ALL)
-        private val MAVEN_EXCLUSION_REGEX = "<exclusion>(.*?)</exclusion>".toRegex(RegexOption.DOT_MATCHES_ALL)
         private val QUOTE_REGEX = "[\"']([^\"']+)[\"']".toRegex()
-
-        private val TAG_REGEXES = mapOf(
-            "groupId" to "<groupId>(.*?)</groupId>".toRegex(),
-            "artifactId" to "<artifactId>(.*?)</artifactId>".toRegex(),
-            "version" to "<version>(.*?)</version>".toRegex(),
-            "type" to "<type>(.*?)</type>".toRegex(),
-            "packaging" to "<packaging>(.*?)</packaging>".toRegex()
-        )
 
         fun parseDependencies(content: String, callback: IBuildCallback? = null): List<Dependency> {
             val dependencies = mutableListOf<Dependency>()
 
-            // 1. Maven XML Parsing
-            MAVEN_DEPENDENCY_REGEX.findAll(content).forEach { matchResult ->
-                val block = matchResult.groupValues[1]
+            // 1. Maven XML Parsing (Extract blocks, then parse with XmlPullParser)
+            var startIndex = 0
+            while (true) {
+                val depStart = content.indexOf("<dependency>", startIndex)
+                if (depStart == -1) break
+                val depEnd = content.indexOf("</dependency>", depStart)
+                if (depEnd == -1) break
 
-                fun extract(tag: String, source: String = block): String? {
-                    return TAG_REGEXES[tag]?.find(source)?.groupValues?.get(1)?.trim()
-                }
+                val block = content.substring(depStart, depEnd + 13) // Include </dependency>
+                startIndex = depEnd + 13
 
-                val groupId = extract("groupId")
-                val artifactId = extract("artifactId")
-                val version = extract("version")
-                val type = extract("type") ?: extract("packaging")
+                try {
+                    val factory = org.xmlpull.v1.XmlPullParserFactory.newInstance()
+                    factory.isNamespaceAware = false
+                    val parser = factory.newPullParser()
+                    parser.setInput(java.io.StringReader(block))
 
-                val exclusions = mutableListOf<org.eclipse.aether.graph.Exclusion>()
-                MAVEN_EXCLUSION_REGEX.findAll(block).forEach { excMatch ->
-                    val excBlock = excMatch.groupValues[1]
-                    val excGroupId = extract("groupId", excBlock)
-                    val excArtifactId = extract("artifactId", excBlock)
-                    if (excGroupId != null && excArtifactId != null) {
-                        exclusions.add(org.eclipse.aether.graph.Exclusion(excGroupId, excArtifactId, "*", "*"))
+                    var eventType = parser.eventType
+                    var currentTag = ""
+
+                    var groupId: String? = null
+                    var artifactId: String? = null
+                    var version: String? = null
+                    var type: String? = null
+
+                    var exclusionGroupId: String? = null
+                    var exclusionArtifactId: String? = null
+                    val exclusions = mutableListOf<org.eclipse.aether.graph.Exclusion>()
+
+                    var insideExclusion = false
+
+                    while (eventType != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+                        when (eventType) {
+                            org.xmlpull.v1.XmlPullParser.START_TAG -> {
+                                currentTag = parser.name
+                                if (currentTag == "exclusion") {
+                                    insideExclusion = true
+                                    exclusionGroupId = null
+                                    exclusionArtifactId = null
+                                }
+                            }
+                            org.xmlpull.v1.XmlPullParser.TEXT -> {
+                                val text = parser.text?.trim()
+                                if (!text.isNullOrEmpty()) {
+                                    if (insideExclusion) {
+                                         when (currentTag) {
+                                            "groupId" -> exclusionGroupId = text
+                                            "artifactId" -> exclusionArtifactId = text
+                                        }
+                                    } else {
+                                        when (currentTag) {
+                                            "groupId" -> groupId = text
+                                            "artifactId" -> artifactId = text
+                                            "version" -> version = text
+                                            "type", "packaging" -> type = text
+                                        }
+                                    }
+                                }
+                            }
+                            org.xmlpull.v1.XmlPullParser.END_TAG -> {
+                                if (parser.name == "exclusion") {
+                                    if (exclusionGroupId != null && exclusionArtifactId != null) {
+                                        exclusions.add(org.eclipse.aether.graph.Exclusion(exclusionGroupId, exclusionArtifactId, "*", "*"))
+                                    }
+                                    insideExclusion = false
+                                }
+                                currentTag = ""
+                            }
+                        }
+                        eventType = parser.next()
                     }
-                }
 
-                if (groupId != null && artifactId != null && version != null) {
-                    // DefaultArtifact format: [groupId]:[artifactId]:[extension]:[version]
-                    val coords = if (type != null) "$groupId:$artifactId:$type:$version" else "$groupId:$artifactId:$version"
-                    try {
-                        dependencies.add(Dependency(DefaultArtifact(coords), "compile", false, exclusions))
-                    } catch (e: Exception) {
-                        callback?.onLog("[IDE] WARNING: Failed to parse Maven dependency: $coords")
+                    if (groupId != null && artifactId != null && version != null) {
+                        val coords = if (type != null) "$groupId:$artifactId:$type:$version" else "$groupId:$artifactId:$version"
+                        try {
+                            dependencies.add(Dependency(DefaultArtifact(coords), "compile", false, exclusions))
+                        } catch (e: IllegalArgumentException) {
+                            callback?.onLog("[IDE] WARNING: Invalid dependency coordinates: $coords")
+                        }
                     }
+
+                } catch (e: Exception) {
+                    callback?.onLog("[IDE] XML Block Parsing error: ${e.message}")
+                    if (callback == null) e.printStackTrace() // Debug for tests
                 }
             }
 
@@ -346,6 +388,7 @@ class HttpDependencyResolver(
 
     private fun newRepositorySystemSession(system: RepositorySystem, localRepoPath: File): DefaultRepositorySystemSession {
         val session = MavenRepositorySystemUtils.newSession()
+        @Suppress("DEPRECATION")
         val localRepo = LocalRepository(localRepoPath)
         session.localRepositoryManager = system.newLocalRepositoryManager(session, localRepo)
         session.transferListener = object : AbstractTransferListener() {

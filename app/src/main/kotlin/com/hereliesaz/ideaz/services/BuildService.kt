@@ -64,7 +64,7 @@ class BuildService : Service() {
     private var currentProjectPath: String? = null
     private var lastNotificationUpdate = 0L
     private var pendingNotificationUpdate: Job? = null
-    private var fileObserver: android.os.FileObserver? = null
+    private var fileObserver: com.hereliesaz.ideaz.utils.RecursiveFileObserver? = null
 
     private val binder = object : IBuildService.Stub() {
         override fun startBuild(projectPath: String, callback: IBuildCallback) = this@BuildService.startBuild(projectPath, callback)
@@ -561,21 +561,10 @@ class BuildService : Service() {
 
                 // --- GUEST BUILD ---
                 if (schemaType != null) {
-                    val generatedGuestDir = File(buildDir, "generated/guest")
-                    val guestSourceDir = File(projectDir, "app/src/main/zipline")
-                    val guestOutputDir = File(buildDir, "guest")
-
-                    // 1. Generate Guest Code
-                    buildSteps.add(RedwoodCodegen(javaBinaryPath!!, schemaType, generatedGuestDir, false, filesDir))
-
-                    // 2. Compile Guest Code
-                    val guestDeps = HybridToolchainManager.getGuestRuntimeClasspath(filesDir, wrappedCallback)
-                    val ziplinePlugin = HybridToolchainManager.getZiplineCompilerPluginClasspath(filesDir, wrappedCallback)
-                    val ziplinePluginJars = ziplinePlugin.filter { it.extension == "jar" }
-                    val guestSources = listOf(guestSourceDir, generatedGuestDir)
-
-                    buildSteps.add(ZiplineCompile(guestSources, guestOutputDir, guestDeps, ziplinePluginJars))
-                    buildSteps.add(ZiplineManifestStep(guestOutputDir, applicationContext))
+                    // Zipline functionality is currently disabled due to deprecation.
+                    // Skipping guest build steps to save resources.
+                    // TODO: Re-enable after updating Zipline/Redwood or fixing deprecation.
+                    wrappedCallback.onLog("[IDE] Guest Build skipped (Zipline disabled).")
                 }
 
                 buildSteps.add(GenerateSourceMap(File(projectDir, "app/src/main/res"), buildDir, cacheDir))
@@ -630,36 +619,43 @@ class BuildService : Service() {
         val pythonSrcDir = File(projectDir, "app/src/main/assets/python")
         if (!pythonSrcDir.exists()) return
 
-        fileObserver = object : android.os.FileObserver(pythonSrcDir.absolutePath, CLOSE_WRITE) {
-            override fun onEvent(event: Int, path: String?) {
-                if (path == null) return
-                // Debounce or immediate? Immediate for now.
-                // We need to read the file and send broadcast.
-                // Cannot call suspend functions or IO on this thread safely without scope.
-                serviceScope.launch(Dispatchers.IO) {
-                    try {
-                        val file = File(pythonSrcDir, path)
-                        if (file.exists() && file.isFile) {
-                            val content = file.readText()
-                            val packageName = ProjectAnalyzer.detectPackageName(projectDir)
+        fileObserver = com.hereliesaz.ideaz.utils.RecursiveFileObserver(
+            pythonSrcDir.absolutePath,
+            android.os.FileObserver.CLOSE_WRITE or android.os.FileObserver.MODIFY
+        ) { event, fullPath ->
+            if (fullPath == null) return@RecursiveFileObserver
+            // RecursiveFileObserver returns full absolute path
+            val path = fullPath
 
-                            if (packageName != null) {
-                                val intent = Intent("com.ideaz.ACTION_RELOAD_PYTHON")
-                                intent.putExtra("path", path)
-                                intent.putExtra("content", content)
-                                intent.setPackage(packageName)
-                                sendBroadcast(intent)
-                                Log.d(TAG, "Sent Hot Reload broadcast for $path to $packageName")
-                                updateNotification("Hot Reload: $path")
-                            }
+            // Debounce or immediate? Immediate for now.
+            // We need to read the file and send broadcast.
+            // Cannot call suspend functions or IO on this thread safely without scope.
+            serviceScope.launch(Dispatchers.IO) {
+                try {
+                    val file = File(path)
+                    if (file.exists() && file.isFile) {
+                        val content = file.readText()
+                        val packageName = ProjectAnalyzer.detectPackageName(projectDir)
+
+                        if (packageName != null) {
+                            // Calculate relative path for identification
+                            val relativePath = file.relativeTo(pythonSrcDir).path
+
+                            val intent = Intent("com.ideaz.ACTION_RELOAD_PYTHON")
+                            intent.putExtra("path", relativePath)
+                            intent.putExtra("content", content)
+                            intent.setPackage(packageName)
+                            sendBroadcast(intent)
+                            Log.d(TAG, "Sent Hot Reload broadcast for $relativePath to $packageName")
+                            updateNotification("Hot Reload: $relativePath")
                         }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Hot Reload failed", e)
                     }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Hot Reload failed", e)
                 }
             }
         }
         fileObserver?.startWatching()
-        Log.d(TAG, "Started Hot Reload watcher on ${pythonSrcDir.absolutePath}")
+        Log.d(TAG, "Started Recursive Hot Reload watcher on ${pythonSrcDir.absolutePath}")
     }
 }

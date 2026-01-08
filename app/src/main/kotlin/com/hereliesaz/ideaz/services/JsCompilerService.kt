@@ -21,22 +21,29 @@ class JsCompilerService(private val context: Context) {
     data class Result(val success: Boolean, val logs: String)
 
     @Synchronized // Single threaded. We aren't Google.
-    fun compile(sourceCode: String): Result {
-        val sourceFile = File.createTempFile("main", ".kt", context.cacheDir)
+    fun compileProject(projectDir: File): Result {
         try {
-            sourceFile.writeText(sourceCode)
+            val sourceFiles = projectDir.walkTopDown()
+                .filter { it.extension == "kt" }
+                .map { it.absolutePath }
+                .toList()
 
             val logStream = ByteArrayOutputStream()
             val printStream = PrintStream(logStream)
 
+            if (sourceFiles.isEmpty()) {
+                return Result(false, "No Kotlin source files found in ${projectDir.absolutePath}")
+            }
+
             val k2Args = K2JSCompilerArguments().apply {
                 moduleKind = "plain"
                 // Use this@JsCompilerService to avoid shadowing by K2JSCompilerArguments.outputFile
+                @Suppress("DEPRECATION")
                 outputFile = this@JsCompilerService.outputFile.absolutePath
                 sourceMap = true
                 irProduceJs = true // The modern way
                 libraries = stdLibPath
-                freeArgs = listOf(sourceFile.absolutePath)
+                freeArgs = sourceFiles
                 // Suppress warnings because we are insecure about our code
                 suppressWarnings = true
                 verbose = false
@@ -58,10 +65,8 @@ class JsCompilerService(private val context: Context) {
                 success = exitCode.code == 0,
                 logs = logStream.toString()
             )
-        } finally {
-            if (sourceFile.exists()) {
-                sourceFile.delete()
-            }
+        } catch (e: Exception) {
+            return Result(false, "Compiler Exception: ${e.message}\n${e.stackTraceToString()}")
         }
     }
 }
