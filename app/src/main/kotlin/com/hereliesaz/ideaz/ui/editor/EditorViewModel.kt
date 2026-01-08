@@ -53,17 +53,26 @@ class EditorViewModel(
         projectDir = dir
     }
 
+    private var currentFile: java.io.File? = null
+
+    fun setCurrentFile(file: java.io.File) {
+        currentFile = file
+    }
+
     private suspend fun compileCode(sourceCode: String) {
         val dir = projectDir
         if (dir == null) return
 
         withContext(Dispatchers.IO) {
-            // Note: This relies on the file being saved to disk.
-            // Ideally, we should save the 'sourceCode' to the appropriate file before compiling.
-            // But since we don't know *which* file is being edited here (EditorViewModel is generic),
-            // we assume the user has saved or we rely on auto-save elsewhere.
-            // If this is a single-file scratchpad, we might need a temp file approach, but JsCompilerService requires a project dir.
-            // For now, we trigger project compilation.
+            // Save current content before compiling
+            val file = currentFile
+            if (file != null) {
+                try {
+                    file.writeText(sourceCode)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
 
             val result = compilerService.compileProject(dir)
             _compilationResult.value = result

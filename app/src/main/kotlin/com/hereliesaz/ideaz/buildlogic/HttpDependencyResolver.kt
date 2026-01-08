@@ -384,6 +384,7 @@ class HttpDependencyResolver(
 
     private fun newRepositorySystemSession(system: RepositorySystem, localRepoPath: File): DefaultRepositorySystemSession {
         val session = MavenRepositorySystemUtils.newSession()
+        @Suppress("DEPRECATION")
         val localRepo = LocalRepository(localRepoPath)
         session.localRepositoryManager = system.newLocalRepositoryManager(session, localRepo)
         session.transferListener = object : AbstractTransferListener() {
