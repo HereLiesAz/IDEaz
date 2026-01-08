@@ -3,7 +3,6 @@ name: "Context Dead Drop (Sterilized)"
 on:
   workflow_dispatch:
 
-# Explicitly request only what is needed: Read access to the code.
 permissions:
   contents: read
 
@@ -115,13 +114,13 @@ jobs:
               Write-Host "`nLINK: $link" -ForegroundColor Green
               
               # Write to Job Summary
-              "## 📦 Context Payload Ready" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+              "## Context Payload Ready" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
               "**Download Link (One-time use):**" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
               "[$link]($link)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
               "> *This link will expire immediately after the first download.*" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
           } catch {
               Write-Error "Upload failed."
-              "## ❌ Upload Failed" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+              "## Upload Failed" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
               "Check logs for details." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
           }
