@@ -82,7 +82,7 @@ jobs:
         env:
            KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
            KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+           KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
            # KEYSTORE_FILE is set in previous step if successful
         run: |
           set +e
