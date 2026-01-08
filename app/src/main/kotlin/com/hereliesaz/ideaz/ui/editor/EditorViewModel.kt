@@ -47,19 +47,29 @@ class EditorViewModel(
         }
     }
 
+    private var projectDir: java.io.File? = null
+
+    fun setProjectDir(dir: java.io.File) {
+        projectDir = dir
+    }
+
     private suspend fun compileCode(sourceCode: String) {
-        // Legacy: EditorViewModel previously compiled single file.
-        // We now require a project directory.
-        // For now, disabling auto-compile in Editor to unblock build.
-        // TODO: Refactor EditorViewModel to work with Project-based compilation.
-        /*
+        val dir = projectDir
+        if (dir == null) return
+
         withContext(Dispatchers.IO) {
-            val result = compilerService.compile(sourceCode)
+            // Note: This relies on the file being saved to disk.
+            // Ideally, we should save the 'sourceCode' to the appropriate file before compiling.
+            // But since we don't know *which* file is being edited here (EditorViewModel is generic),
+            // we assume the user has saved or we rely on auto-save elsewhere.
+            // If this is a single-file scratchpad, we might need a temp file approach, but JsCompilerService requires a project dir.
+            // For now, we trigger project compilation.
+
+            val result = compilerService.compileProject(dir)
             _compilationResult.value = result
             if (result.success) {
                 _hotReloadEvent.emit(System.currentTimeMillis())
             }
         }
-        */
     }
 }

@@ -146,6 +146,12 @@ class MainViewModel(
         { path ->
             stateDelegate.setCurrentWebUrl("file://$path")
             stateDelegate.setTargetAppVisible(true) // Switch to "App View"
+            // Update EditorViewModel with project context
+            val appName = settingsViewModel.getAppName()
+            if (appName != null) {
+                val projectDir = settingsViewModel.getProjectPath(appName)
+                editorViewModel.setProjectDir(projectDir)
+            }
         },
         {
             val intent = Intent("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP")
@@ -336,7 +342,7 @@ class MainViewModel(
                 // Fetch releases on IO thread
                 val releases = withContext(Dispatchers.IO) {
                     val service = GitHubApiClient.createService(token)
-                    service.getReleases("HereLiesAz", "IDEaz-buildtools")
+                    service.getReleases(BuildConfig.BUILD_TOOLS_OWNER, BuildConfig.BUILD_TOOLS_REPO)
                 }
 
                 // Look for 'tools.zip' in assets
@@ -397,7 +403,7 @@ class MainViewModel(
 
     /** Performs a 'git push' operation. */
     fun gitPush() {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             gitDelegate.push()
             val appName = settingsViewModel.getAppName()
             val user = settingsViewModel.getGithubUser()

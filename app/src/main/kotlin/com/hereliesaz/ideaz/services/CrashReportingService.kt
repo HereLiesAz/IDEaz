@@ -56,16 +56,19 @@ class CrashReportingService : Service() {
         val apiKey = intent.getStringExtra(EXTRA_API_KEY)
         val projectId = intent.getStringExtra(EXTRA_JULES_PROJECT_ID)
         val githubToken = intent.getStringExtra(EXTRA_GITHUB_TOKEN)
-        val errorData = intent.getStringExtra(EXTRA_STACK_TRACE)
+        val rawErrorData = intent.getStringExtra(EXTRA_STACK_TRACE)
         val githubUser = intent.getStringExtra(EXTRA_GITHUB_USER) ?: "Unknown User"
         val reportToGithub = intent.getBooleanExtra(EXTRA_REPORT_TO_GITHUB, true)
         val isFatal = intent.action != ACTION_REPORT_NON_FATAL
 
-        if (apiKey.isNullOrBlank() || errorData.isNullOrBlank() || projectId.isNullOrBlank()) {
+        if (apiKey.isNullOrBlank() || rawErrorData.isNullOrBlank() || projectId.isNullOrBlank()) {
             Log.w(TAG, "Missing API key, Project ID, or error data. Aborting report.")
             stopSelf()
             return START_NOT_STICKY
         }
+
+        // Sanitize error data to prevent credential leakage
+        val errorData = com.hereliesaz.ideaz.utils.LogSanitizer.sanitize(rawErrorData)
 
         // Initialize AuthInterceptor for this process
         AuthInterceptor.apiKey = apiKey

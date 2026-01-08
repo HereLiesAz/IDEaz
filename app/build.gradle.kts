@@ -88,6 +88,16 @@ android {
         aidl = true
     }
 
+    // Configurable fields for Build Tools repository
+    // Can be overridden by gradle.properties or CI environment variables if needed in the future.
+    val toolsOwner = "HereLiesAz"
+    val toolsRepo = "IDEaz-buildtools"
+
+    defaultConfig {
+        buildConfigField("String", "BUILD_TOOLS_OWNER", "\"$toolsOwner\"")
+        buildConfigField("String", "BUILD_TOOLS_REPO", "\"$toolsRepo\"")
+    }
+
     packaging {
         jniLibs.useLegacyPackaging = true
         resources {
