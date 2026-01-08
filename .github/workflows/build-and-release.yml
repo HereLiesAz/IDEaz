@@ -68,7 +68,7 @@ jobs:
 
              # Create PKCS12 Keystore
              openssl pkcs12 -export -in chain.crt -inkey private.key -out release.keystore \
-               -name "$KEY_ALIAS" -passout pass:"$KEYSTORE_PASSWORD"
+               -name "$KEY_ALIAS" -passout env:KEYSTORE_PASSWORD -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1
 
              echo "KEYSTORE_FILE=$(pwd)/release.keystore" >> $GITHUB_ENV
              # Ensure Gradle uses the same password for the key as the store (OpenSSL default behavior)
