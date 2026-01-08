@@ -61,18 +61,27 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
+          set -e
           if [ -n "$KEYSTORE_PRIVATE" ] && [ -n "$KEYSTORE_CHAIN" ]; then
              echo "Reconstructing Keystore from Secrets..."
              echo "$KEYSTORE_PRIVATE" > private.key
              echo "$KEYSTORE_CHAIN" > chain.crt
 
              # Create PKCS12 Keystore
+             # We use legacy algorithms to ensure compatibility with Java's KeyStore
              openssl pkcs12 -export -in chain.crt -inkey private.key -out release.keystore \
                -name "$KEY_ALIAS" -passout env:KEYSTORE_PASSWORD
 
+             # Verify the keystore immediately to catch password/format issues
+             echo "Verifying generated keystore..."
+             keytool -list -keystore release.keystore -storepass "$KEYSTORE_PASSWORD" -v
+
              echo "KEYSTORE_FILE=$(pwd)/release.keystore" >> $GITHUB_ENV
              # Ensure Gradle uses the same password for the key as the store (OpenSSL default behavior)
-             echo "KEY_PASSWORD=$KEYSTORE_PASSWORD" >> $GITHUB_ENV
+             # Using heredoc for safe environment variable export
+             echo "KEY_PASSWORD<<EOF" >> $GITHUB_ENV
+             echo "$KEYSTORE_PASSWORD" >> $GITHUB_ENV
+             echo "EOF" >> $GITHUB_ENV
           else
              echo "Warning: KEYSTORE_PRIVATE or KEYSTORE_CHAIN not set. Skipping release signing setup."
           fi
