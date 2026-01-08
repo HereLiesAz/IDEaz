@@ -1,0 +1,145 @@
+name: "Context Injection Backup"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  extract-context:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Ensures git ls-files has what it needs
+
+      - name: Execute Extraction
+        id: generate
+        shell: powershell
+        run: |
+          # --- Configuration ---
+          $BackupPrefix = "project_backup"
+          $Timestamp    = Get-Date -Format "yyyyMMdd_HHmmss"
+          $Root         = Get-Location
+          
+          # Files explicitly forced to be ignored
+          $ForceExclude = @(
+              "${BackupPrefix}*",
+              ".git"
+          )
+
+          # Known binary extensions (Fast fail)
+          $BinaryExtensions = @(
+              ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp",
+              ".woff", ".woff2", ".ttf", ".eot", ".otf",
+              ".dll", ".exe", ".bin", ".so", ".dylib", ".class",
+              ".zip", ".tar", ".gz", ".7z", ".rar", ".jar",
+              ".pdf", ".doc", ".docx", ".xls", ".xlsx",
+              ".db", ".sqlite", ".suo", ".mp3", ".mp4", ".mov",
+              ".keystore", ".jks"
+          )
+
+          # Fallback exclusions if Not a Git Repo
+          $FallbackExcludeDirs = @("node_modules", "build", "out", ".gradle", ".idea", ".vscode", "obj", "bin")
+          $FallbackExcludeFiles = @("package-lock.json", "yarn.lock", "Thumbs.db", ".DS_Store", "local.properties")
+
+          # --- Helper Functions ---
+          function Test-IsBinary {
+              param([string]$Path)
+              try {
+                  $ext = [System.IO.Path]::GetExtension($Path).ToLower()
+                  if ($BinaryExtensions -contains $ext) { return $true }
+
+                  $stream = [System.IO.File]::OpenRead($Path)
+                  $buffer = New-Object byte[] 1024
+                  $count  = $stream.Read($buffer, 0, 1024)
+                  $stream.Close()
+                  $stream.Dispose()
+
+                  if ($count -eq 0) { return $false }
+
+                  for ($i = 0; $i -lt $count; $i++) {
+                      if ($buffer[$i] -eq 0) { return $true }
+                  }
+                  return $false
+              } catch {
+                  return $true
+              }
+          }
+
+          # --- Execution ---
+          # Hardcoded to "Full Context" (Option 1) as requested for backup purposes
+          $TypeSuffix = "full"
+          $OutFile    = Join-Path $Root "${BackupPrefix}_${TypeSuffix}_${Timestamp}.txt"
+
+          Write-Host "Analyzing filesystem in the void..." -ForegroundColor DarkGray
+
+          # --- Strategy Selection ---
+          $UseGit = (Test-Path -Path (Join-Path $Root ".git")) -and (Get-Command "git" -ErrorAction SilentlyContinue)
+          $FileList = @()
+
+          if ($UseGit) {
+              Write-Host "Git repository detected. Delegating filtration..." -ForegroundColor Cyan
+              $GitFiles = git ls-files -c -o --exclude-standard
+              foreach ($path in $GitFiles) {
+                  $fullPath = Join-Path $Root $path
+                  if (Test-Path $fullPath -PathType Leaf) {
+                      $FileList += $fullPath
+                  }
+              }
+          } else {
+              Write-Host "No Git repo found. Using heuristic fallback..." -ForegroundColor Yellow
+              $FileList = Get-ChildItem -Path $Root -Recurse -File | Where-Object {
+                  $item = $_
+                  $relPath = $item.FullName.Substring($Root.Path.Length)
+                  foreach ($dir in $FallbackExcludeDirs) {
+                      if ($relPath -match "[\\/]$([Regex]::Escape($dir))[\\/]" -or $relPath -match "^[\\/]$([Regex]::Escape($dir))") { return $false }
+                  }
+                  if ($FallbackExcludeFiles -contains $item.Name) { return $false }
+                  return $true
+              } | Select-Object -ExpandProperty FullName
+          }
+
+          # --- Output Generation ---
+          Write-Host "Writing stream to: $OutFile" -ForegroundColor Cyan
+          $Encoding = [System.Text.Encoding]::UTF8
+          $Writer = [System.IO.StreamWriter]::new($OutFile, $false, $Encoding)
+
+          # Final Filter
+          $FinalList = $FileList | Where-Object {
+              $n = Split-Path $_ -Leaf
+              $exclude = $false
+              foreach ($p in $ForceExclude) { if ($n -like $p) { $exclude = $true; break } }
+              !$exclude
+          }
+
+          try {
+              foreach ($filePath in $FinalList) {
+                  $relPath = $filePath.Substring($Root.Path.Length + 1)
+                  $Writer.WriteLine(">>> $relPath")
+
+                  if (Test-IsBinary -Path $filePath) {
+                      $Writer.WriteLine("[BINARY CONTENT SKIPPED]")
+                  } else {
+                      try {
+                          $content = [System.IO.File]::ReadAllText($filePath)
+                          $Writer.WriteLine($content)
+                      } catch {
+                          $Writer.WriteLine("[READ ERROR]")
+                      }
+                  }
+                  $Writer.WriteLine("`n")
+              }
+          } finally {
+              $Writer.Close()
+              $Writer.Dispose()
+          }
+          
+          Write-Host "Done." -ForegroundColor Green
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-backup
+          path: project_backup_*.txt
+          retention-days: 1
