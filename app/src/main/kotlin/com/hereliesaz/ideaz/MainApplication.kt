@@ -6,8 +6,12 @@ import com.hereliesaz.ideaz.ui.MainViewModel
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.utils.CrashHandler
 import com.hereliesaz.ideaz.utils.ToolManager
+import com.hereliesaz.ideaz.utils.AssetExtractor
 import java.io.File
 import okhttp3.OkHttpClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainApplication : Application() {
 
@@ -28,6 +32,15 @@ class MainApplication : Application() {
         // Initialize Crash Reporting
         CrashHandler.init(this)
         ToolManager.init(this)
+
+        // Ensure stdlib (kotlin.js) is extracted once per app session
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                AssetExtractor.requireStdLib(applicationContext)
+            } catch (e: Exception) {
+                Log.e("MainApplication", "Failed to extract assets", e)
+            }
+        }
     }
 
     private fun setupJna() {

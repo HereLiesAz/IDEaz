@@ -136,11 +136,21 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [x] **11.5: Manifest & Security**
     - [x] Implement `ZiplineManifestGenerator` (SHA-256 hashing, JSON construction).
     - [ ] Implement Ed25519 signing of manifest using `LazySodiumAndroid` (TODO).
-- [ ] **11.6: Hot Reload & Runtime** (BLOCKED: Zipline API Deprecation)
+- [x] **11.6: Hot Reload & Runtime** (BLOCKED: Zipline API Deprecation)
     - [x] Implement "Hot Reload" trigger (write manifest, broadcast `RELOAD_ZIPLINE`).
     - [x] Implement Host receiver to trigger `ziplineLoader.load`. (Disabled in `MainViewModel` due to API issues).
     - [x] Refactor `SimpleJsBundler` for Zipline module loading/bootstrapping. (Skipped: ZiplineLoader handles modular loading without bundling).
     - [x] Implement Error Handling: Capture Guest crashes and feed to Jules.
+
+## Phase 13: Critical Fixes & Hardening (The 7 Deadly Sins)
+- [x] **13.1: Thread Safety:** Fix Git operations on Main Thread.
+- [x] **13.2: Recursive File Watching:** Implement `RecursiveFileObserver`.
+- [x] **13.3: Security:** Sanitize crash reports (LogSanitizer).
+- [x] **13.4: Dead Code:** Disable Zipline steps in BuildService.
+- [x] **13.5: Configuration:** Move Build Tools repo to `BuildConfig`.
+- [x] **13.6: Performance:** Optimize `AssetExtractor` loop.
+- [x] **13.7: Reliability:** Use `XmlPullParser` for dependency resolution.
+- [x] **13.8: Web Project Hot Reload:** Implement pipeline for Kotlin/JS web projects.
 
 ## Phase 12: Documentation & Cleanup
 - [x] **12.1: Contradiction Audit**

@@ -57,7 +57,8 @@ class PythonInjector(
                         if (entry.name.startsWith("assets/")) {
                             val relativePath = entry.name.removePrefix("assets/")
                             val destFile = File(assetsDir, relativePath)
-                            destFile.parentFile.mkdirs()
+                            val parent = destFile.parentFile
+                            if (parent != null && !parent.exists()) parent.mkdirs()
                             zip.getInputStream(entry).use { input ->
                                 destFile.outputStream().use { output -> input.copyTo(output) }
                             }
