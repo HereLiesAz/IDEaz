@@ -619,7 +619,10 @@ class BuildService : Service() {
         val pythonSrcDir = File(projectDir, "app/src/main/assets/python")
         if (!pythonSrcDir.exists()) return
 
-        fileObserver = com.hereliesaz.ideaz.utils.RecursiveFileObserver(pythonSrcDir.absolutePath, android.os.FileObserver.CLOSE_WRITE) { event, fullPath ->
+        fileObserver = com.hereliesaz.ideaz.utils.RecursiveFileObserver(
+            pythonSrcDir.absolutePath,
+            android.os.FileObserver.CLOSE_WRITE or android.os.FileObserver.MODIFY
+        ) { event, fullPath ->
             if (fullPath == null) return@RecursiveFileObserver
             // RecursiveFileObserver returns full absolute path
             val path = fullPath

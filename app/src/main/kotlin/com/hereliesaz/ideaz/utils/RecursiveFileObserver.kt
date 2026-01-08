@@ -28,24 +28,7 @@ class RecursiveFileObserver(
         val root = File(rootPath)
         if (!root.exists() || !root.isDirectory) return
 
-        val stack = Stack<File>()
-        stack.push(root)
-
-        while (stack.isNotEmpty()) {
-            val dir = stack.pop()
-
-            // Prevent infinite recursion (symlinks)
-            val canonicalPath = dir.canonicalPath
-            if (!visited.add(canonicalPath)) continue
-
-            startWatchingDir(dir)
-
-            dir.listFiles()?.forEach {
-                if (it.isDirectory) {
-                    stack.push(it)
-                }
-            }
-        }
+        startWatchingDir(root)
     }
 
     private fun handleEvent(event: Int, path: String?, dir: File) {
@@ -66,9 +49,9 @@ class RecursiveFileObserver(
         onEvent(event, fullPath)
     }
 
-    private fun startWatchingDir(dir: File) {
-         @Suppress("DEPRECATION")
-         val observer = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+    private fun createObserver(dir: File): FileObserver {
+        @Suppress("DEPRECATION")
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
              object : FileObserver(dir, mask or FileObserver.CREATE or FileObserver.DELETE or FileObserver.MOVED_TO or FileObserver.MOVED_FROM) {
                     override fun onEvent(event: Int, path: String?) {
                          handleEvent(event, path, dir)
@@ -81,9 +64,23 @@ class RecursiveFileObserver(
                     }
              }
          }
+    }
+
+    private fun startWatchingDir(dir: File) {
+         // Prevent infinite recursion (symlinks)
+         val canonicalPath = dir.canonicalPath
+         if (!visited.add(canonicalPath)) return
+
+         val observer = createObserver(dir)
          observer.startWatching()
          synchronized(observers) {
              observers.add(observer)
+         }
+
+         dir.listFiles()?.forEach {
+             if (it.isDirectory) {
+                 startWatchingDir(it)
+             }
          }
     }
 
@@ -91,5 +88,6 @@ class RecursiveFileObserver(
     fun stopWatching() {
         observers.forEach { it.stopWatching() }
         observers.clear()
+        visited.clear()
     }
 }

@@ -89,9 +89,8 @@ android {
     }
 
     // Configurable fields for Build Tools repository
-    // Can be overridden by gradle.properties or CI environment variables if needed in the future.
-    val toolsOwner = "HereLiesAz"
-    val toolsRepo = "IDEaz-buildtools"
+    val toolsOwner = project.findProperty("build.tools.owner") as? String ?: "HereLiesAz"
+    val toolsRepo = project.findProperty("build.tools.repo") as? String ?: "IDEaz-buildtools"
 
     defaultConfig {
         buildConfigField("String", "BUILD_TOOLS_OWNER", "\"$toolsOwner\"")
