@@ -48,7 +48,9 @@ test-output*.txt
 test_output*.txt
 test_log*.txt
 test-log*.txt
+*log.txt
 
 # GitHub App credentials
 gha-creds-*.json
 /.vscode/
+*.log
