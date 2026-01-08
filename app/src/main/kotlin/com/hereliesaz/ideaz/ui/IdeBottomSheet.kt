@@ -132,6 +132,7 @@ fun IdeBottomSheet(
                     Column(modifier = Modifier.height(contentHeight)) {
 
                         if (isHalfwayExpanded) {
+                            @Suppress("DEPRECATION")
                             TabRow(
                                 selectedTabIndex = selectedTab,
                                 containerColor = MaterialTheme.colorScheme.surface,
@@ -139,6 +140,7 @@ fun IdeBottomSheet(
                                 divider = {},
                                 indicator = { tabPositions ->
                                     if (selectedTab < tabPositions.size) {
+                                        @Suppress("DEPRECATION")
                                         TabRowDefaults.Indicator(
                                             modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
                                             color = MaterialTheme.colorScheme.onSurface

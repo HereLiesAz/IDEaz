@@ -19,7 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.flow.Flow
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -58,8 +58,10 @@ fun WebProjectHost(
                 // SENTINEL: Disabled to prevent access to Android content providers (contacts, etc.).
                 allowContentAccess = false
                 // IDEaz: Enabled to allow loading app.js relative to index.html
+                @Suppress("DEPRECATION")
                 allowFileAccessFromFileURLs = true
                 // IDEaz: Enabled to allow cross-origin requests for local files (modules, imports)
+                @Suppress("DEPRECATION")
                 allowUniversalAccessFromFileURLs = true
                 // SENTINEL: Enable Safe Browsing to protect against known threats (phishing, malware).
                 safeBrowsingEnabled = true
