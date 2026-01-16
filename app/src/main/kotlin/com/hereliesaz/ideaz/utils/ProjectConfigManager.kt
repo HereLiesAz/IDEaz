@@ -242,25 +242,61 @@ jobs:
         path: app/build/outputs/apk/debug/app-debug.apk
 """.trimIndent()
 
+    private val JULES_ISSUE_HANDLER_YML = """
+name: Jules Issue Handler
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  handle_issue:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: google-labs-code/jules-invoke@v1
+        with:
+          jules_api_key: ${'$'}{{ secrets.JULES_API_KEY }}
+          prompt: |
+            You are an AI agent assigned to handle this issue.
+
+            Issue Title: ${'$'}{{ github.event.issue.title }}
+            Issue Body: ${'$'}{{ github.event.issue.body }}
+
+            Your task is to:
+            1. Analyze the issue (including security issues if applicable) and identify the necessary changes.
+            2. Implement the solution in the codebase.
+            3. Verify your changes.
+            4. Once the task is complete and verified, close this issue.
+""".trimIndent()
+
     fun ensureWorkflow(projectDir: File, type: ProjectType): Boolean {
         // We use hardcoded strings for robustness if assets are missing
         val workflows = when (type) {
             ProjectType.ANDROID -> listOf(
                 "android_ci_jules.yml" to ANDROID_CI_JULES_YML,
-                "release.yml" to RELEASE_YML
+                "release.yml" to RELEASE_YML,
+                "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML
             )
             ProjectType.FLUTTER -> listOf(
-                "android_ci_flutter.yml" to ANDROID_CI_FLUTTER_YML
+                "android_ci_flutter.yml" to ANDROID_CI_FLUTTER_YML,
+                "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML
             )
             ProjectType.REACT_NATIVE -> listOf(
-                "android_ci_react_native.yml" to ANDROID_CI_REACT_NATIVE_YML
+                "android_ci_react_native.yml" to ANDROID_CI_REACT_NATIVE_YML,
+                "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML
             )
             ProjectType.WEB -> listOf(
-                "web_ci_pages.yml" to WEB_CI_PAGES_YML
+                "web_ci_pages.yml" to WEB_CI_PAGES_YML,
+                "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML
             )
             ProjectType.PYTHON -> listOf(
                 "android_ci_jules.yml" to ANDROID_CI_JULES_YML,
-                "release.yml" to RELEASE_YML
+                "release.yml" to RELEASE_YML,
+                "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML
             )
             else -> emptyList()
         }
