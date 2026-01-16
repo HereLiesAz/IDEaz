@@ -60,7 +60,7 @@ jobs:
       - name: Collect PR metadata and diff
         id: pr
         env:
-          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ steps.get_pr.outputs.number }}
         run: |
@@ -105,8 +105,8 @@ jobs:
         uses: google-github-actions/run-gemini-cli@v0
         env:
           # gh CLI inside Gemini
-          GH_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           REPOSITORY: ${{ github.repository }}
         with:
@@ -185,7 +185,7 @@ jobs:
         env:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
         with:
-          github-token: ${{ steps.generate_token.outputs.token || secrets.GITHUB_TOKEN }}
+          github-token: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           script: |
             const { data } = await github.rest.issues.listComments({
               owner: context.repo.owner,
