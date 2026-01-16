@@ -110,7 +110,7 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           REPOSITORY: ${{ github.repository }}
         with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          gemini_api_key: ${{ secrets.JULES_API_KEY }}
           gemini_cli_version: '0.20.0'
           settings: |
             {
