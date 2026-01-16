@@ -1,0 +1,28 @@
+name: Jules Issue Handler
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  handle_issue:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: google-labs-code/jules-invoke@v1
+        with:
+          jules_api_key: ${{ secrets.JULES_API_KEY }}
+          prompt: |
+            You are an AI agent assigned to handle this issue.
+
+            Issue Title: ${{ github.event.issue.title }}
+            Issue Body: ${{ github.event.issue.body }}
+
+            Your task is to:
+            1. Analyze the issue (including security issues if applicable) and identify the necessary changes.
+            2. Implement the solution in the codebase.
+            3. Verify your changes.
+            4. Once the task is complete and verified, close this issue.
