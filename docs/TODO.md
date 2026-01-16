@@ -64,6 +64,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] **4.2.3: Issue Handling:** Inject `jules-issue-handler.yml` for autonomous issue resolution.
     - [x] **4.2.4: Branch Management:** Inject `jules-branch-manager.yml` for autonomous PR lifecycle management.
     - [x] **4.2.5: Secret Consolidation:** Standardized all workflows to use `JULES_API_KEY`.
+    - [x] **4.2.6: Token Upgrade:** Updated workflows to use `GH_TOKEN` for elevated permissions.
 - [x] **4.3: Error Handling Loop**
     - [x] **4.3.1: User Error:** If build fails (compilation), send log to Jules.
     - [x] **4.3.2: IDE Error:** If build crashes (exception), report to `HereLiesAz/IDEaz` with label `jules`.
