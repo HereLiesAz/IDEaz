@@ -273,30 +273,92 @@ jobs:
             4. Once the task is complete and verified, close this issue.
 """.trimIndent()
 
+    private val JULES_BRANCH_MANAGER_YML = """
+name: Jules Branch Manager
+
+on:
+  push:
+    branches-ignore:
+      - 'main'
+      - 'master'
+  pull_request_review:
+    types: [submitted]
+  workflow_dispatch:
+
+jobs:
+  manage_branch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: google-labs-code/jules-invoke@v1
+        with:
+          jules_api_key: ${'$'}{{ secrets.JULES_API_KEY }}
+          prompt: |
+            You are an autonomous Pull Request Manager Agent.
+
+            Context:
+            - Current Branch: ${'$'}{{ github.ref_name }}
+            - Repository: ${'$'}{{ github.repository }}
+            - Event: ${'$'}{{ github.event_name }}
+
+            Your mission is to shepherd this branch from creation to merge.
+
+            Step 1: PR Creation
+            Check if a Pull Request exists for this branch. If not, create one targeting the repository's default branch.
+
+            Step 2: Evaluation
+            Analyze the code changes.
+            - Are they valid, safe, and necessary?
+            - If the changes are clearly garbage, malicious, or unnecessary, close the PR and delete the branch. Stop execution.
+
+            Step 3: Review & Fix
+            - Perform a self-review of the code. If you find bugs or style issues, fix them.
+            - Check for review comments from other users. If there are requests for changes or suggestions, implement fixes for them.
+
+            Step 4: Conflict Resolution
+            Check if there are merge conflicts with the default branch. If yes, merge the default branch into this one and resolve the conflicts effectively.
+
+            Step 5: Merge & Cleanup
+            If the PR is valid, clean, passes your review, and has no unresolved conflicts:
+            - Merge the Pull Request into the default branch.
+            - Close the Pull Request (if not closed by merge).
+            - Delete the source branch (${'$'}{{ github.ref_name }}) to clean up.
+
+            If you pushed new changes in Steps 3 or 4, stop here and let the next workflow run handle the rest.
+""".trimIndent()
+
     fun ensureWorkflow(projectDir: File, type: ProjectType): Boolean {
         // We use hardcoded strings for robustness if assets are missing
         val workflows = when (type) {
             ProjectType.ANDROID -> listOf(
                 "android_ci_jules.yml" to ANDROID_CI_JULES_YML,
                 "release.yml" to RELEASE_YML,
-                "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML
+                "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML,
+                "jules-branch-manager.yml" to JULES_BRANCH_MANAGER_YML
             )
             ProjectType.FLUTTER -> listOf(
                 "android_ci_flutter.yml" to ANDROID_CI_FLUTTER_YML,
-                "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML
+                "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML,
+                "jules-branch-manager.yml" to JULES_BRANCH_MANAGER_YML
             )
             ProjectType.REACT_NATIVE -> listOf(
                 "android_ci_react_native.yml" to ANDROID_CI_REACT_NATIVE_YML,
-                "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML
+                "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML,
+                "jules-branch-manager.yml" to JULES_BRANCH_MANAGER_YML
             )
             ProjectType.WEB -> listOf(
                 "web_ci_pages.yml" to WEB_CI_PAGES_YML,
-                "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML
+                "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML,
+                "jules-branch-manager.yml" to JULES_BRANCH_MANAGER_YML
             )
             ProjectType.PYTHON -> listOf(
                 "android_ci_jules.yml" to ANDROID_CI_JULES_YML,
                 "release.yml" to RELEASE_YML,
-                "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML
+                "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML,
+                "jules-branch-manager.yml" to JULES_BRANCH_MANAGER_YML
             )
             else -> emptyList()
         }
