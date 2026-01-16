@@ -70,7 +70,7 @@ jobs:
           gcp_project_id: '${{ vars.GOOGLE_CLOUD_PROJECT }}'
           gcp_service_account: '${{ vars.SERVICE_ACCOUNT_EMAIL }}'
           gcp_workload_identity_provider: '${{ vars.GCP_WIF_PROVIDER }}'
-          gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
+          gemini_api_key: '${{ secrets.JULES_API_KEY }}'
           gemini_cli_version: '0.20.0'
           gemini_debug: '${{ fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}'
           gemini_model: '${{ vars.GEMINI_MODEL }}'
@@ -92,7 +92,10 @@ jobs:
               "tools": {
                 "core": [
                   "run_shell_command(echo)"
-                ]
+                ],
+                "github": {
+                  "token": "${{ steps.mint_identity_token.outputs.token || secrets.GH_TOKEN || github.token }}"
+                }
               }
             }
           prompt: '/gemini-triage'
@@ -129,7 +132,7 @@ jobs:
         with:
           # Use the provided token so that the "gemini-cli" is the actor in the
           # log for what changed the labels.
-          github-token: '${{ steps.mint_identity_token.outputs.token || secrets.GITHUB_TOKEN || github.token }}'
+          github-token: '${{ steps.mint_identity_token.outputs.token || secrets.GH_TOKEN || github.token }}'
           script: |-
             // Parse the available labels
             const availableLabels = (process.env.AVAILABLE_LABELS || '').split(',')

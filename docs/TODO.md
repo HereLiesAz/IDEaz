@@ -59,8 +59,12 @@ This document is the step-by-step guide for taking IDEaz from concept to product
     - [x] **4.1.1: Session Management:** Create/Resume sessions (Implemented in `AIDelegate`).
     - [x] **4.1.2: Polling:** Implement infinite polling for *activities* (Implemented in `AIDelegate`).
 - [x] **4.2: Workflow Injection (Initialization)**
-    - [x] **4.2.1: File Creation:** Generate `android_ci_jules.yml`, `codeql.yml`, `jules.yml`, `release.yml`. (Updated templates to use branch-aware tags).
+    - [x] **4.2.1: File Creation:** Generate `android_ci_jules.yml`, `codeql.yml`, `jules.yml`, `release.yml`, `jules-issue-handler.yml`. (Updated templates to use branch-aware tags).
     - [x] **4.2.2: Force Push:** Logic to commit and push these files on "Save & Initialize".
+    - [x] **4.2.3: Issue Handling:** Inject `jules-issue-handler.yml` for autonomous issue resolution.
+    - [x] **4.2.4: Branch Management:** Inject `jules-branch-manager.yml` for autonomous PR lifecycle management.
+    - [x] **4.2.5: Secret Consolidation:** Standardized all workflows to use `JULES_API_KEY`.
+    - [x] **4.2.6: Token Upgrade:** Updated workflows to use `GH_TOKEN` for elevated permissions.
 - [x] **4.3: Error Handling Loop**
     - [x] **4.3.1: User Error:** If build fails (compilation), send log to Jules.
     - [x] **4.3.2: IDE Error:** If build crashes (exception), report to `HereLiesAz/IDEaz` with label `jules`.
