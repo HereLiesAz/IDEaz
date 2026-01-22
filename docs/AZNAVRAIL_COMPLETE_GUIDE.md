@@ -8,9 +8,10 @@ Welcome to the comprehensive guide for **AzNavRail**. This document contains eve
 
 1.  [Getting Started](#getting-started)
 2.  [AzHostActivityLayout Layout Rules](#azhostactivitylayout-layout-rules)
-3.  [DSL Reference](#dsl-reference)
-4.  [API Reference](#api-reference)
-5.  [Sample Application Source Code](#sample-application-source-code)
+3.  [Smart Transitions with AzNavHost](#smart-transitions-with-aznavhost)
+4.  [DSL Reference](#dsl-reference)
+5.  [API Reference](#api-reference)
+6.  [Sample Application Source Code](#sample-application-source-code)
 
 ---
 
@@ -57,7 +58,8 @@ AzHostActivityLayout(navController = navController) {
 
     // Define Content
     onscreen(Alignment.Center) {
-        AzNavHost(navController = navController, startDestination = "home") {
+        // AzNavHost automatically links to the outer AzHostActivityLayout
+        AzNavHost(startDestination = "home") {
              composable("home") { Text("Home Screen") }
              // ...
         }
@@ -91,6 +93,17 @@ AzHostActivityLayout(navController = navController) {
     }
 }
 ```
+
+---
+
+## Smart Transitions with AzNavHost
+
+The `AzNavHost` wrapper provides seamless integration with the `AzHostActivityLayout`:
+
+1.  **Automatic Navigation Controller**: It automatically retrieves the `navController` provided to `AzHostActivityLayout`, eliminating the need to pass it again.
+2.  **Directional Transitions**: It automatically configures entry and exit animations based on the rail's docking side:
+    *   **Left Dock**: New screens slide in from the **Right**; old screens slide out to the **Left** (towards the rail).
+    *   **Right Dock**: New screens slide in from the **Left**; old screens slide out to the **Right** (towards the rail).
 
 ---
 
@@ -168,12 +181,12 @@ fun AzHostActivityLayout(
 ```kotlin
 @Composable
 fun AzNavHost(
-    navController: NavHostController,
     startDestination: String,
     modifier: Modifier = Modifier,
+    // navController derived from context if omitted
     contentAlignment: Alignment = Alignment.Center,
     route: String? = null,
-    // ... transition params
+    // ... transition params (smart defaults)
     builder: NavGraphBuilder.() -> Unit
 )
 ```
@@ -381,7 +394,7 @@ fun SampleScreen(
                 Column(modifier = Modifier.padding(16.dp)) {
                     // ... AzTextBox examples ...
 
-                    AzNavHost(navController = navController, startDestination = "home") {
+                    AzNavHost(startDestination = "home") {
                         composable("home") { Text("Home Screen") }
                         // ...
                     }
