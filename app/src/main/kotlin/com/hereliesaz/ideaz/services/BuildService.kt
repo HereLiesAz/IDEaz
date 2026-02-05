@@ -38,10 +38,17 @@ import kotlin.coroutines.coroutineContext
 
 /**
  * A foreground [Service] that orchestrates the build process.
- * 
- * This service implements advanced log batching to minimize IPC overhead and prevent ANRs
- * in the main application process. It also handles Background Activity Launch (BAL) restrictions
- * for targeting Android 14+.
+ *
+ * **Role:**
+ * This service acts as the dedicated "Build Agent" on the device. It runs in a separate process
+ * (`:build_process`) to isolate memory intensive operations (like compilation) from the main UI thread/process.
+ *
+ * **Key Features:**
+ * - **AIDL Interface:** Exposes [IBuildService] for IPC with the main app.
+ * - **Log Batching:** Implements advanced batching of logs sent via AIDL to minimize Cross-Process Communication (IPC) overhead.
+ * - **Notification Management:** Shows a persistent notification with the latest log line and "Sync & Exit" action.
+ * - **Hot Reload:** Monitors file changes (via [startHotReloadWatcher]) to trigger Zipline reloads.
+ * - **Build Steps:** Uses [BuildOrchestrator] to execute a sequence of [BuildStep]s (e.g., Aapt2, Kotlinc, D8).
  */
 class BuildService : Service() {
     companion object {
@@ -50,10 +57,15 @@ class BuildService : Service() {
         private const val NOTIFICATION_ID = 1
         private const val MIN_SDK = 26
         private const val TARGET_SDK = 36
+
+        /** Max lines to keep in the notification expanded view. */
         private const val MAX_LOG_LINES = 50
+
+        // Notification Actions
         private const val ACTION_SYNC_AND_EXIT = "SYNC_AND_EXIT"
         private const val ACTION_BUILD_LOG_INPUT = "BUILD_LOG_INPUT"
         private const val EXTRA_TEXT_REPLY = "KEY_TEXT_REPLY"
+
         private const val NOTIFICATION_UPDATE_INTERVAL_MS = 1000L
         private const val UI_LOG_BATCH_INTERVAL_MS = 250L
     }
@@ -66,6 +78,9 @@ class BuildService : Service() {
     private var pendingNotificationUpdate: Job? = null
     private var fileObserver: com.hereliesaz.ideaz.utils.RecursiveFileObserver? = null
 
+    /**
+     * The Binder implementation returned to clients binding to this service.
+     */
     private val binder = object : IBuildService.Stub() {
         override fun startBuild(projectPath: String, callback: IBuildCallback) = this@BuildService.startBuild(projectPath, callback)
         override fun downloadDependencies(projectPath: String, callback: IBuildCallback) = this@BuildService.downloadDependencies(projectPath, callback)
@@ -85,6 +100,7 @@ class BuildService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Handle Notification Actions
         if (intent?.action == ACTION_SYNC_AND_EXIT) {
             handleSyncAndExit()
             return START_NOT_STICKY
@@ -92,6 +108,7 @@ class BuildService : Service() {
             val remoteInput = androidx.core.app.RemoteInput.getResultsFromIntent(intent)
             if (remoteInput != null) {
                 val input = remoteInput.getCharSequence(EXTRA_TEXT_REPLY).toString()
+                // Broadcast prompt back to Main App
                 val promptIntent = Intent("com.hereliesaz.ideaz.AI_PROMPT").apply {
                     putExtra("PROMPT", input)
                     setPackage(packageName)
@@ -101,6 +118,7 @@ class BuildService : Service() {
             return START_NOT_STICKY
         }
 
+        // Start Foreground immediately
         val notification = createNotificationBuilder()
             .setContentText("Build Service is ready.")
             .setStyle(NotificationCompat.BigTextStyle().bigText("Build Service is ready."))
@@ -118,6 +136,10 @@ class BuildService : Service() {
         }
     }
 
+    /**
+     * Updates the persistent notification with the latest log message.
+     * Throttled to [NOTIFICATION_UPDATE_INTERVAL_MS] to avoid system spam.
+     */
     private fun updateNotification(message: String) {
         synchronized(logBuffer) {
             message.lines().forEach { line ->
@@ -248,7 +270,8 @@ class BuildService : Service() {
     }
 
     /**
-     * Wraps the provided IBuildCallback to implement log batching and local notification updates.
+     * Wraps the provided [IBuildCallback] to implement log batching.
+     * This prevents flooding the binder transaction buffer with individual log lines.
      */
     private fun wrapCallback(callback: IBuildCallback): IBuildCallback {
         return object : IBuildCallback.Stub() {
@@ -491,6 +514,7 @@ class BuildService : Service() {
                 if (!isActive) return@launch
 
                 // --- PRE-PROCESSING ---
+                // Process AARs (Extract resources)
                 val processAars = ProcessAars(resolver.resolvedArtifacts, buildDir, aapt2Path!!)
                 val aarResult = processAars.execute(wrappedCallback)
                 if (!aarResult.success && isActive) {
@@ -501,7 +525,7 @@ class BuildService : Service() {
                 val aarJars = processAars.jars.joinToString(File.pathSeparator)
                 val resolvedJars = resolver.resolvedClasspath
 
-                // NEW: Hybrid Host Runtime
+                // NEW: Hybrid Host Runtime (Inject Redwood/Zipline libs)
                 val hybridRuntime = HybridToolchainManager.getHostRuntimeClasspath(filesDir, wrappedCallback)
                 val hybridJars = hybridRuntime.joinToString(File.pathSeparator) { it.absolutePath }
 
@@ -624,7 +648,6 @@ class BuildService : Service() {
             android.os.FileObserver.CLOSE_WRITE or android.os.FileObserver.MODIFY
         ) { event, fullPath ->
             if (fullPath == null) return@RecursiveFileObserver
-            // RecursiveFileObserver returns full absolute path
             val path = fullPath
 
             // Debounce or immediate? Immediate for now.

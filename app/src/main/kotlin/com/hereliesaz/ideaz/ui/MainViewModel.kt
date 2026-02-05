@@ -43,22 +43,18 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * The central ViewModel for the application, orchestrating UI state, build processes,
- * Git operations, and AI interactions.
- *
- * This ViewModel delegates specific responsibilities to helper classes (Delegates)
- * to maintain separation of concerns and reduce code size.
- *
- * @param application The Android Application context.
- * @param settingsViewModel The ViewModel for accessing and modifying user settings.
- */
-/**
  * The central ViewModel for the IDEaz application.
  *
- * This class orchestrates the interaction between the UI (`MainScreen`), the background build system (`BuildService`),
- * the AI agent (`AIDelegate`), and the Git version control (`GitDelegate`).
+ * **Role:**
+ * This class serves as the "Brain" of the IDE. It orchestrates the interaction between:
+ * - The UI layer (Screens, Composables).
+ * - The background build system ([BuildService]).
+ * - The AI agent ([AIDelegate]).
+ * - The Version Control System ([GitDelegate]).
+ * - The Host Environment (VirtualDisplay/WebView).
  *
- * It uses a Delegate pattern to separate concerns:
+ * **Architecture:**
+ * To avoid a "God Class" anti-pattern, logic is split into specialized [Delegates]:
  * - [AIDelegate]: Manages AI sessions and Jules API calls.
  * - [BuildDelegate]: Manages the connection to the remote BuildService and build execution.
  * - [GitDelegate]: Manages local Git operations (clone, commit, push).
@@ -67,34 +63,56 @@ import java.net.URL
  * - [StateDelegate]: Centralizes shared UI state (logs, progress).
  * - [SystemEventDelegate]: Handles system broadcasts (screen on/off, package changes).
  * - [UpdateDelegate]: Handles self-updates.
+ *
+ * @param application The Android Application context.
+ * @param settingsViewModel The ViewModel for accessing and modifying user settings.
  */
 class MainViewModel(
     application: Application,
     val settingsViewModel: SettingsViewModel
 ) : AndroidViewModel(application) {
 
-    // Editor ViewModel (Lazy instantiation)
+    // --- Sub-ViewModels ---
+
+    /**
+     * Lazy instantiation of [EditorViewModel] to avoid overhead if the editor is not used.
+     * Passed [JsCompilerService] to support on-the-fly JS compilation for Web projects.
+     */
     val editorViewModel: EditorViewModel by lazy {
         EditorViewModel(JsCompilerService(application))
     }
 
-    // --- DELEGATES ---
-    val stateDelegate = StateDelegate(viewModelScope)
+    // --- Core Infrastructure ---
 
+    /**
+     * Dedicated single-threaded dispatcher for Zipline operations.
+     * Zipline (QuickJS) requires all access to occur on a single thread to ensure thread confinement.
+     */
     private val ziplineDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
 
+    /**
+     * Loader for the Zipline dynamic code engine.
+     *
+     * **Security Note:**
+     * Currently using [ManifestVerifier.NO_SIGNATURE_CHECKS] for development velocity.
+     * TODO(Phase 11.5): Implement Ed25519 signature verification for production releases.
+     */
     val ziplineLoader: ZiplineLoader by lazy {
         val app = application as MainApplication
         ZiplineLoader(
             dispatcher = ziplineDispatcher,
-            // TODO(Phase 11.5): Implement Ed25519 signature verification.
-            // Currently utilizing NO_SIGNATURE_CHECKS to enable development of the Hybrid Host features.
             manifestVerifier = ManifestVerifier.NO_SIGNATURE_CHECKS,
             httpClient = app.okHttpClient.asZiplineHttpClient(),
         )
     }
 
+    /**
+     * Shared State Delegate. Holds all StateFlows used by the UI.
+     */
+    val stateDelegate = StateDelegate(viewModelScope)
+
     init {
+        // Start observing system logs (logcat) immediately.
         viewModelScope.launch {
             com.hereliesaz.ideaz.utils.LogcatReader.observe().collect {
                 stateDelegate.appendSystemLog(it)
@@ -102,26 +120,38 @@ class MainViewModel(
         }
     }
 
-    // Helper to pipe logs to UI and State
+    // --- Delegation Glue ---
+
+    /**
+     * Anonymous implementation of [LogHandler] to pass to delegates.
+     * This acts as the "bridge" allowing delegates to push logs/progress back to the [StateDelegate]
+     * without knowing about the specific implementation details or coupling directly to [MainViewModel].
+     */
     private val logHandler = object : LogHandler {
         override fun onBuildLog(msg: String) { stateDelegate.appendBuildLog(msg) }
+
         override fun onAiLog(msg: String) {
             stateDelegate.appendAiLog(msg)
-            // Broadcast for overlay logs
+            // Broadcast for the Overlay UI (which runs in a separate Service process/context)
             application.sendBroadcast(Intent("com.hereliesaz.ideaz.AI_LOG").apply {
                 putExtra("MESSAGE", msg)
                 setPackage(application.packageName)
             })
         }
+
         override fun onProgress(p: Int?) { stateDelegate.setLoadingProgress(p) }
+
         override fun onGitProgress(p: Int, t: String) {
             stateDelegate.setLoadingProgress(if (p >= 100) null else p)
             stateDelegate.appendBuildLog("[GIT] $t\n")
         }
+
         override fun onOverlayLog(msg: String) {
-             stateDelegate.appendAiLog(msg) // Fallback to AI log for now if overlay log isn't distinct
+             stateDelegate.appendAiLog(msg) // Fallback to AI log for now
         }
     }
+
+    // --- Delegate Initialization ---
 
     val aiDelegate = AIDelegate(
         settingsViewModel,
@@ -131,6 +161,7 @@ class MainViewModel(
         jsCompilerService = JsCompilerService(application),
         onWebReload = { stateDelegate.triggerWebReload() }
     )
+
     val overlayDelegate = OverlayDelegate(application, settingsViewModel, viewModelScope, logHandler::onAiLog)
 
     val gitDelegate = GitDelegate(settingsViewModel, viewModelScope, logHandler::onBuildLog, logHandler::onProgress)
@@ -144,9 +175,11 @@ class MainViewModel(
         { map -> overlayDelegate.sourceMap = map },
         { log -> handleBuildFailure(log) },
         { path ->
+            // Web Build Success Callback
             stateDelegate.setCurrentWebUrl("file://$path")
             stateDelegate.setTargetAppVisible(true) // Switch to "App View"
-            // Update EditorViewModel with project context
+
+            // Update EditorViewModel with project context for file browsing
             val appName = settingsViewModel.getAppName()
             if (appName != null) {
                 val projectDir = settingsViewModel.getProjectPath(appName)
@@ -154,6 +187,8 @@ class MainViewModel(
             }
         },
         {
+            // Android Build Success Callback
+            // Notify System that update is ready (if applicable) or just launch
             val intent = Intent("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP")
             if (lastPrompt != null) {
                 intent.putExtra("PROMPT", lastPrompt)
@@ -176,8 +211,24 @@ class MainViewModel(
 
     val updateDelegate = UpdateDelegate(application, settingsViewModel, viewModelScope, logHandler::onAiLog)
 
+    // Handle System Events (Broadcasts)
+    val systemEventDelegate = SystemEventDelegate(
+        application,
+        aiDelegate,
+        overlayDelegate,
+        stateDelegate
+    ) { manifestPath ->
+        reloadZipline(manifestPath)
+    }
+
+    // --- Zipline (Dynamic Code) Management ---
+
     private var currentZipline: app.cash.zipline.Zipline? = null
 
+    /**
+     * Reloads the Zipline engine from a local manifest.
+     * Currently disabled due to deprecation of `loadOnce` API in the Zipline library.
+     */
     private fun reloadZipline(manifestPath: String) {
         viewModelScope.launch(ziplineDispatcher) {
             try {
@@ -187,6 +238,7 @@ class MainViewModel(
 
                 // Load from file URL
                 val manifestUrl = File(manifestPath).toURI().toString()
+
                 // FIXME: Zipline API loadOnce/load is deprecated (ERROR level) and cannot be used.
                 // Disabling temporarily to unblock build.
                 // val result = ziplineLoader.loadOnce("guest", manifestUrl) { ... }
@@ -203,23 +255,15 @@ class MainViewModel(
                 val msg = "[Zipline] Reload failed: ${e.message}"
                 logHandler.onBuildLog(msg)
                 e.printStackTrace()
-                // Report Guest runtime crash to Jules
+                // Auto-report Guest runtime crash to Jules for analysis
                 aiDelegate.startContextualAITask("Guest Code Runtime Error. Please fix:\n$msg\n${e.stackTraceToString()}")
             }
         }
     }
 
-    // Handles BroadcastReceivers
-    val systemEventDelegate = SystemEventDelegate(
-        application,
-        aiDelegate,
-        overlayDelegate,
-        stateDelegate
-    ) { manifestPath ->
-        reloadZipline(manifestPath)
-    }
+    // --- Public State Exposure (Delegated) ---
 
-    // --- PUBLIC STATE EXPOSURE (Delegated) ---
+    // Expose StateFlows directly from delegates to avoid boilerplate duplication
     val loadingProgress = stateDelegate.loadingProgress
     val isTargetAppVisible = stateDelegate.isTargetAppVisible
     val currentWebUrl = stateDelegate.currentWebUrl
@@ -227,12 +271,14 @@ class MainViewModel(
     val filteredLog = stateDelegate.filteredLog
     val pendingRoute = stateDelegate.pendingRoute
 
-    // Delegate States
     val isSelectMode = overlayDelegate.isSelectMode
     val activeSelectionRect = overlayDelegate.activeSelectionRect
     val isContextualChatVisible = overlayDelegate.isContextualChatVisible
     val requestScreenCapture = overlayDelegate.requestScreenCapture
+
+    // Track the last user prompt to restore context after an app restart
     private var lastPrompt: String? = null
+
     val ownedRepos = repoDelegate.ownedRepos
     val sessions = aiDelegate.sessions
     val commitHistory = gitDelegate.commitHistory
@@ -249,7 +295,8 @@ class MainViewModel(
     val currentJulesSessionId = aiDelegate.currentJulesSessionId
     val showCancelDialog = MutableStateFlow(false).asStateFlow()
 
-    // --- ARTIFACT CHECK STATE ---
+    // --- Artifact Check State ---
+
     data class ArtifactCheckResult(
         val remoteVersion: String,
         val downloadUrl: String,
@@ -257,12 +304,19 @@ class MainViewModel(
         val isRemoteNewer: Boolean
     )
     private val _artifactCheckResult = MutableStateFlow<ArtifactCheckResult?>(null)
+    /** Holds the result of a check for remote GitHub artifacts (APKs). */
     val artifactCheckResult = _artifactCheckResult.asStateFlow()
 
     fun dismissArtifactDialog() { _artifactCheckResult.value = null }
 
+    // --- File Observation ---
+
     private var fileObserver: ProjectFileObserver? = null
 
+    /**
+     * Starts watching the project directory for file changes.
+     * Currently used to trigger WebView reloads for Web projects.
+     */
     private fun startFileObservation(projectDir: File) {
         fileObserver?.stopWatching()
         fileObserver = ProjectFileObserver(projectDir.absolutePath) {
@@ -271,7 +325,8 @@ class MainViewModel(
         fileObserver?.startWatching()
     }
 
-    // --- LIFECYCLE ---
+    // --- Lifecycle ---
+
     override fun onCleared() {
         super.onCleared()
         fileObserver?.stopWatching()
@@ -282,6 +337,11 @@ class MainViewModel(
 
     /**
      * Called by UI when a screen transition occurs to flush non-fatal errors.
+     *
+     * **Logic:**
+     * 1. Retrieves unique, non-fatal errors collected by [ErrorCollector].
+     * 2. If errors exist, starts the [CrashReportingService] with an intent to report them to the configured backend (GitHub/Jules).
+     * This ensures that "silent" errors don't pile up without user/dev visibility.
      */
     fun flushNonFatalErrors() {
         val errors = ErrorCollector.getAndClear()
@@ -306,21 +366,13 @@ class MainViewModel(
         }
     }
 
-    // --- PROXY METHODS ---
+    // --- Proxy Methods (Forwarding calls to Delegates) ---
 
-    // BUILD
-
-    /** Binds the BuildService to the given context. */
+    // BUILD Operations
     fun bindBuildService(c: Context) = buildDelegate.bindService(c)
-
-    /** Unbinds the BuildService from the given context. */
     fun unbindBuildService(c: Context) = buildDelegate.unbindService(c)
-
-    /** Starts a build for the specified project path (or current project if null). */
     fun startBuild(c: Context, p: File? = null) = buildDelegate.startBuild(p)
-
-    /** Clears local build caches (TODO). */
-    fun clearBuildCaches(c: Context) { /* TODO */ }
+    fun clearBuildCaches(c: Context) { /* TODO: Implement cache clearing logic in BuildService */ }
 
     /**
      * Downloads and installs the build tools (aapt2, d8, kotlinc) from the latest GitHub release.
@@ -359,6 +411,7 @@ class MainViewModel(
                 logHandler.onBuildLog("Downloading build tools from ${toolAsset.name}...")
                 zipFile = File(getApplication<Application>().cacheDir, "tools.zip")
 
+                // Reuse download logic
                 val success = downloadFile(toolAsset.browserDownloadUrl, zipFile) { progress ->
                     stateDelegate.setLoadingProgress(progress)
                 }
@@ -390,21 +443,14 @@ class MainViewModel(
         }
     }
 
-    // GIT
-
-    /** Refreshes Git status, branches, and commit history. */
+    // GIT Operations
     fun refreshGitData() { viewModelScope.launch { gitDelegate.refreshGitData() } }
-
-    /** Performs a 'git fetch' operation. */
     fun gitFetch() { viewModelScope.launch { gitDelegate.fetch() } }
-
-    /** Performs a 'git pull' operation. */
     fun gitPull() { viewModelScope.launch { gitDelegate.pull() } }
-
-    /** Performs a 'git push' operation. */
     fun gitPush() {
         viewModelScope.launch(Dispatchers.IO) {
             gitDelegate.push()
+            // After pushing, start polling for artifacts if it's an app that produces them
             val appName = settingsViewModel.getAppName()
             val user = settingsViewModel.getGithubUser()
             if (!appName.isNullOrBlank() && !user.isNullOrBlank()) {
@@ -415,16 +461,13 @@ class MainViewModel(
             }
         }
     }
-
-    /** Stashes changes with an optional message. */
     fun gitStash(m: String?) { viewModelScope.launch { gitDelegate.stash(m) } }
-
-    /** Pops the latest stash. */
     fun gitUnstash() { viewModelScope.launch { gitDelegate.unstash() } }
-
-    /** Switches to the specified branch. */
     fun switchBranch(b: String) { viewModelScope.launch { gitDelegate.switchBranch(b) } }
 
+    /**
+     * Triggers deployment for Web Projects (GitHub Pages).
+     */
     fun deployWebProject() {
         val appName = settingsViewModel.getAppName()
         val projectTypeStr = settingsViewModel.getProjectType()
@@ -444,7 +487,7 @@ class MainViewModel(
                     Toast.makeText(getApplication(), getApplication<Application>().getString(R.string.deploy_instruction_gh_pages), Toast.LENGTH_LONG).show()
                 }
 
-                // Start Polling for Deployment
+                // Start Polling for Deployment completion
                 val user = settingsViewModel.getGithubUser()
                 if (appName != null && user != null) {
                     startWebDeploymentPolling(user, appName)
@@ -488,7 +531,6 @@ class MainViewModel(
                             logHandler.onBuildLog("Deployment status: $status...")
                         }
                     } else if (response.code() == 404) {
-                         // Pages not enabled or not yet ready
                         logHandler.onBuildLog("Waiting for GitHub Pages to be available (404)...")
                     } else {
                         logHandler.onBuildLog("Error polling pages: Code ${response.code()}")
@@ -504,9 +546,7 @@ class MainViewModel(
         }
     }
 
-    // AI
-
-    /** Sends a prompt to the active AI session. */
+    // AI Operations
     fun sendPrompt(p: String?) {
         if (!p.isNullOrBlank()) {
             lastPrompt = p
@@ -514,7 +554,6 @@ class MainViewModel(
         }
     }
 
-    /** Submits a prompt along with context (screen capture, selection) from the overlay. */
     fun submitContextualPrompt(p: String) {
         lastPrompt = p
         val context = overlayDelegate.pendingContextInfo ?: "No context"
@@ -523,20 +562,15 @@ class MainViewModel(
         aiDelegate.startContextualAITask(richPrompt)
     }
 
-    /** Resumes a specific Jules session. */
     fun resumeSession(id: String) = aiDelegate.resumeSession(id)
-
-    /** Fetches available Jules sessions for the given repository. */
     fun fetchSessionsForRepo(r: String) = aiDelegate.fetchSessionsForRepo(r)
 
-    // OVERLAY
-
-    /** Toggles the screen selection mode. */
+    // OVERLAY Operations
     fun toggleSelectMode(b: Boolean) = overlayDelegate.toggleSelectMode(b)
 
     fun handleSelection(rect: android.graphics.Rect) {
         overlayDelegate.onSelectionMade(rect)
-
+        // Broadcast specifically for Web inspection if active
         if (stateDelegate.currentWebUrl.value != null) {
             val intent = Intent("com.hereliesaz.ideaz.INSPECT_WEB").apply {
                 putExtra("X", rect.centerX().toFloat())
@@ -547,48 +581,26 @@ class MainViewModel(
         }
     }
 
-    /** Clears the current screen selection. */
     fun clearSelection() = overlayDelegate.clearSelection()
-
-    /** Closes the contextual chat and clears selection. */
     fun closeContextualChat() = overlayDelegate.clearSelection()
-
-    /** Requests permission to capture the screen (MediaProjection). */
     fun requestScreenCapturePermission() = overlayDelegate.requestScreenCapturePermission()
-
-    /** Signals that the screen capture request has been handled. */
     fun screenCaptureRequestHandled() = overlayDelegate.screenCaptureRequestHandled()
-
-    /** Sets the result of the screen capture permission request. */
     fun setScreenCapturePermission(c: Int, d: Intent?) = overlayDelegate.setScreenCapturePermission(c, d)
-
-    /** Checks if screen capture permission is granted. */
     fun hasScreenCapturePermission() = overlayDelegate.hasScreenCapturePermission()
-
-    /** Sets a pending navigation route to be handled by the UI. */
     fun setPendingRoute(r: String?) = stateDelegate.setPendingRoute(r)
 
-    // REPO
-
-    /** Fetches the list of repositories owned by the user from GitHub. */
+    // REPO Operations
     fun fetchGitHubRepos() = repoDelegate.fetchGitHubRepos()
-
-    /** Scans the local filesystem for imported projects. */
     fun scanLocalProjects() = repoDelegate.scanLocalProjects()
-
-    /** Returns a list of local projects with their metadata. */
     fun getLocalProjectsWithMetadata() = repoDelegate.getLocalProjectsWithMetadata()
-
-    /** Forces an update of the initialization files (workflows, setup scripts) in the project. */
     fun forceUpdateInitFiles() = repoDelegate.forceUpdateInitFiles()
-
-    /** Uploads project secrets (API keys, Keystore) to GitHub Actions secrets. */
     fun uploadProjectSecrets(o: String, r: String) = repoDelegate.uploadProjectSecrets(o, r)
 
-    /** Creates a new GitHub repository and initializes it with the project template. */
+    /** Creates a new repo and initializes the project. */
     fun createGitHubRepository(name: String, desc: String, priv: Boolean, type: ProjectType, pkg: String, ctx: Context, onSuccess: () -> Unit) {
         repoDelegate.createGitHubRepository(name, desc, priv, type, pkg, ctx) { owner, branch ->
             viewModelScope.launch(Dispatchers.IO) {
+                // Copy template files
                 com.hereliesaz.ideaz.utils.TemplateManager.copyTemplate(ctx, type, ctx.filesDir.resolve(name), pkg, name)
                 withContext(Dispatchers.Main) {
                     saveAndInitialize(name, owner, branch, pkg, type, ctx)
@@ -598,7 +610,7 @@ class MainViewModel(
         }
     }
 
-    /** Selects an existing repository for setup and loads its sessions. */
+    /** Selects a repo and prepares it for use. */
     fun selectRepositoryForSetup(repo: GitHubRepoResponse, onSuccess: () -> Unit) {
         repoDelegate.selectRepositoryForSetup(repo) { owner, branch ->
             repoDelegate.uploadProjectSecrets(owner, repo.name)
@@ -608,7 +620,10 @@ class MainViewModel(
         }
     }
 
-    /** Saves project configuration and triggers the initial build/setup. */
+    /**
+     * Saves configuration and triggers initial build.
+     * Common exit path for Setup/Clone/Load flows.
+     */
     fun saveAndInitialize(appName: String, user: String, branch: String, pkg: String, type: ProjectType, context: Context, initialPrompt: String? = null) {
         viewModelScope.launch {
             aiDelegate.clearSession()
@@ -631,7 +646,6 @@ class MainViewModel(
     private fun startArtifactPolling(user: String, repo: String) {
         pollingJob?.cancel()
         pollingJob = viewModelScope.launch {
-            // logHandler.onOverlayLog("Started polling for remote artifacts...") // Too noisy?
             val startTime = System.currentTimeMillis()
             val timeout = 10 * 60 * 1000L // 10 minutes
 
@@ -639,15 +653,16 @@ class MainViewModel(
                 checkForRemoteArtifact(user, repo, getApplication())
 
                 if (_artifactCheckResult.value?.isRemoteNewer == true) {
-                    // logHandler.onOverlayLog("New artifact found.")
                     break
                 }
-
                 delay(30_000) // 30 seconds
             }
         }
     }
 
+    /**
+     * Checks if a remote artifact (APK) exists and is newer than local.
+     */
     private suspend fun checkForRemoteArtifact(user: String, repo: String, context: Context) {
         val token = settingsViewModel.getGithubToken()
         if (token.isNullOrBlank()) return
@@ -656,12 +671,11 @@ class MainViewModel(
             val service = GitHubApiClient.createService(token)
             val releases = withContext(Dispatchers.IO) { service.getReleases(user, repo) }
 
-            // Find latest release (prefer pre-release debug builds) with an APK
+            // Find valid release
             val release = releases.firstOrNull { r ->
                 r.prerelease && r.assets.any { it.name.endsWith(".apk") }
             } ?: releases.firstOrNull { r -> r.assets.any { it.name.endsWith(".apk") } } ?: return
 
-            // Find the APK asset with the highest version
             val validAssets = release.assets.filter {
                 it.name.endsWith(".apk") && VersionUtils.extractVersionFromFilename(it.name) != null
             }
@@ -672,12 +686,10 @@ class MainViewModel(
                 VersionUtils.compareVersions(v1, v2)
             }.lastOrNull() ?: return
 
-            // Parse remote version
             val remoteVersion = VersionUtils.extractVersionFromFilename(bestAsset.name) ?: return
 
-            // Check local APK
+            // Check Local Version
             val projectDir = context.filesDir.resolve(repo)
-            // Look for generic APKs in typical build output
             val possibleDirs = listOf(
                 File(projectDir, "app/build/outputs/apk/debug"),
                 File(projectDir, "android/app/build/outputs/apk/debug"),
@@ -696,7 +708,6 @@ class MainViewModel(
                 localVersion = info?.versionName
             }
 
-            // Compare versions
             val isNewer = if (localVersion == null) true else {
                 VersionUtils.compareVersions(remoteVersion, localVersion) > 0
             }
@@ -713,6 +724,7 @@ class MainViewModel(
         }
     }
 
+    /** Downloads the artifact selected by the user. */
     fun downloadLatestArtifact(url: String, onSuccess: (File) -> Unit) {
         viewModelScope.launch {
             stateDelegate.setLoadingProgress(0)
@@ -737,14 +749,11 @@ class MainViewModel(
     /**
      * Checks if the local APK selected by URI is older than the remote version.
      * Returns "downgrade", "upgrade", or "same".
-     *
-     * Note: This operation suspends and performs IO on Dispatchers.IO.
      */
     suspend fun checkLocalApkVersion(uri: Uri, remoteVersion: String): String {
         return withContext(Dispatchers.IO) {
             try {
                 val context = getApplication<Application>()
-                // Copy to temp file to parse
                 val tempFile = File(context.cacheDir, "temp_check.apk")
                 context.contentResolver.openInputStream(uri)?.use { input ->
                     tempFile.outputStream().use { output ->
@@ -757,12 +766,7 @@ class MainViewModel(
                 val localVersion = info?.versionName ?: return@withContext "unknown"
                 val localPackage = info.packageName
 
-                // Verify package name
                 val targetPackage = settingsViewModel.targetPackageName.value
-                // If we don't know target package yet (setup), we might skip or check appName.
-                // But usually we know it or can guess.
-                // If settingsViewModel doesn't have it, assume "com.hereliesaz." + appName logic?
-                // For now, if targetPackage is set, enforce it.
                 if (!targetPackage.isNullOrBlank() && localPackage != targetPackage) {
                     logHandler.onOverlayLog("Error: Selected APK package '$localPackage' does not match project '$targetPackage'.")
                     tempFile.delete()
@@ -771,14 +775,10 @@ class MainViewModel(
 
                 tempFile.delete()
 
-                // Compare versions (simple string comparison for now, or assume semver)
                 if (localVersion == remoteVersion) return@withContext "same"
 
-                // Simple semantic version check
-                // Format: X.Y.Z
-                fun parse(v: String) = v.split(".").mapNotNull { it.toIntOrNull() }
-                val rParts = parse(remoteVersion)
-                val lParts = parse(localVersion)
+                val rParts = remoteVersion.split(".").mapNotNull { it.toIntOrNull() }
+                val lParts = localVersion.split(".").mapNotNull { it.toIntOrNull() }
 
                 for (i in 0 until maxOf(rParts.size, lParts.size)) {
                     val r = rParts.getOrElse(i) { 0 }
@@ -795,7 +795,6 @@ class MainViewModel(
         }
     }
 
-    /** Loads a local project by name. */
     fun loadProject(name: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
             aiDelegate.clearSession()
@@ -806,7 +805,6 @@ class MainViewModel(
         }
     }
 
-    /** Forks a repository. */
     fun forkRepository(u: String, onSuccess: () -> Unit = {}) {
         val parts = u.removePrefix("https://github.com/")
             .removeSuffix(".git")
@@ -833,20 +831,23 @@ class MainViewModel(
 
     /**
      * Imports an external project folder via Storage Access Framework URI.
-     * Copies the folder to the app's internal storage for read/write access.
+     * Copies the folder to the app's internal storage (`filesDir`) for read/write access.
+     * This is necessary because direct in-place editing of `content://` URIs is limited/unreliable for build tools.
      */
     fun registerExternalProject(u: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
+                // Convert to DocumentFile
                 val documentFile = if (u.scheme == "file" && u.path != null) {
                     androidx.documentfile.provider.DocumentFile.fromFile(File(u.path!!))
                 } else {
                     try {
+                        // Persist permissions across reboots
                         val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or
                                 Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                         getApplication<Application>().contentResolver.takePersistableUriPermission(u, takeFlags)
                     } catch (e: Exception) {
-                        // Ignore if persistence is not supported
+                        // Ignore if persistence is not supported (e.g., file://)
                     }
                     androidx.documentfile.provider.DocumentFile.fromTreeUri(getApplication(), u)
                 }
@@ -856,6 +857,7 @@ class MainViewModel(
                     return@launch
                 }
 
+                // Handle Name Collision
                 var projectName = documentFile.name ?: "Imported_${System.currentTimeMillis()}"
                 var destDir = getApplication<Application>().filesDir.resolve(projectName)
 
@@ -869,6 +871,7 @@ class MainViewModel(
                 logHandler.onOverlayLog("Importing project '$projectName'...")
                 logHandler.onProgress(0)
 
+                // Copy files
                 copyDocumentFileToLocal(documentFile, destDir)
 
                 logHandler.onOverlayLog("Import complete.")
@@ -913,9 +916,7 @@ class MainViewModel(
         }
     }
 
-    /**
-     * Deletes a local project by name.
-     */
+    /** Deletes a project locally. */
     fun deleteProject(n: String) {
         if (n.isBlank()) return
         viewModelScope.launch(Dispatchers.IO) {
@@ -929,7 +930,8 @@ class MainViewModel(
     }
 
     /**
-     * Syncs changes to remote repository (if configured) before deleting the local project.
+     * Syncs changes to remote repository before deleting local files.
+     * Prevents data loss.
      */
     fun syncAndDeleteProject(n: String) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -986,15 +988,9 @@ class MainViewModel(
         }
     }
 
-    // UPDATE
-
-    /** Checks for experimental updates via the UpdateDelegate. */
+    // UPDATE Operations
     fun checkForExperimentalUpdates() = updateDelegate.checkForExperimentalUpdates()
-
-    /** Confirms and installs a pending update. */
     fun confirmUpdate() = updateDelegate.confirmUpdate()
-
-    /** Dismisses the update warning. */
     fun dismissUpdateWarning() = updateDelegate.dismissUpdateWarning()
 
     // DEPENDENCIES
@@ -1027,15 +1023,18 @@ class MainViewModel(
 
     // MISC
 
-    /** Clears the build log. */
     fun clearLog() = stateDelegate.clearLog()
 
     /**
-     * Launches the target application (APK or Web).
+     * Launches the target application (Android, Web, or React Native).
+     *
+     * **Logic:**
+     * - **Web:** Points the WebView to the project's `index.html`.
+     * - **React Native:** Launches `ReactNativeActivity` if the bundle exists, else fallback to APK.
+     * - **Android/Flutter:** Switches to "App View" (Host) or launches installed APK.
      */
     fun launchTargetApp(c: Context) {
-        // Suppress launch if the Artifact Selection dialog is open.
-        // This ensures the user isn't interrupted while deciding whether to use the remote artifact.
+        // Suppress launch if Artifact Dialog is open
         if (_artifactCheckResult.value != null) {
             logHandler.onBuildLog("[IDE] Launch suppressed: Artifact selection dialog is open.")
             return
@@ -1066,7 +1065,7 @@ class MainViewModel(
             val bundleFile = File(projectDir, "build/react_native_dist/index.android.bundle")
 
             if (bundleFile.exists()) {
-                // Parse app.json for module name
+                // Try to resolve module name from app.json
                 var moduleName = appName
                 val appJsonFile = File(projectDir, "app.json")
                 if (appJsonFile.exists()) {
@@ -1088,21 +1087,14 @@ class MainViewModel(
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 c.startActivity(intent)
-                // Switch UI state if needed, though starting activity covers it.
-                // We might want to set targetAppVisible if we want overlay?
-                // ReactNativeActivity is part of our app, so it stays in our process/task?
-                // It's a separate activity. Overlay service works over other apps.
-                // But here we are launching an activity inside our app.
-                // The overlay service might overlay our own activity if permission granted.
-                // MainScreen might be paused.
                 return
             }
 
-            // Fallback to installed APK if bundle missing
+            // Fallback
             val packageName = settingsViewModel.targetPackageName.value
             launchInstalledApk(c, packageName, appName)
         } else {
-            // Android, Flutter (assume APK)
+            // Android, Flutter
             val packageName = settingsViewModel.targetPackageName.value
             launchInstalledApk(c, packageName, appName)
         }
@@ -1111,7 +1103,7 @@ class MainViewModel(
     private fun launchInstalledApk(c: Context, packageName: String?, appName: String) {
             try {
                 if (packageName.isNullOrBlank()) {
-                     // Try to detect package name if not set
+                    // Try to detect
                     val projectDir = settingsViewModel.getProjectPath(appName)
                     val detectedPackage = ProjectAnalyzer.detectPackageName(projectDir)
 
@@ -1124,7 +1116,7 @@ class MainViewModel(
                     return
                 }
 
-                // Switch to "App View". AndroidProjectHost will handle launching on the virtual display.
+                // Switch to "App View"
                 stateDelegate.setTargetAppVisible(true)
 
             } catch (e: Exception) {
@@ -1132,13 +1124,10 @@ class MainViewModel(
             }
     }
 
-
-    /** Downloads project dependencies. */
     fun downloadDependencies() {
         buildDelegate.downloadDependencies()
     }
 
-    /** Checks for required API keys and returns a list of missing ones. */
     fun checkRequiredKeys(): List<String> {
         val missing = mutableListOf<String>()
         if (settingsViewModel.getApiKey().isNullOrBlank()) missing.add("Jules API Key")
@@ -1189,7 +1178,7 @@ class MainViewModel(
         val isAutoDebug = settingsViewModel.isAutoDebugBuildsEnabled()
         if (!isAutoDebug) return
 
-        // Heuristic for IDE Error
+        // Heuristics to separate IDE errors from User Project errors
         val isIdeError = log.contains("[IDE] Failed") ||
                 log.contains("tools not found") ||
                 log.contains("com.hereliesaz.ideaz") ||
@@ -1218,7 +1207,7 @@ class MainViewModel(
                 logHandler.onOverlayLog("Environment/IDE Error detected. Reporting disabled.")
             }
         } else {
-            // Project Error -> Jules Session (appropriate repository context)
+            // Project Error -> Ask Jules to fix it
             aiDelegate.startContextualAITask("Build Failed. Fix this:\n$log")
         }
     }
@@ -1226,6 +1215,7 @@ class MainViewModel(
 
 /**
  * Interface for handling log events from delegates.
+ * Decouples delegates from MainViewModel implementation details.
  */
 interface LogHandler {
     fun onBuildLog(msg: String)

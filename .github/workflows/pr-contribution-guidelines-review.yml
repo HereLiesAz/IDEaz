@@ -93,12 +93,13 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-          # Safely capture full diff
-          {
-            echo "diff<<EOF"
-            gh pr diff "${PR_NUMBER}" --repo "${REPOSITORY}"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          # Safely capture full diff to a file (to avoid "Argument list too long" in subsequent steps)
+          gh pr diff "${PR_NUMBER}" --repo "${REPOSITORY}" > pr_diff.txt
+          if [ -s pr_diff.txt ]; then
+            echo "has_diff=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_diff=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Validate PR against CONTRIBUTING.md
         id: gemini
@@ -111,7 +112,7 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         with:
           gemini_api_key: ${{ secrets.JULES_API_KEY }}
-          gemini_cli_version: '0.20.0'
+          gemini_cli_version: '0.24.0'
           settings: |
             {
               "coreTools": [
@@ -136,10 +137,9 @@ jobs:
             - Body: ${{ steps.pr.outputs.body }}
             - Changed files:
               ${{ steps.pr.outputs.changed_files }}
-            - Diff:
-            ```diff
-            ${{ steps.pr.outputs.diff }}
-            ```
+
+            Action:
+            Please use your tools to read the file 'pr_diff.txt' (using 'cat pr_diff.txt') to see the code changes in this PR.
 
             Required behavior:
             1. Check if CONTRIBUTING.md exists. You can try `cat CONTRIBUTING.md` or `ls CONTRIBUTING.md`.
