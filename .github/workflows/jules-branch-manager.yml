@@ -17,6 +17,10 @@ jobs:
       pull-requests: write
       issues: write
     steps:
+      - uses: google-github-actions/run-gemini-cli@v0
+        with:
+          gemini_api_key: ${{ secrets.JULES_API_KEY }}
+          gemini_cli_version: '0.24.0'
       - name: Checkout repository
         uses: actions/checkout@v4
         with:

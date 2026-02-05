@@ -33,7 +33,7 @@ class ApkBuild(
 
     override fun execute(callback: IBuildCallback?): BuildResult {
         try {
-            // Verify Dex existence
+            // Verify that classes.dex exists before starting.
             val dexFile = File(classesDir, "classes.dex")
             if (!dexFile.exists()) {
                 val error = "classes.dex not found at ${dexFile.absolutePath}!"
@@ -84,7 +84,7 @@ class ApkBuild(
                 }
 
                 // 2. Add classes.dex
-                // classes.dex is usually DEFLATED, which is default for new ZipEntry
+                // classes.dex is usually DEFLATED, which is default for new ZipEntry.
                 val dexEntry = ZipEntry("classes.dex")
                 out.putNextEntry(dexEntry)
                 FileInputStream(dexFile).use { it.copyTo(out) }
