@@ -73,6 +73,7 @@
 *   `IdeazOverlayService.kt`: Foreground Service for the "Selection Overlay" (System Alert Window) allowing UI inspection and interaction.
 *   `CrashReportingService.kt`: Service for reporting fatal/non-fatal errors to AI/GitHub (runs in `:crash_reporter`).
 *   `ScreenshotService.kt`: Service for capturing screenshots.
+*   `JsCompilerService.kt`: Service for compiling Kotlin to JS (via K2JSCompiler) for Web projects.
 
 #### ui/
 *   `MainViewModel.kt`: Central logic for the UI, state management, and orchestration.
@@ -88,6 +89,13 @@
 *   `FileContentScreen.kt`: Developer tool for file viewing/editing.
 *   `LibrariesScreen.kt`: Dependency management UI.
 *   `CodeEditor.kt`: Compose component for code display (Legacy/Simple).
+*   `PromptPopup.kt`: Simple dialog for text input.
+*   `SheetDetents.kt`: Constants defining bottom sheet expansion states.
+*   `ContextlessChatInput.kt`: UI for sending prompts without a specific visual context.
+*   `DragIndication.kt`: Visual handle for draggable UI elements.
+*   `SelectionOverlay.kt`: Composable layer for drawing selection rectangles over the UI.
+*   `ContextualChatOverlay.kt`: Floating chat interface anchored to a selected UI region.
+*   `LiveOutputBottomCard.kt`: Card component displaying a scrolling log stream.
 *   `theme/`: Theme definitions (Color, Type, Theme).
 
 #### ui/delegates/

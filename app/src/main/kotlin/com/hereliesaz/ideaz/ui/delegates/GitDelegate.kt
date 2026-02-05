@@ -13,10 +13,13 @@ import java.io.File
  * Delegate responsible for Git operations (fetch, pull, push, stash)
  * and managing Git state (history, branches, status).
  *
+ * This delegate acts as a high-level wrapper around [GitManager] (which wraps JGit),
+ * ensuring all disk I/O and network operations are performed off the main thread.
+ *
  * @param settingsViewModel ViewModel to access Git credentials and project path.
  * @param scope CoroutineScope (unused in suspend functions, kept for compatibility if needed).
- * @param onLog Callback to pipe Git logs to the UI.
- * @param onProgress Callback to report operation progress.
+ * @param onLog Callback to pipe Git logs to the UI (usually prefixed with `[GIT]`).
+ * @param onProgress Callback to report operation progress (0-100, or null when done).
  */
 class GitDelegate(
     private val settingsViewModel: SettingsViewModel,
@@ -25,18 +28,26 @@ class GitDelegate(
     private val onProgress: (Int?) -> Unit
 ) {
 
+    // --- StateFlows ---
+
     private val _commitHistory = MutableStateFlow<List<String>>(emptyList())
-    /** List of recent commits in the current branch. */
+    /** List of recent commits in the current branch (SHA + Message). */
     val commitHistory = _commitHistory.asStateFlow()
 
     private val _branches = MutableStateFlow<List<String>>(emptyList())
-    /** List of available local/remote branches. */
+    /** List of available local and remote branches. */
     val branches = _branches.asStateFlow()
 
     private val _gitStatus = MutableStateFlow<List<String>>(emptyList())
-    /** Current status of the working directory (modified files). */
+    /** Current status of the working directory (list of modified/untracked files). */
     val gitStatus = _gitStatus.asStateFlow()
 
+    // --- Helper Methods ---
+
+    /**
+     * Resolves the [GitManager] instance for the currently active project.
+     * Returns null if no project is loaded.
+     */
     private fun getGitManager(): GitManager? {
         val appName = settingsViewModel.getAppName() ?: return null
         val projectDir = settingsViewModel.getProjectPath(appName)
@@ -48,13 +59,16 @@ class GitDelegate(
         onLog("[GIT] $task\n")
     }
 
+    // --- Public Operations ---
+
     /**
      * Refreshes the Git data (history, branches, status) from the repository.
+     * Should be called after any operation that modifies the repo state.
      */
     suspend fun refreshGitData() = withContext(Dispatchers.IO) {
         val git = getGitManager() ?: return@withContext
         try {
-            // Sync current branch to settings
+            // Sync current branch to settings so the UI knows what we are on
             val currentBranch = git.getCurrentBranch()
             if (currentBranch != null) {
                 settingsViewModel.saveBranchName(currentBranch)
@@ -64,12 +78,16 @@ class GitDelegate(
             _branches.value = git.getBranches()
             _gitStatus.value = git.getStatus()
         } catch (e: Exception) {
-            // Log silently
+            // Log silently, likely just not a repo yet
         }
     }
 
     /**
-     * Applies a unified diff patch to the local repository using JGit.
+     * Applies a unified diff patch to the local repository using JGit's patching mechanism.
+     * This is the primary way the AI agent modifies code.
+     *
+     * @param diff The Unified Diff string.
+     * @return True if applied successfully, False otherwise.
      */
     suspend fun applyUnidiffPatch(diff: String): Boolean {
         return withContext(Dispatchers.IO) {
@@ -88,6 +106,7 @@ class GitDelegate(
 
     /**
      * Fetches changes from the remote repository.
+     * Uses credentials from [SettingsViewModel].
      */
     suspend fun fetch() = withContext(Dispatchers.IO) {
         try {
@@ -102,7 +121,7 @@ class GitDelegate(
     }
 
     /**
-     * Pulls changes from the remote repository.
+     * Pulls changes from the remote repository (Fetch + Merge).
      */
     suspend fun pull() = withContext(Dispatchers.IO) {
         try {
@@ -117,8 +136,11 @@ class GitDelegate(
     }
 
     /**
-     * Commits changes with a message.
-     * @return true if successful or no changes, false if failed.
+     * Commits all current changes with the specified message.
+     * Automatically performs `git add .` before committing.
+     *
+     * @param message The commit message.
+     * @return true if successful or no changes to commit, false if failed.
      */
     suspend fun commit(message: String): Boolean = withContext(Dispatchers.IO) {
         try {
@@ -160,7 +182,7 @@ class GitDelegate(
     }
 
     /**
-     * Stashes current changes.
+     * Stashes current changes to a temporary storage stack.
      */
     suspend fun stash(message: String?) = withContext(Dispatchers.IO) {
         getGitManager()?.stash(message)
@@ -169,7 +191,7 @@ class GitDelegate(
     }
 
     /**
-     * Applies the latest stash.
+     * Applies the latest stash from the stack.
      */
     suspend fun unstash() = withContext(Dispatchers.IO) {
         getGitManager()?.unstash()
@@ -188,7 +210,7 @@ class GitDelegate(
     }
 
     /**
-     * Retrieves the current HEAD SHA.
+     * Retrieves the current HEAD SHA. Useful for version comparisons and build tracking.
      */
     suspend fun getHeadSha(): String? = withContext(Dispatchers.IO) {
         getGitManager()?.getHeadSha()
