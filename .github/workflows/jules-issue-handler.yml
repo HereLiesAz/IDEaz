@@ -16,6 +16,53 @@ jobs:
         with:
           gemini_api_key: ${{ secrets.JULES_API_KEY }}
           gemini_cli_version: '0.24.0'
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 'Run Gemini CLI'
+        uses: 'google-github-actions/run-gemini-cli@v0'
+        env:
+          TITLE: '${{ github.event.pull_request.title || github.event.issue.title }}'
+          DESCRIPTION: '${{ github.event.pull_request.body || github.event.issue.body }}'
+          EVENT_NAME: '${{ github.event_name }}'
+          GITHUB_TOKEN: '${{ secrets.GH_TOKEN || github.token }}'
+          IS_PULL_REQUEST: '${{ !!github.event.pull_request }}'
+          ISSUE_NUMBER: '${{ github.event.pull_request.number || github.event.issue.number }}'
+          REPOSITORY: '${{ github.repository }}'
+        with:
+          gemini_api_key: '${{ secrets.JULES_API_KEY }}'
+          gemini_cli_version: '0.24.0'
+          workflow_name: 'jules-issue-handler'
+          use_gemini_code_assist: false
+          use_vertex_ai: false
+          settings: |-
+            {
+              "model": { "maxSessionTurns": 25 },
+              "telemetry": { "enabled": true, "target": "local", "outfile": ".gemini/telemetry.log" },
+              "mcpServers": {
+                "github": {
+                  "command": "docker",
+                  "args": [ "run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "ghcr.io/github/github-mcp-server:v0.18.0" ],
+                  "includeTools": [
+                    "add_issue_comment", "get_issue", "get_issue_comments", "list_issues", "search_issues",
+                    "create_pull_request", "pull_request_read", "list_pull_requests", "search_pull_requests",
+                    "create_branch", "create_or_update_file", "delete_file", "fork_repository", "get_commit",
+                    "get_file_contents", "list_commits", "push_files", "search_code", "add_comment_to_pending_review",
+                    "create_pending_pull_request_review", "submit_pending_pull_request_review"
+                  ],
+                  "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}" }
+                }
+              },
+              "tools": {
+                "core": [
+                  "run_shell_command(cat)", "run_shell_command(echo)", "run_shell_command(grep)",
+                  "run_shell_command(head)", "run_shell_command(tail)", "run_shell_command(git)",
+                  "run_shell_command(gh)", "run_shell_command(ls)"
+                ]
+              }
+            }
           prompt: |
             You are an AI agent assigned to handle this issue.
 

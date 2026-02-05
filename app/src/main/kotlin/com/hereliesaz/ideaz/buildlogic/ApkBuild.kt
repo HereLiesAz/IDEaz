@@ -41,6 +41,7 @@ class ApkBuild(
                 return BuildResult(false, error)
             }
 
+            // Ensure we are creating a fresh file.
             File(finalApkPath).delete()
 
             // Safe Merge Strategy:
@@ -64,6 +65,7 @@ class ApkBuild(
 
                             // Important: Preserve compression method (STORED vs DEFLATED)
                             // resources.arsc MUST be STORED (uncompressed) so Android can mmap it.
+                            // If it is compressed, Android Package Manager will reject the APK during install.
                             val newEntry = ZipEntry(entry.name)
                             if (entry.method == ZipEntry.STORED) {
                                 newEntry.method = ZipEntry.STORED
@@ -71,7 +73,7 @@ class ApkBuild(
                                 newEntry.compressedSize = entry.size
                                 newEntry.crc = entry.crc
                             } else {
-                                newEntry.method = ZipEntry.DEFLATED // Default
+                                newEntry.method = ZipEntry.DEFLATED // Default for everything else
                             }
 
                             out.putNextEntry(newEntry)
