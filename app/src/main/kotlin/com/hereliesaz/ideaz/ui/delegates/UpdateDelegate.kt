@@ -18,11 +18,15 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Manages application self-updates by checking GitHub Releases.
- * Downloads and installs APKs directly from the 'HereLiesAz/IDEaz' repository.
+ * Delegate responsible for managing application self-updates.
+ *
+ * **Mechanism:**
+ * - Checks the `HereLiesAz/IDEaz` GitHub repository for releases.
+ * - Specifically looks for `prerelease` tags starting with `latest-debug-` to support the "Dogfooding" cycle.
+ * - Downloads the APK asset and triggers installation via [ApkInstaller].
  *
  * @param application The Application context.
- * @param settingsViewModel ViewModel to access GitHub token.
+ * @param settingsViewModel ViewModel to access GitHub token (needed for API rate limits and private repos if applicable).
  * @param scope CoroutineScope for background network operations.
  * @param onOverlayLog Callback to log messages to the UI.
  */
@@ -32,16 +36,18 @@ class UpdateDelegate(
     private val scope: CoroutineScope,
     private val onOverlayLog: (String) -> Unit
 ) {
+    // --- StateFlows ---
+
     private val _updateStatus = MutableStateFlow<String?>(null)
-    /** Current status message of the update process (e.g., "Downloading..."). */
+    /** Current status message of the update process (e.g., "Downloading..."). Null when idle. */
     val updateStatus = _updateStatus.asStateFlow()
 
     private val _updateVersion = MutableStateFlow<String?>(null)
-    /** The version string of the detected update. */
+    /** The version string of the detected available update. */
     val updateVersion = _updateVersion.asStateFlow()
 
     private val _showUpdateWarning = MutableStateFlow<Boolean>(false)
-    /** Whether to show the update confirmation dialog. */
+    /** Whether to show the update confirmation dialog to the user. */
     val showUpdateWarning = _showUpdateWarning.asStateFlow()
 
     private val _updateMessage = MutableStateFlow<String?>(null)
@@ -50,9 +56,17 @@ class UpdateDelegate(
 
     private var pendingUpdateAssetUrl: String? = null
 
+    // --- Public Operations ---
+
     /**
      * Checks for experimental updates (pre-releases or debug builds) on GitHub.
-     * Updates [updateMessage] and [showUpdateWarning] if an update is found.
+     *
+     * **Logic:**
+     * 1. Fetches releases from GitHub.
+     * 2. Filters for `prerelease` and tags starting with `latest-debug-`.
+     * 3. Parses APK filenames to find the highest version number.
+     * 4. Compares with local `BuildConfig.VERSION_NAME`.
+     * 5. Sets [showUpdateWarning] if a relevant update/downgrade is found.
      */
     fun checkForExperimentalUpdates() {
         scope.launch {
@@ -70,10 +84,8 @@ class UpdateDelegate(
                 // Hardcoded to the official repo for IDEaz updates
                 val releases = service.getReleases("HereLiesAz", "IDEaz")
 
-                // User requirement: Look for the latest pre-release debug build.
-                // The release tag (e.g., "latest-debug-v1.5") might contain multiple APKs with different versions.
-                // We must find the latest APK version within that release.
-
+                // Strategy: Find the release that matches our specific tag convention.
+                // Priority: Prerelease with "latest-debug-" tag.
                 val update = releases.firstOrNull {
                     it.prerelease && it.tagName.startsWith("latest-debug-")
                 } ?: releases.firstOrNull { it.tagName.startsWith("latest-debug-") }
@@ -81,11 +93,12 @@ class UpdateDelegate(
                 if (update != null) {
                     _updateVersion.value = update.tagName
 
-                    // Find the APK asset with the highest version by parsing filename
+                    // Find the APK asset with the highest version by parsing filename (e.g., IDEaz-1.0.0.apk)
                     val validAssets = update.assets.filter {
                         it.name.endsWith(".apk") && it.name.contains("debug") && VersionUtils.extractVersionFromFilename(it.name) != null
                     }
 
+                    // Sort assets by extracted version
                     val bestAsset = validAssets.sortedWith { a1, a2 ->
                         val v1 = VersionUtils.extractVersionFromFilename(a1.name) ?: "0"
                         val v2 = VersionUtils.extractVersionFromFilename(a2.name) ?: "0"
@@ -166,6 +179,9 @@ class UpdateDelegate(
         }
     }
 
+    /**
+     * Helper to download a file from a URL.
+     */
     private suspend fun downloadFile(urlStr: String, fileName: String): File? {
         return withContext(Dispatchers.IO) {
             try {
@@ -190,5 +206,4 @@ class UpdateDelegate(
             }
         }
     }
-
 }
