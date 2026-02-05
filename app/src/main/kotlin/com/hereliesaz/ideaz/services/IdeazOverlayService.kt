@@ -23,19 +23,39 @@ import com.hereliesaz.ideaz.MainActivity
 import com.hereliesaz.ideaz.R
 import com.hereliesaz.ideaz.ui.inspection.OverlayView
 
+/**
+ * A Foreground Service that draws a System Alert Window overlay over other applications.
+ *
+ * **Purpose:**
+ * Enables the "Selection Mode" feature, allowing users to:
+ * 1.  Draw rectangles over the target app to select areas.
+ * 2.  Interact with the "Post-Code" UI (chat bubbles) that floats above the app.
+ *
+ * **Key Mechanics:**
+ * - **TYPE_APPLICATION_OVERLAY:** Uses this Window Type to appear above other apps.
+ * - **Pass-through Logic:** Dynamically toggles `FLAG_NOT_TOUCHABLE`.
+ *   - When `isSelectMode = true`: Touches are intercepted by the overlay (Selection).
+ *   - When `isSelectMode = false`: Touches pass through to the underlying app (Interaction),
+ *     but visual elements (like the chat bubble) remain interactive.
+ */
 class IdeazOverlayService : Service() {
 
     private lateinit var windowManager: WindowManager
     private var overlayView: OverlayView? = null
     private var isOverlayAdded = false
 
+    /**
+     * Receiver for commands from the main app process.
+     */
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
+                // Command to enable/disable selection mode (intercept touches)
                 "com.hereliesaz.ideaz.TOGGLE_SELECT_MODE" -> {
                     val enable = intent.getBooleanExtra("ENABLE", false)
                     handleSelectionMode(enable)
                 }
+                // Command to draw a highlight rectangle (e.g., after selecting an element)
                 "com.hereliesaz.ideaz.HIGHLIGHT_RECT" -> {
                     val rect = if (Build.VERSION.SDK_INT >= 33) {
                          intent.getParcelableExtra("RECT", Rect::class.java)
@@ -49,6 +69,7 @@ class IdeazOverlayService : Service() {
                         overlayView?.clearHighlight()
                     }
                 }
+                // Command to show the update status popup
                 "com.hereliesaz.ideaz.SHOW_UPDATE_POPUP" -> {
                     val prompt = intent.getStringExtra("PROMPT")
                     if (!prompt.isNullOrBlank()) {
@@ -63,6 +84,7 @@ class IdeazOverlayService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Handle immediate toggle via intent extras
         if (intent != null) {
             if (intent.hasExtra("ENABLE")) {
                  val enable = intent.getBooleanExtra("ENABLE", false)
@@ -77,21 +99,27 @@ class IdeazOverlayService : Service() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         createNotificationChannel()
 
+        // Create notification required for Foreground Service
         val notification = createNotification()
+
+        // Start Foreground immediately to avoid ANR/Crash
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             try {
                  if (Build.VERSION.SDK_INT >= 34) {
+                     // Android 14 requires specifying the service type
                      startForeground(SERVICE_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
                  } else {
                      startForeground(SERVICE_ID, notification)
                  }
             } catch (e: Exception) {
+                // Fallback
                 startForeground(SERVICE_ID, notification)
             }
         } else {
             startForeground(SERVICE_ID, notification)
         }
 
+        // Add the overlay view if permission is granted
         if (Settings.canDrawOverlays(this)) {
             setupOverlay()
         }
@@ -132,15 +160,19 @@ class IdeazOverlayService : Service() {
         updateOverlayParams(enable)
     }
 
+    /**
+     * Initializes the OverlayView and adds it to the WindowManager.
+     */
     private fun setupOverlay() {
         if (isOverlayAdded) return
         overlayView = OverlayView(this)
+
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, // Alert Window
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or // Initially pass-through
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
@@ -153,6 +185,9 @@ class IdeazOverlayService : Service() {
         }
     }
 
+    /**
+     * Updates the Window LayoutParams to toggle touch interception.
+     */
     private fun updateOverlayParams(isSelectMode: Boolean) {
         if (!isOverlayAdded || overlayView == null) {
             if (isSelectMode && Settings.canDrawOverlays(this)) {
@@ -164,8 +199,10 @@ class IdeazOverlayService : Service() {
 
         val params = overlayView?.layoutParams as? WindowManager.LayoutParams ?: return
         if (isSelectMode) {
+            // Remove NOT_TOUCHABLE -> Intercept touches
             params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
         } else {
+            // Add NOT_TOUCHABLE -> Pass touches through
             params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         }
         try {
@@ -180,7 +217,7 @@ class IdeazOverlayService : Service() {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Overlay Service",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_LOW // Low importance to avoid sound/popups
             )
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)

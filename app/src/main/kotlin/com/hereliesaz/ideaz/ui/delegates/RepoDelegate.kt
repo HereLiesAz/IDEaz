@@ -22,11 +22,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 
 /**
- * Delegate responsible for repository management:
- * - Fetching/Creating GitHub repositories.
- * - Initializing local projects.
- * - Scanning/Managing local project directories.
- * - Uploading secrets.
+ * Delegate responsible for repository management and initialization.
+ *
+ * **Key Responsibilities:**
+ * - **Discovery:** listing repositories from Jules/GitHub.
+ * - **Creation:** Creating new repos, forking existing ones.
+ * - **Setup:** Initializing local project state, generating package names, and ensuring config files exist.
+ * - **Security:** Encrypting and uploading secrets to GitHub Actions.
  *
  * @param application The Application context.
  * @param settingsViewModel ViewModel for accessing settings.
@@ -46,13 +48,21 @@ class RepoDelegate(
     private val onGitProgress: (Int, String) -> Unit
 ) {
 
+    // --- StateFlows ---
+
     private val _ownedRepos = MutableStateFlow<List<GitHubRepoResponse>>(emptyList())
     /** List of repositories owned by the authenticated GitHub user. */
     val ownedRepos = _ownedRepos.asStateFlow()
 
+    // --- Public Operations ---
+
     /**
-     * Fetches the list of repositories from GitHub or Jules API.
-     * Prefers Jules API if configured.
+     * Fetches the list of repositories available to the user.
+     *
+     * **Strategy:**
+     * 1. **Try Jules API:** If a Jules Project ID is configured, attempts to list sources from the Jules service.
+     *    This is preferred as it provides agent-optimized metadata.
+     * 2. **Fallback to GitHub API:** If Jules fails or is not configured, fetches repositories directly from GitHub.
      */
     fun fetchGitHubRepos() {
         scope.launch {
@@ -60,8 +70,8 @@ class RepoDelegate(
             try {
                 val julesProjectId = settingsViewModel.getJulesProjectId()
 
+                // 1. Jules API Path
                 if (!julesProjectId.isNullOrBlank()) {
-                     // Use Jules API
                      try {
                          val response = JulesApiClient.listSources()
                          val mappedRepos = response.sources?.mapNotNull { RepoMapper.mapSourceToRepoResponse(it) } ?: emptyList()
@@ -72,49 +82,16 @@ class RepoDelegate(
                      }
                 }
 
-                // Fallback to GitHub API
                 val token = settingsViewModel.getGithubToken()
                 if (token.isNullOrBlank()) {
                     onOverlayLog("Error: No GitHub Token found.")
-                    // UI handles the prompt for missing token, but delegate must abort.
                     return@launch
                 }
 
-                // Try Jules API First
-                val projectId = settingsViewModel.getJulesProjectId()
-                var julesSuccess = false
-                if (!projectId.isNullOrBlank()) {
-                    try {
-                        val response = JulesApiClient.listSources()
-                        val julesRepos = response.sources?.mapNotNull { source ->
-                            source.githubRepo?.let {
-                                GitHubRepoResponse(
-                                    id = 0,
-                                    name = it.repo,
-                                    fullName = "${it.owner}/${it.repo}",
-                                    htmlUrl = "https://github.com/${it.owner}/${it.repo}",
-                                    cloneUrl = "https://github.com/${it.owner}/${it.repo}.git",
-                                    defaultBranch = it.defaultBranch?.displayName ?: "main",
-                                    permissions = null // Jules doesn't return permissions yet
-                                )
-                            }
-                        } ?: emptyList()
-
-                        if (julesRepos.isNotEmpty()) {
-                            _ownedRepos.value = julesRepos
-                            julesSuccess = true
-                        }
-                    } catch (e: Exception) {
-                        onOverlayLog("Jules API failed to list sources: ${e.message}. Falling back to GitHub.")
-                    }
-                }
-
-                // Fallback to GitHub API
-                if (!julesSuccess && !token.isNullOrBlank()) {
-                    val service = GitHubApiClient.createService(token)
-                    val repos = service.listRepos()
-                    _ownedRepos.value = repos
-                }
+                // 2. Fallback Path (Direct GitHub)
+                val service = GitHubApiClient.createService(token)
+                val repos = service.listRepos()
+                _ownedRepos.value = repos
 
             } catch (e: Exception) {
                 onOverlayLog("Error fetching repos: ${e.message}")
@@ -126,6 +103,14 @@ class RepoDelegate(
 
     /**
      * Creates a new repository on GitHub and initializes the local project state.
+     *
+     * @param appName The name of the new repository.
+     * @param description A short description.
+     * @param isPrivate Whether the repo should be private.
+     * @param projectType The type of project (Android, Web, etc.).
+     * @param packageName The target package name (e.g., com.example.app).
+     * @param context Context for file operations.
+     * @param onSuccess Callback invoked with the new owner and branch name.
      */
     fun createGitHubRepository(
         appName: String,
@@ -150,12 +135,13 @@ class RepoDelegate(
                     name = appName,
                     description = description,
                     private = isPrivate,
-                    autoInit = true
+                    autoInit = true // Essential to create the initial commit/main branch
                 )
 
                 val repo = service.createRepo(request)
                 val derivedOwner = repo.fullName.split("/")[0]
 
+                // Update Local Config
                 settingsViewModel.setAppName(appName)
                 settingsViewModel.setGithubUser(derivedOwner)
                 settingsViewModel.saveProjectConfig(appName, derivedOwner, repo.defaultBranch ?: "main")
@@ -174,7 +160,7 @@ class RepoDelegate(
     }
 
     /**
-     * Forks a GitHub repository.
+     * Forks an existing GitHub repository to the user's account.
      */
     fun forkRepository(
         owner: String,
@@ -205,7 +191,7 @@ class RepoDelegate(
                 settingsViewModel.setGithubUser(newOwner)
                 settingsViewModel.saveProjectConfig(response.name, newOwner, newBranch)
 
-                // Sanitize and set package name
+                // Generate a sanitized package name since we can't reliably parse it yet
                 var sanitizedUser = newOwner.replace(Regex("[^a-zA-Z0-9]"), "").lowercase()
                 if (sanitizedUser.isEmpty() || sanitizedUser[0].isDigit()) sanitizedUser = "_$sanitizedUser"
 
@@ -226,7 +212,7 @@ class RepoDelegate(
     }
 
     /**
-     * Selects an existing repository for setup, inferring settings from metadata.
+     * Selects an existing repository for setup, inferring settings from metadata and cloning if necessary.
      */
     fun selectRepositoryForSetup(repo: GitHubRepoResponse, onSuccess: (owner: String, branch: String) -> Unit) {
         scope.launch {
@@ -240,20 +226,20 @@ class RepoDelegate(
                 settingsViewModel.setGithubUser(owner)
                 settingsViewModel.saveProjectConfig(appName, owner, defaultBranch)
 
+                // Generate heuristic package name
                 val sanitizedUser = owner.replace(Regex("[^a-zA-Z0-9]"), "").lowercase()
                 val sanitizedApp = appName.replace(Regex("[^a-zA-Z0-9]"), "").lowercase()
                 val generatedPackage = "com.$sanitizedUser.$sanitizedApp"
                 settingsViewModel.saveTargetPackageName(generatedPackage)
 
-                // Clone logic:
-                // Check if already cloned
+                // Check if already cloned locally
                 val projectDir = settingsViewModel.getProjectPath(appName)
                 val git = GitManager(projectDir)
                 if (!git.isRepo()) {
                     onOverlayLog("Cloning $owner/$appName...")
                     val token = settingsViewModel.getGithubToken()
 
-                    // CRITICAL FIX: Ensure clone runs on IO dispatcher to avoid main thread hang
+                    // Perform clone on IO thread to prevent ANR
                     withContext(Dispatchers.IO) {
                         try {
                             git.clone(owner, appName, owner, token) { p, t ->
@@ -276,7 +262,12 @@ class RepoDelegate(
     }
 
     /**
-     * Forces the regeneration and push of initialization files (CI workflows, setup script).
+     * Forces the regeneration and push of initialization files.
+     * This includes:
+     * - `.github/workflows/` (CI/CD)
+     * - `setup_env.sh` (Environment)
+     * - `AGENTS.md` (AI Instructions)
+     * - `CrashReporter` injection
      */
     fun forceUpdateInitFiles() {
         scope.launch(Dispatchers.IO) {
@@ -285,20 +276,23 @@ class RepoDelegate(
             val type = ProjectType.fromString(settingsViewModel.getProjectType())
             val packageName = settingsViewModel.getTargetPackageName() ?: "com.example.app"
 
+            // 1. Generate Files
             ProjectConfigManager.ensureWorkflow(projectDir, type)
             ProjectConfigManager.ensureSetupScript(projectDir)
             ProjectConfigManager.ensureAgentsSetupMd(projectDir)
 
-            // Inject Crash Reporting (Error Handling)
+            // 2. Inject Code (Crash Reporter)
             if (type == ProjectType.ANDROID) {
                 ProjectInitializer.injectCrashReporting(application, projectDir, packageName, settingsViewModel)
             }
 
+            // 3. Git Operations (Init, Commit, Push)
             try {
                 val git = GitManager(projectDir)
                 val token = settingsViewModel.getGithubToken()
                 val user = settingsViewModel.getGithubUser()
 
+                // Init if needed
                 if (!git.isRepo()) {
                     onOverlayLog("Initializing local repository...")
                     git.init()
@@ -306,7 +300,7 @@ class RepoDelegate(
                         val remoteUrl = "https://github.com/$user/$appName.git"
                         git.addRemote("origin", remoteUrl)
 
-                        // Check remote default branch
+                        // Sync default branch name
                         try {
                             if (!token.isNullOrBlank()) {
                                 val service = GitHubApiClient.createService(token)
@@ -316,19 +310,16 @@ class RepoDelegate(
 
                                 if (localBranch != remoteDefaultBranch) {
                                     onOverlayLog("Renaming local branch '$localBranch' to match remote '$remoteDefaultBranch'...")
-                                    if (!git.renameCurrentBranch(remoteDefaultBranch)) {
-                                        onOverlayLog("Failed to rename branch. Continuing...")
-                                    }
+                                    git.renameCurrentBranch(remoteDefaultBranch)
                                 }
-                            } else {
-                                onLog("Warning: No GitHub token. Skipping remote branch check. Defaulting to local branch name.")
                             }
                         } catch (e: Exception) {
-                            onLog("Warning: Failed to fetch remote branch info: ${e.message}. Defaulting to current.")
+                            // Ignore remote fetch errors during init
                         }
                     }
                 }
 
+                // Commit & Push
                 if (git.hasChanges()) {
                     git.addAll()
                     git.commit("IDEaz: Update Init Files & Workflows")
@@ -344,8 +335,12 @@ class RepoDelegate(
     }
 
     /**
-     * Uploads project secrets (API Keys, Keystore) to GitHub for remote builds.
-     * Uses Sodium for client-side encryption.
+     * Encrypts and uploads project secrets (API Keys, Keystore) to GitHub Actions.
+     * Uses `libsodium` via `LazySodiumAndroid` for client-side encryption.
+     *
+     * **Security Note:**
+     * Secrets are encrypted with the repository's public key (fetched from GitHub API)
+     * before leaving the device.
      */
     fun uploadProjectSecrets(owner: String, repo: String) {
         scope.launch(Dispatchers.Default) {
@@ -371,14 +366,14 @@ class RepoDelegate(
                     return@launch
                 }
 
-                // 2. Prepare Secrets
+                // 2. Prepare Secrets Map
                 val secrets = mutableMapOf<String, String>()
                 settingsViewModel.getApiKey()?.let { secrets["JULES_API_KEY"] = it }
                 settingsViewModel.getApiKey(com.hereliesaz.ideaz.ui.AiModels.GEMINI.requiredKey)?.let { secrets["GEMINI_API_KEY"] = it }
                 settingsViewModel.getApiKey("GOOGLE_API_KEY")?.let { secrets["GOOGLE_API_KEY"] = it }
                 settingsViewModel.getJulesProjectId()?.let { secrets["JULES_PROJECT_ID"] = it }
 
-                // Keystore Secrets
+                // Keystore Secrets (encoded as Base64)
                 val keystorePath = settingsViewModel.getKeystorePath()
                 if (keystorePath != null && File(keystorePath).exists()) {
                     val ksBytes = File(keystorePath).readBytes()
@@ -396,9 +391,10 @@ class RepoDelegate(
                     try {
                         val keyBytes = android.util.Base64.decode(publicKey.key, android.util.Base64.NO_WRAP)
 
-                        // Let's retry with raw bytes to match GitHub's requirement (libsodium sealed box)
+                        // Encrypt using Sodium Sealed Box
                         val res = sodium.cryptoBoxSealEasy(value, com.goterl.lazysodium.utils.Key.fromBytes(keyBytes))
-                        // Convert Hex (LazySodium default output) to Base64
+
+                        // Convert Hex (LazySodium default output) to Base64 for GitHub
                         val encryptedDataBytes = com.goterl.lazysodium.utils.Key.fromHexString(res).asBytes
                         val encryptedBase64 = android.util.Base64.encodeToString(encryptedDataBytes, android.util.Base64.NO_WRAP)
 
@@ -423,7 +419,7 @@ class RepoDelegate(
     }
 
     /**
-     * Scans the app's internal files directory for project folders and updates settings.
+     * Scans the app's internal files directory for project folders.
      */
     fun scanLocalProjects() {
         scope.launch(Dispatchers.IO) {
@@ -439,6 +435,7 @@ class RepoDelegate(
 
     /**
      * Returns a list of local projects with metadata (e.g., size).
+     * Used for the "Load Project" UI.
      */
     fun getLocalProjectsWithMetadata(): List<ProjectMetadata> {
         val root = application.filesDir
