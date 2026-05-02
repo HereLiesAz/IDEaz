@@ -10,6 +10,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.TextField
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -48,7 +49,7 @@ fun ProjectCreateTab(
             var expanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
                 TextField(
-                    modifier = Modifier.run { @Suppress("DEPRECATION") menuAnchor() }.fillMaxWidth(),
+                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                     readOnly = true,
                     value = selectedType.displayName,
                     onValueChange = {},

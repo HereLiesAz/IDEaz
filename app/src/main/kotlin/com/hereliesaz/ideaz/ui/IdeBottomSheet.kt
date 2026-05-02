@@ -11,12 +11,12 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.toClipEntry
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -46,7 +46,7 @@ fun IdeBottomSheet(
     val pureBuildLog by viewModel.stateDelegate.pureBuildLog.collectAsState()
     val systemLogMessages by viewModel.stateDelegate.systemLog.collectAsState()
 
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
@@ -132,20 +132,19 @@ fun IdeBottomSheet(
                     Column(modifier = Modifier.height(contentHeight)) {
 
                         if (isHalfwayExpanded) {
-                            @Suppress("DEPRECATION")
-                            TabRow(
+                            SecondaryTabRow(
                                 selectedTabIndex = selectedTab,
                                 containerColor = MaterialTheme.colorScheme.surface,
                                 contentColor = MaterialTheme.colorScheme.onSurface,
                                 divider = {},
-                                indicator = { tabPositions ->
-                                    if (selectedTab < tabPositions.size) {
-                                        @Suppress("DEPRECATION")
-                                        TabRowDefaults.Indicator(
-                                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
+                                indicator = {
+                                    SecondaryIndicator(
+                                        modifier = Modifier.tabIndicatorOffset(
+                                            selectedTabIndex = selectedTab,
+                                            matchContentSize = false
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
                                 }
                             ) {
                                 tabs.forEachIndexed { index, title ->
@@ -228,7 +227,9 @@ fun IdeBottomSheet(
                     ) {
                         IconButton(onClick = {
                             coroutineScope.launch {
-                                clipboardManager.setText(AnnotatedString(filteredMessages.joinToString("\n")))
+                                clipboard.setClipEntry(
+                                    AnnotatedString(filteredMessages.joinToString("\n")).toClipEntry()
+                                )
                             }
                         }) {
                             Icon(
