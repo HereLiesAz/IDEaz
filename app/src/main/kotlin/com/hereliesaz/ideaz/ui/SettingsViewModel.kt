@@ -110,7 +110,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_KEYSTORE_PASS = "keystore_pass"
         const val KEY_KEY_ALIAS = "key_alias"
         const val KEY_KEY_PASS = "key_pass"
-        const val KEY_ZIPLINE_SIGNING_KEY_HEX = "zipline_signing_key_hex"
         const val KEY_LAST_PROMPT = "last_prompt"
 
         val aiTasks = mapOf(

@@ -336,85 +336,14 @@ class RepoDelegate(
 
     /**
      * Encrypts and uploads project secrets (API Keys, Keystore) to GitHub Actions.
-     * Uses `libsodium` via `LazySodiumAndroid` for client-side encryption.
      *
-     * **Security Note:**
-     * Secrets are encrypted with the repository's public key (fetched from GitHub API)
-     * before leaving the device.
+     * Currently a no-op: the libsodium sealed-box encryption was removed during Phase 0
+     * triage. Re-enable by reintroducing a sodium binding (or a pure-JVM NaCl
+     * implementation) and the matching GitHub Actions secrets workflow.
      */
     fun uploadProjectSecrets(owner: String, repo: String) {
         scope.launch(Dispatchers.Default) {
-            try {
-                onLog("Uploading project secrets to GitHub...")
-                val token = settingsViewModel.getGithubToken()
-                if (token.isNullOrBlank()) {
-                    onLog("Error: GitHub Token not found. Cannot upload secrets.")
-                    return@launch
-                }
-
-                val service = GitHubApiClient.createService(token)
-
-                // 1. Fetch Public Key
-                val publicKey = try {
-                    service.getRepoPublicKey(owner, repo)
-                } catch (e: Exception) {
-                    if (e.message?.contains("404") == true) {
-                        onLog("Warning: Repository not found (404). Skipping secrets upload.")
-                    } else {
-                        onLog("Error fetching public key: ${e.message}")
-                    }
-                    return@launch
-                }
-
-                // 2. Prepare Secrets Map
-                val secrets = mutableMapOf<String, String>()
-                settingsViewModel.getApiKey()?.let { secrets["JULES_API_KEY"] = it }
-                settingsViewModel.getApiKey(com.hereliesaz.ideaz.ui.AiModels.GEMINI.requiredKey)?.let { secrets["GEMINI_API_KEY"] = it }
-                settingsViewModel.getApiKey("GOOGLE_API_KEY")?.let { secrets["GOOGLE_API_KEY"] = it }
-                settingsViewModel.getJulesProjectId()?.let { secrets["JULES_PROJECT_ID"] = it }
-
-                // Keystore Secrets (encoded as Base64)
-                val keystorePath = settingsViewModel.getKeystorePath()
-                if (keystorePath != null && File(keystorePath).exists()) {
-                    val ksBytes = File(keystorePath).readBytes()
-                    val ksBase64 = android.util.Base64.encodeToString(ksBytes, android.util.Base64.NO_WRAP)
-                    secrets["IDEAZ_DEBUG_KEYSTORE_BASE64"] = ksBase64
-                }
-                secrets["IDEAZ_DEBUG_KEYSTORE_PASSWORD"] = settingsViewModel.getKeystorePass()
-                secrets["IDEAZ_DEBUG_KEY_ALIAS"] = settingsViewModel.getKeyAlias()
-                secrets["IDEAZ_DEBUG_KEY_PASSWORD"] = settingsViewModel.getKeyPass()
-
-                // 3. Encrypt and Upload
-                val sodium = com.goterl.lazysodium.LazySodiumAndroid(com.goterl.lazysodium.SodiumAndroid())
-
-                secrets.forEach { (name, value) ->
-                    try {
-                        val keyBytes = android.util.Base64.decode(publicKey.key, android.util.Base64.NO_WRAP)
-
-                        // Encrypt using Sodium Sealed Box
-                        val res = sodium.cryptoBoxSealEasy(value, com.goterl.lazysodium.utils.Key.fromBytes(keyBytes))
-
-                        // Convert Hex (LazySodium default output) to Base64 for GitHub
-                        val encryptedDataBytes = com.goterl.lazysodium.utils.Key.fromHexString(res).asBytes
-                        val encryptedBase64 = android.util.Base64.encodeToString(encryptedDataBytes, android.util.Base64.NO_WRAP)
-
-                        val req = com.hereliesaz.ideaz.api.CreateSecretRequest(encryptedBase64, publicKey.keyId)
-                        val resp = service.createSecret(owner, repo, name, req)
-
-                        if (!resp.isSuccessful) {
-                            onLog("Failed to upload $name: ${resp.code()}")
-                        }
-                    } catch (e: Exception) {
-                        onLog("Error encrypting/uploading $name: ${e.message}")
-                    }
-                }
-                onLog("Secrets uploaded successfully.")
-                onOverlayLog("Encrypted and uploaded secrets to GitHub.")
-
-            } catch (e: Throwable) {
-                onLog("Error uploading secrets: ${e.message}")
-                e.printStackTrace()
-            }
+            onLog("Skipping GitHub Actions secrets upload: encryption support is disabled.")
         }
     }
 
