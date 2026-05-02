@@ -60,8 +60,7 @@ jobs:
           gcp_project_id: '${{ vars.GOOGLE_CLOUD_PROJECT }}'
           gcp_service_account: '${{ vars.SERVICE_ACCOUNT_EMAIL }}'
           gemini_api_key: '${{ secrets.JULES_API_KEY }}'
-          # Pin CLI version to 0.24.0 to ensure stability and support for newer features (e.g. output-format)
-          gemini_cli_version: '0.24.0'
+          gemini_cli_version: '${{ vars.GEMINI_CLI_VERSION || '0.40.1' }}'
           gemini_debug: '${{ fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}'
           gemini_model: '${{ vars.GEMINI_MODEL }}'
           # Force AI Studio (API Key) auth when using JULES_API_KEY
