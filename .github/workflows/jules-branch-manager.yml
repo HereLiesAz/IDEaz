@@ -59,6 +59,8 @@ jobs:
         uses: 'google-github-actions/run-gemini-cli@v0'
         env:
           GEMINI_CLI_TRUST_WORKSPACE: true
+          GOOGLE_CLOUD_PROJECT: ""
+          GOOGLE_APPLICATION_CREDENTIALS: ""
           BRANCH: ${{ github.ref_name }}
           REPOSITORY: ${{ github.repository }}
           EVENT_NAME: ${{ github.event_name }}
