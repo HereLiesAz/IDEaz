@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
-import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.IBuildService
 import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.buildlogic.RemoteBuildManager
@@ -259,19 +258,6 @@ class BuildDelegate(
                 content = content.replaceFirst("<application", "<application android:resizeableActivity=\"true\"")
                 manifestFile.writeText(content)
             }
-        }
-    }
-
-    /**
-     * Triggers dependency download via the BuildService. The on-device pipeline
-     * has been removed, so this now reports the unsupported-status back to the UI.
-     */
-    fun downloadDependencies(@Suppress("UNUSED_PARAMETER") projectDir: File? = null) {
-        scope.launch {
-            onLog(
-                "On-device dependency resolution has been removed. " +
-                "Dependencies are resolved by remote (GitHub Actions) builds.\n"
-            )
         }
     }
 
