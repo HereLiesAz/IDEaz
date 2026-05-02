@@ -20,11 +20,6 @@ object ProjectAnalyzer {
         // Confirmed: pubspec.yaml triggers Flutter project detection
         if (File(projectDir, "pubspec.yaml").exists()) return ProjectType.FLUTTER
 
-        // Check for React Native
-        if (File(projectDir, "package.json").exists() && File(projectDir, "app.json").exists()) {
-            return ProjectType.REACT_NATIVE
-        }
-
         // Check for Android
         if (File(projectDir, "build.gradle.kts").exists() ||
             File(projectDir, "build.gradle").exists() ||
