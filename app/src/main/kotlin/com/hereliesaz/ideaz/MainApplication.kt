@@ -4,7 +4,6 @@ import android.app.Application
 import com.hereliesaz.ideaz.ui.MainViewModel
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.utils.CrashHandler
-import com.hereliesaz.ideaz.utils.ToolManager
 
 class MainApplication : Application() {
 
@@ -19,6 +18,5 @@ class MainApplication : Application() {
 
         // Initialize Crash Reporting
         CrashHandler.init(this)
-        ToolManager.init(this)
     }
 }

@@ -87,15 +87,6 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
         aidl = true
     }
 
-    // Configurable fields for Build Tools repository
-    val toolsOwner = project.findProperty("build.tools.owner") as? String ?: "HereLiesAz"
-    val toolsRepo = project.findProperty("build.tools.repo") as? String ?: "IDEaz-buildtools"
-
-    defaultConfig {
-        buildConfigField("String", "BUILD_TOOLS_OWNER", "\"$toolsOwner\"")
-        buildConfigField("String", "BUILD_TOOLS_REPO", "\"$toolsRepo\"")
-    }
-
     packaging {
         jniLibs.useLegacyPackaging = true
         resources {
@@ -103,29 +94,8 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
             excludes.add("META-INF/LICENSE")
             excludes.add("META-INF/NOTICE")
             excludes.add("META-INF/INDEX.LIST")
-            excludes.add("mime.types")
-            excludes.add("META-INF/THIRD-PARTY.txt")
-            excludes.add("META-INF/ASL2.0")
-            excludes.add("META-INF/plexus/components.xml")
-            excludes.add("plugin.properties")
-            pickFirsts.add("META-INF/sisu/javax.inject.Named")
-            pickFirsts.add("**/*.jnilib")
             pickFirsts.add("**/*.kotlin_builtins")
             pickFirsts.add("**/*.kotlin_module")
-            pickFirsts.add("misc/registry.properties")
-        }
-    }
-}
-
-configurations.all {
-    exclude(group = "com.intellij", module = "annotations")
-    resolutionStrategy {
-        eachDependency {
-            if (requested.group == "commons-logging" && requested.name == "commons-logging") {
-                // Use a non-conflicting SLF4J bridge
-                useTarget("org.slf4j:jcl-over-slf4j:1.7.30")
-                because("Avoids duplicate classes with jcl-over-slf4j")
-            }
         }
     }
 }
@@ -142,23 +112,8 @@ androidComponents.onVariants { variant ->
 }
 
 dependencies {
-    // Kotlin Compiler Embeddable for runtime compilation
-    implementation(kotlin("compiler-embeddable"))
-    implementation(libs.jaxb.api)
-    implementation(libs.javax.annotation.api)
-    implementation(libs.validation.api)
-    implementation(libs.glassfish.el)
-    implementation(libs.slf4j.simple)
-    implementation(libs.guava)
-    implementation(libs.nb.javac.android)
-    implementation(libs.r8)
     implementation(libs.sora.editor)
     implementation(libs.sora.language.textmate)
-    implementation(libs.scala.compiler) {
-        exclude(group = "org.jline")
-    }
-    implementation(libs.smali)
-    implementation(libs.baksmali)
     implementation(libs.org.eclipse.jgit)
     implementation(libs.slf4j.api)
     implementation(libs.slf4j.android)
@@ -166,20 +121,7 @@ dependencies {
     implementation(libs.retrofit2.kotlinx.serialization.converter)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging.interceptor)
-    implementation(libs.kxml2)
     implementation(libs.kotlinx.serialization.json)
-
-    // Maven Dependency Resolver (Aether)
-    implementation(libs.maven.resolver.api)
-    implementation(libs.maven.resolver.spi)
-    implementation(libs.maven.resolver.util)
-    implementation(libs.maven.resolver.impl)
-    implementation(libs.maven.resolver.connector.basic)
-    implementation(libs.maven.resolver.transport.http)
-    implementation(libs.maven.core)
-    implementation(libs.aether.transport.file)
-    implementation(libs.maven.resolver.provider)
-    implementation(libs.wagon.http.lightweight)
     implementation(libs.generativeai)
     implementation(libs.google.genai)
     implementation(libs.androidx.localbroadcastmanager)
@@ -200,7 +142,6 @@ dependencies {
     implementation(libs.androidx.documentfile)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.haze)
-    implementation(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     testImplementation(libs.org.json)
     testImplementation(libs.mockwebserver)
@@ -213,9 +154,6 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
-
-    // https://mvnrepository.com/artifact/org.apache.maven.resolver/maven-resolver-supplier
-    implementation(libs.resolver.maven.resolver.supplier)
 
     implementation(libs.kotlinx.coroutines.core)
 
