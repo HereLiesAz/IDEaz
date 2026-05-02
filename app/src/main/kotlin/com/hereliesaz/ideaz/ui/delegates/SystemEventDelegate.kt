@@ -18,21 +18,18 @@ import com.hereliesaz.ideaz.models.EXTRA_MESSAGE
  * Acts as the event bus consumer for the application. It listens for:
  * - **Overlay Interactions:** When the user taps "Select" or submits a prompt from the floating overlay.
  * - **Service Events:** When screenshots are captured or services change state.
- * - **Zipline Hot Reloads:** Signals from the build system that new code is ready.
  * - **App Visibility:** Tracking if the target app is foregrounded.
  *
  * @param application The Application context.
  * @param aiDelegate Delegate to trigger AI tasks from overlay prompts.
  * @param overlayDelegate Delegate to update selection state.
  * @param stateDelegate Delegate to update shared UI state (logs, visibility).
- * @param onReloadZipline Callback to trigger Zipline code reload.
  */
 class SystemEventDelegate(
     private val application: Application,
     private val aiDelegate: AIDelegate,
     private val overlayDelegate: OverlayDelegate,
-    private val stateDelegate: StateDelegate,
-    private val onReloadZipline: ((String) -> Unit)? = null
+    private val stateDelegate: StateDelegate
 ) {
 
     /**
@@ -86,13 +83,6 @@ class SystemEventDelegate(
                     val base64 = intent.getStringExtra("BASE64_SCREENSHOT")
                     if (base64 != null) overlayDelegate.onScreenshotTaken(base64)
                 }
-                // Build system finished compiling Zipline code
-                "com.hereliesaz.ideaz.RELOAD_ZIPLINE" -> {
-                    val path = intent.getStringExtra("MANIFEST_PATH")
-                    if (path != null) {
-                        onReloadZipline?.invoke(path)
-                    }
-                }
                 // General AI logs from other components
                 ACTION_AI_LOG -> {
                     val msg = intent.getStringExtra(EXTRA_MESSAGE)
@@ -122,7 +112,6 @@ class SystemEventDelegate(
             addAction("com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE")
             addAction("com.hereliesaz.ideaz.SELECTION_MADE")
             addAction("com.hereliesaz.ideaz.SCREENSHOT_TAKEN")
-            addAction("com.hereliesaz.ideaz.RELOAD_ZIPLINE")
             addAction(ACTION_AI_LOG)
         }
 
