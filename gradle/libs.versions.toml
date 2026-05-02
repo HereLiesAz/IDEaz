@@ -61,7 +61,7 @@ appcompat = "1.7.1"
 
 [libraries]
 react-android = { module = "com.facebook.react:react-android", version.ref = "reactNative" }
-hermes-android = { module = "com.facebook.react:hermes-android", version.ref = "hermes" }
+hermes-android = { module = "com.facebook.react:hermes-android", version.ref = "reactNative" }
 soloader = { module = "com.facebook.soloader:soloader", version.ref = "soloader" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 org-json = { module = "org.json:json", version.ref = "json" }
