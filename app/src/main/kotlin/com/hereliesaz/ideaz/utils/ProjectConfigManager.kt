@@ -373,9 +373,7 @@ jobs:
     fun ensureWorkflow(projectDir: File, type: ProjectType): Boolean {
         // We use hardcoded strings for robustness if assets are missing
         val workflows = when (type) {
-            // Python projects are Chaquopy-style: a standard Android project with embedded
-            // Python, so they share the Android workflows.
-            ProjectType.ANDROID, ProjectType.PYTHON -> listOf(
+            ProjectType.ANDROID -> listOf(
                 "android_ci_jules.yml" to ANDROID_CI_JULES_YML,
                 "release.yml" to RELEASE_YML,
                 "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML,
@@ -450,7 +448,7 @@ jobs:
     fun ensureVersioning(projectDir: File, type: ProjectType): Boolean {
         var modified = false
         val androidRoot = when(type) {
-            ProjectType.ANDROID, ProjectType.PYTHON -> projectDir
+            ProjectType.ANDROID -> projectDir
             else -> null
         }
 

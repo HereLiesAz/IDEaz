@@ -3,7 +3,6 @@ package com.hereliesaz.ideaz.models
 enum class ProjectType(val displayName: String) {
     ANDROID("Android"),
     WEB("Web"),
-    PYTHON("Python"),
     OTHER("Other"),
     UNKNOWN("Unknown");
 
