@@ -35,8 +35,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        # Default behavior handles fork PRs correctly (checking out the merge commit)
-        # whereas explicit ref: head_ref fails for forks if the branch isn't on origin.
 
       - name: Generate GitHub App Token (fork-safe, optional)
         id: generate_token
@@ -69,31 +67,13 @@ jobs:
 
           # Get PR details using gh CLI
           PR_DATA=$(gh pr view "${PR_NUMBER}" --repo "${REPOSITORY}" --json title,body)
-          TITLE=$(echo "$PR_DATA" | jq -r '.title')
-          BODY=$(echo "$PR_DATA" | jq -r '.body // ""')
+          echo "$PR_DATA" | jq -r '.title' > pr_title.txt
+          echo "$PR_DATA" | jq -r '.body // ""' > pr_body.txt
 
-          # Safely write PR title (handles quotes and newlines)
-          {
-            echo "title<<EOF"
-            printf "%s\n" "$TITLE"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          # Capture changed files
+          gh pr diff "${PR_NUMBER}" --name-only --repo "${REPOSITORY}" > pr_changed_files.txt
 
-          # Safely write PR body (handles quotes and newlines)
-          {
-            echo "body<<EOF"
-            printf "%s\n" "$BODY"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-          # Safely capture changed files (one per line)
-          {
-            echo "changed_files<<EOF"
-            gh pr diff "${PR_NUMBER}" --name-only --repo "${REPOSITORY}"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-          # Safely capture full diff to a file (to avoid "Argument list too long" in subsequent steps)
+          # Capture full diff to a file
           gh pr diff "${PR_NUMBER}" --repo "${REPOSITORY}" > pr_diff.txt
           if [ -s pr_diff.txt ]; then
             echo "has_diff=true" >> "$GITHUB_OUTPUT"
@@ -105,14 +85,10 @@ jobs:
         id: gemini
         uses: google-github-actions/run-gemini-cli@v0
         env:
-          # gh CLI inside Gemini
           GH_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           REPOSITORY: ${{ github.repository }}
-          PR_TITLE: ${{ steps.pr.outputs.title }}
-          PR_BODY: ${{ steps.pr.outputs.body }}
-          CHANGED_FILES: ${{ steps.pr.outputs.changed_files }}
         with:
           gemini_api_key: ${{ secrets.JULES_API_KEY }}
           gemini_cli_version: '0.24.0'
@@ -130,21 +106,15 @@ jobs:
               ],
               "telemetry": { "enabled": false, "target": "gcp" }
             }
-          # Prompt is now a positional argument in the CLI, but actions usage maps this input to it.
-          # The key fix is ensuring the prompt logic handles missing files gracefully.
           prompt: |
             You are a repository assistant ensuring pull requests follow the repository's contribution guidelines.
 
-            Inputs:
-            - Repository: ${REPOSITORY}
-            - PR Number: ${PR_NUMBER}
-            - Title: ${PR_TITLE}
-            - Body: ${PR_BODY}
-            - Changed files:
-              ${CHANGED_FILES}
-
             Action:
-            Please use your tools to read the file 'pr_diff.txt' (using 'cat pr_diff.txt') to see the code changes in this PR.
+            Please use your tools to read the following files to understand the PR:
+            - 'pr_title.txt': The title of the PR.
+            - 'pr_body.txt': The description of the PR.
+            - 'pr_changed_files.txt': List of files modified in this PR.
+            - 'pr_diff.txt': The full diff of the changes.
 
             Required behavior:
             1. Check if CONTRIBUTING.md exists. You can try `cat CONTRIBUTING.md` or `ls CONTRIBUTING.md`.
