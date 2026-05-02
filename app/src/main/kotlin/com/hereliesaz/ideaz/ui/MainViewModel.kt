@@ -136,7 +136,6 @@ class MainViewModel(
         viewModelScope,
         logHandler::onBuildLog,
         logHandler::onAiLog,
-        { map -> overlayDelegate.sourceMap = map },
         { log -> handleBuildFailure(log) },
         { path ->
             // Web Build Success Callback
