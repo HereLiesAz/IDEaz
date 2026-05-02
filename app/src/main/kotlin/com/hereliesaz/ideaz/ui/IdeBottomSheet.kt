@@ -46,6 +46,8 @@ fun IdeBottomSheet(
     val aiLog by viewModel.stateDelegate.aiLog.collectAsState()
     val pureBuildLog by viewModel.stateDelegate.pureBuildLog.collectAsState()
     val systemLogMessages by viewModel.stateDelegate.systemLog.collectAsState()
+    val chatMessages by viewModel.stateDelegate.chatMessages.collectAsState()
+    val isChatLoading by viewModel.stateDelegate.isChatLoading.collectAsState()
 
     val clipboard = LocalClipboard.current
     val coroutineScope = rememberCoroutineScope()
@@ -53,7 +55,7 @@ fun IdeBottomSheet(
 
     // Tabs
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("All", "Build", "Git", "AI", "System")
+    val tabs = listOf("All", "Build", "Git", "AI", "System", "Chat")
 
     // --- OPTIMIZATION: Simple selection instead of expensive filtering ---
     // The lists are already prepared by StateDelegate.
@@ -158,65 +160,77 @@ fun IdeBottomSheet(
                             }
                         }
 
-                        if (filteredMessages.isEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f)
-                                    .padding(horizontal = 16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        imageVector = Icons.Default.Info,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                        modifier = Modifier.padding(bottom = 8.dp)
-                                    )
-                                    Text(
-                                        text = when (selectedTab) {
-                                            1 -> "No build logs yet"
-                                            2 -> "No git activity recorded"
-                                            3 -> "No AI interactions yet"
-                                            4 -> "No system events"
-                                            else -> "No logs available"
-                                        },
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
+                        if (selectedTab == 5) {
+                            // Chat tab
+                            AiChatTab(
+                                messages = chatMessages,
+                                isLoading = isChatLoading,
+                                onSend = { viewModel.sendChatMessage(it) },
+                                modifier = Modifier.weight(1f)
+                            )
+                            Spacer(modifier = Modifier.height(bottomBufferHeight))
                         } else {
-                            LazyColumn(
-                                state = listState,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f)
-                                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                            ) {
-                                itemsIndexed(
-                                    items = filteredMessages,
-                                    // OPTIMIZATION: Use index as key for append-only log lists.
-                                    // Since we now use stable sub-lists, the index within that list is stable.
-                                    // This avoids allocating a new String "$index-$hash" for every item on every recomposition.
-                                    key = { index, _ -> index }
-                                ) { _, message ->
-                                    Text(
-                                        text = message,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
+                            // Log tabs (All / Build / Git / AI / System)
+                            if (filteredMessages.isEmpty()) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f)
+                                        .padding(horizontal = 16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(
+                                            imageVector = Icons.Default.Info,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                            modifier = Modifier.padding(bottom = 8.dp)
+                                        )
+                                        Text(
+                                            text = when (selectedTab) {
+                                                1 -> "No build logs yet"
+                                                2 -> "No git activity recorded"
+                                                3 -> "No AI interactions yet"
+                                                4 -> "No system events"
+                                                else -> "No logs available"
+                                            },
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                }
+                            } else {
+                                LazyColumn(
+                                    state = listState,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f)
+                                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                                ) {
+                                    itemsIndexed(
+                                        items = filteredMessages,
+                                        // OPTIMIZATION: Use index as key for append-only log lists.
+                                        // Since we now use stable sub-lists, the index within that list is stable.
+                                        // This avoids allocating a new String "$index-$hash" for every item on every recomposition.
+                                        key = { index, _ -> index }
+                                    ) { _, message ->
+                                        Text(
+                                            text = message,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
                                 }
                             }
+
+                            ContextlessChatInput(
+                                modifier = Modifier.fillMaxWidth(),
+                                onSend = onSendPrompt
+                            )
+
+                            Spacer(modifier = Modifier.height(bottomBufferHeight))
                         }
-
-                        ContextlessChatInput(
-                            modifier = Modifier.fillMaxWidth(),
-                            onSend = onSendPrompt
-                        )
-
-                        Spacer(modifier = Modifier.height(bottomBufferHeight))
                     }
                 }
 
