@@ -107,8 +107,7 @@ class IdeazAccessibilityService : AccessibilityService() {
         }
 
         var foundLeaf: AccessibilityNodeInfo? = null
-        for ((_, pair) in ordered.withIndex()) {
-            val (_, child) = pair
+        for ((_, child) in ordered) {
             val leaf = findLeafNode(child, x, y)
             if (leaf != null) {
                 foundLeaf = leaf

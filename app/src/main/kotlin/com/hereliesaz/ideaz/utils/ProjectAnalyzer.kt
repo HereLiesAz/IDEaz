@@ -16,7 +16,10 @@ object ProjectAnalyzer {
                 File(projectDir, "sw.js").exists() ||
                 run {
                     val manifestJson = File(projectDir, "manifest.json")
-                    manifestJson.exists() && manifestJson.readText().contains("\"display\"")
+                    // Read at most 32 lines to avoid loading large/malformed files.
+                    manifestJson.exists() && manifestJson.bufferedReader().use { reader ->
+                        reader.lineSequence().take(32).any { it.contains("\"display\"") }
+                    }
                 }
             return if (isPwa) ProjectType.PWA else ProjectType.WEB
         }
