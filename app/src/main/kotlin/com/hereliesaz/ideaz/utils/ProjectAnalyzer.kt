@@ -8,8 +8,18 @@ object ProjectAnalyzer {
     fun detectProjectType(projectDir: File): ProjectType {
         if (!projectDir.exists()) return ProjectType.OTHER
 
-        // Check for Web
-        if (File(projectDir, "index.html").exists()) return ProjectType.WEB
+        // PWA: must have index.html PLUS at least one PWA marker
+        val hasIndex = File(projectDir, "index.html").exists()
+        if (hasIndex) {
+            val isPwa = File(projectDir, "manifest.webmanifest").exists() ||
+                File(projectDir, "service-worker.js").exists() ||
+                File(projectDir, "sw.js").exists() ||
+                run {
+                    val manifestJson = File(projectDir, "manifest.json")
+                    manifestJson.exists() && manifestJson.readText().contains("\"display\"")
+                }
+            return if (isPwa) ProjectType.PWA else ProjectType.WEB
+        }
 
         // Check for Android
         if (File(projectDir, "build.gradle.kts").exists() ||
