@@ -40,7 +40,7 @@ import java.net.URL
  * - The background build system ([BuildService]).
  * - The AI agent ([AIDelegate]).
  * - The Version Control System ([GitDelegate]).
- * - The Host Environment (VirtualDisplay/WebView).
+ * - The Host Environment (WebView).
  *
  * **Architecture:**
  * To avoid a "God Class" anti-pattern, logic is split into specialized [Delegates]:
