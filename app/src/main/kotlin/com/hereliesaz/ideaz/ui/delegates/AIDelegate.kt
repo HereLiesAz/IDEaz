@@ -13,9 +13,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * Data class representing a simple chat message structure for the UI history.
- * @param role The role of the sender ("user" or "agent").
- * @param content The text content of the message.
+ * Chat message for Jules session history.
+ * @see com.hereliesaz.ideaz.ai.ChatMessage for the Gemini conversational adapter equivalent.
+ * TODO(Phase3): Unify with ChatMessage when multiple providers are supported.
  */
 data class Message(val role: String, val content: String)
 
