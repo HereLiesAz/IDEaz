@@ -12,9 +12,20 @@ import java.io.File
  */
 class IdeTools(private val projectDir: File) {
 
+    /**
+     * Resolve [relativePath] against [projectDir], throwing [IllegalArgumentException]
+     * if the canonical result would escape the project directory.
+     */
+    private fun resolvedFile(relativePath: String): File {
+        val resolved = File(projectDir, relativePath).canonicalFile
+        val base = projectDir.canonicalFile
+        require(resolved.startsWith(base)) { "Path escapes project directory: $relativePath" }
+        return resolved
+    }
+
     /** Read a file's entire text content. */
     fun readFile(relativePath: String): String = try {
-        File(projectDir, relativePath).readText()
+        resolvedFile(relativePath).readText()
     } catch (e: Exception) {
         "Error: ${e.message}"
     }
@@ -24,7 +35,7 @@ class IdeTools(private val projectDir: File) {
      * Returns "OK" on success.
      */
     fun writeFile(relativePath: String, content: String): String = try {
-        val file = File(projectDir, relativePath)
+        val file = resolvedFile(relativePath)
         file.parentFile?.mkdirs()
         file.writeText(content)
         "OK"
@@ -37,7 +48,7 @@ class IdeTools(private val projectDir: File) {
      * Use "." to list the project root.
      */
     fun listFiles(relativePath: String): String = try {
-        val dir = File(projectDir, relativePath)
+        val dir = resolvedFile(relativePath)
         if (!dir.isDirectory) return "Error: Not a directory: $relativePath"
         dir.list()?.joinToString("\n") ?: "Error: Cannot list directory"
     } catch (e: Exception) {
