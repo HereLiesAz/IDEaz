@@ -116,7 +116,7 @@ class BuildDelegate(
 
             val type = ProjectType.fromString(settingsViewModel.getProjectType())
 
-            if (type == ProjectType.WEB) {
+            if (type == ProjectType.WEB || type == ProjectType.PWA) {
                 onLog("[IDE] Web Project ready. Loading WebView...\n")
                 onWebBuildSuccess(apkPath)
 
@@ -181,7 +181,7 @@ class BuildDelegate(
             // Web projects don't have a remote build artifact — push and let the
             // Pages workflow deploy. The success callback simply points the
             // WebView at the local index.html.
-            if (type == ProjectType.WEB) {
+            if (type == ProjectType.WEB || type == ProjectType.PWA) {
                 pushLog("[IDE] Web Project: triggering deploy via push.\n")
                 if (!token.isNullOrBlank() && !user.isNullOrBlank()) {
                     gitDelegate.commit("Web Build Trigger: ${System.currentTimeMillis()}")
