@@ -72,21 +72,22 @@ jobs:
           TITLE=$(echo "$PR_DATA" | jq -r '.title')
           BODY=$(echo "$PR_DATA" | jq -r '.body // ""')
 
-          # Use a unique delimiter to avoid "Matching delimiter not found 'EOF'" errors
+          # Use a unique delimiter to avoid "Matching delimiter not found" errors
           # occurring when the content itself contains the delimiter string.
-          DELIMITER="EOF_${{ github.run_id }}_${{ github.run_attempt }}"
+          # We include run_id and run_attempt for extreme uniqueness.
+          DELIMITER="GH_OUTPUT_DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
 
           # Safely write PR title (handles quotes and newlines)
           {
             echo "title<<${DELIMITER}"
-            printf "%s\n" "$TITLE"
+            printf -- "%s\n" "$TITLE"
             echo "${DELIMITER}"
           } >> "$GITHUB_OUTPUT"
 
           # Safely write PR body (handles quotes and newlines)
           {
             echo "body<<${DELIMITER}"
-            printf "%s\n" "$BODY"
+            printf -- "%s\n" "$BODY"
             echo "${DELIMITER}"
           } >> "$GITHUB_OUTPUT"
 
@@ -114,6 +115,9 @@ jobs:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           REPOSITORY: ${{ github.repository }}
+          # Explicitly set these to avoid picking up ambient GCP credentials
+          GOOGLE_API_KEY: ""
+          GEMINI_API_KEY: ${{ secrets.JULES_API_KEY }}
         with:
           gemini_api_key: ${{ secrets.JULES_API_KEY }}
           gemini_cli_version: '0.24.0'

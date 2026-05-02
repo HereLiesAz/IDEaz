@@ -291,6 +291,9 @@ jobs:
           ISSUE_AUTHOR: ${'$'}{{ github.event.issue.user.login }}
           REPOSITORY: ${'$'}{{ github.repository }}
           GITHUB_TOKEN: ${'$'}{{ secrets.GH_TOKEN || github.token }}
+          # Explicitly set these to avoid picking up ambient GCP credentials
+          GOOGLE_API_KEY: ""
+          GEMINI_API_KEY: ${'$'}{{ secrets.JULES_API_KEY }}
         with:
           gemini_api_key: '${'$'}{{ secrets.JULES_API_KEY }}'
           gemini_cli_version: '0.24.0'
@@ -399,6 +402,9 @@ jobs:
           REVIEW_BODY: ${'$'}{{ github.event.review.body }}
           REVIEWER: ${'$'}{{ github.event.review.user.login }}
           GITHUB_TOKEN: ${'$'}{{ secrets.GH_TOKEN || github.token }}
+          # Explicitly set these to avoid picking up ambient GCP credentials
+          GOOGLE_API_KEY: ""
+          GEMINI_API_KEY: ${'$'}{{ secrets.JULES_API_KEY }}
         with:
           gemini_api_key: '${'$'}{{ secrets.JULES_API_KEY }}'
           gemini_cli_version: '0.24.0'
