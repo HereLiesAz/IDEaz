@@ -138,7 +138,7 @@ fun IdeBottomSheet(
                                 contentColor = MaterialTheme.colorScheme.onSurface,
                                 divider = {},
                                 indicator = {
-                                    SecondaryIndicator(
+                                    TabRowDefaults.SecondaryIndicator(
                                         modifier = Modifier.tabIndicatorOffset(
                                             selectedTabIndex = selectedTab,
                                             matchContentSize = false
@@ -228,7 +228,12 @@ fun IdeBottomSheet(
                         IconButton(onClick = {
                             coroutineScope.launch {
                                 clipboard.setClipEntry(
-                                    AnnotatedString(filteredMessages.joinToString("\n")).toClipEntry()
+                                    androidx.compose.ui.platform.ClipEntry(
+                                        android.content.ClipData.newPlainText(
+                                            "Log",
+                                            filteredMessages.joinToString("\n")
+                                        )
+                                    )
                                 )
                             }
                         }) {
