@@ -3,7 +3,6 @@ package com.hereliesaz.ideaz.models
 enum class ProjectType(val displayName: String) {
     ANDROID("Android"),
     WEB("Web"),
-    FLUTTER("Flutter"), // Supported via Remote Build
     PYTHON("Python"),
     OTHER("Other"),
     UNKNOWN("Unknown");
