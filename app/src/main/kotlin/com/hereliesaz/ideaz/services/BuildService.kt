@@ -23,7 +23,6 @@ import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.utils.CrashHandler
-import com.hereliesaz.ideaz.utils.HybridToolchainManager
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
@@ -47,7 +46,6 @@ import kotlin.coroutines.coroutineContext
  * - **AIDL Interface:** Exposes [IBuildService] for IPC with the main app.
  * - **Log Batching:** Implements advanced batching of logs sent via AIDL to minimize Cross-Process Communication (IPC) overhead.
  * - **Notification Management:** Shows a persistent notification with the latest log line and "Sync & Exit" action.
- * - **Hot Reload:** Monitors file changes (via [startHotReloadWatcher]) to trigger Zipline reloads.
  * - **Build Steps:** Uses [BuildOrchestrator] to execute a sequence of [BuildStep]s (e.g., Aapt2, Kotlinc, D8).
  */
 class BuildService : Service() {
@@ -76,7 +74,6 @@ class BuildService : Service() {
     private var currentProjectPath: String? = null
     private var lastNotificationUpdate = 0L
     private var pendingNotificationUpdate: Job? = null
-    private var fileObserver: com.hereliesaz.ideaz.utils.RecursiveFileObserver? = null
 
     /**
      * The Binder implementation returned to clients binding to this service.
@@ -95,7 +92,6 @@ class BuildService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        fileObserver?.stopWatching()
         serviceScope.cancel()
     }
 
@@ -407,8 +403,6 @@ class BuildService : Service() {
 
                 val projectDir = File(projectPath)
 
-                // Start Hot Reload Watcher
-                startHotReloadWatcher(projectDir)
                 val type = ProjectAnalyzer.detectProjectType(projectDir)
 
                 val prefs = PreferenceManager.getDefaultSharedPreferences(this@BuildService)
@@ -507,11 +501,7 @@ class BuildService : Service() {
                 val aarJars = processAars.jars.joinToString(File.pathSeparator)
                 val resolvedJars = resolver.resolvedClasspath
 
-                // NEW: Hybrid Host Runtime (Inject Redwood/Zipline libs)
-                val hybridRuntime = HybridToolchainManager.getHostRuntimeClasspath(filesDir, wrappedCallback)
-                val hybridJars = hybridRuntime.joinToString(File.pathSeparator) { it.absolutePath }
-
-                val fullClasspath = listOf(resolvedJars, aarJars, hybridJars)
+                val fullClasspath = listOf(resolvedJars, aarJars)
                     .filter { it.isNotEmpty() }
                     .joinToString(File.pathSeparator)
 
@@ -526,23 +516,13 @@ class BuildService : Service() {
                     Log.w(TAG, "Failed to inject resizeableActivity", e)
                 }
 
-                val schemaType = detectSchema(projectDir)
-                val generatedHostDir = File(buildDir, "generated/host")
                 val buildSteps = mutableListOf<BuildStep>(
                      ProcessManifest(File(projectDir, "app/src/main/AndroidManifest.xml").absolutePath, processedManifestPath, packageName, MIN_SDK, TARGET_SDK),
                      Aapt2Compile(aapt2Path, File(projectDir, "app/src/main/res").absolutePath, File(buildDir, "compiled_res").absolutePath, MIN_SDK, TARGET_SDK),
                      Aapt2Link(aapt2Path, File(buildDir, "compiled_res").absolutePath, androidJarPath!!, processedManifestPath, File(buildDir, "app.apk").absolutePath, File(buildDir, "gen").absolutePath, MIN_SDK, TARGET_SDK, processAars.compiledAars, packageName)
                 )
 
-                if (schemaType != null) {
-                    wrappedCallback.onLog("[IDE] Detected Schema: $schemaType. Enabling Hybrid Host generation.")
-                    buildSteps.add(RedwoodCodegen(javaBinaryPath!!, schemaType, generatedHostDir, true, filesDir))
-                }
-
                 val sourceDirs = mutableListOf(File(projectDir, "app/src/main/java"))
-                if (schemaType != null) {
-                    sourceDirs.add(generatedHostDir)
-                }
 
                 buildSteps.add(KotlincCompile(kotlincJarPath!!, androidJarPath, sourceDirs, File(buildDir, "classes"), fullClasspath, javaBinaryPath!!))
                 buildSteps.add(D8Compile(d8Path!!, javaBinaryPath, androidJarPath, File(buildDir, "classes").absolutePath, File(buildDir, "classes").absolutePath, fullClasspath))
@@ -556,14 +536,6 @@ class BuildService : Service() {
                     assetsDir = File(buildDir, "intermediates/assets").absolutePath
                 ))
                 buildSteps.add(ApkSign(apkSignerPath!!, javaBinaryPath, keystorePath!!, ksPass, keyAlias, File(buildDir, "app-signed.apk").absolutePath))
-
-                // --- GUEST BUILD ---
-                if (schemaType != null) {
-                    // Zipline functionality is currently disabled due to deprecation.
-                    // Skipping guest build steps to save resources.
-                    // TODO: Re-enable after updating Zipline/Redwood or fixing deprecation.
-                    wrappedCallback.onLog("[IDE] Guest Build skipped (Zipline disabled).")
-                }
 
                 buildSteps.add(GenerateSourceMap(File(projectDir, "app/src/main/res"), buildDir, cacheDir))
 
@@ -594,28 +566,5 @@ class BuildService : Service() {
                 manifestFile.writeText(content)
             }
         }
-    }
-
-
-    private fun detectSchema(projectDir: File): String? {
-        val srcDir = File(projectDir, "app/src/main/java")
-        if (!srcDir.exists()) return null
-
-        // Simple heuristic: grep for @Schema
-        val schemaFile = srcDir.walkTopDown().filter { it.isFile && it.extension == "kt" }
-            .find { it.readText().contains("@Schema") }
-
-        if (schemaFile != null) {
-            val relative = schemaFile.relativeTo(srcDir).path.replace(File.separatorChar, '.')
-            return relative.removeSuffix(".kt")
-        }
-        return null
-    }
-
-    private fun startHotReloadWatcher(projectDir: File) {
-        // Hot reload is currently a no-op. Future hot-reload work
-        // (e.g. Zipline guest reload) can hook in here.
-        fileObserver?.stopWatching()
-        fileObserver = null
     }
 }
