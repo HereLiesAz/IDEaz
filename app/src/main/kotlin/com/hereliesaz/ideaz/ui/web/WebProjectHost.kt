@@ -18,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlinx.coroutines.launch
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -67,6 +68,23 @@ fun WebProjectHost(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    // Read ideaz-bridge.js once. If missing (misconfigured build), log and degrade gracefully.
+    val bridgeJs: String? = remember {
+        try {
+            context.assets.open("ideaz-bridge.js").bufferedReader().use { it.readText() }
+        } catch (e: Exception) {
+            val intent = Intent(ACTION_AI_LOG).apply {
+                putExtra(EXTRA_MESSAGE, "[WEB] ideaz-bridge.js missing from assets: ${e.message}")
+                setPackage(context.packageName)
+            }
+            context.sendBroadcast(intent)
+            null
+        }
+    }
+
+    val currentOnElementContext by rememberUpdatedState(onElementContext)
+    val scope = rememberCoroutineScope()
+
     // AssetLoader maps /files/ → context.filesDir so that all local project
     // content is served from https://appassets.androidplatform.net/files/{appName}/.
     // Requests to any other origin are not intercepted and proceed normally.
@@ -99,7 +117,10 @@ fun WebProjectHost(
             }
 
             addJavascriptInterface(IdeazJsInterface(context), "Ideaz")
-            addJavascriptInterface(WebViewBridge(onElementContext), "IdeazBridge")
+            addJavascriptInterface(
+                WebViewBridge { json -> scope.launch { currentOnElementContext(json) } },
+                "IdeazBridge"
+            )
 
             webChromeClient = object : WebChromeClient() {
                 override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
@@ -125,12 +146,7 @@ fun WebProjectHost(
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    // Inject ideaz-bridge.js from assets on every page load.
-                    // The script is idempotent (guarded by window.__ideazBridgeLoaded).
-                    val bridgeJs = context.assets.open("ideaz-bridge.js")
-                        .bufferedReader()
-                        .use { it.readText() }
-                    view?.evaluateJavascript(bridgeJs, null)
+                    bridgeJs?.let { js -> view?.evaluateJavascript(js, null) }
                 }
 
                 override fun onReceivedError(
@@ -172,8 +188,9 @@ fun WebProjectHost(
     }
 
     // Mirror Android select-mode state into the web page cursor.
+    // Guard: skip if no page is loaded yet (bridge not injected) or WebView is destroyed.
     LaunchedEffect(selectMode) {
-        if (!isWebViewDestroyed.value) {
+        if (!isWebViewDestroyed.value && webView.url != null) {
             webView.evaluateJavascript("window.ideaz?.selectMode($selectMode);", null)
         }
     }
