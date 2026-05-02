@@ -14,32 +14,32 @@ class SourceContextHelperTest {
     val tempFolder = TemporaryFolder()
 
     @Test
-    fun resolveContext_reactNativeTag_success() {
-        val projectDir = tempFolder.newFolder("rn_project")
+    fun resolveContext_sourceTag_success() {
+        val projectDir = tempFolder.newFolder("js_project")
         val appJs = File(projectDir, "App.js")
         appJs.writeText("""
-            import React from 'react';
-            import { Text } from 'react-native';
+            const greet = () => "Hello";
 
-            export default function App() {
-              return <Text>Hello</Text>;
+            function App() {
+              const value = greet();
+              return value;
             }
         """.trimIndent())
 
-        // Line 5 is "return <Text>Hello</Text>;"
-        val resourceId = "__source:App.js:5__"
+        // Line 4 is "const value = greet();"
+        val resourceId = "__source:App.js:4__"
 
         val result = SourceContextHelper.resolveContext(resourceId, projectDir, emptyMap())
 
         assertEquals(false, result.isError)
         assertEquals(appJs.absolutePath, result.file)
-        assertEquals(5, result.line)
-        assertEquals("return <Text>Hello</Text>;", result.snippet)
+        assertEquals(4, result.line)
+        assertEquals("const value = greet();", result.snippet)
     }
 
     @Test
-    fun resolveContext_reactNativeTag_fileNotFound() {
-        val projectDir = tempFolder.newFolder("rn_project_missing")
+    fun resolveContext_sourceTag_fileNotFound() {
+        val projectDir = tempFolder.newFolder("js_project_missing")
         val resourceId = "__source:Missing.js:5__"
 
         val result = SourceContextHelper.resolveContext(resourceId, projectDir, emptyMap())

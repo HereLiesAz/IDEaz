@@ -1026,11 +1026,10 @@ class MainViewModel(
     fun clearLog() = stateDelegate.clearLog()
 
     /**
-     * Launches the target application (Android, Web, or React Native).
+     * Launches the target application (Android or Web).
      *
      * **Logic:**
      * - **Web:** Points the WebView to the project's `index.html`.
-     * - **React Native:** Launches `ReactNativeActivity` if the bundle exists, else fallback to APK.
      * - **Android/Flutter:** Switches to "App View" (Host) or launches installed APK.
      */
     fun launchTargetApp(c: Context) {
@@ -1060,39 +1059,6 @@ class MainViewModel(
             }
             startFileObservation(projectDir)
             stateDelegate.setTargetAppVisible(true)
-        } else if (projectType == ProjectType.REACT_NATIVE) {
-            val projectDir = settingsViewModel.getProjectPath(appName)
-            val bundleFile = File(projectDir, "build/react_native_dist/index.android.bundle")
-
-            if (bundleFile.exists()) {
-                // Try to resolve module name from app.json
-                var moduleName = appName
-                val appJsonFile = File(projectDir, "app.json")
-                if (appJsonFile.exists()) {
-                    try {
-                        val json = org.json.JSONObject(appJsonFile.readText())
-                        moduleName = json.optString("name", appName)
-                        val expo = json.optJSONObject("expo")
-                        if (moduleName == appName && expo != null) {
-                            moduleName = expo.optString("name", appName)
-                        }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
-
-                val intent = Intent(c, com.hereliesaz.ideaz.react.ReactNativeActivity::class.java).apply {
-                    putExtra("BUNDLE_PATH", bundleFile.absolutePath)
-                    putExtra("MODULE_NAME", moduleName)
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                c.startActivity(intent)
-                return
-            }
-
-            // Fallback
-            val packageName = settingsViewModel.targetPackageName.value
-            launchInstalledApk(c, packageName, appName)
         } else {
             // Android, Flutter
             val packageName = settingsViewModel.targetPackageName.value
