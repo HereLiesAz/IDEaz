@@ -9,12 +9,11 @@ import java.io.IOException
 
 object TemplateManager {
 
-    private const val PLACEHOLDER_PACKAGE = "com.example.my_flutter_app"
-    private const val PLACEHOLDER_APP_NAME = "my_flutter_app"
+    private const val PLACEHOLDER_PACKAGE = "com.example.my_app"
+    private const val PLACEHOLDER_APP_NAME = "my_app"
 
     fun copyTemplate(context: Context, type: ProjectType, destinationDir: File, packageName: String, appName: String) {
         val assetPath = when (type) {
-            ProjectType.FLUTTER -> "templates/flutter"
             ProjectType.WEB -> "templates/web"
             ProjectType.PYTHON -> "templates/python"
             ProjectType.ANDROID -> "project"
@@ -30,7 +29,7 @@ object TemplateManager {
             copyAssetFolder(context.assets, assetPath, destinationDir, replacements)
 
             // Post-processing: Move package directory if needed
-            if (type == ProjectType.FLUTTER || type == ProjectType.ANDROID || type == ProjectType.PYTHON) {
+            if (type == ProjectType.ANDROID || type == ProjectType.PYTHON) {
                 relocatePackage(destinationDir, packageName)
             }
         } catch (e: Exception) {
