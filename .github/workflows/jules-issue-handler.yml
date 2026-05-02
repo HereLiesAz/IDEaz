@@ -53,6 +53,7 @@ jobs:
         # from https://github.com/google-github-actions/run-gemini-cli/releases
         uses: 'google-github-actions/run-gemini-cli@v0'
         env:
+          GEMINI_CLI_TRUST_WORKSPACE: true
           # Untrusted inputs delivered out-of-band. The prompt below references
           # these by name so they cannot break out of the YAML template.
           ISSUE_TITLE: ${{ github.event.issue.title }}
