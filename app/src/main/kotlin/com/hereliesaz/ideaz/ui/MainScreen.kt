@@ -122,6 +122,8 @@ fun MainScreen(
                                 url = webUrl,
                                 reloadTrigger = webReloadTrigger,
                                 hardReloadTrigger = webHardReloadTrigger,
+                                selectMode = isSelectMode,
+                                onElementContext = { viewModel.handleWebElementContext(it) },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
