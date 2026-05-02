@@ -291,9 +291,10 @@ jobs:
           ISSUE_AUTHOR: ${'$'}{{ github.event.issue.user.login }}
           REPOSITORY: ${'$'}{{ github.repository }}
           GITHUB_TOKEN: ${'$'}{{ secrets.GH_TOKEN || github.token }}
+          GEMINI_CLI_TRUST_WORKSPACE: true
         with:
           gemini_api_key: '${'$'}{{ secrets.JULES_API_KEY }}'
-          gemini_cli_version: '0.24.0'
+          gemini_cli_version: '0.40.1'
           workflow_name: 'jules-issue-handler'
           use_gemini_code_assist: false
           use_vertex_ai: false
@@ -399,9 +400,10 @@ jobs:
           REVIEW_BODY: ${'$'}{{ github.event.review.body }}
           REVIEWER: ${'$'}{{ github.event.review.user.login }}
           GITHUB_TOKEN: ${'$'}{{ secrets.GH_TOKEN || github.token }}
+          GEMINI_CLI_TRUST_WORKSPACE: true
         with:
           gemini_api_key: '${'$'}{{ secrets.JULES_API_KEY }}'
-          gemini_cli_version: '0.24.0'
+          gemini_cli_version: '0.40.1'
           workflow_name: 'jules-branch-manager'
           use_gemini_code_assist: false
           use_vertex_ai: false

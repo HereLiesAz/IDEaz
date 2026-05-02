@@ -63,6 +63,7 @@ jobs:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ steps.get_pr.outputs.number }}
+          DELIMITER: "DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
         run: |
           set -euo pipefail
           echo "number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
@@ -74,23 +75,23 @@ jobs:
 
           # Safely write PR title (handles quotes and newlines)
           {
-            echo "title<<EOF"
+            echo "title<<${DELIMITER}"
             printf "%s\n" "$TITLE"
-            echo "EOF"
+            echo "${DELIMITER}"
           } >> "$GITHUB_OUTPUT"
 
           # Safely write PR body (handles quotes and newlines)
           {
-            echo "body<<EOF"
+            echo "body<<${DELIMITER}"
             printf "%s\n" "$BODY"
-            echo "EOF"
+            echo "${DELIMITER}"
           } >> "$GITHUB_OUTPUT"
 
           # Safely capture changed files (one per line)
           {
-            echo "changed_files<<EOF"
+            echo "changed_files<<${DELIMITER}"
             gh pr diff "${PR_NUMBER}" --name-only --repo "${REPOSITORY}"
-            echo "EOF"
+            echo "${DELIMITER}"
           } >> "$GITHUB_OUTPUT"
 
           # Safely capture full diff to a file (to avoid "Argument list too long" in subsequent steps)
@@ -110,9 +111,12 @@ jobs:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           REPOSITORY: ${{ github.repository }}
+          GEMINI_CLI_TRUST_WORKSPACE: true
         with:
           gemini_api_key: ${{ secrets.JULES_API_KEY }}
-          gemini_cli_version: '0.24.0'
+          gemini_cli_version: '0.40.1'
+          use_gemini_code_assist: false
+          use_vertex_ai: false
           settings: |
             {
               "coreTools": [
