@@ -1,84 +1,40 @@
 # Screen Definitions
 
-## 1. The Overlay ("Invisible Screen")
-*   **Role:** The primary interface for "Post-Code" development.
-*   **Implementation:** `IdeazAccessibilityService` (Accessibility Service for Inspection) + `IdeazOverlayService` (Foreground Service for UI Window).
-*   **Context:** Visible *only* over the target application.
-*   **Modes:**
-    *   **Interact:** Pass-through to target app.
-    *   **Select:** Blocks interaction to allow Element Tap or Rect Drag selection.
+## 1. Main Host Screen (`MainScreen.kt`)
+*   **Role:** Container for the IDE management UI and the embedded target host.
 *   **Components:**
-    *   **Selection Highlight:** Visual border around selected nodes or drawn rects (managed by `IdeazOverlayService`).
-    *   **Contextual Chat:** Inline chat display + input anchored to the selection (managed by `IdeazOverlayService`).
-    *   **Update Popup:** "Updating, gimme a sec" toast/dialog.
-
-## 2. Main Host Screen (`MainScreen.kt`)
-*   **Role:** The container for the IDE management UI (Docked Mode) and the Embedded App Host.
-*   **Components:**
-    *   `IdeNavRail`: Navigation bar (Project, Git, Settings, Files, Libs).
-    *   `IdeBottomSheet`: The Global Console.
+    *   `IdeNavRail`: Navigation (Project, Git, Settings, Files, Libs).
+    *   `IdeBottomSheet`: Console / chat / AI log.
     *   `LiveOutputBottomCard`: Floating status indicator.
-    *   `AndroidProjectHost`: Hosts the target Android app in a Virtual Display (replaces pure Overlay for some use cases).
-    *   `WebProjectHost`: Hosts Web projects in a WebView (integrated as bottom layer).
+    *   `WebProjectHost`: Hosts the PWA target in a WebView (the daily-driver loop).
+    *   Phase-2 Android-target host placeholder (the real overlay-based path arrives in Phase 2).
+
+## 2. Project Screen (`ProjectScreen.kt`)
+*   **Role:** Entry point for project selection and creation.
+*   **Tabs (in this order):**
+    *   **Setup:** Initialization + workflow injection. "Save & Initialize" force-pushes the standardized `android_ci.yml` / `release.yml` and starts the first remote build.
+    *   **Load:** Open an existing local project; transitions to Setup tab.
+    *   **Clone:** Clone from a GitHub URL; transitions to Setup tab.
 
 ## 3. The Global Console (`IdeBottomSheet`)
 *   **Role:** Visibility into background processes.
-*   **States:**
-    *   **Hidden:** User is interacting with the app.
-    *   **Peek:** Shows status summary.
-    *   **Expanded:** Shows full logs.
-*   **Content Modes:**
-    *   **Git Terminal:** Output from `GitManager` operations.
-    *   **Build Log:** Live stream from `BuildService`.
-    *   **AI Log:** Real-time activity stream from Jules/Gemini.
-    *   **Debug Chat:** Contextless AI prompt input via `ContextlessChatInput`.
+*   **Tabs (Phase 1 will add `AiChatTab`):**
+    *   **Git Terminal:** Output from `GitManager`.
+    *   **Build Log:** Live stream from `BuildService` (post-Phase-0, this is the remote-build poller).
+    *   **AI Log:** Activity stream from Gemini (Phase 1) / Jules (Phase 2).
+    *   **Debug Chat:** Contextless prompt input.
 
-## 4. Project Screen (`ProjectScreen.kt`)
-*   **Role:** Entry point.
-*   **Tabs:**
-    *   **Setup:** **INITIALIZATION happens here.**
-        *   **States:** View/Edit existing setup OR "Create New" mode.
-        *   Displays Sessions.
-        *   "Create" mode allows generating from template.
-        *   "Save & Initialize" button triggers workflow injection and first build.
-        *   "Add Docs" button allows triggering documentation generation.
-    *   **Load:** Select existing local project. **Includes "Add External Project" / "Grant Storage Permission" button below the list.** -> **Transitions to Setup Tab.**
-    *   **Clone:** Search/Clone from GitHub. -> **Transitions to Setup Tab.**
+## 4. Git Screen (`GitScreen.kt`)
+*   **Role:** Branch tree, commit history, stash controls, force-update workflow files.
 
-## 5. Git Screen (`GitScreen.kt`)
-*   **Role:** Version control management.
-*   **Features:**
-    *   Branch Tree View.
-    *   Commit History.
-    *   Stash/Unstash controls.
-    *   Force Update Init Files (Menu option).
+## 5. Developer Tools (Auxiliary / Escape Hatches)
+*   **File Explorer (`FileExplorerScreen.kt`):** Direct filesystem access to project directory.
+*   **File Viewer (`FileContentScreen.kt`):** View / edit file content.
+*   **Dependency Manager (`LibrariesScreen.kt`):** View installed libraries; failed-dependency errors.
 
-## 6. Developer Tools (Auxiliary)
-These screens are for low-level debugging and management, bypassing the "Post-Code" abstraction when necessary.
+## 6. Settings Screen (`SettingsScreen.kt`)
+*   **Role:** Configuration. Opaque background.
+*   **Sections:** Build Configuration, Saved Settings & Credentials (PBKDF2-encrypted export/import), Signing Configuration, API Keys (Gemini, GitHub, Jules), AI Assignments, Permissions, Preferences/Theme/Logs/Updates/Debug.
 
-*   **File Explorer (`FileExplorerScreen.kt`):**
-    *   **Role:** Direct filesystem access to the project directory.
-    *   **Features:** Navigate directories, open files.
-    *   **Context:** Useful for verifying generated code or assets.
-*   **File Viewer (`FileContentScreen.kt`):**
-    *   **Role:** **Emergency/Debug Tool.** View and edit file content with syntax highlighting.
-    *   **Note:** Direct code editing is discouraged in the "Post-Code" philosophy but provided as a fail-safe for when the AI cannot resolve an issue.
-*   **Dependency Manager (`LibrariesScreen.kt`):**
-    *   **Role:** Manage project dependencies.
-    *   **Features:** View installed libraries, check for updates, view failed dependency errors.
-
-## 7. Settings Screen (`SettingsScreen.kt`)
-*   **Role:** Configuration.
-*   **Visuals:** **Opaque Background** (Transparency is not allowed here).
-*   **Sections:**
-    1.  **Build Configuration:** (Local vs Cloud builds).
-    2.  **Saved Settings & Credentials:** Export/Import encrypted settings.
-    3.  **Signing Configuration:** Keystore management.
-    4.  **API Keys:** Jules, GitHub, AI Studio.
-    5.  **AI Assignments:** Map tasks to AI models.
-    6.  **Permissions:** System permission status/requests.
-    7.  **Preferences/Theme/Logs/Updates/Debug.**
-
-## 8. Web Runtime (Embedded in `MainScreen.kt`)
-*   **Role:** Host for Web projects.
-*   **Component:** `WebProjectHost` (WebView) integrated directly into `MainScreen` as the bottom layer.
+## 7. Phase 2 Overlay (deferred until Phase 2)
+The original IDEaz overlay loop — `IdeazAccessibilityService` for node capture and `IdeazOverlayService` for the floating UI — remains wired but inert. It activates when Phase 2 lands the Android-target loop.

@@ -1,50 +1,60 @@
 # IDEaz: Architecture
 
-## 1. The Core Loop
-The IDE is designed as a **Hybrid Host & Overlay**. It hosts the user's running app internally or overlays it.
+> **Authoritative source:** [`plans/2026-05-01-ideaz-revival-design.md`](plans/2026-05-01-ideaz-revival-design.md). This file is the short overview.
 
-1.  **User Interacts:** The user uses their app (hosted within `AndroidProjectHost` or `WebProjectHost`).
-2.  **User Selects:** The user drags a box over an area they want to change using the `SelectionOverlay`.
-3.  **User Prompts:** The user types "Make this button blue".
-4.  **IDE Acts:**
-    *   Finds the relevant source code (via `ProjectAnalyzer` or Source Maps).
-    *   Sends the prompt + code + context to the AI (Jules/Gemini).
-    *   Receives a diff/patch.
-    *   Applies the patch via `GitManager`.
-    *   Triggers a background build via `BuildService`.
-5.  **Update:** The app reloads (Hot Reload or Reinstall).
+## 1. Product Shape
 
-## 2. The Delegate Pattern
-The `MainViewModel` was becoming a God Class. It has been refactored into **Delegates** (`ui/delegates/`).
+IDEaz is an Android app that visually edits two kinds of GitHub-hosted projects:
 
-*   **`MainViewModel`:** The coordinator. Holds the `StateFlow`s but delegates logic.
-*   **`AIDelegate`:** Handles AI communication (Gemini/Jules).
-*   **`BuildDelegate`:** Manages the `BuildService` connection and callbacks.
-*   **`GitDelegate`:** Wraps `GitManager` for version control operations.
-*   **`RepoDelegate`:** Handles GitHub API interactions (forking, cloning).
-*   **`OverlayDelegate`:** Manages the visual overlay state and selection logic.
-*   **`SystemEventDelegate`:** Handles broadcast receivers (Package install, etc).
-*   **`UpdateDelegate`:** Checks for self-updates.
-*   **`StateDelegate`:** Holds the mutable state variables.
+| Target | Phase | Edit loop | Where it runs |
+|---|---|---|---|
+| **PWA** | 1 (daily driver) | sub-second WebView reload | `WebProjectHost` inside IDEaz |
+| **Android app** | 2 (heavy artillery) | minutes (Jules + GitHub Actions) | sideloaded onto the device, observed via System Alert Window overlay |
 
-## 3. The Services
-*   **`BuildService` (Execution Layer):** A **Foreground Service** running in a separate process (`:build_process`). It orchestrates the entire build toolchain (aapt2, kotlinc, d8) and handles APK installation to prevent UI freezes in the main app.
-*   **`IdeazOverlayService` (Visual Layer - Legacy/System):** A **Foreground Service** running as a `TYPE_APPLICATION_OVERLAY` window. While the main UI now uses `MainScreen`'s internal composition for overlays (`SelectionOverlay`), this service remains for system-level overlay capabilities and potentially for un-docked interactions.
-*   **`IdeazAccessibilityService` (Inspection Layer):** An **Accessibility Service** that retrieves `AccessibilityNodeInfo` from the window hierarchy. It allows the IDE to "see" the UI elements under a user's tap or drag selection.
-*   **`CrashReportingService` (Safety Layer):** A dedicated service running in its own process (`:crash_reporter`) to ensure fatal crashes are reported to the API even if the main app dies.
+Git is the source of truth. There is no offline build path — builds are always remote (GitHub Actions). On-device toolchain (`aapt2`, `d8`, `kotlinc`, Maven Aether) has been removed.
 
-## 4. Data Flow
-*   **State:** UI components observe `MainViewModel.state` (which delegates to `StateDelegate`).
-*   **Events:** UI calls `MainViewModel.action()`, which delegates to `Delegate.action()`.
-*   **Updates:** Delegates update `StateDelegate` variables, which emit new `StateFlow` values.
+## 2. The Core Loop
+
+1. **Pick or create a project.** Setup / Load / Clone tabs in `ProjectScreen`. `ProjectAnalyzer` detects the project type.
+2. **Render the target.** PWA renders in `WebProjectHost`; Android target (Phase 2) renders by sideloading the APK and overlaying via `IdeazOverlayService`.
+3. **Tap an element.** Bridge captures element context (selector + structure + screenshot region for PWA; `AccessibilityNodeInfo` chain for Android).
+4. **Prompt the AI.** Phase 1: `ConversationalAiClient` (`GeminiAdapter`, BYO-key, tool-use loop). Phase 2: `AgenticAiClient` (`JulesAdapter`, PR-based).
+5. **Apply changes.** Phase 1 writes directly to the working tree, then reloads the WebView. Phase 2 lets Jules open a PR; IDEaz auto-merges, polls Actions, sideloads the new APK.
+6. **Commit.** PWA edits get a manual "Commit & Push" button; Android edits commit through Jules/GitHub.
+
+## 3. Delegates
+
+`MainViewModel` coordinates; logic lives in delegates under `ui/delegates/`:
+
+* `AIDelegate` — AI sessions (Phase 1 Gemini, Phase 2 Jules; Phase 0 stubs the Jules call sites)
+* `BuildDelegate` — remote build dispatch + polling + install
+* `GitDelegate` — `GitManager` (JGit) wrapper
+* `RepoDelegate` — GitHub API (clone, fork, secrets upload — see Phase 0 follow-ups)
+* `OverlayDelegate` — overlay state + selection mode (Phase 2)
+* `SystemEventDelegate` — package-install broadcasts
+* `UpdateDelegate` — IDEaz self-update
+* `StateDelegate` — shared mutable state
+
+## 4. Services
+
+* **`BuildService`** (`:build_process`): foreground service. Post-Phase-0 it is a thin shell around `RemoteBuildManager` — dispatches a remote build, polls GitHub Releases, downloads the artifact.
+* **`IdeazOverlayService`**: `TYPE_APPLICATION_OVERLAY` window for Phase 2 element-tap on the sideloaded target app. Wired but inert until Phase 2.
+* **`IdeazAccessibilityService`**: `AccessibilityNodeInfo` walk for Phase 2 element capture. Wired but inert until Phase 2.
+* **`CrashReportingService`** (`:crash_reporter`): isolated process so crashes still report.
+* **`ScreenshotService`**: `MediaProjection` virtual display for region screenshots — kept (its proper use of `VirtualDisplay`).
 
 ## 5. File System
-*   **Projects:** Stored in `context.filesDir/projects/`.
-*   **Imports:** Copied from `content://` URI to internal storage (`filesDir/projects/Imported_Project_Name`). Direct editing of external files (SAF) is not supported for performance and permission reasons.
-*   **Tools:** Downloaded to `context.filesDir/local_build_tools/`.
-*   **Temp:** `context.cacheDir` used for download buffers.
+
+* Projects: `context.filesDir/projects/{projectName}` (cloned via JGit).
+* External projects can be registered; imports copy into internal storage.
+* No more `local_build_tools/` — toolchain removed in Phase 0.
 
 ## 6. Networking
-*   **Retrofit:** Used for GitHub and Jules API.
-*   **Download:** `HttpURLConnection` for raw file downloads (APKs, Tools).
-*   **Interceptors:** `AuthInterceptor` injects keys; `LoggingInterceptor` sanitizes logs.
+
+* **Retrofit** for GitHub and Jules.
+* **Phase 1:** `ConversationalAiClient` adapter for Gemini (HTTP + streaming).
+* **`AuthInterceptor`** injects keys; **`LoggingInterceptor`** sanitizes logs; **`RetryInterceptor`** handles backoff.
+
+## 7. Out of Scope (Permanently)
+
+React Native, Flutter, Python, generic web (non-PWA), Zipline / Redwood hot-reload, on-device build toolchain, VirtualDisplay-based `AndroidProjectHost`, "Race to Build" branching. These were deleted across Phase 0 (Tasks 2–8).
