@@ -6,7 +6,6 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
-import java.util.Properties
 import java.io.FileInputStream
 
 val versionProps = Properties()
