@@ -4,13 +4,12 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.graphics.Bitmap
-import android.net.Uri
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
@@ -18,13 +17,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.webkit.WebViewAssetLoader
+import androidx.webkit.WebViewAssetLoader.InternalStoragePathHandler
 import com.hereliesaz.ideaz.models.ACTION_AI_LOG
 import com.hereliesaz.ideaz.models.EXTRA_MESSAGE
-import java.io.File
 
 class IdeazJsInterface(private val context: Context) {
     @JavascriptInterface
@@ -37,31 +37,60 @@ class IdeazJsInterface(private val context: Context) {
     }
 }
 
+/**
+ * Composable WebView host for PWA and Web projects.
+ *
+ * Content is served via [WebViewAssetLoader] from the virtual origin
+ * `https://appassets.androidplatform.net/files/` mapped to [Context.filesDir].
+ * This replaces the deprecated `allowFileAccessFromFileURLs` /
+ * `allowUniversalAccessFromFileURLs` approach and gives the WebView a proper
+ * same-origin policy and service-worker support.
+ *
+ * @param url            The URL to load. Local projects: use [WebProjectUrlUtils.localProjectUrl].
+ *                       Remote URLs (e.g. GitHub Pages) are passed through unchanged.
+ * @param reloadTrigger  Soft-reload signal. When this Long changes (and is > 0), the
+ *                       WebView reloads the current page without clearing its cache.
+ *                       Driven by [StateDelegate.webReloadTrigger].
+ * @param hardReloadTrigger  Hard-reload signal. When this Long changes (and is > 0),
+ *                           the WebView clears its disk/memory cache then reloads.
+ *                           Driven by [StateDelegate.webHardReloadTrigger].
+ */
 @Composable
 fun WebProjectHost(
     url: String,
+    reloadTrigger: Long = 0L,
+    hardReloadTrigger: Long = 0L,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // Remember the WebView instance to manage its lifecycle
+    // AssetLoader maps /files/ → context.filesDir so that all local project
+    // content is served from https://appassets.androidplatform.net/files/{appName}/.
+    // Requests to any other origin are not intercepted and proceed normally.
+    val assetLoader = remember {
+        WebViewAssetLoader.Builder()
+            .setDomain(WebProjectUrlUtils.ASSET_DOMAIN)
+            .addPathHandler(
+                "/files/",
+                InternalStoragePathHandler(context, context.filesDir)
+            )
+            .build()
+    }
+
     val webView = remember {
         WebView(context).apply {
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
-                // IDEaz: Enabled to allow loading the project's own files from local storage.
-                allowFileAccess = true
-                // SENTINEL: Disabled to prevent access to Android content providers (contacts, etc.).
+                // allowFileAccess is false (default). We do not need filesystem access;
+                // all local content is served via WebViewAssetLoader.
+                allowFileAccess = false
+                // Disabled: prevents access to Android content providers.
                 allowContentAccess = false
-                // IDEaz: Enabled to allow loading app.js relative to index.html
-                @Suppress("DEPRECATION")
-                allowFileAccessFromFileURLs = true
-                // IDEaz: Enabled to allow cross-origin requests for local files (modules, imports)
-                @Suppress("DEPRECATION")
-                allowUniversalAccessFromFileURLs = true
-                // SENTINEL: Enable Safe Browsing to protect against known threats (phishing, malware).
+                // NOTE: allowFileAccessFromFileURLs and allowUniversalAccessFromFileURLs
+                // have been intentionally removed. Those deprecated flags enabled a
+                // cross-origin file-read attack surface. WebViewAssetLoader supersedes them.
                 safeBrowsingEnabled = true
             }
 
@@ -69,7 +98,6 @@ fun WebProjectHost(
 
             webChromeClient = object : WebChromeClient() {
                 override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
-                    // Bridge console log to IDE
                     consoleMessage?.let {
                         val msg = "[WEB] ${it.message()} (${it.sourceId()}:${it.lineNumber()})"
                         val intent = Intent(ACTION_AI_LOG).apply {
@@ -83,7 +111,18 @@ fun WebProjectHost(
             }
 
             webViewClient = object : WebViewClient() {
-                override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                // Route asset-loader requests; return null for all other origins so
+                // the WebView handles them normally (e.g. GitHub Pages URLs).
+                override fun shouldInterceptRequest(
+                    view: WebView,
+                    request: WebResourceRequest
+                ): WebResourceResponse? = assetLoader.shouldInterceptRequest(request.url)
+
+                override fun onReceivedError(
+                    view: WebView?,
+                    request: WebResourceRequest?,
+                    error: WebResourceError?
+                ) {
                     val msg = "[WEB] Error loading ${request?.url}: ${error?.description}"
                     Toast.makeText(context, "Error: ${error?.description}", Toast.LENGTH_SHORT).show()
                     val intent = Intent(ACTION_AI_LOG).apply {
@@ -96,6 +135,24 @@ fun WebProjectHost(
         }
     }
 
+    // Soft reload: triggered by file-system changes (ProjectFileObserver).
+    // Skip the initial composition (reloadTrigger == 0L).
+    LaunchedEffect(reloadTrigger) {
+        if (reloadTrigger > 0L) {
+            webView.reload()
+        }
+    }
+
+    // Hard reload: clears disk + memory cache, then reloads.
+    // Skip the initial composition (hardReloadTrigger == 0L).
+    LaunchedEffect(hardReloadTrigger) {
+        if (hardReloadTrigger > 0L) {
+            webView.clearCache(true)
+            webView.reload()
+        }
+    }
+
+    // INSPECT_WEB broadcast: Phase 1B tap-to-select plumbing (already present).
     val receiver = remember {
         object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
@@ -122,7 +179,7 @@ fun WebProjectHost(
                                 Ideaz.onInspectResult(source);
                             }
                         })();
-                    """
+                    """.trimIndent()
                     webView.evaluateJavascript(js, null)
                 }
             }
@@ -158,7 +215,6 @@ fun WebProjectHost(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            // Destroy the WebView to prevent memory leaks when the composable is disposed.
             webView.destroy()
         }
     }
