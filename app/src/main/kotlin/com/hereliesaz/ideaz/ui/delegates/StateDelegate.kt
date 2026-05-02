@@ -190,6 +190,13 @@ class StateDelegate(
      */
     val webReloadTrigger = _webReloadTrigger.asStateFlow()
 
+    private val _webHardReloadTrigger = MutableStateFlow(0L)
+    /**
+     * Signal to force a hard reload of the WebView (clears cache first).
+     * Observers should react when the value changes.
+     */
+    val webHardReloadTrigger = _webHardReloadTrigger.asStateFlow()
+
     // --- Public Mutators ---
 
     /**
@@ -240,6 +247,9 @@ class StateDelegate(
 
     /** Triggers a WebView reload by updating the trigger timestamp. */
     fun triggerWebReload() { _webReloadTrigger.value = System.currentTimeMillis() }
+
+    /** Clears the WebView cache and triggers a full reload. */
+    fun triggerWebHardReload() { _webHardReloadTrigger.value = System.currentTimeMillis() }
 
     /** Clears all log StateFlows. */
     fun clearLog() {
