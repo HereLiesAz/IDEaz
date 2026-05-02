@@ -2,7 +2,6 @@
 package com.hereliesaz.ideaz.ui.web
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class WebViewBridgeTest {
@@ -19,11 +18,12 @@ class WebViewBridgeTest {
     }
 
     @Test
-    fun `callback not invoked before onElementTapped is called`() {
+    fun `onElementTapped forwards empty string without modification`() {
         var received: String? = null
-        @Suppress("UNUSED_VARIABLE")
         val bridge = WebViewBridge { json -> received = json }
 
-        assertNull(received)
+        bridge.onElementTapped("")
+
+        assertEquals("", received)
     }
 }
