@@ -85,6 +85,7 @@ class IdeToolsTest {
         val result = tools.applyPatch(patch)
         assertEquals("OK", result)
         assertEquals("body { color: blue; }\n", File(tempFolder.root, "style.css").readText())
+        assertFalse(".git should be cleaned up after patch", File(tempFolder.root, ".git").exists())
     }
 
     @Test
