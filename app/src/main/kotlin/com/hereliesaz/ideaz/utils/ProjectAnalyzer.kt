@@ -16,10 +16,6 @@ object ProjectAnalyzer {
             return ProjectType.PYTHON
         }
 
-        // Check for Flutter
-        // Confirmed: pubspec.yaml triggers Flutter project detection
-        if (File(projectDir, "pubspec.yaml").exists()) return ProjectType.FLUTTER
-
         // Check for Android
         if (File(projectDir, "build.gradle.kts").exists() ||
             File(projectDir, "build.gradle").exists() ||

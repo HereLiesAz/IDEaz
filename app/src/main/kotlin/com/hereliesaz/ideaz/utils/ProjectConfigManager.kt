@@ -153,47 +153,6 @@ jobs:
           publish_dir: .
 """.trimIndent()
 
-    private val ANDROID_CI_FLUTTER_YML = """
-name: Android CI (Flutter)
-
-on:
-  push:
-    branches: [ "**" ]
-  pull_request:
-    branches: [ "**" ]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    - name: set up JDK 17
-      uses: actions/setup-java@v3
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        cache: gradle
-    - name: Set up Flutter
-      uses: subosito/flutter-action@v2
-      with:
-        flutter-version: '3.16.0'
-        channel: 'stable'
-    - name: Get Dependencies
-      run: flutter pub get
-    - name: Build APK
-      run: flutter build apk --debug
-    - name: Rename Artifact
-      run: |
-        VERSION=${'$'}(grep '^version:' pubspec.yaml | head -n 1 | sed 's/^version:[[:space:]]*//' | tr -d '\r' | tr -d ' ')
-        if [ -z "${'$'}VERSION" ]; then VERSION="1.0.0"; fi
-        mv build/app/outputs/flutter-apk/app-debug.apk build/app/outputs/flutter-apk/IDEaz-${'$'}VERSION-debug.apk
-    - name: Upload APK
-      uses: actions/upload-artifact@v3
-      with:
-        name: app-debug
-        path: build/app/outputs/flutter-apk/IDEaz-*-debug.apk
-""".trimIndent()
-
     private val JULES_ISSUE_HANDLER_YML = """
 name: Jules Issue Handler
 
@@ -422,11 +381,6 @@ jobs:
                 "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML,
                 "jules-branch-manager.yml" to JULES_BRANCH_MANAGER_YML
             )
-            ProjectType.FLUTTER -> listOf(
-                "android_ci_flutter.yml" to ANDROID_CI_FLUTTER_YML,
-                "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML,
-                "jules-branch-manager.yml" to JULES_BRANCH_MANAGER_YML
-            )
             ProjectType.WEB -> listOf(
                 "web_ci_pages.yml" to WEB_CI_PAGES_YML,
                 "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML,
@@ -497,7 +451,6 @@ jobs:
         var modified = false
         val androidRoot = when(type) {
             ProjectType.ANDROID, ProjectType.PYTHON -> projectDir
-            ProjectType.FLUTTER -> File(projectDir, "android")
             else -> null
         }
 

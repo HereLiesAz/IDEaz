@@ -455,7 +455,7 @@ class MainViewModel(
             val user = settingsViewModel.getGithubUser()
             if (!appName.isNullOrBlank() && !user.isNullOrBlank()) {
                 val type = ProjectType.fromString(settingsViewModel.getProjectType())
-                if (type == ProjectType.ANDROID || type == ProjectType.FLUTTER) {
+                if (type == ProjectType.ANDROID) {
                     startArtifactPolling(user, appName)
                 }
             }
@@ -635,7 +635,7 @@ class MainViewModel(
             buildDelegate.startBuild(context.filesDir.resolve(appName))
 
             // Check for remote artifacts if it's an Android project
-            if (type == ProjectType.ANDROID || type == ProjectType.FLUTTER) {
+            if (type == ProjectType.ANDROID) {
                 startArtifactPolling(user, appName)
             }
         }
@@ -692,8 +692,7 @@ class MainViewModel(
             val projectDir = context.filesDir.resolve(repo)
             val possibleDirs = listOf(
                 File(projectDir, "app/build/outputs/apk/debug"),
-                File(projectDir, "android/app/build/outputs/apk/debug"),
-                File(projectDir, "build/app/outputs/flutter-apk")
+                File(projectDir, "android/app/build/outputs/apk/debug")
             )
 
             val localApk = possibleDirs.asSequence()
@@ -1010,14 +1009,7 @@ class MainViewModel(
     }
 
     fun addDependencyViaAI(coordinate: String) {
-        val typeStr = settingsViewModel.getProjectType()
-        val type = ProjectType.fromString(typeStr)
-
-        val prompt = if (type == ProjectType.FLUTTER) {
-            "Add dependency '$coordinate' to `pubspec.yaml` in the `dependencies` section."
-        } else {
-            "Add dependency '$coordinate' to the project. Update gradle/libs.versions.toml and app/build.gradle.kts (or build.gradle.kts) accordingly. Ensure to add version to [versions] and library to [libraries] with an alias, then implement it."
-        }
+        val prompt = "Add dependency '$coordinate' to the project. Update gradle/libs.versions.toml and app/build.gradle.kts (or build.gradle.kts) accordingly. Ensure to add version to [versions] and library to [libraries] with an alias, then implement it."
         aiDelegate.startContextualAITask(prompt)
     }
 
@@ -1030,7 +1022,7 @@ class MainViewModel(
      *
      * **Logic:**
      * - **Web:** Points the WebView to the project's `index.html`.
-     * - **Android/Flutter:** Switches to "App View" (Host) or launches installed APK.
+     * - **Android:** Switches to "App View" (Host) or launches installed APK.
      */
     fun launchTargetApp(c: Context) {
         // Suppress launch if Artifact Dialog is open
@@ -1060,7 +1052,7 @@ class MainViewModel(
             startFileObservation(projectDir)
             stateDelegate.setTargetAppVisible(true)
         } else {
-            // Android, Flutter
+            // Android
             val packageName = settingsViewModel.targetPackageName.value
             launchInstalledApk(c, packageName, appName)
         }

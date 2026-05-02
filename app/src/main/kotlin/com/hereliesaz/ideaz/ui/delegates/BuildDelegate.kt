@@ -145,7 +145,7 @@ class BuildDelegate(
                         gitDelegate.push()
                 }
             } else {
-                // Android/Flutter Projects
+                // Android Projects
                 onOverlayLog("Build successful. Updating...")
 
                 // Parse Source Map (R8 mapping.txt) for UI Inspection context
@@ -194,13 +194,6 @@ class BuildDelegate(
         buildJob = scope.launch {
             val typeStr = settingsViewModel.getProjectType()
             val type = ProjectType.fromString(typeStr)
-
-            // Special Case: Flutter builds currently only supported via Remote Build
-            if (type == ProjectType.FLUTTER) {
-                onLog("[IDE] Flutter Project detected. Triggering Remote Build (Pushing to GitHub)...\n")
-                gitDelegate.push()
-                return@launch
-            }
 
             val localEnabled = settingsViewModel.isLocalBuildEnabled()
             val token = settingsViewModel.getGithubToken()
