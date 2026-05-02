@@ -51,7 +51,8 @@ class SystemEventDelegate(
                     val prompt = intent.getStringExtra("PROMPT")
                     if (!prompt.isNullOrBlank()) aiDelegate.startContextualAITask(prompt)
                 }
-                // User tapped a specific UI node (Accessibility Node)
+                // User tapped a specific UI node (Accessibility Node, or a
+                // node identified by a JS shim from a Web project host).
                 "com.hereliesaz.ideaz.PROMPT_SUBMITTED_NODE" -> {
                     val rect = if (Build.VERSION.SDK_INT >= 33) {
                         intent.getParcelableExtra("BOUNDS", Rect::class.java)
@@ -60,7 +61,15 @@ class SystemEventDelegate(
                         intent.getParcelableExtra("BOUNDS")
                     }
                     val id = intent.getStringExtra("RESOURCE_ID")
-                    if (rect != null) overlayDelegate.onSelectionMade(rect, id)
+                    when {
+                        rect != null -> overlayDelegate.onSelectionMade(rect, id)
+                        // Web inspection: JS sends a resource id, no bounds.
+                        // Pass an empty Rect so the resource-id-only flow in
+                        // OverlayDelegate skips the screenshot step but still
+                        // resolves source-context for the id.
+                        id != null -> overlayDelegate.onSelectionMade(Rect(), id)
+                        // Neither — nothing actionable.
+                    }
                 }
                 // User dragged a selection rectangle
                 "com.hereliesaz.ideaz.SELECTION_MADE" -> {

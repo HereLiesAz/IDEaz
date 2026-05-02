@@ -64,13 +64,15 @@ class IdeazAccessibilityService : AccessibilityService() {
     private fun inspectAt(x: Int, y: Int) {
         val root = rootInActiveWindow ?: return
 
-        // Traverse to find the smallest node containing (x,y)
+        // findLeafNode either returns root itself, or a descendant. In either
+        // case the function does not recycle the returned node — the caller does.
+        // Intermediate nodes that were traversed but not returned are recycled
+        // inside findLeafNode.
         val leaf = findLeafNode(root, x, y)
 
         if (leaf != null) {
             val bounds = Rect()
             leaf.getBoundsInScreen(bounds)
-
             val resourceId = leaf.viewIdResourceName
 
             Log.d(TAG, "Found Node: $resourceId at $bounds")
@@ -83,53 +85,72 @@ class IdeazAccessibilityService : AccessibilityService() {
                 setPackage(packageName) // Send to self (the app)
             }
             sendBroadcast(intent)
+        }
 
-            if (leaf != root) {
-                // If we found a child, we must recycle the root separately?
-                // No, findLeafNode recycling logic handles intermediate children.
-                // Root is passed in, findLeafNode checks it.
-                // If it returns a child, it does NOT recycle root.
-                // So we must recycle root.
-                @Suppress("DEPRECATION")
-                root.recycle()
-            }
-            @Suppress("DEPRECATION")
-            leaf.recycle()
-        } else {
-            @Suppress("DEPRECATION")
-            root.recycle()
+        recycleIfNeeded(root)
+        if (leaf != null && leaf != root) {
+            recycleIfNeeded(leaf)
         }
     }
 
+    /**
+     * Find the smallest a11y node that contains (x, y), preferring nodes
+     * drawn on top. Recycles intermediate nodes that aren't returned.
+     */
     private fun findLeafNode(node: AccessibilityNodeInfo, x: Int, y: Int): AccessibilityNodeInfo? {
         val bounds = Rect()
         node.getBoundsInScreen(bounds)
 
         if (!bounds.contains(x, y)) {
-            return null // Node doesn't contain point
+            return null
         }
 
-        // Check children (last one on top usually)
-        for (i in node.childCount - 1 downTo 0) {
-            val child = node.getChild(i)
-            if (child != null) {
-                val leaf = findLeafNode(child, x, y)
-                if (leaf != null) {
-                    // We found a descendant.
-                    // If leaf is different from child, it means child was just a container.
-                    // We recycle child if it's not the returned leaf.
-                    if (leaf != child) {
-                        @Suppress("DEPRECATION")
-                        child.recycle()
-                    }
-                    return leaf
+        // Prefer children drawn on top. drawingOrder reflects ViewGroup's
+        // post-elevation paint order; falling back to descending index handles
+        // the default LinearLayout case where last-added is drawn on top.
+        val ordered = (0 until node.childCount).mapNotNull { i ->
+            val child = node.getChild(i) ?: return@mapNotNull null
+            i to child
+        }.sortedByDescending { (i, child) ->
+            child.drawingOrder.takeIf { it >= 0 } ?: i
+        }
+
+        var foundLeaf: AccessibilityNodeInfo? = null
+        var foundAt = -1
+        for ((idx, pair) in ordered.withIndex()) {
+            val (_, child) = pair
+            val leaf = findLeafNode(child, x, y)
+            if (leaf != null) {
+                foundLeaf = leaf
+                foundAt = idx
+                if (leaf != child) {
+                    recycleIfNeeded(child)
                 }
-                @Suppress("DEPRECATION")
-                child.recycle() // Child didn't contain it
+                break
+            }
+            recycleIfNeeded(child)
+        }
+
+        // Recycle any children we sorted but never visited (those after foundAt).
+        if (foundAt >= 0) {
+            for (idx in (foundAt + 1) until ordered.size) {
+                recycleIfNeeded(ordered[idx].second)
             }
         }
 
-        // No child contains it, but this node does. Return this node.
-        return node
+        // No child matched, but `node` itself does. Return it (caller recycles).
+        return foundLeaf ?: node
+    }
+
+    /**
+     * AccessibilityNodeInfo.recycle() is a no-op on API 33+ (the platform
+     * pools nodes itself) and emits a deprecation warning. Gate the call so
+     * we only do it on 30..32 where it still matters.
+     */
+    private fun recycleIfNeeded(node: AccessibilityNodeInfo) {
+        if (Build.VERSION.SDK_INT < 33) {
+            @Suppress("DEPRECATION")
+            node.recycle()
+        }
     }
 }
