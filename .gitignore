@@ -54,3 +54,6 @@ test-log*.txt
 gha-creds-*.json
 /.vscode/
 *.log
+app/release/baselineProfiles/0/IDEaz-1.9.13.1-release.dm
+app/release/baselineProfiles/1/IDEaz-1.9.13.1-release.dm
+/app/release
