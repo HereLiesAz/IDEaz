@@ -197,7 +197,7 @@ fun ProjectSetupTab(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 TextField(
-                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                    modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                     readOnly = true,
                     value = selectedType.displayName,
                     onValueChange = {},
