@@ -72,14 +72,6 @@ class BuildService : Service() {
             )
         }
 
-        override fun downloadDependencies(projectPath: String, callback: IBuildCallback) {
-            currentProjectPath = projectPath
-            callback.onFailure(
-                "On-device dependency resolution has been removed. " +
-                "Dependencies are resolved by remote (GitHub Actions) builds."
-            )
-        }
-
         override fun updateNotification(message: String) = this@BuildService.updateNotification(message)
         override fun cancelBuild() {
             // Nothing to cancel locally now.

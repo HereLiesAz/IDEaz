@@ -11,12 +11,8 @@
     <!-- Include all files by default -->
     <include domain="file" path="."/>
 
-    <!-- Exclude large, downloadable build tools -->
-    <exclude domain="file" path="local_build_tools"/>
-
     <!-- Exclude temporary build caches -->
     <exclude domain="file" path="cache"/>
-    <exclude domain="file" path="local-repo"/>
 
     <!-- Exclude build artifacts -->
     <exclude domain="file" path="web_dist"/>
