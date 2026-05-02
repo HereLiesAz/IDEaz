@@ -595,7 +595,7 @@ class BuildService : Service() {
 
                 val buildOrchestrator = BuildOrchestrator(buildSteps)
 
-                val result = buildOrchestrator.execute(wrappedCallback)
+                val result = buildOrchestrator.executeSuspending(wrappedCallback)
                 if (result.success && isActive) {
                     wrappedCallback.onSuccess(File(buildDir, "app-signed.apk").absolutePath)
                     ApkInstaller.installApk(this@BuildService, File(buildDir, "app-signed.apk").absolutePath)
