@@ -61,7 +61,6 @@ fun MainScreen(
 
     val isIdeVisible by viewModel.isTargetAppVisible.collectAsState()
     val currentWebUrl by viewModel.currentWebUrl.collectAsState()
-    val isLocalBuildEnabled = viewModel.settingsViewModel.isLocalBuildEnabled()
 
     val isContextualChatVisible by viewModel.isContextualChatVisible.collectAsState()
     val activeSelectionRect by viewModel.activeSelectionRect.collectAsState()
@@ -168,7 +167,6 @@ fun MainScreen(
                     },
                     sheetState = sheetState,
                     scope = scope,
-                    isLocalBuildEnabled = isLocalBuildEnabled,
                     onNavigateToMainApp = { route ->
                         viewModel.clearSelection()
                         // Exit App View (Web or Android)

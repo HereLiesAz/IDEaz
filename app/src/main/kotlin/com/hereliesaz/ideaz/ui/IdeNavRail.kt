@@ -28,7 +28,6 @@ fun IdeNavRail(
     onUndock: (() -> Unit)? = null,
     enableRailDraggingOverride: Boolean? = null, // NEW
     onOverlayDrag: ((Float, Float) -> Unit)? = null, // NEW: Manual drag handler
-    isLocalBuildEnabled: Boolean = false,
     onNavigateToMainApp: (String) -> Unit = { navController.navigate(it) }
 ) {
     val projectType by viewModel.settingsViewModel.projectType.collectAsState()
@@ -49,10 +48,6 @@ fun IdeNavRail(
         // ... (rest of items unchanged)
         azRailItem(id = "project_settings", text = "Project", onClick = { onNavigateToMainApp("project_settings") })
         azMenuItem(id = "git",  text = "Git", onClick = { onNavigateToMainApp("git") })
-
-        if (isLocalBuildEnabled) {
-            azMenuItem(id = "libraries", text = "Libs", onClick = { onNavigateToMainApp("libraries") })
-        }
 
         azRailHostItem(
             id = "main",
