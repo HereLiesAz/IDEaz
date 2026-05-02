@@ -268,7 +268,10 @@ class BuildDelegate(
          }
 
          val api = GitHubApiClient.createService(token)
-         val manager = RemoteBuildManager(application, api, token, user, dir.name, onLog)
+         val manager = RemoteBuildManager(
+            application, api, token, user, dir.name,
+            onLog = onLog
+        )
          val apkPath = manager.pollAndDownload(headSha)
          if (apkPath != null) {
              handleSuccess(apkPath)

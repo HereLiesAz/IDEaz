@@ -55,13 +55,14 @@ json = "20251224"
 roomCompiler = "2.8.4"
 zipline = "1.27.0"
 reactNative = "0.85.2"
+hermes = "0.82.1"
 soloader = "0.12.1"
 chaquopy = "15.0.1"
 appcompat = "1.7.1"
 
 [libraries]
 react-android = { module = "com.facebook.react:react-android", version.ref = "reactNative" }
-hermes-android = { module = "com.facebook.react:hermes-android", version.ref = "reactNative" }
+hermes-android = { module = "com.facebook.react:hermes-android", version.ref = "hermes" }
 soloader = { module = "com.facebook.soloader:soloader", version.ref = "soloader" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 org-json = { module = "org.json:json", version.ref = "json" }
