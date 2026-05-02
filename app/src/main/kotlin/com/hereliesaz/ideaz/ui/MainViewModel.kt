@@ -15,6 +15,7 @@ import com.hereliesaz.ideaz.services.CrashReportingService
 import com.hereliesaz.ideaz.ui.delegates.*
 import com.hereliesaz.ideaz.ui.editor.EditorViewModel
 import com.hereliesaz.ideaz.utils.ErrorCollector
+import com.hereliesaz.ideaz.ui.web.WebProjectUrlUtils
 import com.hereliesaz.ideaz.R
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ProjectFileObserver
@@ -139,7 +140,9 @@ class MainViewModel(
         { log -> handleBuildFailure(log) },
         { path ->
             // Web Build Success Callback
-            stateDelegate.setCurrentWebUrl("file://$path")
+            val filesDir = getApplication<Application>().filesDir
+            val assetUrl = WebProjectUrlUtils.toAssetUrl(path, filesDir) ?: "file://$path"
+            stateDelegate.setCurrentWebUrl(assetUrl)
             stateDelegate.setTargetAppVisible(true) // Switch to "App View"
 
             // Update EditorViewModel with project context for file browsing
@@ -322,7 +325,7 @@ class MainViewModel(
         val appName = settingsViewModel.getAppName()
         val projectTypeStr = settingsViewModel.getProjectType()
         val projectType = ProjectType.fromString(projectTypeStr)
-        if (projectType != ProjectType.WEB) return
+        if (projectType != ProjectType.WEB && projectType != ProjectType.PWA) return
 
         viewModelScope.launch {
             logHandler.onBuildLog("Deploying Web Project (Push to GitHub)...")
@@ -864,18 +867,15 @@ class MainViewModel(
         val projectTypeStr = settingsViewModel.getProjectType()
         val projectType = ProjectType.fromString(projectTypeStr)
 
-        if (projectType == ProjectType.WEB) {
+        if (projectType == ProjectType.WEB || projectType == ProjectType.PWA) {
             val projectDir = settingsViewModel.getProjectPath(appName)
             if (stateDelegate.currentWebUrl.value == null) {
-                // For Web Projects with Kotlin/JS, we rely on the extracted www/index.html
-                // which references the compiled app.js.
-                val wwwDir = File(c.filesDir, "www")
-                val indexFile = File(wwwDir, "index.html")
-                // Fallback to project source index.html if www/index.html is missing
-                val fileToLoad = if (indexFile.exists()) indexFile else File(projectDir, "index.html")
-
-                if (fileToLoad.exists()) {
-                    stateDelegate.setCurrentWebUrl("file://${fileToLoad.absolutePath}")
+                // Use the asset-loader URL (same-origin, service-worker safe).
+                val indexFile = File(projectDir, "index.html")
+                if (indexFile.exists()) {
+                    stateDelegate.setCurrentWebUrl(
+                        WebProjectUrlUtils.localProjectUrl(appName, c.filesDir)
+                    )
                 }
             }
             startFileObservation(projectDir)
