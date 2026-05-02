@@ -448,7 +448,7 @@ jobs:
               - Merging, closing, or deleting branches. Humans do those.
 
             Steps:
-              1. If no PR exists for " + BRANCH + ", create one against the default
+              1. If no PR exists for ${'$'}BRANCH, create one against the default
                  branch with a clear title and description.
               2. Self-review the diff. Push fixes for clear bugs or style
                  issues to this branch only.
