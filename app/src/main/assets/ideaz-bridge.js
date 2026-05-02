@@ -27,8 +27,9 @@
                       function (c) { return c.tagName === current.tagName; }
                   )
                 : [];
-            if (siblings.length > 1) {
-                tag += ':nth-of-type(' + (siblings.indexOf(current) + 1) + ')';
+            var idx = siblings.indexOf(current);
+            if (siblings.length > 1 && idx > -1) {
+                tag += ':nth-of-type(' + (idx + 1) + ')';
             }
             parts.unshift(tag);
             current = current.parentElement;
@@ -36,10 +37,18 @@
         return parts.join(' > ');
     }
 
-    /** CSS properties we capture for each selected element. */
-    var STYLE_KEYS = [
-        'color', 'backgroundColor', 'fontSize', 'fontFamily',
-        'display', 'position', 'width', 'height', 'margin', 'padding'
+    /** CSS properties we capture: [camelCase key for JSON, hyphenated name for getPropertyValue]. */
+    var CSS_PROPS = [
+        ['color',           'color'],
+        ['backgroundColor', 'background-color'],
+        ['fontSize',        'font-size'],
+        ['fontFamily',      'font-family'],
+        ['display',         'display'],
+        ['position',        'position'],
+        ['width',           'width'],
+        ['height',          'height'],
+        ['margin',          'margin'],
+        ['padding',         'padding']
     ];
 
     window.ideaz = {
@@ -49,7 +58,9 @@
          * @param {boolean} on
          */
         selectMode: function (on) {
-            document.body.style.cursor = on ? 'crosshair' : '';
+            if (document.body) {
+                document.body.style.cursor = on ? 'crosshair' : '';
+            }
         },
 
         /**
@@ -65,8 +76,8 @@
             var styles = {};
             try {
                 var cs = window.getComputedStyle(el);
-                for (var i = 0; i < STYLE_KEYS.length; i++) {
-                    styles[STYLE_KEYS[i]] = cs.getPropertyValue(STYLE_KEYS[i]);
+                for (var i = 0; i < CSS_PROPS.length; i++) {
+                    styles[CSS_PROPS[i][0]] = cs.getPropertyValue(CSS_PROPS[i][1]);
                 }
             } catch (ignore) {}
 
@@ -90,6 +101,7 @@
                 id: el.id || '',
                 className: typeof el.className === 'string' ? el.className : '',
                 selector: buildSelector(el),
+                // NOTE: outerHtml is passed to Kotlin as a raw string; consumers must not render it as HTML.
                 outerHtml: el.outerHTML ? el.outerHTML.substring(0, 2000) : '',
                 innerText: el.innerText ? el.innerText.substring(0, 500) : '',
                 computedStyles: styles,
