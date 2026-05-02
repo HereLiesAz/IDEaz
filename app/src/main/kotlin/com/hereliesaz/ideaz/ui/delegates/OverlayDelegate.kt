@@ -197,7 +197,12 @@ class OverlayDelegate(
                 pendingContextInfo = "Context: Screen area Rect(${rect.left}, ${rect.top}, ${rect.right}, ${rect.bottom})"
             }
 
-            takeScreenshot(rect)
+            // Skip the screenshot step when there is no rectangle to capture
+            // (e.g., a Web inspection where we only have a CSS / DOM id and
+            // no on-screen bounds). The pendingContextInfo is still set above.
+            if (!rect.isEmpty) {
+                takeScreenshot(rect)
+            }
         }
     }
 

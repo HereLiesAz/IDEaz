@@ -137,18 +137,41 @@ class OverlayView(context: Context) : View(context) {
                 isDragging = false
                 invalidate()
 
-                val left = kotlin.math.min(startX, currentX).toInt()
-                val top = kotlin.math.min(startY, currentY).toInt()
-                val right = kotlin.math.max(startX, currentX).toInt()
-                val bottom = kotlin.math.max(startY, currentY).toInt()
+                val dx = abs(currentX - startX)
+                val dy = abs(currentY - startY)
+                // Use a small slop threshold to distinguish a tap from a drag.
+                // ViewConfiguration.getScaledTouchSlop() is the canonical value;
+                // 24dp at default density ~= 48px, which is fine for a touch
+                // overlay where pixel precision isn't expected.
+                val touchSlopPx = android.view.ViewConfiguration.get(context).scaledTouchSlop
+                val isTap = dx < touchSlopPx && dy < touchSlopPx
 
-                val rect = Rect(left, top, right, bottom)
+                if (isTap) {
+                    // Tap: defer to the AccessibilityService to walk the view
+                    // hierarchy and find the smallest a11y node containing
+                    // (x, y). It will broadcast PROMPT_SUBMITTED_NODE with
+                    // BOUNDS + RESOURCE_ID once it's done.
+                    val intent = Intent("com.hereliesaz.ideaz.INTERNAL_TAP_DETECTED").apply {
+                        putExtra("X", startX.toInt())
+                        putExtra("Y", startY.toInt())
+                        setPackage(context.packageName)
+                    }
+                    context.sendBroadcast(intent)
+                } else {
+                    // Drag: emit the rectangle directly. No node lookup; the
+                    // bounds *are* the user's intent.
+                    val left = kotlin.math.min(startX, currentX).toInt()
+                    val top = kotlin.math.min(startY, currentY).toInt()
+                    val right = kotlin.math.max(startX, currentX).toInt()
+                    val bottom = kotlin.math.max(startY, currentY).toInt()
+                    val rect = Rect(left, top, right, bottom)
 
-                val intent = Intent("com.hereliesaz.ideaz.SELECTION_MADE").apply {
-                    putExtra("RECT", rect)
-                    setPackage(context.packageName)
+                    val intent = Intent("com.hereliesaz.ideaz.SELECTION_MADE").apply {
+                        putExtra("RECT", rect)
+                        setPackage(context.packageName)
+                    }
+                    context.sendBroadcast(intent)
                 }
-                context.sendBroadcast(intent)
                 return true
             }
         }
