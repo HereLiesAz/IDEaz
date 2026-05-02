@@ -105,6 +105,7 @@ jobs:
         id: gemini
         uses: google-github-actions/run-gemini-cli@v0
         env:
+          GEMINI_CLI_TRUST_WORKSPACE: true
           # gh CLI inside Gemini
           GH_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
