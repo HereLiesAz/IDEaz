@@ -207,6 +207,10 @@ class OverlayDelegate(
      * @param json  Raw JSON string from [WebViewBridge.onElementTapped].
      */
     fun onWebElementContext(json: String) {
+        // Use an empty sentinel rect so MainScreen's activeSelectionRect guard passes.
+        // Web element context has no meaningful on-screen rect (coordinates are CSS-space,
+        // not screen-space), so we use an empty rect at origin as a placeholder.
+        _activeSelectionRect.value = android.graphics.Rect(0, 0, 0, 0)
         pendingContextInfo = json
         _isContextualChatVisible.value = true
     }
