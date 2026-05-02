@@ -86,7 +86,7 @@ fun IdeNavRail(
             }
         )
 
-        if (projectType == ProjectType.WEB.name) {
+        if (projectType == ProjectType.WEB.name || projectType == ProjectType.PWA.name) {
             azRailSubItem(
                 id = "deploy",
                 hostId = "main",
