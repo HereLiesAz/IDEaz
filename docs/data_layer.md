@@ -18,9 +18,9 @@ User settings and lightweight state are stored in `SharedPreferences`.
 *   **Key Constants:** Defined in `SettingsViewModel`.
     *   `KEY_GITHUB_USER` (String): GitHub username.
     *   `KEY_GITHUB_TOKEN` (String): GitHub PAT.
-    *   `KEY_JULES_PROJECT_ID` (String): Project ID for Jules API.
-    *   `google_api_key` (String): Gemini API Key.
-    *   `project_type` (String/Enum): Current project type (ANDROID, WEB, etc.).
+    *   `KEY_JULES_PROJECT_ID` (String): Project ID for Jules API (Phase 2).
+    *   `google_api_key` (String): Gemini API Key (Phase 1 default provider).
+    *   `project_type` (String/Enum): Current project type (`ANDROID`, `WEB`; Phase 1 adds `PWA`).
     *   `last_opened_project` (String): Name of the last loaded project.
     *   `KEY_THEME` (Boolean/Int): Theme preference.
     *   `KEY_LOG_VERBOSITY` (String): Filter level for logs.
@@ -31,10 +31,7 @@ Version control data is managed by the JGit library, which interacts directly wi
 *   **Concurrency:** `MainViewModel` (via `GitDelegate`) uses a `Mutex` to serialize Git operations.
 
 ## 4. Build Artifacts
-Build outputs are strictly isolated.
-*   **Location:** `{projectDir}/build/`
-*   **Clean:** This directory can be safely deleted to force a clean build.
-*   **Cache:** `{projectDir}/build/cache/` (Managed by `BuildCacheManager`).
+Builds happen on GitHub Actions (Phase 2 Android target only); PWAs need no build. The on-device toolchain (`aapt2`, `d8`, `kotlinc`) and its caches were removed in Phase 0. `RemoteBuildManager` downloads the Actions artifact into `context.cacheDir` for installation, then deletes it.
 
 ## 5. Reporting Deduplication
 `GithubIssueReporter` uses a dedicated `SharedPreferences` file or keys to track reported error hashes.
@@ -42,9 +39,10 @@ Build outputs are strictly isolated.
 *   **Policy:** Prevents duplicate reports for the same error within 24 hours.
 
 ## 6. Static Data & Assets
-*   **Tools:** `assets/tools/` (Copied to `filesDir/local_build_tools` on launch).
-*   **Templates:** `assets/templates/` (Copied to new project directories).
-*   **Workflows:** Managed programmatically by `ProjectConfigManager`. The YAML content is hardcoded in the codebase to ensure integrity even if assets are missing.
+*   **Templates:** `assets/templates/` (Copied to new project directories). Phase 1 will add a single opinionated PWA template.
+*   **Workflows:** Managed programmatically by `ProjectConfigManager`. YAML content is hardcoded in the codebase to ensure integrity even if assets are missing.
+
+(There is no longer an `assets/tools/` directory — the on-device build toolchain was removed in Phase 0.)
 
 ## 7. Configuration Models (`.ideaz/`)
 *   **Config:** `config.json` stores project-specific settings (e.g., detected package name, schema type).

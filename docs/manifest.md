@@ -67,7 +67,7 @@
 * **Class: BuildService (Service)**
     * **Type:** `android:exported="true"`, `android:process=":build_process"`
     * **Permissions:** `FOREGROUND_SERVICE`
-    * Description (Does): Executes the build pipeline. Runs `GenerateSourceMap` as the final step after signing.
+    * Description (Does): Dispatches and polls a remote GitHub Actions build via `RemoteBuildManager`, then sideloads the resulting APK. (The on-device build toolchain was removed in Phase 0.)
 * **Class: IdeazOverlayService (Service)**
     * **Type:** `android:permission="android.permission.FOREGROUND_SERVICE"`, `android:foregroundServiceType="specialUse"` (or `manifest` dependent).
     * **Permissions:** `SYSTEM_ALERT_WINDOW`, `FOREGROUND_SERVICE`.
@@ -81,8 +81,6 @@
 
 ### E. Core Utilities
 
-* **Class: ToolManager**
-    * Description (Does): Locates build tools. Downloads/Validates tools zip in `filesDir/local_build_tools`.
 * **Class: GithubIssueReporter**
     * Description (Does): Utilities to post GitHub issues. Takes a `Throwable` and `contextMessage`, creates a formatted markdown bug report, and posts it to the `HereLiesAz/IDEaz` GitHub repo via API. Falls back to a browser intent if the API fails.
 * **Class: MainActivity**
