@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -30,7 +31,6 @@ import com.composables.core.SheetDetent
 import com.composables.core.rememberBottomSheetState
 import kotlinx.coroutines.launch
 import com.hereliesaz.ideaz.ui.web.WebProjectHost
-import com.hereliesaz.ideaz.ui.project.AndroidProjectHost
 import androidx.compose.ui.platform.LocalConfiguration
 
 const val Z_INDEX_WEB_VIEW = 0f
@@ -122,14 +122,12 @@ fun MainScreen(
                             )
                         }
                     } else {
-                        // Android Mode: Show Virtual Environment
-                        val targetPackage by viewModel.settingsViewModel.targetPackageName.collectAsState()
-                        if (targetPackage != null) {
-                            AndroidProjectHost(
-                                packageName = targetPackage!!,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
+                        // Android Mode: Placeholder until Phase 2 rebuilds the host
+                        // on top of IdeazOverlayService (System Alert Window overlay).
+                        // The previous VirtualDisplay-based AndroidProjectHost was removed
+                        // because it required signature-level permissions unavailable to
+                        // sideloaded apps. See docs/plans/2026-05-01-phase-0-triage.md.
+                        AndroidProjectHostPlaceholder()
                     }
                 } else {
                     // IDE Mode: Show Settings/Project screens
@@ -221,5 +219,22 @@ fun MainScreen(
                 )
             }
         }
+    }
+}
+
+/**
+ * Placeholder shown when the IDE is in "App View" for an Android-typed project.
+ *
+ * The previous [com.hereliesaz.ideaz.ui.project.AndroidProjectHost] used
+ * `VirtualDisplay` + `ActivityOptions.setLaunchDisplayId` to render the target
+ * APK inside the IDE. That approach requires signature-level permissions that
+ * sideloaded apps cannot obtain on stock Android, so it was removed in the
+ * Phase 0 triage. Phase 2 will rebuild the Android target host on top of
+ * `IdeazOverlayService` (System Alert Window overlay).
+ */
+@Composable
+private fun AndroidProjectHostPlaceholder() {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text("Android target host arrives in Phase 2.")
     }
 }
