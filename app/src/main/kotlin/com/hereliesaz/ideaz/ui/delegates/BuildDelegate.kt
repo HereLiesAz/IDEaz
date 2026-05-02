@@ -314,9 +314,14 @@ class BuildDelegate(
          // A. Start Remote Poller Job
          val remoteJob = scope.launch {
              val api = GitHubApiClient.createService(token)
-             val manager = RemoteBuildManager(application, api, token, user, dir.name) { msg ->
-                 onLog("[Remote] $msg")
-             }
+             val manager = RemoteBuildManager(
+                 context = application,
+                 api = api,
+                 token = token,
+                 user = user,
+                 repo = dir.name,
+                 onLog = { msg -> onLog("[Remote] $msg") }
+             )
              val apk = manager.pollAndDownload(headSha)
              if (apk != null) {
                  if (raceController.tryWin()) {
