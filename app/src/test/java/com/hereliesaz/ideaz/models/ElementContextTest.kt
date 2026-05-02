@@ -45,6 +45,7 @@ class ElementContextTest {
 
     @Test
     fun `deserializes JS-generated JSON with missing optional fields`() {
+        // computedStyles and parents intentionally omitted — must deserialize to defaults
         val jsJson = """
             {
                 "tagName": "span",
@@ -53,9 +54,7 @@ class ElementContextTest {
                 "selector": "div > span",
                 "outerHtml": "<span class=\"label\">Hello</span>",
                 "innerText": "Hello",
-                "computedStyles": {"color": "red"},
-                "boundingRect": {"top": 10.5, "left": 5.0, "bottom": 20.5, "right": 55.0, "width": 50.0, "height": 10.0},
-                "parents": [{"tagName": "div", "id": "", "className": "container"}]
+                "boundingRect": {"top": 10.5, "left": 5.0, "bottom": 20.5, "right": 55.0, "width": 50.0, "height": 10.0}
             }
         """.trimIndent()
 
@@ -63,7 +62,7 @@ class ElementContextTest {
         assertEquals("span", ctx.tagName)
         assertEquals("label", ctx.className)
         assertEquals(10.5, ctx.boundingRect.top, 0.001)
-        assertEquals(1, ctx.parents.size)
-        assertEquals("div", ctx.parents[0].tagName)
+        assertTrue(ctx.computedStyles.isEmpty())   // omitted field → default
+        assertTrue(ctx.parents.isEmpty())           // omitted field → default
     }
 }
