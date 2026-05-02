@@ -327,7 +327,7 @@ fun ProjectSetupTab(
                             onBuildTriggered()
                         }
                     },
-                    text = if (selectedType == ProjectType.FLUTTER) "Push & Build" else "Save & Initialize",
+                    text = "Save & Initialize",
                     shape = AzButtonShape.RECTANGLE,
                     modifier = Modifier.fillMaxWidth(),
                     isLoading = isBusy
