@@ -84,7 +84,7 @@ class RemoteBuildManagerTest {
         )
 
         val fakeApi = FakeGitHubApi(runs, artifacts)
-        val manager = RemoteBuildManager(context, fakeApi, "token", "user", "repo") { println(it) }
+        val manager = RemoteBuildManager(context, fakeApi, "token", "user", "repo", onLog = { println(it) })
 
         val resultPath = manager.pollAndDownload("sha123")
 
@@ -120,7 +120,7 @@ class RemoteBuildManagerTest {
         )
 
         val fakeApi = FakeGitHubApi(runs, artifacts)
-        val manager = RemoteBuildManager(context, fakeApi, "secret-token", "user", "repo") { println(it) }
+        val manager = RemoteBuildManager(context, fakeApi, "secret-token", "user", "repo", onLog = { println(it) })
 
         val resultPath = manager.pollAndDownload("sha456")
         assertNotNull("Result path should not be null", resultPath)

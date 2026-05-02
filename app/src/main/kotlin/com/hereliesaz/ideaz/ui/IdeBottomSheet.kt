@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.ui
 
+import android.content.ClipData
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -138,11 +139,8 @@ fun IdeBottomSheet(
                                 contentColor = MaterialTheme.colorScheme.onSurface,
                                 divider = {},
                                 indicator = {
-                                    SecondaryIndicator(
-                                        modifier = Modifier.tabIndicatorOffset(
-                                            selectedTabIndex = selectedTab,
-                                            matchContentSize = false
-                                        ),
+                                    TabRowDefaults.SecondaryIndicator(
+                                        modifier = Modifier.tabIndicatorOffset(selectedTab),
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
@@ -228,7 +226,7 @@ fun IdeBottomSheet(
                         IconButton(onClick = {
                             coroutineScope.launch {
                                 clipboard.setClipEntry(
-                                    AnnotatedString(filteredMessages.joinToString("\n")).toClipEntry()
+                                    ClipData.newPlainText("log", filteredMessages.joinToString("\n")).toClipEntry()
                                 )
                             }
                         }) {
