@@ -110,6 +110,7 @@ jobs:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           REPOSITORY: ${{ github.repository }}
+          GEMINI_CLI_TRUST_WORKSPACE: true
         with:
           gemini_api_key: ${{ secrets.JULES_API_KEY }}
           gemini_cli_version: '0.40.1'
