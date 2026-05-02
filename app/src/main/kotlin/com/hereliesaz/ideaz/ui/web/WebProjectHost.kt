@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import kotlinx.coroutines.flow.Flow
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -41,7 +40,6 @@ class IdeazJsInterface(private val context: Context) {
 @Composable
 fun WebProjectHost(
     url: String,
-    reloadTrigger: Flow<Long>? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -94,16 +92,6 @@ fun WebProjectHost(
                     }
                     context.sendBroadcast(intent)
                 }
-            }
-        }
-    }
-
-    if (reloadTrigger != null) {
-        val trigger by reloadTrigger.collectAsState(initial = 0L)
-        LaunchedEffect(trigger) {
-            if (trigger > 0L) {
-                // Trigger hot reload via JS instead of full page reload
-                webView.evaluateJavascript("hotReload($trigger)", null)
             }
         }
     }
