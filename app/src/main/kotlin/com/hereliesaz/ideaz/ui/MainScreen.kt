@@ -61,6 +61,8 @@ fun MainScreen(
 
     val isIdeVisible by viewModel.isTargetAppVisible.collectAsState()
     val currentWebUrl by viewModel.currentWebUrl.collectAsState()
+    val webReloadTrigger by viewModel.webReloadTrigger.collectAsState()
+    val webHardReloadTrigger by viewModel.webHardReloadTrigger.collectAsState()
 
     val isContextualChatVisible by viewModel.isContextualChatVisible.collectAsState()
     val activeSelectionRect by viewModel.activeSelectionRect.collectAsState()
@@ -118,6 +120,8 @@ fun MainScreen(
                         currentWebUrl?.let { webUrl ->
                             WebProjectHost(
                                 url = webUrl,
+                                reloadTrigger = webReloadTrigger,
+                                hardReloadTrigger = webHardReloadTrigger,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
