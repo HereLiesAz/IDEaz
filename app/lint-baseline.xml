@@ -8,7 +8,7 @@
         errorLine2="                                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/com/hereliesaz/ideaz/ui/web/WebProjectHost.kt"
-            line="134"
+            line="191"
             column="52"/>
     </issue>
 
@@ -57,6 +57,17 @@
     </issue>
 
     <issue
+        id="GradleDependency"
+        message="A newer version of androidx.webkit:webkit than 1.14.0 is available: 1.15.0"
+        errorLine1="webkit = &quot;1.14.0&quot;"
+        errorLine2="         ~~~~~~~~">
+        <location
+            file="$HOME/OneDrive/Documents/GitHub/IDEaz/.claude/worktrees/priceless-tesla-d309a4/gradle/libs.versions.toml"
+            line="36"
+            column="10"/>
+    </issue>
+
+    <issue
         id="ConfigurationScreenWidthHeight"
         message="Using Configuration.screenHeightDp instead of LocalWindowInfo.current.containerSize"
         errorLine1="    val screenHeight = config.screenHeightDp.dp"
@@ -79,13 +90,24 @@
     </issue>
 
     <issue
+        id="ModifierParameter"
+        message="Modifier parameter should be the first optional parameter"
+        errorLine1="    modifier: Modifier = Modifier"
+        errorLine2="    ~~~~~~~~">
+        <location
+            file="src/main/kotlin/com/hereliesaz/ideaz/ui/web/WebProjectHost.kt"
+            line="63"
+            column="5"/>
+    </issue>
+
+    <issue
         id="SetJavaScriptEnabled"
         message="Using `setJavaScriptEnabled` can introduce XSS vulnerabilities into your application, review carefully"
         errorLine1="                javaScriptEnabled = true"
         errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/com/hereliesaz/ideaz/ui/web/WebProjectHost.kt"
-            line="52"
+            line="84"
             column="17"/>
     </issue>
 
@@ -578,7 +600,7 @@
         errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/com/hereliesaz/ideaz/ui/delegates/OverlayDelegate.kt"
-            line="108"
+            line="101"
             column="21"/>
     </issue>
 
