@@ -544,14 +544,6 @@ class BuildService : Service() {
                     sourceDirs.add(generatedHostDir)
                 }
 
-                // --- PYTHON INJECTION ---
-                val pythonInjector = PythonInjector(resolver.resolvedArtifacts, buildDir)
-                val pythonResult = pythonInjector.execute(wrappedCallback)
-                if (!pythonResult.success && isActive) {
-                    wrappedCallback.onFailure(pythonResult.output)
-                    return@launch
-                }
-
                 buildSteps.add(KotlincCompile(kotlincJarPath!!, androidJarPath, sourceDirs, File(buildDir, "classes"), fullClasspath, javaBinaryPath!!))
                 buildSteps.add(D8Compile(d8Path!!, javaBinaryPath, androidJarPath, File(buildDir, "classes").absolutePath, File(buildDir, "classes").absolutePath, fullClasspath))
 
@@ -621,46 +613,9 @@ class BuildService : Service() {
     }
 
     private fun startHotReloadWatcher(projectDir: File) {
+        // Hot reload is currently a no-op. Future hot-reload work
+        // (e.g. Zipline guest reload) can hook in here.
         fileObserver?.stopWatching()
-        val pythonSrcDir = File(projectDir, "app/src/main/assets/python")
-        if (!pythonSrcDir.exists()) return
-
-        fileObserver = com.hereliesaz.ideaz.utils.RecursiveFileObserver(
-            pythonSrcDir.absolutePath,
-            android.os.FileObserver.CLOSE_WRITE or android.os.FileObserver.MODIFY
-        ) { event, fullPath ->
-            if (fullPath == null) return@RecursiveFileObserver
-            val path = fullPath
-
-            // Debounce or immediate? Immediate for now.
-            // We need to read the file and send broadcast.
-            // Cannot call suspend functions or IO on this thread safely without scope.
-            serviceScope.launch(Dispatchers.IO) {
-                try {
-                    val file = File(path)
-                    if (file.exists() && file.isFile) {
-                        val content = file.readText()
-                        val packageName = ProjectAnalyzer.detectPackageName(projectDir)
-
-                        if (packageName != null) {
-                            // Calculate relative path for identification
-                            val relativePath = file.relativeTo(pythonSrcDir).path
-
-                            val intent = Intent("com.ideaz.ACTION_RELOAD_PYTHON")
-                            intent.putExtra("path", relativePath)
-                            intent.putExtra("content", content)
-                            intent.setPackage(packageName)
-                            sendBroadcast(intent)
-                            Log.d(TAG, "Sent Hot Reload broadcast for $relativePath to $packageName")
-                            updateNotification("Hot Reload: $relativePath")
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Hot Reload failed", e)
-                }
-            }
-        }
-        fileObserver?.startWatching()
-        Log.d(TAG, "Started Recursive Hot Reload watcher on ${pythonSrcDir.absolutePath}")
+        fileObserver = null
     }
 }

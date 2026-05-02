@@ -81,7 +81,7 @@ class ProcessManifest(
                 app = appList.item(0) as Element
             }
 
-            // Inject android:extractNativeLibs="true" for Python/Chaquopy (Required for loading .so directly)
+            // Inject android:extractNativeLibs="true" so any bundled .so files load directly.
             if (!app.hasAttribute("android:extractNativeLibs")) {
                 app.setAttribute("android:extractNativeLibs", "true")
             }
@@ -91,7 +91,7 @@ class ProcessManifest(
                 app.setAttribute("android:usesCleartextTraffic", "true")
             }
 
-            // Inject permissions (INTERNET for SDUI localhost, FOREGROUND_SERVICE for Python host)
+            // Inject permissions (INTERNET for SDUI localhost, FOREGROUND_SERVICE for the build service)
             val permissions = listOf("android.permission.INTERNET", "android.permission.FOREGROUND_SERVICE")
             for (perm in permissions) {
                 val existingPerms = root.getElementsByTagName("uses-permission")
