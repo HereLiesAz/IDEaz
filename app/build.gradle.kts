@@ -1,13 +1,11 @@
 import java.util.Properties
+import java.io.FileInputStream
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
-
-import java.util.Properties
-import java.io.FileInputStream
 
 val versionProps = Properties()
 val versionPropsFile = rootProject.file("version.properties")
@@ -22,13 +20,13 @@ val buildNumber = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
 
 extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
     namespace = "com.hereliesaz.ideaz"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.hereliesaz.ideaz"
         minSdk = 30
 
-        targetSdk = 36
+        targetSdk = 37
         versionCode = major * 1000000 + minor * 10000 + patch * 100 + buildNumber
         versionName = "$major.$minor.$patch.$buildNumber"
 
