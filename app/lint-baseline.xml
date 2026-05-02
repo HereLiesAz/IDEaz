@@ -8,7 +8,7 @@
         errorLine2="                                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/com/hereliesaz/ideaz/ui/web/WebProjectHost.kt"
-            line="191"
+            line="229"
             column="52"/>
     </issue>
 
@@ -63,8 +63,19 @@
         errorLine2="         ~~~~~~~~">
         <location
             file="$HOME/OneDrive/Documents/GitHub/IDEaz/.claude/worktrees/priceless-tesla-d309a4/gradle/libs.versions.toml"
-            line="36"
+            line="38"
             column="10"/>
+    </issue>
+
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of org.mockito.kotlin:mockito-kotlin than 5.4.0 is available: 6.3.0"
+        errorLine1="mockitoKotlin = &quot;5.4.0&quot;"
+        errorLine2="                ~~~~~~~">
+        <location
+            file="$HOME/OneDrive/Documents/GitHub/IDEaz/.claude/worktrees/priceless-tesla-d309a4/gradle/libs.versions.toml"
+            line="34"
+            column="17"/>
     </issue>
 
     <issue
@@ -96,7 +107,7 @@
         errorLine2="    ~~~~~~~~">
         <location
             file="src/main/kotlin/com/hereliesaz/ideaz/ui/web/WebProjectHost.kt"
-            line="63"
+            line="66"
             column="5"/>
     </issue>
 
@@ -107,7 +118,7 @@
         errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/kotlin/com/hereliesaz/ideaz/ui/web/WebProjectHost.kt"
-            line="84"
+            line="106"
             column="17"/>
     </issue>
 
