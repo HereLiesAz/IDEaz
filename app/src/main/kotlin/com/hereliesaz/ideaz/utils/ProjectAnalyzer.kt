@@ -11,11 +11,6 @@ object ProjectAnalyzer {
         // Check for Web
         if (File(projectDir, "index.html").exists()) return ProjectType.WEB
 
-        // Check for Python (must be checked before Android as it shares structure)
-        if (File(projectDir, "app/src/main/assets/python/main.py").exists()) {
-            return ProjectType.PYTHON
-        }
-
         // Check for Android
         if (File(projectDir, "build.gradle.kts").exists() ||
             File(projectDir, "build.gradle").exists() ||
