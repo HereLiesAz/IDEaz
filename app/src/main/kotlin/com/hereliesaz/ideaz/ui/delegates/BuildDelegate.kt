@@ -33,7 +33,6 @@ import java.io.File
  * @param scope CoroutineScope for build orchestration.
  * @param onLog Callback for general build logs (batched).
  * @param onOverlayLog Callback for high-priority user-visible logs (toasts/overlay).
- * @param onSourceMapUpdated Callback invoked when a new Source Map is generated (for UI inspection).
  * @param onBuildFailure Callback invoked on build error.
  * @param onWebBuildSuccess Callback for Web project success (URL/Path).
  * @param onAndroidBuildSuccess Callback for Android project success (Triggers app launch).
@@ -45,7 +44,6 @@ class BuildDelegate(
     private val scope: CoroutineScope,
     private val onLog: (String) -> Unit,
     private val onOverlayLog: (String) -> Unit,
-    @Suppress("UNUSED_PARAMETER") onSourceMapUpdated: (Map<String, com.hereliesaz.ideaz.models.SourceMapEntry>) -> Unit,
     private val onBuildFailure: (String) -> Unit,
     private val onWebBuildSuccess: (String) -> Unit,
     private val onAndroidBuildSuccess: () -> Unit,
@@ -214,8 +212,6 @@ class BuildDelegate(
     private suspend fun startRemoteBuild(dir: File, user: String, token: String) {
         onLog("[IDE] Preparing Remote Build...\n")
 
-        injectResizeableActivity(dir)
-
         if (!gitDelegate.commit("Remote Build Trigger: ${System.currentTimeMillis()}")) {
             onLog("Error: Commit failed. Aborting remote build.\n")
             handleFailure("Commit failed. Aborting remote build.")
@@ -242,22 +238,6 @@ class BuildDelegate(
             handleSuccess(apkPath)
         } else {
             handleFailure("Remote Build Failed.")
-        }
-    }
-
-    /**
-     * Injects `android:resizeableActivity="true"` into the AndroidManifest.
-     * This is required for the app to run correctly inside the Virtual Display host,
-     * which may have arbitrary dimensions.
-     */
-    private fun injectResizeableActivity(projectDir: File) {
-        val manifestFile = File(projectDir, "app/src/main/AndroidManifest.xml")
-        if (manifestFile.exists()) {
-            var content = manifestFile.readText()
-            if (!content.contains("android:resizeableActivity")) {
-                content = content.replaceFirst("<application", "<application android:resizeableActivity=\"true\"")
-                manifestFile.writeText(content)
-            }
         }
     }
 

@@ -72,6 +72,17 @@ that, and Android's documentation explicitly warns against them.
 4. Drop the `@Suppress("DEPRECATION")` annotation that gated them.
 5. Verify a hand-test: a PWA that previously loaded continues to load; a fetch
    to a `file://` resource is now blocked.
+6. **Rebuild source-map generation** as part of the new Web build path. Phase 0
+   removed the on-device toolchain (Task 6), which deleted
+   `GenerateSourceMap.kt`. The orphaned `onSourceMapUpdated` callback chain,
+   `OverlayDelegate.sourceMap` field, `SourceMapParser`, and `SourceMapEntry`
+   model were all removed in the post-deletion cleanup. Web inspect-on-tap
+   currently resolves context only from the `__source:filename:line__` DOM tag
+   emitted by the runtime; the Android-resource-id lookup path is gone.
+   Phase 1A should re-emit a source map (or equivalent metadata) from whatever
+   bundler the new Web build path settles on, and re-wire it into
+   `SourceContextHelper` so element-tap inspection can resolve back to source
+   for non-DOM elements as well.
 
 Track this in the Phase 1A milestone as a hard requirement, not a polish item.
 

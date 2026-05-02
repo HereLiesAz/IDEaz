@@ -47,7 +47,6 @@
 #### models/
 *   `Project.kt`: Project metadata model.
 *   `ProjectType.kt`: Enum for supported project types (currently `ANDROID`, `WEB`; Phase 1 adds `PWA` detection).
-*   `SourceMapEntry.kt`: Model for source mapping.
 *   `IdeazProjectConfig.kt`: Configuration model.
 *   `ProjectHistory.kt`: History tracking model.
 
@@ -113,8 +112,7 @@
 *   `ProjectConfigManager.kt`: Manages `.ideaz` config and Workflow Injection.
 *   `ProjectInitializer.kt`: Project setup + crash reporter injection.
 *   `ProcessExecutor.kt`: Helper to run shell commands.
-*   `SourceMapParser.kt`: Parses R8 mapping files.
-*   `SourceContextHelper.kt`: Resolves source locations from view IDs.
+*   `SourceContextHelper.kt`: Resolves source locations from `__source__` DOM tags emitted by Web inspect-on-tap.
 *   `ApkInstaller.kt`: Helper to install APKs (Phase 2 path).
 *   `CrashHandler.kt`: JVM uncaught exception handler.
 *   `GithubIssueReporter.kt`: Posts GitHub issues for IDE-internal errors.
