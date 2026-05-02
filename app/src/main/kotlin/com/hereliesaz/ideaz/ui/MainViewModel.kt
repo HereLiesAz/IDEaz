@@ -20,6 +20,9 @@ import com.hereliesaz.ideaz.R
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ProjectFileObserver
 import com.hereliesaz.ideaz.utils.VersionUtils
+import com.hereliesaz.ideaz.ai.ChatMessage
+import com.hereliesaz.ideaz.ai.GeminiAdapter
+import com.hereliesaz.ideaz.ai.IdeTools
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Job
@@ -126,6 +129,52 @@ class MainViewModel(
         logHandler::onAiLog,
         { diff -> applyUnidiffPatchInternal(diff) }
     )
+
+    /**
+     * Send a user message to the conversational AI chat.
+     *
+     * Creates a [GeminiAdapter] on demand (reads API key and project path at call time
+     * so the user can set the key after app launch). Appends the user message and the
+     * model's response to [stateDelegate.chatMessages]. Triggers a hard WebView reload
+     * after each response in case Gemini wrote files.
+     */
+    fun sendChatMessage(text: String) {
+        val apiKey = settingsViewModel.getGoogleApiKey()
+        if (apiKey.isNullOrBlank()) {
+            stateDelegate.appendChatMessage(
+                ChatMessage("model", "Error: No AI Studio API key set. Go to Settings → API Keys → AI Studio API Key.")
+            )
+            return
+        }
+
+        val appName = settingsViewModel.getAppName()
+        if (appName == null) {
+            stateDelegate.appendChatMessage(ChatMessage("model", "Error: No project open."))
+            return
+        }
+
+        val projectDir = settingsViewModel.getProjectPath(appName)
+        val client = GeminiAdapter(apiKey = apiKey, tools = IdeTools(projectDir))
+
+        stateDelegate.appendChatMessage(ChatMessage("user", text))
+        stateDelegate.setChatLoading(true)
+
+        viewModelScope.launch {
+            try {
+                val response = client.chat(stateDelegate.chatMessages.value)
+                stateDelegate.appendChatMessage(ChatMessage("model", response))
+                // Any file writes have already happened inside the tool-use loop;
+                // hard-reload so the WebView picks up the changes immediately.
+                stateDelegate.triggerWebHardReload()
+            } catch (e: Exception) {
+                stateDelegate.appendChatMessage(
+                    ChatMessage("model", "Error: ${e.message}")
+                )
+            } finally {
+                stateDelegate.setChatLoading(false)
+            }
+        }
+    }
 
     val overlayDelegate = OverlayDelegate(application, settingsViewModel, viewModelScope, logHandler::onAiLog)
 
