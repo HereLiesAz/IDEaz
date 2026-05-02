@@ -57,9 +57,6 @@ jobs:
           ADDITIONAL_CONTEXT: '${{ inputs.additional_context }}'
           GEMINI_CLI_TRUST_WORKSPACE: true
         with:
-          gcp_location: '${{ vars.GOOGLE_CLOUD_LOCATION }}'
-          gcp_project_id: '${{ vars.GOOGLE_CLOUD_PROJECT }}'
-          gcp_service_account: '${{ vars.SERVICE_ACCOUNT_EMAIL }}'
           gemini_api_key: '${{ secrets.JULES_API_KEY }}'
           # Pin CLI version to 0.40.1 to ensure stability and support for newer features (e.g. output-format)
           gemini_cli_version: '0.40.1'
@@ -132,4 +129,7 @@ jobs:
                 ]
               }
             }
-          prompt: '${{ inputs.additional_context }}'
+          prompt: |
+            ${{ inputs.additional_context }}
+
+            IMPORTANT: Your response must NEVER contain the literal string 'E' 'O' 'F' (the sequence of those three letters). If you need to refer to an end-of-file marker or use a heredoc delimiter, use 'END_OF_DATA' instead.

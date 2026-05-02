@@ -63,9 +63,10 @@ jobs:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ steps.get_pr.outputs.number }}
-          DELIMITER: "DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
         run: |
           set -euo pipefail
+          DELIMITER="DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
+          echo "DELIMITER=${DELIMITER}" >> "$GITHUB_ENV"
           echo "number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
 
           # Get PR details using gh CLI
@@ -134,6 +135,8 @@ jobs:
           prompt: |
             You are a repository assistant ensuring pull requests follow the repository's contribution guidelines.
 
+            IMPORTANT: Your response must NEVER contain the literal string 'E' 'O' 'F' (the sequence of those three letters). If you need to refer to an end-of-file marker or use a heredoc delimiter, use 'END_OF_DATA' instead.
+
             Inputs:
             - Repository: ${REPOSITORY}
             - PR Number: ${PR_NUMBER}
@@ -172,9 +175,9 @@ jobs:
 
 
                - Save the content to /tmp/guidelines_comment.md using a heredoc, then run:
-                 cat > /tmp/guidelines_comment.md <<'EOF'
+                 cat > /tmp/guidelines_comment.md <<"${DELIMITER}"
                  <the markdown from above>
-                 EOF
+                 ${DELIMITER}
                  gh pr comment "${PR_NUMBER}" --repo "${REPOSITORY}" --body-file /tmp/guidelines_comment.md
 
             Constraints:

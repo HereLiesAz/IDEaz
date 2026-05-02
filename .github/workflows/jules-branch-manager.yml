@@ -137,3 +137,5 @@ jobs:
                  request is ambiguous, post a comment asking for clarification
                  instead.
               4. Stop. Do not merge. Do not close. Do not delete branches.
+
+            IMPORTANT: Your response must NEVER contain the literal string 'E' 'O' 'F' (the sequence of those three letters). If you need to refer to an end-of-file marker or use a heredoc delimiter, use 'END_OF_DATA' instead.
