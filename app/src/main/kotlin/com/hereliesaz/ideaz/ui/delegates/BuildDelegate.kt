@@ -317,12 +317,12 @@ class BuildDelegate(
              val manager = RemoteBuildManager(application, api, token, user, dir.name) { msg ->
                  onLog("[Remote] $msg")
              }
-             val apk = manager.pollAndDownload(headSha)
-             if (apk != null) {
+             val apkPath = manager.pollAndDownload(headSha)
+             if (apkPath != null) {
                  if (raceController.tryWin()) {
                       onLog("[Race] Remote Build Won! Cancelling Local Build...\n")
                       buildService?.cancelBuild()
-                      handleSuccess(apk)
+                      handleSuccess(apkPath)
                  }
              }
          }

@@ -74,23 +74,23 @@ jobs:
 
           # Safely write PR title (handles quotes and newlines)
           {
-            echo "title<<EOF"
+            echo "title<<_PR_TITLE_EOF_"
             printf "%s\n" "$TITLE"
-            echo "EOF"
+            echo "_PR_TITLE_EOF_"
           } >> "$GITHUB_OUTPUT"
 
           # Safely write PR body (handles quotes and newlines)
           {
-            echo "body<<EOF"
+            echo "body<<_PR_BODY_EOF_"
             printf "%s\n" "$BODY"
-            echo "EOF"
+            echo "_PR_BODY_EOF_"
           } >> "$GITHUB_OUTPUT"
 
           # Safely capture changed files (one per line)
           {
-            echo "changed_files<<EOF"
+            echo "changed_files<<_CHANGED_FILES_EOF_"
             gh pr diff "${PR_NUMBER}" --name-only --repo "${REPOSITORY}"
-            echo "EOF"
+            echo "_CHANGED_FILES_EOF_"
           } >> "$GITHUB_OUTPUT"
 
           # Safely capture full diff to a file (to avoid "Argument list too long" in subsequent steps)
@@ -112,7 +112,9 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         with:
           gemini_api_key: ${{ secrets.JULES_API_KEY }}
-          gemini_cli_version: '0.24.0'
+          gemini_cli_version: '0.40.1'
+          use_gemini_code_assist: false
+          use_vertex_ai: false
           settings: |
             {
               "coreTools": [
@@ -168,9 +170,9 @@ jobs:
 
 
                - Save the content to /tmp/guidelines_comment.md using a heredoc, then run:
-                 cat > /tmp/guidelines_comment.md <<'EOF'
+                 cat > /tmp/guidelines_comment.md <<'_GUIDELINES_EOF_'
                  <the markdown from above>
-                 EOF
+                 _GUIDELINES_EOF_
                  gh pr comment "${PR_NUMBER}" --repo "${REPOSITORY}" --body-file /tmp/guidelines_comment.md
 
             Constraints:
