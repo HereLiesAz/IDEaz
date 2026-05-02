@@ -217,7 +217,7 @@ class BuildDelegate(
                      onLog("Error: Remote Build requires GitHub Token and User.\n")
                      return@launch
                 }
-                startRemoteOnlyBuild(dir, user!!, token!!)
+                startRemoteOnlyBuild(dir, user, token)
                 return@launch
             }
 
@@ -235,7 +235,7 @@ class BuildDelegate(
 
             // 3. Race or Local
             if (canRace) {
-                startRaceBuild(dir, user!!, token!!)
+                startRaceBuild(dir, user, token)
             } else {
                 // Standard Local Build
                 buildService?.startBuild(dir.absolutePath, buildCallback)
@@ -329,15 +329,19 @@ class BuildDelegate(
 
          // B. Start Local Build
          val raceCallback = object : IBuildCallback.Stub() {
-             override fun onLog(msg: String) = buildCallback.onLog(msg)
-             override fun onSuccess(apk: String) {
+             override fun onLog(message: String) {
+                 buildCallback.onLog(message)
+             }
+
+             override fun onSuccess(apkPath: String) {
                  if (raceController.tryWin()) {
                      onLog("[Race] Local Build Won! Cancelling Remote Polling...\n")
                      remoteJob.cancel()
-                     handleSuccess(apk)
+                     handleSuccess(apkPath)
                  }
              }
-             override fun onFailure(msg: String) {
+
+             override fun onFailure(message: String) {
                  onLog("[Race] Local Build Failed. Waiting for Remote...\n")
              }
          }
