@@ -121,6 +121,7 @@ This document is the step-by-step guide for taking IDEaz from concept to product
 - [x] Update Project Screen tabs order (Setup, Load, Clone).
 - [x] Configure CI to sign release APKs using Repository Secrets.
 - [x] **10.10: Fix Build & Test Errors:** Resolve compilation warnings and test failures (AssetExtractor, Deprecations, and `BuildDelegate.kt` syntax errors).
+- [x] **10.11: Harden CI Workflows:** Resolve authentication conflicts and improve workspace trust. Pinned CLI version to 0.40.1.
 
 ## Phase 11: Hybrid Host Architecture Implementation
 - [x] **11.1: Dependencies & Tooling**
