@@ -119,7 +119,7 @@ object TemplateManager {
             if (!it.exists()) it.mkdirs()
         }
 
-        val isText = fromPath.endsWith(".xml") || fromPath.endsWith(".gradle") || fromPath.endsWith(".kt") || fromPath.endsWith(".java") || fromPath.endsWith(".yaml") || fromPath.endsWith(".dart") || fromPath.endsWith(".html") || fromPath.endsWith(".css") || fromPath.endsWith(".js") || fromPath.endsWith(".json") || fromPath.endsWith(".properties")
+        val isText = fromPath.endsWith(".xml") || fromPath.endsWith(".gradle") || fromPath.endsWith(".kt") || fromPath.endsWith(".java") || fromPath.endsWith(".yaml") || fromPath.endsWith(".html") || fromPath.endsWith(".css") || fromPath.endsWith(".js") || fromPath.endsWith(".json") || fromPath.endsWith(".properties")
 
         if (isText) {
              val content = assets.open(fromPath).bufferedReader().use { it.readText() }
