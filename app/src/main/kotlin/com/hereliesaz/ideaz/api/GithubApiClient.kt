@@ -245,6 +245,18 @@ interface GitHubApi {
         @retrofit2.http.Query("per_page") perPage: Int = 1
     ): GitHubWorkflowRunsResponse
 
+    /**
+     * Fetch a single workflow run by id. Preferred over re-listing for status
+     * polling: list endpoints can paginate the run off the first page when
+     * other workflows fire concurrently, causing polling loops to hang.
+     */
+    @retrofit2.http.GET("repos/{owner}/{repo}/actions/runs/{run_id}")
+    suspend fun getRun(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("run_id") runId: Long
+    ): GitHubWorkflowRun
+
     @retrofit2.http.GET("repos/{owner}/{repo}/actions/runs/{run_id}/artifacts")
     suspend fun getRunArtifacts(
         @Path("owner") owner: String,
