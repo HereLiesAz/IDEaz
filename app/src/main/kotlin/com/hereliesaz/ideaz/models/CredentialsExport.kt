@@ -23,7 +23,6 @@ data class CredentialsExport(
     // Preferences
     val showCancelWarning: Boolean = true,
     val autoReportBugs: Boolean = true,
-    val enableLocalBuilds: Boolean = false,
     val themeMode: String? = null,
     val logLevel: String? = null,
 
