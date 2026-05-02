@@ -38,8 +38,8 @@ class RemoteBuildManager(
     private val token: String,
     private val user: String,
     private val repo: String,
-    private val onLog: (String) -> Unit,
     private val workflowNameHint: String? = null,
+    private val onLog: (String) -> Unit,
 ) {
 
     /**
