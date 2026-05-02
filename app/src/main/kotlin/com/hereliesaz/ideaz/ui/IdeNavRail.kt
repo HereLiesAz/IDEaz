@@ -88,6 +88,29 @@ fun IdeNavRail(
 
         if (projectType == ProjectType.WEB.name || projectType == ProjectType.PWA.name) {
             azRailSubItem(
+                id = "reload",
+                hostId = "main",
+                text = "Reload",
+                onClick = {
+                    handleActionClick {
+                        viewModel.triggerWebReload()
+                    }
+                }
+            )
+            azRailSubItem(
+                id = "hard_reload",
+                hostId = "main",
+                text = "Hard Reload",
+                onClick = {
+                    handleActionClick {
+                        viewModel.triggerWebHardReload()
+                    }
+                }
+            )
+        }
+
+        if (projectType == ProjectType.WEB.name || projectType == ProjectType.PWA.name) {
+            azRailSubItem(
                 id = "deploy",
                 hostId = "main",
                 text = "Deploy",
