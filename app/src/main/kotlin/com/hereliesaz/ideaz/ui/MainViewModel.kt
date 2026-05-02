@@ -18,10 +18,8 @@ import com.hereliesaz.ideaz.utils.ErrorCollector
 import com.hereliesaz.ideaz.R
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ProjectFileObserver
-import com.hereliesaz.ideaz.utils.ToolManager
 import com.hereliesaz.ideaz.utils.VersionUtils
 import kotlinx.coroutines.Dispatchers
-import com.hereliesaz.ideaz.BuildConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -295,76 +293,6 @@ class MainViewModel(
     fun bindBuildService(c: Context) = buildDelegate.bindService(c)
     fun unbindBuildService(c: Context) = buildDelegate.unbindService(c)
     fun startBuild(c: Context, p: File? = null) = buildDelegate.startBuild(p)
-    fun clearBuildCaches(c: Context) { /* TODO: Implement cache clearing logic in BuildService */ }
-
-    /**
-     * Downloads and installs the build tools (aapt2, d8, kotlinc) from the latest GitHub release.
-     * This is required for local builds to function.
-     */
-    fun downloadBuildTools() {
-        viewModelScope.launch {
-            val token = settingsViewModel.getGithubToken()
-            if (token.isNullOrBlank()) {
-                logHandler.onBuildLog("Error: GitHub Token required to download tools.")
-                return@launch
-            }
-
-            stateDelegate.setLoadingProgress(0)
-            logHandler.onBuildLog("Checking for build tools...")
-
-            var zipFile: File? = null
-            try {
-                // Fetch releases on IO thread
-                val releases = withContext(Dispatchers.IO) {
-                    val service = GitHubApiClient.createService(token)
-                    service.getReleases(BuildConfig.BUILD_TOOLS_OWNER, BuildConfig.BUILD_TOOLS_REPO)
-                }
-
-                // Look for 'tools.zip' in assets
-                val toolAsset = releases.asSequence()
-                    .flatMap { it.assets }
-                    .firstOrNull { it.name == "tools.zip" }
-
-                if (toolAsset == null) {
-                    logHandler.onBuildLog("Error: 'tools.zip' artifact not found in recent releases.")
-                    stateDelegate.setLoadingProgress(null)
-                    return@launch
-                }
-
-                logHandler.onBuildLog("Downloading build tools from ${toolAsset.name}...")
-                zipFile = File(getApplication<Application>().cacheDir, "tools.zip")
-
-                // Reuse download logic
-                val success = downloadFile(toolAsset.browserDownloadUrl, zipFile) { progress ->
-                    stateDelegate.setLoadingProgress(progress)
-                }
-
-                if (success) {
-                    logHandler.onBuildLog("Installing tools...")
-                    val installed = withContext(Dispatchers.IO) {
-                        ToolManager.installToolsFromZip(getApplication(), zipFile)
-                    }
-                    if (installed) {
-                        logHandler.onBuildLog("Build tools installed successfully.")
-                        settingsViewModel.setLocalBuildEnabled(true)
-                    } else {
-                        logHandler.onBuildLog("Error: Failed to install tools.")
-                        settingsViewModel.setLocalBuildEnabled(false)
-                    }
-                } else {
-                    logHandler.onBuildLog("Error: Download failed.")
-                    settingsViewModel.setLocalBuildEnabled(false)
-                }
-            } catch (e: Exception) {
-                logHandler.onBuildLog("Error downloading tools: ${e.message}")
-                e.printStackTrace()
-                settingsViewModel.setLocalBuildEnabled(false)
-            } finally {
-                zipFile?.delete()
-                stateDelegate.setLoadingProgress(null)
-            }
-        }
-    }
 
     // GIT Operations
     fun refreshGitData() { viewModelScope.launch { gitDelegate.refreshGitData() } }
@@ -915,27 +843,6 @@ class MainViewModel(
     fun confirmUpdate() = updateDelegate.confirmUpdate()
     fun dismissUpdateWarning() = updateDelegate.dismissUpdateWarning()
 
-    // DEPENDENCIES
-
-    private val _dependencies = MutableStateFlow<List<com.hereliesaz.ideaz.utils.DependencyItem>>(emptyList())
-    val dependencies = _dependencies.asStateFlow()
-
-    fun loadDependencies() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val appName = settingsViewModel.getAppName()
-            if (appName != null) {
-                val projectDir = settingsViewModel.getProjectPath(appName)
-                val deps = com.hereliesaz.ideaz.utils.DependencyManager.listDependencies(projectDir)
-                _dependencies.value = deps
-            }
-        }
-    }
-
-    fun addDependencyViaAI(coordinate: String) {
-        val prompt = "Add dependency '$coordinate' to the project. Update gradle/libs.versions.toml and app/build.gradle.kts (or build.gradle.kts) accordingly. Ensure to add version to [versions] and library to [libraries] with an alias, then implement it."
-        aiDelegate.startContextualAITask(prompt)
-    }
-
     // MISC
 
     fun clearLog() = stateDelegate.clearLog()
@@ -1003,10 +910,6 @@ class MainViewModel(
             } catch (e: Exception) {
                 Toast.makeText(c, c.getString(R.string.error_launch_failed, e.message), Toast.LENGTH_SHORT).show()
             }
-    }
-
-    fun downloadDependencies() {
-        buildDelegate.downloadDependencies()
     }
 
     fun checkRequiredKeys(): List<String> {
