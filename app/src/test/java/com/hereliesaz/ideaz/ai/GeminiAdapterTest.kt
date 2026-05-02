@@ -20,12 +20,30 @@ class GeminiAdapterTest {
     }
 
     @Test
-    fun `tool dispatch read then write matches IdeTools contract`() {
-        val tools = IdeTools(tempFolder.root)
-        val writeResult = tools.writeFile("index.html", "<h1>hi</h1>")
+    fun `dispatchTool routes to all four tools correctly`() {
+        tempFolder.newFile("test.txt").writeText("hello")
+        tempFolder.newFolder("subdir")
+
+        val adapter = GeminiAdapter(
+            apiKey = "fake-key",
+            tools = IdeTools(tempFolder.root)
+        )
+
+        // read_file
+        val readResult = adapter.testDispatchTool("read_file", mapOf("path" to "test.txt"))
+        assertEquals("hello", readResult)
+
+        // write_file
+        val writeResult = adapter.testDispatchTool("write_file", mapOf("path" to "out.txt", "content" to "world"))
         assertEquals("OK", writeResult)
-        val readResult = tools.readFile("index.html")
-        assertEquals("<h1>hi</h1>", readResult)
+
+        // list_files
+        val listResult = adapter.testDispatchTool("list_files", mapOf("path" to "."))
+        assertTrue(listResult.contains("test.txt"))
+
+        // unknown tool
+        val unknownResult = adapter.testDispatchTool("bogus_tool", emptyMap<String, Any?>())
+        assertTrue(unknownResult.startsWith("Error:"))
     }
 
     @Test
