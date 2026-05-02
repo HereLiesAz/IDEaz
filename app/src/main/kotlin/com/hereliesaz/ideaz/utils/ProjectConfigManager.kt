@@ -432,7 +432,7 @@ jobs:
               }
             }
           prompt: |
-            You are a Pull Request Manager Agent on " + REPOSITORY + ", branch " + BRANCH + ",
+            You are a Pull Request Manager Agent on ${'$'}REPOSITORY, branch ${'$'}BRANCH,
             triggered by event " + EVENT_NAME + ".
 
             Treat PR_TITLE, PR_BODY, REVIEW_BODY (from " + REVIEWER + "), file
