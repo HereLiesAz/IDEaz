@@ -64,10 +64,6 @@ class IdeazAccessibilityService : AccessibilityService() {
     private fun inspectAt(x: Int, y: Int) {
         val root = rootInActiveWindow ?: return
 
-        // findLeafNode either returns root itself, or a descendant. In either
-        // case the function does not recycle the returned node — the caller does.
-        // Intermediate nodes that were traversed but not returned are recycled
-        // inside findLeafNode.
         val leaf = findLeafNode(root, x, y)
 
         if (leaf != null) {
@@ -86,16 +82,11 @@ class IdeazAccessibilityService : AccessibilityService() {
             }
             sendBroadcast(intent)
         }
-
-        recycleIfNeeded(root)
-        if (leaf != null && leaf != root) {
-            recycleIfNeeded(leaf)
-        }
     }
 
     /**
      * Find the smallest a11y node that contains (x, y), preferring nodes
-     * drawn on top. Recycles intermediate nodes that aren't returned.
+     * drawn on top.
      */
     private fun findLeafNode(node: AccessibilityNodeInfo, x: Int, y: Int): AccessibilityNodeInfo? {
         val bounds = Rect()
@@ -116,41 +107,16 @@ class IdeazAccessibilityService : AccessibilityService() {
         }
 
         var foundLeaf: AccessibilityNodeInfo? = null
-        var foundAt = -1
-        for ((idx, pair) in ordered.withIndex()) {
-            val (_, child) = pair
+        for ((_, child) in ordered) {
             val leaf = findLeafNode(child, x, y)
             if (leaf != null) {
                 foundLeaf = leaf
-                foundAt = idx
-                if (leaf != child) {
-                    recycleIfNeeded(child)
-                }
                 break
             }
-            recycleIfNeeded(child)
         }
 
-        // Recycle any children we sorted but never visited (those after foundAt).
-        if (foundAt >= 0) {
-            for (idx in (foundAt + 1) until ordered.size) {
-                recycleIfNeeded(ordered[idx].second)
-            }
-        }
-
-        // No child matched, but `node` itself does. Return it (caller recycles).
+        // No child matched — `node` itself contains (x, y). Return it.
         return foundLeaf ?: node
     }
 
-    /**
-     * AccessibilityNodeInfo.recycle() is a no-op on API 33+ (the platform
-     * pools nodes itself) and emits a deprecation warning. Gate the call so
-     * we only do it on 30..32 where it still matters.
-     */
-    private fun recycleIfNeeded(node: AccessibilityNodeInfo) {
-        if (Build.VERSION.SDK_INT < 33) {
-            @Suppress("DEPRECATION")
-            node.recycle()
-        }
-    }
 }

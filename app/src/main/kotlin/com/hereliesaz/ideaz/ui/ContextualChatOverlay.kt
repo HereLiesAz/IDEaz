@@ -40,68 +40,116 @@ fun ContextualChatOverlay(
         }
     }
 
+    // When rect is empty (web-context tap), show a full-width bottom panel.
+    // When rect is a real screen-space selection, show the positioned overlay.
+    val isEmpty = rect.isEmpty
+
     Box(modifier = Modifier.fillMaxSize()) {
-
-        // Close Button (Above)
-        val closeButtonY = (rect.top - (50 * density.density).toInt()).coerceAtLeast(0)
-
-        AzButton(
-            onClick = onClose,
-            text = "X",
-            shape = AzButtonShape.CIRCLE,
-            // Custom padding for the close button to keep it circular/compact
-            contentPadding = PaddingValues(0.dp),
-            modifier = Modifier
-                .offset { IntOffset(rect.right - (40 * density.density).toInt(), closeButtonY) }
-        )
-
-        // Chat Display (Inside Rect)
-        Box(
-            modifier = Modifier
-                .offset { IntOffset(rect.left, rect.top) }
-                .width(with(density) { rect.width().toDp() })
-                .height(with(density) { rect.height().toDp() })
-                .background(Color.Black.copy(alpha = 0.8f))
-                .border(2.dp, Color.Green)
-                .padding(4.dp)
-        ) {
-            LazyColumn(
-                state = scrollState,
-                modifier = Modifier.fillMaxSize()
+        if (isEmpty) {
+            // Web context mode: a bottom-anchored panel, 40% screen height
+            androidx.compose.foundation.layout.Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.4f)
+                    .align(androidx.compose.ui.Alignment.BottomCenter)
+                    .background(Color.Black.copy(alpha = 0.9f))
+                    .border(2.dp, Color.Green)
+                    .padding(8.dp)
             ) {
-                items(logs) { log ->
-                    Text(
-                        text = log,
-                        color = Color.White,
-                        modifier = Modifier.padding(vertical = 2.dp)
+                // Close button row
+                androidx.compose.foundation.layout.Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End
+                ) {
+                    AzButton(
+                        onClick = onClose,
+                        text = "X",
+                        shape = AzButtonShape.CIRCLE,
+                        contentPadding = PaddingValues(0.dp)
                     )
                 }
-            }
-        }
 
-        // Input Field (Below)
-        AzTextBox(
-            modifier = Modifier
-                .offset { IntOffset(rect.left, rect.bottom) }
-                .width(with(density) { rect.width().toDp() }),
-            hint = "Ask AI...",
-            onSubmit = { text ->
-                viewModel.submitContextualPrompt(text)
-            },
-            // Use trailing icon for send button
-            trailingIcon = {
-                IconButton(onClick = { /* AzTextBox internal logic handles submit via keyboard actions,
-                                          but we need access to 'value' here if we do it manually.
-                                          Ideally AzTextBox handles the click.
-                                          Since AzTextBox passes the click through via submitButtonContent logic,
-                                          we rely on keyboard action or simple icon. */
-                }) {
-                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.Green)
+                // Chat log (scrollable)
+                LazyColumn(
+                    state = scrollState,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                ) {
+                    items(logs) { log ->
+                        Text(
+                            text = log,
+                            color = Color.White,
+                            modifier = Modifier.padding(vertical = 2.dp)
+                        )
+                    }
                 }
-            },
-            // Map the icon click to submit action internally in AzTextBox via this helper
-            submitButtonContent = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.Green) },
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send)
-        )
+
+                // Input field
+                AzTextBox(
+                    modifier = Modifier.fillMaxWidth(),
+                    hint = "Ask AI...",
+                    onSubmit = { text -> viewModel.submitContextualPrompt(text) },
+                    trailingIcon = {
+                        IconButton(onClick = { }) {
+                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.Green)
+                        }
+                    },
+                    submitButtonContent = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.Green) },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send)
+                )
+            }
+        } else {
+            // Android selection mode: positioned overlay anchored to the selection rect
+            val closeButtonY = (rect.top - (50 * density.density).toInt()).coerceAtLeast(0)
+
+            AzButton(
+                onClick = onClose,
+                text = "X",
+                shape = AzButtonShape.CIRCLE,
+                contentPadding = PaddingValues(0.dp),
+                modifier = Modifier
+                    .offset { IntOffset(rect.right - (40 * density.density).toInt(), closeButtonY) }
+            )
+
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset(rect.left, rect.top) }
+                    .width(with(density) { rect.width().toDp() })
+                    .height(with(density) { rect.height().toDp() })
+                    .background(Color.Black.copy(alpha = 0.8f))
+                    .border(2.dp, Color.Green)
+                    .padding(4.dp)
+            ) {
+                LazyColumn(
+                    state = scrollState,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(logs) { log ->
+                        Text(
+                            text = log,
+                            color = Color.White,
+                            modifier = Modifier.padding(vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+
+            AzTextBox(
+                modifier = Modifier
+                    .offset { IntOffset(rect.left, rect.bottom) }
+                    .width(with(density) { rect.width().toDp() }),
+                hint = "Ask AI...",
+                onSubmit = { text -> viewModel.submitContextualPrompt(text) },
+                trailingIcon = {
+                    IconButton(onClick = { }) {
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.Green)
+                    }
+                },
+                submitButtonContent = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.Green) },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send)
+            )
+        }
     }
 }

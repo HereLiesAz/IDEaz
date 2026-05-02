@@ -87,15 +87,6 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
         aidl = true
     }
 
-    // Configurable fields for Build Tools repository
-    val toolsOwner = project.findProperty("build.tools.owner") as? String ?: "HereLiesAz"
-    val toolsRepo = project.findProperty("build.tools.repo") as? String ?: "IDEaz-buildtools"
-
-    defaultConfig {
-        buildConfigField("String", "BUILD_TOOLS_OWNER", "\"$toolsOwner\"")
-        buildConfigField("String", "BUILD_TOOLS_REPO", "\"$toolsRepo\"")
-    }
-
     packaging {
         jniLibs.useLegacyPackaging = true
         resources {
@@ -103,30 +94,8 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
             excludes.add("META-INF/LICENSE")
             excludes.add("META-INF/NOTICE")
             excludes.add("META-INF/INDEX.LIST")
-            excludes.add("mime.types")
-            excludes.add("META-INF/THIRD-PARTY.txt")
-            excludes.add("META-INF/ASL2.0")
-            excludes.add("META-INF/plexus/components.xml")
-            excludes.add("plugin.properties")
-            pickFirsts.add("META-INF/sisu/javax.inject.Named")
-            pickFirsts.add("**/*.jnilib")
             pickFirsts.add("**/*.kotlin_builtins")
             pickFirsts.add("**/*.kotlin_module")
-            pickFirsts.add("misc/registry.properties")
-            pickFirsts.add("**/libjnidispatch.so")
-        }
-    }
-}
-
-configurations.all {
-    exclude(group = "com.intellij", module = "annotations")
-    resolutionStrategy {
-        eachDependency {
-            if (requested.group == "commons-logging" && requested.name == "commons-logging") {
-                // Use a non-conflicting SLF4J bridge
-                useTarget("org.slf4j:jcl-over-slf4j:1.7.30")
-                because("Avoids duplicate classes with jcl-over-slf4j")
-            }
         }
     }
 }
@@ -142,24 +111,21 @@ androidComponents.onVariants { variant ->
     }
 }
 
+// AGP 9 turns on consistent resolution by default, which forces androidTest classpaths
+// to align with debug runtime. The Google generativeai SDK pulls in
+// concurrent-futures(-ktx) 1.2.0-alpha03 while AndroidX test deps pull in 1.2.0,
+// producing a strict-version conflict during lint's androidTest model generation.
+// Pin both modules to the alpha version that matches runtime to break the deadlock.
+configurations.all {
+    resolutionStrategy {
+        force("androidx.concurrent:concurrent-futures:1.2.0-alpha03")
+        force("androidx.concurrent:concurrent-futures-ktx:1.2.0-alpha03")
+    }
+}
+
 dependencies {
-    // Kotlin Compiler Embeddable for runtime compilation
-    implementation(kotlin("compiler-embeddable"))
-    implementation(libs.jaxb.api)
-    implementation(libs.javax.annotation.api)
-    implementation(libs.validation.api)
-    implementation(libs.glassfish.el)
-    implementation(libs.slf4j.simple)
-    implementation(libs.guava)
-    implementation(libs.nb.javac.android)
-    implementation(libs.r8)
     implementation(libs.sora.editor)
     implementation(libs.sora.language.textmate)
-    implementation(libs.scala.compiler) {
-        exclude(group = "org.jline")
-    }
-    implementation(libs.smali)
-    implementation(libs.baksmali)
     implementation(libs.org.eclipse.jgit)
     implementation(libs.slf4j.api)
     implementation(libs.slf4j.android)
@@ -167,20 +133,7 @@ dependencies {
     implementation(libs.retrofit2.kotlinx.serialization.converter)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging.interceptor)
-    implementation(libs.kxml2)
     implementation(libs.kotlinx.serialization.json)
-
-    // Maven Dependency Resolver (Aether)
-    implementation(libs.maven.resolver.api)
-    implementation(libs.maven.resolver.spi)
-    implementation(libs.maven.resolver.util)
-    implementation(libs.maven.resolver.impl)
-    implementation(libs.maven.resolver.connector.basic)
-    implementation(libs.maven.resolver.transport.http)
-    implementation(libs.maven.core)
-    implementation(libs.aether.transport.file)
-    implementation(libs.maven.resolver.provider)
-    implementation(libs.wagon.http.lightweight)
     implementation(libs.generativeai)
     implementation(libs.google.genai)
     implementation(libs.androidx.localbroadcastmanager)
@@ -201,13 +154,14 @@ dependencies {
     implementation(libs.androidx.documentfile)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.haze)
-    implementation(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     testImplementation(libs.org.json)
     testImplementation(libs.mockwebserver)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.androidx.compose.ui.test.manifest)
+    testImplementation(libs.mockito.kotlin)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
@@ -215,21 +169,8 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
-    // https://mvnrepository.com/artifact/org.apache.maven.resolver/maven-resolver-supplier
-    implementation(libs.resolver.maven.resolver.supplier)
-
     implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.lazysodium.android) {
-        exclude(group = "net.java.dev.jna")
-    }
-    // Force JNA AAR for Android native support
-    implementation("net.java.dev.jna:jna:${libs.versions.jna.get()}@aar")
-    implementation(libs.hiddenapibypass)
-    implementation(libs.zipline.core)
-    implementation(libs.zipline.loader)
 
-    implementation(libs.react.android)
-    implementation(libs.hermes.android)
-    implementation(libs.soloader)
     implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.webkit)
 }

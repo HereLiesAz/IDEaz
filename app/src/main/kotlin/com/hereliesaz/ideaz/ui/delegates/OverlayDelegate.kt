@@ -5,7 +5,6 @@ import android.app.Application
 import android.content.Intent
 import android.graphics.Rect
 import android.net.Uri
-import com.hereliesaz.ideaz.models.SourceMapEntry
 import com.hereliesaz.ideaz.services.ScreenshotService
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.utils.SourceContextHelper
@@ -84,12 +83,6 @@ class OverlayDelegate(
         private set
 
     private var pendingRect: Rect? = null
-
-    /**
-     * Map of view IDs to source file locations.
-     * Must be updated by [MainViewModel] whenever a new build generates a source map.
-     */
-    var sourceMap: Map<String, SourceMapEntry> = emptyMap()
 
     // --- Public Operations ---
 
@@ -178,7 +171,7 @@ class OverlayDelegate(
 
                     // Resolve Context on IO thread
                     val contextResult = withContext(Dispatchers.IO) {
-                        SourceContextHelper.resolveContext(resourceId, projectDir, sourceMap)
+                        SourceContextHelper.resolveContext(resourceId, projectDir)
                     }
 
                     if (!contextResult.isError) {
@@ -204,6 +197,22 @@ class OverlayDelegate(
                 takeScreenshot(rect)
             }
         }
+    }
+
+    /**
+     * Called when the WebView bridge delivers DOM context for a tapped element.
+     * Sets [pendingContextInfo] to the raw JSON and shows the contextual chat.
+     * No screenshot is taken for web inspections (the WebView itself is the canvas).
+     *
+     * @param json  Raw JSON string from [WebViewBridge.onElementTapped].
+     */
+    fun onWebElementContext(json: String) {
+        // Use an empty sentinel rect so MainScreen's activeSelectionRect guard passes.
+        // Web element context has no meaningful on-screen rect (coordinates are CSS-space,
+        // not screen-space), so we use an empty rect at origin as a placeholder.
+        _activeSelectionRect.value = android.graphics.Rect(0, 0, 0, 0)
+        pendingContextInfo = json
+        _isContextualChatVisible.value = true
     }
 
     /**

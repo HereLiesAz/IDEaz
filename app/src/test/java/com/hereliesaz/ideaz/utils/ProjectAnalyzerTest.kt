@@ -60,25 +60,6 @@ class ProjectAnalyzerTest {
     }
 
     @Test
-    fun detectFlutterProject() {
-        val projectDir = tempFolder.newFolder("flutter_project")
-        File(projectDir, "pubspec.yaml").createNewFile()
-
-        val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals(ProjectType.FLUTTER, type)
-    }
-
-    @Test
-    fun detectReactNativeProject() {
-        val projectDir = tempFolder.newFolder("react_native_project")
-        File(projectDir, "package.json").createNewFile()
-        File(projectDir, "app.json").createNewFile()
-
-        val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals(ProjectType.REACT_NATIVE, type)
-    }
-
-    @Test
     fun detectPackageName_fromManifest() {
         val projectDir = tempFolder.newFolder("manifest_project")
         val manifestDir = File(projectDir, "app/src/main").apply { mkdirs() }
@@ -131,6 +112,60 @@ class ProjectAnalyzerTest {
 
         val packageName = ProjectAnalyzer.detectPackageName(projectDir)
         assertEquals("com.example.source", packageName)
+    }
+
+    @Test
+    fun detectPwaProject_withManifestWebmanifest() {
+        val projectDir = tempFolder.newFolder("pwa_manifest")
+        File(projectDir, "index.html").createNewFile()
+        File(projectDir, "manifest.webmanifest").createNewFile()
+
+        val type = ProjectAnalyzer.detectProjectType(projectDir)
+        assertEquals(ProjectType.PWA, type)
+    }
+
+    @Test
+    fun detectPwaProject_withServiceWorker() {
+        val projectDir = tempFolder.newFolder("pwa_sw")
+        File(projectDir, "index.html").createNewFile()
+        File(projectDir, "service-worker.js").createNewFile()
+
+        val type = ProjectAnalyzer.detectProjectType(projectDir)
+        assertEquals(ProjectType.PWA, type)
+    }
+
+    @Test
+    fun detectPwaProject_withSwJs() {
+        val projectDir = tempFolder.newFolder("pwa_sw_js")
+        File(projectDir, "index.html").createNewFile()
+        File(projectDir, "sw.js").createNewFile()
+
+        val type = ProjectAnalyzer.detectProjectType(projectDir)
+        assertEquals(ProjectType.PWA, type)
+    }
+
+    @Test
+    fun detectPwaProject_withManifestJsonContainingDisplay() {
+        val projectDir = tempFolder.newFolder("pwa_manifest_json")
+        File(projectDir, "index.html").createNewFile()
+        File(projectDir, "manifest.json").writeText("""{"display": "standalone"}""")
+
+        val type = ProjectAnalyzer.detectProjectType(projectDir)
+        assertEquals(ProjectType.PWA, type)
+    }
+
+    @Test
+    fun detectWebProject_indexHtmlOnly_remainsWEB() {
+        val projectDir = tempFolder.newFolder("web_only")
+        File(projectDir, "index.html").createNewFile()
+
+        val type = ProjectAnalyzer.detectProjectType(projectDir)
+        assertEquals(ProjectType.WEB, type)
+    }
+
+    @Test
+    fun projectTypePwaFromString() {
+        assertEquals(ProjectType.PWA, ProjectType.fromString("PWA"))
     }
 
     @Test

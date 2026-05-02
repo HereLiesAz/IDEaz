@@ -21,43 +21,53 @@ Before committing ANY changes, you **MUST** strictly adhere to the following wor
 
 ---
 
+## Authoritative Design
+
+All non-trivial work should align with the active revival design and phase plans:
+
+* **Design doc:** `docs/plans/2026-05-01-ideaz-revival-design.md`
+* **Phase 0 plan (Triage):** `docs/plans/2026-05-01-phase-0-triage.md`
+* **Phase 0 follow-ups:** `docs/plans/phase-0-followups.md`
+
+If a doc and the design doc disagree, the design doc wins.
+
 ## Critical Known Issues / Discrepancies
-*   **Zipline:** Zipline-based Hot Reload logic is currently **DISABLED** in `MainViewModel.kt` due to API deprecation issues, despite the build pipeline supporting code generation.
-*   **Jules CLI:** The `JulesCliClient` is **DEPRECATED** and unused. All AI interactions use the `JulesApiClient` (HTTP).
-*   **Tabs Order:** Documentation previously listed Project Screen tabs in incorrect order. The correct order is Setup, Load, Clone.
+
+*   **`RepoDelegate.uploadProjectSecrets` is a no-op stub.** Lazysodium was removed in Phase 0; the sealed-box encryption needed to push GitHub Actions secrets has no replacement yet. Phase 2 must restore this before Actions-based workflows can consume device-side credentials. See `docs/plans/phase-0-followups.md`.
+*   **WebView `file://` URI exposure.** Phase 0 / Task 10 left `WebSettings.allowFileAccessFromFileURLs` and `allowUniversalAccessFromFileURLs` set with `@Suppress("DEPRECATION")`. They are real cross-origin file-read / universal-XSS hazards. Phase 1's `WebViewAssetLoader` migration (to `https://appassets.androidplatform.net`) must delete both flags. See `docs/plans/phase-0-followups.md`.
 
 ## Documentation Index
 
-The `docs/` folder contains the comprehensive documentation for this project. These files are an extension of this `AGENTS.md` and are **equally important**. You must read and understand them.
+The `docs/` folder contains the documentation for this project. These files are an extension of this `AGENTS.md` and are **equally important**.
 
+*   **`docs/plans/2026-05-01-ideaz-revival-design.md`**: The design doc — current source of truth.
+*   **`docs/plans/2026-05-01-phase-0-triage.md`**: The active Phase 0 implementation plan.
+*   **`docs/plans/phase-0-followups.md`**: Recorded Phase 1 / Phase 2 debts.
 *   **`docs/file_descriptions.md`**: A map of the codebase.
 *   **`docs/AGENT_GUIDE.md`**: Detailed guide for AI agents.
-*   **`docs/TODO.md`**: The master checklist.
+*   **`docs/TODO.md`**: Pointer to the design + active phase plan.
 *   **`docs/UI_UX.md`**: Visual design and interaction patterns.
 *   **`docs/architecture.md`**: High-level system architecture.
 *   **`docs/auth.md`**: Authentication mechanisms.
 *   **`docs/blueprint.md`**: Core vision and roadmap.
-*   **`docs/build_pipeline.md`**: Details on the build process.
+*   **`docs/build_pipeline.md`**: Remote-build pipeline (GitHub Actions).
 *   **`docs/conduct.md`**: Code of conduct for agents.
 *   **`docs/data_layer.md`**: Data storage, API, and state management.
 *   **`docs/error_handling.md`**: Strategy for handling and reporting errors.
 *   **`docs/fauxpas.md`**: Common mistakes and anti-patterns.
-*   **`docs/jules-integration.md`**: Details on Jules API integration.
+*   **`docs/jules-integration.md`**: Jules API integration (Phase 2).
 *   **`docs/manifest.md`**: AndroidManifest explanation.
 *   **`docs/misc.md`**: Miscellaneous info (templates, logs).
 *   **`docs/performance.md`**: Performance guidelines.
-*   **`docs/platform_decision_helper.md`**: Guide for platform support decisions.
-*   **`docs/react_native_implementation_plan.md`**: (Partial/Stalled) plan for RN support.
+*   **`docs/platform_decision_helper.md`**: PWA vs Android-native decision.
 *   **`docs/screens.md`**: Overview of application screens.
 *   **`docs/task_flow.md`**: Operational workflows.
-*   **`docs/testing.md`**: Testing strategies and requirements.
-*   **`docs/workflow.md`**: CI/CD and Build processes.
-*   **`docs/contradictions_report.md`**: A report on documentation vs codebase contradictions.
+*   **`docs/testing.md`**: Testing strategy.
+*   **`docs/workflow.md`**: CI/CD and build processes.
 
 ## Recent Changes (Summary)
-*   **Documentation:** Updated `docs/` to match codebase reality (Clarified Host Architecture, Removed non-existent modules).
-*   **Architecture:** Confirmed Hybrid Host (VirtualDisplay[Experimental]/WebView) as primary interaction model.
-*   **Refactor:** `MainViewModel` split into 6 Delegates. `ProjectScreen` split into sub-tabs.
-*   **Stability:** Fixed JNA Crash and Service ANR.
-*   **UI:** Updated `AzNavRail` to 5.3 (Dynamic Overlay).
-*   **Fix:** `IdeBottomSheet` is now always available in `MainScreen`.
+
+*   **Phase 0 triage in progress.** Removing dead code paths (React Native, Flutter, Python, Zipline / Redwood, on-device toolchain, `VirtualDisplay`-based `AndroidProjectHost`, Jules CLI, Gemini CLI, "Race to Build") to regain a green build before Phase 1.
+*   **Architecture pivot.** Primary host is `WebProjectHost` (PWA target loop, Phase 1). Android target loop returns in Phase 2 on top of `IdeazOverlayService` + `IdeazAccessibilityService` (no more `VirtualDisplay`).
+*   **AI providers pivot.** Phase 1 default is **Gemini** (BYO-key, conversational, tool-use). Jules moves to Phase 2 (Android target only). The Jules CLI is gone; `JulesApiClient` (HTTP) is the only Jules path.
+*   **Build pipeline pivot.** Remote-only via GitHub Actions. The on-device toolchain and Maven Aether resolver are gone.

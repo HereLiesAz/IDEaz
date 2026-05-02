@@ -28,14 +28,13 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Switch
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -61,7 +60,6 @@ import com.hereliesaz.aznavrail.AzButton
 import com.hereliesaz.aznavrail.AzTextBox
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import androidx.compose.foundation.background
-import com.hereliesaz.ideaz.utils.ToolManager
 import com.hereliesaz.ideaz.utils.isAccessibilityServiceEnabled
 import com.hereliesaz.ideaz.utils.checkAndRequestStoragePermission
 import java.io.File
@@ -110,13 +108,6 @@ fun SettingsScreen(
     var reportIdeErrors by remember(settingsVersion) {
         mutableStateOf(settingsViewModel.isReportIdeErrorsEnabled())
     }
-
-    // Local Build State
-    var isLocalBuildEnabled by remember(settingsVersion) {
-        mutableStateOf(settingsViewModel.isLocalBuildEnabled())
-    }
-    var showDownloadToolsDialog by remember { mutableStateOf(false) }
-    var showDeleteToolsDialog by remember { mutableStateOf(false) }
 
     // --- NEW: Signing State ---
     var keystorePath by remember(settingsVersion) { mutableStateOf(settingsViewModel.getKeystorePath() ?: "Default (debug.keystore)") }
@@ -243,56 +234,6 @@ fun SettingsScreen(
         )
     }
 
-    if (showDownloadToolsDialog) {
-        AlertDialog(
-            onDismissRequest = {
-                showDownloadToolsDialog = false
-                // Revert toggle if cancelled
-                isLocalBuildEnabled = false
-            },
-            title = { Text("Download Build Tools?") },
-            text = { Text("Local compilation requires additional tools (~100MB). Download them now?") },
-            confirmButton = {
-                AzButton(onClick = {
-                    showDownloadToolsDialog = false
-                    viewModel.downloadBuildTools()
-                    settingsViewModel.setLocalBuildEnabled(true)
-                    isLocalBuildEnabled = true
-                }, text = "Download")
-            },
-            dismissButton = {
-                AzButton(onClick = {
-                    showDownloadToolsDialog = false
-                    isLocalBuildEnabled = false
-                }, text = "Cancel", shape = AzButtonShape.NONE)
-            }
-        )
-    }
-
-    if (showDeleteToolsDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteToolsDialog = false },
-            title = { Text("Delete Build Tools?") },
-            text = { Text("You disabled local builds. Do you want to delete the build tools to free up space?") },
-            confirmButton = {
-                AzButton(onClick = {
-                    ToolManager.deleteTools(context)
-                    showDeleteToolsDialog = false
-                    settingsViewModel.setLocalBuildEnabled(false)
-                    isLocalBuildEnabled = false
-                    Toast.makeText(context, "Tools deleted.", Toast.LENGTH_SHORT).show()
-                }, text = "Delete")
-            },
-            dismissButton = {
-                AzButton(onClick = {
-                    showDeleteToolsDialog = false
-                    settingsViewModel.setLocalBuildEnabled(false)
-                    isLocalBuildEnabled = false
-                }, text = "Keep", shape = AzButtonShape.NONE)
-            }
-        )
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -318,56 +259,6 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier.padding(bottom = 16.dp).semantics { heading() }
                 )
-
-                // --- BUILD CONFIGURATION ---
-                Text("Build Configuration", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
-                Spacer(modifier = Modifier.height(16.dp))
-
-                val onLocalBuildToggle = { enabled: Boolean ->
-                    if (enabled) {
-                        // Check if tools exist
-                        if (!ToolManager.areToolsInstalled(context)) {
-                            showDownloadToolsDialog = true
-                            // Toggle waits for confirmation
-                        } else {
-                            isLocalBuildEnabled = true
-                            settingsViewModel.setLocalBuildEnabled(true)
-                        }
-                    } else {
-                        // Disable
-                        showDeleteToolsDialog = true
-                        // Toggle waits for confirmation/dismiss of dialog
-                    }
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .toggleable(
-                            value = isLocalBuildEnabled,
-                            onValueChange = onLocalBuildToggle,
-                            role = Role.Switch
-                        )
-                        .padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Enable Local Builds (Experimental)",
-                        modifier = Modifier.weight(1f),
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Switch(
-                        checked = isLocalBuildEnabled,
-                        onCheckedChange = null // Handled by Row
-                    )
-                }
-                Text(
-                    text = "Requires downloading extension (~100MB). If disabled, the app relies solely on GitHub Actions for builds.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
 
                 // --- Saved Settings and Credentials ---
                 Text("Saved Settings and Credentials", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
@@ -853,18 +744,6 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
-                Text("Debug", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
-                Spacer(modifier = Modifier.height(16.dp))
-                AzButton(
-                    onClick = {
-                        viewModel.clearBuildCaches(context)
-                        Toast.makeText(context, "Build caches cleared", Toast.LENGTH_SHORT).show()
-                    },
-                    text = "Clear Build Caches",
-                    shape = AzButtonShape.RECTANGLE,
-                    modifier = Modifier.fillMaxWidth()
-                )
             }
         }
     }
@@ -926,7 +805,7 @@ fun AiAssignmentDropdown(
             colors = ExposedDropdownMenuDefaults.textFieldColors(),
             modifier = Modifier
                 .fillMaxWidth()
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
         )
 
         ExposedDropdownMenu(
@@ -973,7 +852,7 @@ fun LogLevelDropdown(
             colors = ExposedDropdownMenuDefaults.textFieldColors(),
             modifier = Modifier
                 .fillMaxWidth()
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
         )
 
         ExposedDropdownMenu(
@@ -1023,7 +902,7 @@ fun ThemeDropdown(
             colors = ExposedDropdownMenuDefaults.textFieldColors(),
             modifier = Modifier
                 .fillMaxWidth()
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
         )
 
         ExposedDropdownMenu(

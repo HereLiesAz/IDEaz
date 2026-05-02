@@ -8,21 +8,20 @@ object ProjectAnalyzer {
     fun detectProjectType(projectDir: File): ProjectType {
         if (!projectDir.exists()) return ProjectType.OTHER
 
-        // Check for Web
-        if (File(projectDir, "index.html").exists()) return ProjectType.WEB
-
-        // Check for Python (must be checked before Android as it shares structure)
-        if (File(projectDir, "app/src/main/assets/python/main.py").exists()) {
-            return ProjectType.PYTHON
-        }
-
-        // Check for Flutter
-        // Confirmed: pubspec.yaml triggers Flutter project detection
-        if (File(projectDir, "pubspec.yaml").exists()) return ProjectType.FLUTTER
-
-        // Check for React Native
-        if (File(projectDir, "package.json").exists() && File(projectDir, "app.json").exists()) {
-            return ProjectType.REACT_NATIVE
+        // PWA: must have index.html PLUS at least one PWA marker
+        val hasIndex = File(projectDir, "index.html").exists()
+        if (hasIndex) {
+            val isPwa = File(projectDir, "manifest.webmanifest").exists() ||
+                File(projectDir, "service-worker.js").exists() ||
+                File(projectDir, "sw.js").exists() ||
+                run {
+                    val manifestJson = File(projectDir, "manifest.json")
+                    // Read at most 32 lines to avoid loading large/malformed files.
+                    manifestJson.exists() && manifestJson.bufferedReader().use { reader ->
+                        reader.lineSequence().take(32).any { it.contains("\"display\"") }
+                    }
+                }
+            return if (isPwa) ProjectType.PWA else ProjectType.WEB
         }
 
         // Check for Android

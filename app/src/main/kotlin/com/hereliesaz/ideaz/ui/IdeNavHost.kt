@@ -81,12 +81,6 @@ fun IdeNavHost(
                 settingsViewModel = settingsViewModel
             )
         }
-        composable("libraries") {
-            LibrariesScreen(
-                viewModel = viewModel,
-                settingsViewModel = settingsViewModel
-            )
-        }
         composable("file_content/{filePath}") { backStackEntry ->
             val filePath = backStackEntry.arguments?.getString("filePath")
             if (filePath != null) {

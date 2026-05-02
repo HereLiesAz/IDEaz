@@ -6,35 +6,33 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
-import com.hereliesaz.ideaz.IBuildCallback
 import com.hereliesaz.ideaz.IBuildService
 import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.buildlogic.RemoteBuildManager
-import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.services.BuildService
 import com.hereliesaz.ideaz.ui.SettingsViewModel
-import com.hereliesaz.ideaz.utils.SourceMapParser
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.consumeAsFlow
+import kotlinx.coroutines.launch
 import java.io.File
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Delegate responsible for managing the connection to the [BuildService] and orchestrating build operations.
+ * Delegate that drives builds. Local on-device builds have been removed; this
+ * dispatches to the remote (GitHub Actions) pipeline via [RemoteBuildManager],
+ * polls for the artifact, and installs it.
  *
- * **Architecture:**
- * - **Service Binding:** Maintains an AIDL connection to the remote `:build_process` service.
- * - **Race to Build:** Implements a strategy where local builds and remote (GitHub Actions) builds run simultaneously, taking the result of whichever finishes first.
- * - **Log Batching:** Buffers logs from the AIDL callback (Binder thread) before sending them to the UI, preventing main thread congestion.
+ * It also retains a binding to [BuildService] so that the foreground notification
+ * (Sync & Exit, AI prompt RemoteInput) keeps working while a build is in flight.
  *
  * @param application The Application context.
- * @param settingsViewModel Access to build settings (local vs remote enabled) and tokens.
+ * @param settingsViewModel Access to credentials and project settings.
  * @param scope CoroutineScope for build orchestration.
  * @param onLog Callback for general build logs (batched).
  * @param onOverlayLog Callback for high-priority user-visible logs (toasts/overlay).
- * @param onSourceMapUpdated Callback invoked when a new Source Map is generated (for UI inspection).
  * @param onBuildFailure Callback invoked on build error.
  * @param onWebBuildSuccess Callback for Web project success (URL/Path).
  * @param onAndroidBuildSuccess Callback for Android project success (Triggers app launch).
@@ -46,14 +44,14 @@ class BuildDelegate(
     private val scope: CoroutineScope,
     private val onLog: (String) -> Unit,
     private val onOverlayLog: (String) -> Unit,
-    private val onSourceMapUpdated: (Map<String, com.hereliesaz.ideaz.models.SourceMapEntry>) -> Unit,
     private val onBuildFailure: (String) -> Unit,
     private val onWebBuildSuccess: (String) -> Unit,
     private val onAndroidBuildSuccess: () -> Unit,
     private val gitDelegate: GitDelegate
 ) {
 
-    // AIDL Interface to the remote service
+    // AIDL Interface to the remote service (used only to keep the foreground
+    // notification alive; build logic itself runs in this process).
     private var buildService: IBuildService? = null
     private var isBuildServiceBound = false
     private var isServiceRegistered = false
@@ -62,7 +60,7 @@ class BuildDelegate(
     private var buildJob: Job? = null
 
     // --- Log Batching ---
-    // Unbounded channel to receive logs from Binder threads without blocking.
+    // Unbounded channel to receive logs without blocking.
     private val logChannel = Channel<String>(Channel.UNLIMITED)
 
     init {
@@ -71,7 +69,7 @@ class BuildDelegate(
         scope.launch(Dispatchers.Default) {
             val batch = StringBuilder()
             var lastUpdate = 0L
-            
+
             logChannel.consumeAsFlow().collect { msg ->
                 batch.append(msg).append("\n")
                 val now = System.currentTimeMillis()
@@ -102,31 +100,15 @@ class BuildDelegate(
     }
 
     /**
-     * AIDL Callback implementation passed to the BuildService.
-     * Note: Methods here are called on a Binder Thread, not the Main Thread.
+     * Forwards a log line to the consumer loop.
      */
-    private val buildCallback = object : IBuildCallback.Stub() {
-        override fun onLog(message: String) {
-            // Push to channel for batch processing.
-            logChannel.trySend(message)
-        }
-
-        override fun onSuccess(apkPath: String) {
-            handleSuccess(apkPath)
-        }
-
-        override fun onFailure(log: String) {
-            scope.launch {
-                onLog("\n[IDE] Build Failed.\n")
-                onOverlayLog("Build failed. Check global log.")
-                onBuildFailure(log)
-            }
-        }
+    private fun pushLog(message: String) {
+        logChannel.trySend(message)
     }
 
     /**
-     * Handles a successful build (Local or Remote).
-     * @param apkPath The absolute path to the generated/downloaded APK (or artifact).
+     * Handles a successful build (remote).
+     * @param apkPath The absolute path to the downloaded APK (or web artifact).
      */
     private fun handleSuccess(apkPath: String) {
         scope.launch {
@@ -134,30 +116,27 @@ class BuildDelegate(
 
             val type = ProjectType.fromString(settingsViewModel.getProjectType())
 
-            if (type == ProjectType.WEB) {
-                // Web Projects don't produce an APK, but an artifact path (index.html or dist dir)
+            if (type == ProjectType.WEB || type == ProjectType.PWA) {
                 onLog("[IDE] Web Project ready. Loading WebView...\n")
                 onWebBuildSuccess(apkPath)
 
                 // Push to GitHub for deployment (Pages)
                 if (!settingsViewModel.getGithubToken().isNullOrBlank()) {
-                        onLog("[IDE] Triggering remote Web Build (Pushing to GitHub)...\n")
-                        gitDelegate.push()
+                    onLog("[IDE] Triggering remote Web Build (Pushing to GitHub)...\n")
+                    gitDelegate.push()
                 }
             } else {
-                // Android/Flutter Projects
                 onOverlayLog("Build successful. Updating...")
-
-                // Parse Source Map (R8 mapping.txt) for UI Inspection context
-                val buildDir = File(apkPath).parentFile
-                if (buildDir != null) {
-                    val parser = SourceMapParser(buildDir)
-                    onSourceMapUpdated(parser.parse())
-                }
-
-                // Notify MainViewModel to launch the app
                 onAndroidBuildSuccess()
             }
+        }
+    }
+
+    private fun handleFailure(log: String) {
+        scope.launch {
+            onLog("\n[IDE] Build Failed.\n")
+            onOverlayLog("Build failed. Check global log.")
+            onBuildFailure(log)
         }
     }
 
@@ -166,7 +145,6 @@ class BuildDelegate(
     fun bindService(context: Context) {
         if (isServiceRegistered) return
         val intent = Intent(context, BuildService::class.java)
-        // BIND_AUTO_CREATE ensures the service is created if not running.
         context.applicationContext.bindService(intent, buildServiceConnection, Context.BIND_AUTO_CREATE)
         isServiceRegistered = true
     }
@@ -185,7 +163,7 @@ class BuildDelegate(
     // --- Build Logic ---
 
     /**
-     * Starts the build process. Determines whether to run Local, Remote, or Race based on settings.
+     * Starts the build process. Always runs the remote (GitHub Actions) flow.
      */
     fun startBuild(projectDir: File? = null) {
         // Cancel any currently running build job to prevent conflicts.
@@ -195,196 +173,71 @@ class BuildDelegate(
             val typeStr = settingsViewModel.getProjectType()
             val type = ProjectType.fromString(typeStr)
 
-            // Special Case: Flutter builds currently only supported via Remote Build
-            if (type == ProjectType.FLUTTER) {
-                onLog("[IDE] Flutter Project detected. Triggering Remote Build (Pushing to GitHub)...\n")
-                gitDelegate.push()
-                return@launch
-            }
-
-            val localEnabled = settingsViewModel.isLocalBuildEnabled()
             val token = settingsViewModel.getGithubToken()
             val user = settingsViewModel.getGithubUser()
 
             val dir = projectDir ?: settingsViewModel.getProjectPath(settingsViewModel.getAppName() ?: "")
 
-            // "Race" is possible if both Local is enabled and Remote credentials are present.
-            val canRace = localEnabled && type == ProjectType.ANDROID && !token.isNullOrBlank() && !user.isNullOrBlank()
-
-            // 1. Remote Only
-            if (!localEnabled && type != ProjectType.WEB) {
-                if (token.isNullOrBlank() || user.isNullOrBlank()) {
-                     onLog("Error: Remote Build requires GitHub Token and User.\n")
-                     return@launch
+            // Web projects don't have a remote build artifact — push and let the
+            // Pages workflow deploy. The success callback simply points the
+            // WebView at the local index.html.
+            if (type == ProjectType.WEB || type == ProjectType.PWA) {
+                pushLog("[IDE] Web Project: triggering deploy via push.\n")
+                if (!token.isNullOrBlank() && !user.isNullOrBlank()) {
+                    gitDelegate.commit("Web Build Trigger: ${System.currentTimeMillis()}")
+                    gitDelegate.push()
                 }
-                startRemoteOnlyBuild(dir, user!!, token!!)
+                val indexHtml = File(dir, "index.html")
+                if (indexHtml.exists()) {
+                    handleSuccess(indexHtml.absolutePath)
+                } else {
+                    handleFailure("Web project has no index.html at ${dir.absolutePath}")
+                }
                 return@launch
             }
 
-            // 2. Wait for Service Binding (Local/Race requires it)
-            var attempts = 0
-            while (!isBuildServiceBound && attempts < 10) {
-                kotlinx.coroutines.delay(500)
-                attempts++
-            }
-
-            if (!isBuildServiceBound) {
-                onLog("Error: Build Service not bound.\n")
+            // Android: remote build only.
+            if (token.isNullOrBlank() || user.isNullOrBlank()) {
+                pushLog("Error: Remote Build requires GitHub Token and User.\n")
+                handleFailure("Remote Build requires GitHub Token and User.")
                 return@launch
             }
-
-            // 3. Race or Local
-            if (canRace) {
-                startRaceBuild(dir, user!!, token!!)
-            } else {
-                // Standard Local Build
-                buildService?.startBuild(dir.absolutePath, buildCallback)
-            }
+            startRemoteBuild(dir, user, token)
         }
     }
 
     /**
-     * Executes a Remote-Only build.
-     * Commits changes, pushes to GitHub, and polls for the result.
+     * Commit + push to trigger the GitHub Actions workflow, then poll for the APK.
      */
-    private suspend fun startRemoteOnlyBuild(dir: File, user: String, token: String) {
-         onLog("[IDE] Preparing Remote Build...\n")
+    private suspend fun startRemoteBuild(dir: File, user: String, token: String) {
+        onLog("[IDE] Preparing Remote Build...\n")
 
-         injectResizeableActivity(dir)
+        if (!gitDelegate.commit("Remote Build Trigger: ${System.currentTimeMillis()}")) {
+            onLog("Error: Commit failed. Aborting remote build.\n")
+            handleFailure("Commit failed. Aborting remote build.")
+            return
+        }
 
-         // Commit & Push synchronously
-         if (!gitDelegate.commit("Remote Build Trigger: ${System.currentTimeMillis()}")) {
-             onLog("Error: Commit failed. Aborting remote build.\n")
-             return
-         }
+        onLog("[IDE] Pushing to remote...\n")
+        gitDelegate.push()
 
-         onLog("[IDE] Pushing to remote...\n")
-         gitDelegate.push()
+        val headSha = gitDelegate.getHeadSha()
+        if (headSha == null) {
+            onLog("Error: Could not determine HEAD SHA.\n")
+            handleFailure("Could not determine HEAD SHA.")
+            return
+        }
 
-         val headSha = gitDelegate.getHeadSha()
-         if (headSha == null) {
-             onLog("Error: Could not determine HEAD SHA.\n")
-             return
-         }
-
-         val api = GitHubApiClient.createService(token)
-         val manager = RemoteBuildManager(
+        val api = GitHubApiClient.createService(token)
+        val manager = RemoteBuildManager(
             application, api, token, user, dir.name,
-            onLog = onLog
+            onLog = { msg -> pushLog(msg) }
         )
-         val apkPath = manager.pollAndDownload(headSha)
-         if (apkPath != null) {
-             handleSuccess(apkPath)
-         } else {
-             buildCallback.onFailure("Remote Build Failed.")
-         }
-    }
-
-    /**
-     * Executes the "Race to Build" strategy.
-     * Starts both Local Build and Remote Build (Push + Poll).
-     * The first one to finish wins and cancels the other.
-     */
-    private suspend fun startRaceBuild(dir: File, user: String, token: String) {
-         onLog("[IDE] Starting 'Race to Build' (Local vs Remote)...\n")
-
-         injectResizeableActivity(dir)
-
-         // Commit synchronously to ensure HEAD represents the current state for both local and remote.
-         if (!gitDelegate.commit("Race Build Trigger: ${System.currentTimeMillis()}")) {
-             onLog("Error: Commit failed. Aborting race build.\n")
-             return
-         }
-
-         val headSha = gitDelegate.getHeadSha()
-         if (headSha == null) {
-             onLog("Warning: Could not determine HEAD SHA. Fallback to Local Only.\n")
-             buildService?.startBuild(dir.absolutePath, buildCallback)
-             return
-         }
-
-         // Trigger Push (Async) so we don't block Local Build start.
-         scope.launch {
-             onLog("[Race] Pushing changes to remote...\n")
-             gitDelegate.push()
-         }
-
-         val raceController = RaceController()
-
-         // A. Start Remote Poller Job
-         val remoteJob = scope.launch {
-             val api = GitHubApiClient.createService(token)
-             val manager = RemoteBuildManager(
-                 context = application,
-                 api = api,
-                 token = token,
-                 user = user,
-                 repo = dir.name,
-                 onLog = { msg -> onLog("[Remote] $msg") }
-             )
-             val apk = manager.pollAndDownload(headSha)
-             if (apk != null) {
-                 if (raceController.tryWin()) {
-                      onLog("[Race] Remote Build Won! Cancelling Local Build...\n")
-                      buildService?.cancelBuild()
-                      handleSuccess(apk)
-                 }
-             }
-         }
-
-         // B. Start Local Build
-         val raceCallback = object : IBuildCallback.Stub() {
-             override fun onLog(msg: String) = buildCallback.onLog(msg)
-             override fun onSuccess(apk: String) {
-                 if (raceController.tryWin()) {
-                     onLog("[Race] Local Build Won! Cancelling Remote Polling...\n")
-                     remoteJob.cancel()
-                     handleSuccess(apk)
-                 }
-             }
-             override fun onFailure(msg: String) {
-                 onLog("[Race] Local Build Failed. Waiting for Remote...\n")
-             }
-         }
-
-         buildService?.startBuild(dir.absolutePath, raceCallback)
-    }
-
-    /**
-     * Injects `android:resizeableActivity="true"` into the AndroidManifest.
-     * This is required for the app to run correctly inside the Virtual Display host,
-     * which may have arbitrary dimensions.
-     */
-    private fun injectResizeableActivity(projectDir: File) {
-        val manifestFile = File(projectDir, "app/src/main/AndroidManifest.xml")
-        if (manifestFile.exists()) {
-            var content = manifestFile.readText()
-            if (!content.contains("android:resizeableActivity")) {
-                content = content.replaceFirst("<application", "<application android:resizeableActivity=\"true\"")
-                manifestFile.writeText(content)
-            }
-        }
-    }
-
-    /**
-     * Helper class to ensure thread-safe "first-to-finish" logic for Race Build.
-     */
-    private class RaceController {
-        private val winnerDeclared = AtomicBoolean(false)
-        fun tryWin(): Boolean = winnerDeclared.compareAndSet(false, true)
-    }
-
-    /**
-     * Triggers dependency download via the BuildService.
-     */
-    fun downloadDependencies(projectDir: File? = null) {
-        scope.launch {
-            if (isBuildServiceBound) {
-                val dir = projectDir ?: settingsViewModel.getProjectPath(settingsViewModel.getAppName() ?: "")
-                buildService?.downloadDependencies(dir.absolutePath, buildCallback)
-            } else {
-                onLog("Error: Build Service not bound.\n")
-            }
+        val apkPath = manager.pollAndDownload(headSha)
+        if (apkPath != null) {
+            handleSuccess(apkPath)
+        } else {
+            handleFailure("Remote Build Failed.")
         }
     }
 
@@ -393,14 +246,16 @@ class BuildDelegate(
      */
     fun cancelBuild() {
         scope.launch {
+            buildJob?.cancel()
+            buildJob = null
             if (isBuildServiceBound) {
                 try {
                     buildService?.cancelBuild()
-                    onLog("Cancellation requested.\n")
                 } catch (e: Exception) {
-                    onLog("Error cancelling build: ${e.message}\n")
+                    // Ignore — service may have died.
                 }
             }
+            onLog("Cancellation requested.\n")
         }
     }
 }

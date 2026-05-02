@@ -3,9 +3,7 @@ package com.hereliesaz.ideaz.models
 enum class ProjectType(val displayName: String) {
     ANDROID("Android"),
     WEB("Web"),
-    FLUTTER("Flutter"), // Supported via Remote Build
-    REACT_NATIVE("React Native"),
-    PYTHON("Python"),
+    PWA("PWA"),
     OTHER("Other"),
     UNKNOWN("Unknown");
 
