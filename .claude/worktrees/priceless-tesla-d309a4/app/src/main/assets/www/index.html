@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            background-color: #121212;
+            color: #00ff00;
+            font-family: monospace;
+            padding: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div id="root">
+        </div>
+
+    <script id="app-script" src="app.js"></script>
+
+    <script>
+        function hotReload(timestamp) {
+            console.log("Hot reloading sequence initiated: " + timestamp);
+
+            // 1. Nuke the old script
+            const oldScript = document.getElementById('app-script');
+            if (oldScript) oldScript.remove();
+
+            // 2. Clean the DOM (optional, depends on if your app handles cleanup)
+            const root = document.getElementById('root');
+            root.innerHTML = "";
+
+            // 3. Inject the new script
+            const newScript = document.createElement('script');
+            newScript.id = 'app-script';
+            newScript.src = 'app.js?t=' + timestamp;
+
+            newScript.onload = () => console.log("New binary loaded.");
+            newScript.onerror = () => console.error("Compilation exists, but the file does not.");
+
+            document.body.appendChild(newScript);
+        }
+    </script>
+</body>
+</html>

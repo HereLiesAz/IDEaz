@@ -1,0 +1,21 @@
+{
+  "scopeName": "source.css",
+  "patterns": [
+    {
+      "match": "\\b(color|background|margin|padding|width|height|border|display|flex)\\b",
+      "name": "support.type.property-name.css"
+    },
+    {
+      "match": "(:)\\s*([^;\\}]+)(;|(?=\\}))",
+      "captures": {
+        "1": { "name": "punctuation.separator.key-value.css" },
+        "2": { "name": "support.constant.property-value.css" },
+        "3": { "name": "punctuation.terminator.rule.css" }
+      }
+    },
+    {
+      "match": "\\.|#",
+      "name": "entity.other.attribute-name.css"
+    }
+  ]
+}
