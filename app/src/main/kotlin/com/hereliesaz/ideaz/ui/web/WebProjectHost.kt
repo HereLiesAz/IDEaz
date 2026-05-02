@@ -60,6 +60,8 @@ fun WebProjectHost(
     url: String,
     reloadTrigger: Long = 0L,
     hardReloadTrigger: Long = 0L,
+    selectMode: Boolean = false,
+    onElementContext: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -97,6 +99,7 @@ fun WebProjectHost(
             }
 
             addJavascriptInterface(IdeazJsInterface(context), "Ideaz")
+            addJavascriptInterface(WebViewBridge(onElementContext), "IdeazBridge")
 
             webChromeClient = object : WebChromeClient() {
                 override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
@@ -119,6 +122,16 @@ fun WebProjectHost(
                     view: WebView,
                     request: WebResourceRequest
                 ): WebResourceResponse? = assetLoader.shouldInterceptRequest(request.url)
+
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    // Inject ideaz-bridge.js from assets on every page load.
+                    // The script is idempotent (guarded by window.__ideazBridgeLoaded).
+                    val bridgeJs = context.assets.open("ideaz-bridge.js")
+                        .bufferedReader()
+                        .use { it.readText() }
+                    view?.evaluateJavascript(bridgeJs, null)
+                }
 
                 override fun onReceivedError(
                     view: WebView?,
@@ -158,6 +171,13 @@ fun WebProjectHost(
         }
     }
 
+    // Mirror Android select-mode state into the web page cursor.
+    LaunchedEffect(selectMode) {
+        if (!isWebViewDestroyed.value) {
+            webView.evaluateJavascript("window.ideaz?.selectMode($selectMode);", null)
+        }
+    }
+
     // INSPECT_WEB broadcast: Phase 1B tap-to-select plumbing (already present).
     val receiver = remember {
         object : BroadcastReceiver() {
@@ -172,17 +192,12 @@ fun WebProjectHost(
                     val js = """
                         (function() {
                             var el = document.elementFromPoint($webX, $webY);
-                            var source = null;
-                            while (el) {
-                                var label = el.getAttribute('aria-label');
-                                if (label && label.startsWith('__source:')) {
-                                    source = label;
-                                    break;
-                                }
-                                el = el.parentElement;
-                            }
-                            if (source) {
-                                Ideaz.onInspectResult(source);
+                            if (!el) return;
+                            while (el && el.nodeType !== 1) { el = el.parentElement; }
+                            if (!el) return;
+                            var ctx = window.ideaz && window.ideaz.getElementContext(el);
+                            if (ctx) {
+                                IdeazBridge.onElementTapped(JSON.stringify(ctx));
                             }
                         })();
                     """.trimIndent()
