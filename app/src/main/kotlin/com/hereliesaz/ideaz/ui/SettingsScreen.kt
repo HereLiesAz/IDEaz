@@ -28,6 +28,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -925,7 +926,7 @@ fun AiAssignmentDropdown(
             colors = ExposedDropdownMenuDefaults.textFieldColors(),
             modifier = Modifier
                 .fillMaxWidth()
-                .run { @Suppress("DEPRECATION") menuAnchor() }
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
         )
 
         ExposedDropdownMenu(
@@ -972,7 +973,7 @@ fun LogLevelDropdown(
             colors = ExposedDropdownMenuDefaults.textFieldColors(),
             modifier = Modifier
                 .fillMaxWidth()
-                .run { @Suppress("DEPRECATION") menuAnchor() }
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
         )
 
         ExposedDropdownMenu(
@@ -1022,7 +1023,7 @@ fun ThemeDropdown(
             colors = ExposedDropdownMenuDefaults.textFieldColors(),
             modifier = Modifier
                 .fillMaxWidth()
-                .run { @Suppress("DEPRECATION") menuAnchor() }
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
         )
 
         ExposedDropdownMenu(
