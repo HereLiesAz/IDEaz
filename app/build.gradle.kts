@@ -111,6 +111,18 @@ androidComponents.onVariants { variant ->
     }
 }
 
+// AGP 9 turns on consistent resolution by default, which forces androidTest classpaths
+// to align with debug runtime. The Google generativeai SDK pulls in
+// concurrent-futures(-ktx) 1.2.0-alpha03 while AndroidX test deps pull in 1.2.0,
+// producing a strict-version conflict during lint's androidTest model generation.
+// Pin both modules to the alpha version that matches runtime to break the deadlock.
+configurations.all {
+    resolutionStrategy {
+        force("androidx.concurrent:concurrent-futures:1.2.0-alpha03")
+        force("androidx.concurrent:concurrent-futures-ktx:1.2.0-alpha03")
+    }
+}
+
 dependencies {
     implementation(libs.sora.editor)
     implementation(libs.sora.language.textmate)
