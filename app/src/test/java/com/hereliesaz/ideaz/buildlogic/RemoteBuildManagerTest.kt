@@ -55,6 +55,11 @@ class RemoteBuildManagerTest {
             return GitHubWorkflowRunsResponse(runs.size, runs)
         }
 
+        override suspend fun getRun(owner: String, repo: String, runId: Long): GitHubWorkflowRun {
+            return runs.firstOrNull { it.id == runId }
+                ?: throw NoSuchElementException("Run $runId not in fake")
+        }
+
         override suspend fun getRunArtifacts(owner: String, repo: String, runId: Long): GitHubArtifactsResponse {
             return GitHubArtifactsResponse(artifacts.size, artifacts)
         }
@@ -86,6 +91,56 @@ class RemoteBuildManagerTest {
         assertNotNull("Result path should not be null", resultPath)
         assertTrue("Path should end with apk", resultPath!!.endsWith(".apk"))
         assertTrue("File should exist", File(resultPath).exists())
+    }
+
+    /**
+     * Regression test for the credential-leak fix in [RemoteBuildManager.downloadFileWithAuth].
+     * The first request (to GitHub) MUST carry the Authorization bearer token.
+     * The second request (to the redirected presigned URL) MUST NOT.
+     */
+    @Test
+    fun testPollAndDownload_dropsAuthOnRedirect() = runBlocking {
+        // First response: 302 to a second mockwebserver path.
+        // Second response: the actual zip body.
+        val zipContent = createZipWithApk("app-debug.apk")
+        val redirectTarget = mockWebServer.url("/presigned").toString()
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(302)
+                .setHeader("Location", redirectTarget)
+        )
+        mockWebServer.enqueue(MockResponse().setBody(okio.Buffer().write(zipContent)))
+
+        val downloadUrl = mockWebServer.url("/artifact.zip").toString()
+        val runs = listOf(
+            GitHubWorkflowRun(2, "Build", "sha456", "completed", "success", "url")
+        )
+        val artifacts = listOf(
+            GitHubArtifact(101, "app-debug.apk", downloadUrl, "now", 2048, false)
+        )
+
+        val fakeApi = FakeGitHubApi(runs, artifacts)
+        val manager = RemoteBuildManager(context, fakeApi, "secret-token", "user", "repo") { println(it) }
+
+        val resultPath = manager.pollAndDownload("sha456")
+        assertNotNull("Result path should not be null", resultPath)
+
+        // Inspect what the server actually saw.
+        val firstReq = mockWebServer.takeRequest()
+        val secondReq = mockWebServer.takeRequest()
+
+        assertEquals("First request hits the artifact URL", "/artifact.zip", firstReq.path)
+        assertEquals(
+            "First request includes the GitHub bearer token",
+            "Bearer secret-token",
+            firstReq.getHeader("Authorization")
+        )
+
+        assertEquals("Second request hits the presigned URL", "/presigned", secondReq.path)
+        assertNull(
+            "Second request MUST NOT include the bearer token (credential leak)",
+            secondReq.getHeader("Authorization")
+        )
     }
 
     private fun createZipWithApk(entryName: String): ByteArray {
