@@ -187,6 +187,7 @@ class StateDelegate(
     /**
      * Signal to reload the WebView.
      * Observers should check for value changes (using timestamp).
+     * The initial value 0L is a sentinel; consumers must skip it.
      */
     val webReloadTrigger = _webReloadTrigger.asStateFlow()
 
@@ -194,6 +195,7 @@ class StateDelegate(
     /**
      * Signal to force a hard reload of the WebView (clears cache first).
      * Observers should react when the value changes.
+     * The initial value 0L is a sentinel; consumers must skip it.
      */
     val webHardReloadTrigger = _webHardReloadTrigger.asStateFlow()
 

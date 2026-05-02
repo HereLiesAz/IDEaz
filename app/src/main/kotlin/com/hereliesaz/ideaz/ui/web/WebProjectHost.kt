@@ -78,6 +78,8 @@ fun WebProjectHost(
             .build()
     }
 
+    val isWebViewDestroyed = remember { mutableStateOf(false) }
+
     val webView = remember {
         WebView(context).apply {
             settings.apply {
@@ -124,7 +126,11 @@ fun WebProjectHost(
                     error: WebResourceError?
                 ) {
                     val msg = "[WEB] Error loading ${request?.url}: ${error?.description}"
-                    Toast.makeText(context, "Error: ${error?.description}", Toast.LENGTH_SHORT).show()
+                    // Only show the user-visible Toast for main-frame failures; sub-resource
+                    // errors (images, fonts, scripts) are logged but not surfaced as toasts.
+                    if (request?.isForMainFrame == true) {
+                        Toast.makeText(context, "Error: ${error?.description}", Toast.LENGTH_SHORT).show()
+                    }
                     val intent = Intent(ACTION_AI_LOG).apply {
                         putExtra(EXTRA_MESSAGE, msg)
                         setPackage(context.packageName)
@@ -138,7 +144,7 @@ fun WebProjectHost(
     // Soft reload: triggered by file-system changes (ProjectFileObserver).
     // Skip the initial composition (reloadTrigger == 0L).
     LaunchedEffect(reloadTrigger) {
-        if (reloadTrigger > 0L) {
+        if (reloadTrigger > 0L && !isWebViewDestroyed.value) {
             webView.reload()
         }
     }
@@ -146,7 +152,7 @@ fun WebProjectHost(
     // Hard reload: clears disk + memory cache, then reloads.
     // Skip the initial composition (hardReloadTrigger == 0L).
     LaunchedEffect(hardReloadTrigger) {
-        if (hardReloadTrigger > 0L) {
+        if (hardReloadTrigger > 0L && !isWebViewDestroyed.value) {
             webView.clearCache(true)
             webView.reload()
         }
@@ -215,6 +221,7 @@ fun WebProjectHost(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+            isWebViewDestroyed.value = true
             webView.destroy()
         }
     }
