@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.hereliesaz.ideaz.ui
 
 import android.app.Application
@@ -16,7 +14,6 @@ import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.services.CrashReportingService
 import com.hereliesaz.ideaz.ui.delegates.*
 import com.hereliesaz.ideaz.ui.editor.EditorViewModel
-import com.hereliesaz.ideaz.services.JsCompilerService
 import com.hereliesaz.ideaz.utils.ErrorCollector
 import com.hereliesaz.ideaz.R
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
@@ -24,12 +21,6 @@ import com.hereliesaz.ideaz.utils.ProjectFileObserver
 import com.hereliesaz.ideaz.utils.ToolManager
 import com.hereliesaz.ideaz.utils.VersionUtils
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.asCoroutineDispatcher
-import java.util.concurrent.Executors
-import app.cash.zipline.loader.ZiplineLoader
-import app.cash.zipline.loader.ManifestVerifier
-import app.cash.zipline.loader.asZiplineHttpClient
-import com.hereliesaz.ideaz.MainApplication
 import com.hereliesaz.ideaz.BuildConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Job
@@ -76,35 +67,12 @@ class MainViewModel(
 
     /**
      * Lazy instantiation of [EditorViewModel] to avoid overhead if the editor is not used.
-     * Passed [JsCompilerService] to support on-the-fly JS compilation for Web projects.
      */
     val editorViewModel: EditorViewModel by lazy {
-        EditorViewModel(JsCompilerService(application))
+        EditorViewModel()
     }
 
     // --- Core Infrastructure ---
-
-    /**
-     * Dedicated single-threaded dispatcher for Zipline operations.
-     * Zipline (QuickJS) requires all access to occur on a single thread to ensure thread confinement.
-     */
-    private val ziplineDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
-
-    /**
-     * Loader for the Zipline dynamic code engine.
-     *
-     * **Security Note:**
-     * Currently using [ManifestVerifier.NO_SIGNATURE_CHECKS] for development velocity.
-     * TODO(Phase 11.5): Implement Ed25519 signature verification for production releases.
-     */
-    val ziplineLoader: ZiplineLoader by lazy {
-        val app = application as MainApplication
-        ZiplineLoader(
-            dispatcher = ziplineDispatcher,
-            manifestVerifier = ManifestVerifier.NO_SIGNATURE_CHECKS,
-            httpClient = app.okHttpClient.asZiplineHttpClient(),
-        )
-    }
 
     /**
      * Shared State Delegate. Holds all StateFlows used by the UI.
@@ -157,9 +125,7 @@ class MainViewModel(
         settingsViewModel,
         viewModelScope,
         logHandler::onAiLog,
-        { diff -> applyUnidiffPatchInternal(diff) },
-        jsCompilerService = JsCompilerService(application),
-        onWebReload = { stateDelegate.triggerWebReload() }
+        { diff -> applyUnidiffPatchInternal(diff) }
     )
 
     val overlayDelegate = OverlayDelegate(application, settingsViewModel, viewModelScope, logHandler::onAiLog)
@@ -217,49 +183,7 @@ class MainViewModel(
         aiDelegate,
         overlayDelegate,
         stateDelegate
-    ) { manifestPath ->
-        reloadZipline(manifestPath)
-    }
-
-    // --- Zipline (Dynamic Code) Management ---
-
-    private var currentZipline: app.cash.zipline.Zipline? = null
-
-    /**
-     * Reloads the Zipline engine from a local manifest.
-     * Currently disabled due to deprecation of `loadOnce` API in the Zipline library.
-     */
-    private fun reloadZipline(manifestPath: String) {
-        viewModelScope.launch(ziplineDispatcher) {
-            try {
-                logHandler.onBuildLog("[Zipline] Reloading from $manifestPath...")
-                currentZipline?.close()
-                currentZipline = null
-
-                // Load from file URL
-                val manifestUrl = File(manifestPath).toURI().toString()
-
-                // FIXME: Zipline API loadOnce/load is deprecated (ERROR level) and cannot be used.
-                // Disabling temporarily to unblock build.
-                // val result = ziplineLoader.loadOnce("guest", manifestUrl) { ... }
-                val result: app.cash.zipline.loader.LoadResult = app.cash.zipline.loader.LoadResult.Failure(Exception("Zipline disabled due to deprecation"))
-
-                if (result is app.cash.zipline.loader.LoadResult.Success) {
-                    currentZipline = result.zipline
-                    logHandler.onBuildLog("[Zipline] Reload complete.")
-                } else if (result is app.cash.zipline.loader.LoadResult.Failure) {
-                    throw result.exception
-                }
-
-            } catch (e: Exception) {
-                val msg = "[Zipline] Reload failed: ${e.message}"
-                logHandler.onBuildLog(msg)
-                e.printStackTrace()
-                // Auto-report Guest runtime crash to Jules for analysis
-                aiDelegate.startContextualAITask("Guest Code Runtime Error. Please fix:\n$msg\n${e.stackTraceToString()}")
-            }
-        }
-    }
+    )
 
     // --- Public State Exposure (Delegated) ---
 
@@ -332,7 +256,6 @@ class MainViewModel(
         fileObserver?.stopWatching()
         buildDelegate.unbindService(getApplication())
         systemEventDelegate.cleanup()
-        ziplineDispatcher.close()
     }
 
     /**

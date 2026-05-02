@@ -113,7 +113,6 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
             pickFirsts.add("**/*.kotlin_builtins")
             pickFirsts.add("**/*.kotlin_module")
             pickFirsts.add("misc/registry.properties")
-            pickFirsts.add("**/libjnidispatch.so")
         }
     }
 }
@@ -219,14 +218,6 @@ dependencies {
     implementation(libs.resolver.maven.resolver.supplier)
 
     implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.lazysodium.android) {
-        exclude(group = "net.java.dev.jna")
-    }
-    // Force JNA AAR for Android native support
-    implementation("net.java.dev.jna:jna:${libs.versions.jna.get()}@aar")
-    implementation(libs.hiddenapibypass)
-    implementation(libs.zipline.core)
-    implementation(libs.zipline.loader)
 
     implementation(libs.androidx.appcompat)
 }
