@@ -3,6 +3,7 @@ package com.hereliesaz.ideaz.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -47,7 +48,7 @@ fun AiChatTab(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            items(messages, key = { it.role + it.content.hashCode() }) { msg ->
+            itemsIndexed(messages, key = { index, _ -> index }) { _, msg ->
                 ChatBubble(msg)
                 Spacer(modifier = Modifier.height(6.dp))
             }
@@ -91,7 +92,10 @@ private fun ChatBubble(msg: ChatMessage) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
-        Column(modifier = Modifier.fillMaxWidth(0.85f)) {
+        Column(
+            modifier = Modifier.fillMaxWidth(0.85f),
+            horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
+        ) {
             Text(
                 text = if (isUser) "You" else "Gemini",
                 style = MaterialTheme.typography.labelSmall,
