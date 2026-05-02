@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Backup rules for devices older than API 31.
+   Controls what is backed up via Auto Backup.
+   See https://developer.android.com/guide/topics/data/autobackup
+-->
+<full-backup-content>
+    <!-- Include all shared preferences -->
+    <include domain="sharedpref" path="."/>
+
+    <!-- Include all files by default -->
+    <include domain="file" path="."/>
+
+    <!-- Exclude temporary build caches -->
+    <exclude domain="file" path="cache"/>
+
+    <!-- Exclude build artifacts -->
+    <exclude domain="file" path="web_dist"/>
+</full-backup-content>

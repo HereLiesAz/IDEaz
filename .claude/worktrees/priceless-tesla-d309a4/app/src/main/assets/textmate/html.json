@@ -1,0 +1,21 @@
+{
+  "scopeName": "text.html.basic",
+  "patterns": [
+    {
+      "match": "(<)(\\w+)([^>]*)((?:/)?>)",
+      "captures": {
+        "1": { "name": "punctuation.definition.tag.begin.html" },
+        "2": { "name": "entity.name.tag.html" },
+        "3": { "name": "text.html.basic" },
+        "4": { "name": "punctuation.definition.tag.end.html" }
+      }
+    },
+    {
+      "match": "</(\\w+)>",
+      "captures": {
+        "0": { "name": "punctuation.definition.tag.html" },
+        "1": { "name": "entity.name.tag.html" }
+      }
+    }
+  ]
+}
