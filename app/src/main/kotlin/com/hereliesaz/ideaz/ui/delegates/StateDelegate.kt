@@ -199,6 +199,14 @@ class StateDelegate(
      */
     val webHardReloadTrigger = _webHardReloadTrigger.asStateFlow()
 
+    private val _chatMessages = MutableStateFlow<List<com.hereliesaz.ideaz.ai.ChatMessage>>(emptyList())
+    /** Ordered list of turns in the AI Chat tab conversation. */
+    val chatMessages = _chatMessages.asStateFlow()
+
+    private val _isChatLoading = MutableStateFlow(false)
+    /** True while the AI is processing a chat request. Shows a spinner in AiChatTab. */
+    val isChatLoading = _isChatLoading.asStateFlow()
+
     // --- Public Mutators ---
 
     /**
@@ -253,6 +261,21 @@ class StateDelegate(
     /** Clears the WebView cache and triggers a full reload. */
     fun triggerWebHardReload() { _webHardReloadTrigger.value = System.currentTimeMillis() }
 
+    /** Append one turn to the chat conversation history. */
+    fun appendChatMessage(msg: com.hereliesaz.ideaz.ai.ChatMessage) {
+        _chatMessages.update { it + msg }
+    }
+
+    /** Clear all chat history (call when switching projects to avoid context leakage). */
+    fun clearChatHistory() {
+        _chatMessages.value = emptyList()
+    }
+
+    /** Set the chat loading indicator. True = spinner shown; false = input re-enabled. */
+    fun setChatLoading(loading: Boolean) {
+        _isChatLoading.value = loading
+    }
+
     /** Clears all log StateFlows. */
     fun clearLog() {
         _buildLog.value = emptyList()
@@ -260,6 +283,7 @@ class StateDelegate(
         _aiLog.value = emptyList()
         _pureBuildLog.value = emptyList()
         _systemLog.value = emptyList()
+        clearChatHistory()
     }
 
     // --- Internal Helpers ---
