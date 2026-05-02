@@ -2,75 +2,59 @@
 
 This document outlines the operational workflows within IDEaz.
 
-## 1. The "Race to Build" Strategy
-IDEaz minimizes user wait time by racing a local build against a remote CI build.
+## 1. Build Strategy — Remote-Only
 
-### Decision Logic
-1.  **Check Installed:** Is the app installed? Does its SHA match the Repo HEAD?
-    *   *Yes:* Run Installed App.
-2.  **Check Remote:** Is there a GitHub Release for the current HEAD SHA?
-    *   *Yes:* Download and Install.
-3.  **Race:** If neither:
-    *   **Start Remote:** Trigger GitHub Action (by push).
-    *   **Start Local:** Start on-device build (low priority thread).
-    *   **Winner:** First to finish triggers installation. The loser is cancelled (or ignored).
-4.  **Synchronization:** If Local wins, it pushes the changes to Remote to ensure CI catches up.
+The "Race to Build" was retired in Phase 0. There is one build path now: **GitHub Actions**.
+
+* **PWA targets:** no build step. IDEaz renders the working tree directly.
+* **Android targets:** push tag → Actions builds → IDEaz polls Releases → downloads APK → sideloads via `PackageInstaller`.
+
+The on-device toolchain (`aapt2`, `d8`, `kotlinc`, Maven Aether) was removed in Phase 0.
 
 ## 2. Project Lifecycle: Loading vs. Initialization
 
 ### 2.1 Loading (Preparation)
-*   **Trigger:** User selects a project from the "Load" tab.
-*   **Actions:**
-    1.  Clone/Pull repository.
-    2.  Fetch branches and history.
-    3.  Detect Project Type.
-    4.  Navigate to **Setup Tab**.
-*   **Note:** This does *not* start a build.
+*   **Trigger:** User selects a project in the **Load** tab.
+*   **Actions:** Clone / pull via JGit; detect project type via `ProjectAnalyzer`; navigate to Setup tab.
+*   **Note:** Loading does *not* start a build.
 
 ### 2.2 Initialization (Activation)
-*   **Trigger:** User clicks "Save & Initialize" in Setup Tab.
+*   **Trigger:** User clicks **Save & Initialize** on the Setup tab.
 *   **Actions:**
-    1.  **Inject Workflows:** The IDE *must* force-push the following files to `.github/workflows/`:
-        *   `android_ci_jules.yml` (CI/CD logic)
-        *   `release.yml` (Release logic)
-        *   `codeql.yml` (Security scanning, optional)
-    2.  **Inject Environment:** Force-push `setup_env.sh` and `AGENTS_SETUP.md` to root.
-    3.  **Start Build:** Initiate the "Race to Build".
+    1.  **Inject Workflows.** Force-push to `.github/workflows/`:
+        *   `android_ci.yml` — debug build on push.
+        *   `release.yml` — tagged release build, attaches signed APK to the GitHub Release.
+        *   `codeql.yml` — security scanning (optional).
+    2.  **Inject Environment.** Force-push `setup_env.sh` and `AGENTS_SETUP.md` to repo root.
+    3.  **Start Build (Android only):** Tag and push; `RemoteBuildManager` polls.
 
 ## 3. AI Coding Loop
-1.  **Prompt:** User enters text in `IdeBottomSheet` or Contextual Overlay.
-2.  **Context:** `AIDelegate` gathers:
-    *   Current File / Selection.
-    *   Build Logs (if error).
-    *   Project Structure.
-3.  **Request:** `JulesApiClient.createSession` sends the prompt.
-4.  **Polling:** `AIDelegate` polls `listActivities`.
-5.  **Patch:** If a `ChangeSet` artifact is received:
-    *   `GitManager` applies the patch.
-    *   `BuildService` triggers a verification build.
-6.  **Feedback:**
-    *   Success: Commit and Push.
-    *   Failure: Send build log back to Jules.
+
+| Phase | Provider | Adapter | Style |
+|---|---|---|---|
+| 1 (default) | Gemini | `GeminiAdapter` (`ConversationalAiClient`) | Chat with tool-use (`read_file`, `write_file`, `list_files`, `apply_patch`); writes directly to working tree; user commits manually |
+| 2 | Jules | `JulesAdapter` (`AgenticAiClient`) | PR-based; auto-merge (configurable); rebuild on merge |
+| 3+ | Claude / OpenAI | new adapters | Same `ConversationalAiClient` interface |
 
 ## 4. The Error Handling Loop
-The IDE distinguishes between "User Errors" (code that won't compile) and "IDE Errors" (the toolchain crashed).
 
-### Scenario A: User Code Error
-*   **Detection:** `BuildService` returns failure, but `isIdeError()` (heuristic) returns false.
-*   **Action:**
-    1.  Capture Build Log.
-    2.  Send to **User's AI Session** (Jules).
-    3.  AI fixes code, commits, pushes.
-    4.  IDE pulls and retries build.
+### 4.1 User-Code Error
+*   **Detection:** Build fails on Actions; failure not classified as IDE-internal.
+*   **Action:** Build log routed back into the active AI session (Gemini chat in Phase 1; Jules session in Phase 2). Cycle repeats.
 
-### Scenario B: IDE Infrastructure Error
-*   **Detection:** `BuildService` throws Exception or `isIdeError()` returns true (e.g., "Tool not found").
-*   **Action:**
-    1.  Capture Stack Trace + Context.
-    2.  Report to **IDEaz Repository** (`HereLiesAz/IDEaz`) as a GitHub Issue.
-    3.  **Label:** Must use label `jules` to trigger the debugging workflow.
-    4.  **Constraint:** Do *not* ask the user's AI to fix this.
+### 4.2 IDE Infrastructure Error
+*   **Detection:** Stack trace from `com.hereliesaz.ideaz.*`, or `BuildService` exception.
+*   **Action:** `GithubIssueReporter` posts to `HereLiesAz/IDEaz` with label `jules`. Never sent to the user's AI.
 
-## 5. Updates & Self-Healing
-*   **Self-Update:** The IDE checks its own repository (`HereLiesAz/IDEaz`) for updates.
-*   **Working with Agents:** Polling for AI responses should **never time out**. Always show the "Live Output" card when waiting for AI or Build.
+## 5. CI/CD for IDEaz Itself
+
+The IDEaz project's own CI (`.github/workflows/`) builds the app on every push:
+*   **Lint:** against the regenerated `app/lint-baseline.xml`.
+*   **Unit tests:** `./gradlew :app:testDebugUnitTest`.
+*   **Assemble debug:** `./gradlew :app:assembleDebug`.
+
+Release artifacts ship via tagged builds.
+
+## 6. Updates & Self-Healing
+*   **Self-update:** IDEaz checks `HereLiesAz/IDEaz` for updates.
+*   **Live output:** Always show the bottom-card output indicator while a remote build / AI session is in flight.

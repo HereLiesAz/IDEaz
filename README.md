@@ -12,11 +12,13 @@ IDEaz adopts a "Post-Code" philosophy. The primary workflow is visual: Interact 
 *   **Auxiliary Tools (Escape Hatches):** While the goal is to never touch code, we acknowledge reality. A full **File Explorer** and **Code Editor** are included for debugging, verification, or manual intervention when the AI gets stuck. These are tools, not the workspace.
 
 **Architecture:**
-IDEaz uses a **Hybrid Host** architecture.
-*   **Host Mode (Primary):** The target app (Android or Web) runs *inside* the IDE window (using VirtualDisplay or WebView). The "Overlay" is a Composable layer drawn on top of this host.
-*   **System Overlay (Legacy/Fallback):** The traditional System Alert Window overlay (`IdeazOverlayService`) is available for specific use cases or external app inspection but is secondary to the integrated Host experience.
+IDEaz targets two project shapes:
+*   **PWA (Phase 1, daily driver):** the project renders in `WebProjectHost` (a WebView). Edits are conversational with **Gemini** (BYO-key, tool-use); reload is sub-second.
+*   **Android app (Phase 2, heavy artillery):** the project is sideloaded onto the device. IDEaz observes via a System Alert Window overlay (`IdeazOverlayService`) and routes element-tap context to **Jules**, which opens PRs that auto-build via GitHub Actions.
 
 **Key Features:**
-*   **Repository-Based:** Every project is a Git repository.
-*   **Local & Remote Builds:** "Race to Build" strategy uses local toolchain (`aapt2`, `d8`) and remote GitHub Actions simultaneously.
-*   **AI Integrated:** Built-in AI agents (Jules/Gemini) drive development.
+*   **Repository-Based:** Every project is a GitHub repository. Git is the source of truth.
+*   **Remote Builds:** Android builds happen on GitHub Actions. There is no on-device toolchain. PWAs need no build step at all.
+*   **AI Integrated:** Phase 1 — Gemini (conversational). Phase 2 — Jules (agentic). Phase 3+ — pluggable adapters for Claude, OpenAI, etc.
+
+See [`docs/plans/2026-05-01-ideaz-revival-design.md`](docs/plans/2026-05-01-ideaz-revival-design.md) for the active design.
