@@ -51,6 +51,9 @@ class GeminiAdapter(
                     .name(name)
                     .response(mapOf("output" to output))
                     .build()
+                // Role for function-response content in the google-genai SDK.
+                // The older generativeai SDK uses "function"; if the tool-use loop does not
+                // advance after providing results, try "tool" here instead.
                 contents.add(
                     Content.builder()
                         .role("function")
@@ -131,8 +134,14 @@ class GeminiAdapter(
     }
 }
 
-private fun ChatMessage.toContent(): Content =
-    Content.builder()
-        .role(role)
+private fun ChatMessage.toContent(): Content {
+    val sdkRole = when (role) {
+        "user"  -> "user"
+        "model" -> "model"
+        else    -> error("Unsupported ChatMessage role '$role'. Expected \"user\" or \"model\".")
+    }
+    return Content.builder()
+        .role(sdkRole)
         .parts(listOf(Part.builder().text(content).build()))
         .build()
+}
