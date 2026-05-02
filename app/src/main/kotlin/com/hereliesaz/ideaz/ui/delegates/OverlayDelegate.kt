@@ -200,6 +200,18 @@ class OverlayDelegate(
     }
 
     /**
+     * Called when the WebView bridge delivers DOM context for a tapped element.
+     * Sets [pendingContextInfo] to the raw JSON and shows the contextual chat.
+     * No screenshot is taken for web inspections (the WebView itself is the canvas).
+     *
+     * @param json  Raw JSON string from [WebViewBridge.onElementTapped].
+     */
+    fun onWebElementContext(json: String) {
+        pendingContextInfo = json
+        _isContextualChatVisible.value = true
+    }
+
+    /**
      * Captures a screenshot of the specified area.
      * Uses [ScreenshotService] (foreground service) because MediaProjection requires a foreground service context on newer Android versions.
      */

@@ -436,6 +436,20 @@ class MainViewModel(
         }
     }
 
+    /**
+     * Receives DOM context JSON from the web bridge when the user taps an element
+     * in Select Mode while a PWA/Web project is shown.
+     *
+     * Logs the raw JSON to the AI console and routes it to [OverlayDelegate] so
+     * [isContextualChatVisible] becomes true.
+     *
+     * @param json  Raw JSON from [WebViewBridge.onElementTapped].
+     */
+    fun handleWebElementContext(json: String) {
+        stateDelegate.appendAiLog("[WEB-ELEMENT] $json")
+        overlayDelegate.onWebElementContext(json)
+    }
+
     fun clearSelection() = overlayDelegate.clearSelection()
     fun closeContextualChat() = overlayDelegate.clearSelection()
     fun requestScreenCapturePermission() = overlayDelegate.requestScreenCapturePermission()
