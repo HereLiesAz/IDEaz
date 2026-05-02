@@ -1,18 +1,13 @@
 package com.hereliesaz.ideaz.ui.editor
 
 import androidx.lifecycle.ViewModel
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class EditorViewModel : ViewModel() {
 
     private val _code = MutableStateFlow("")
     val code = _code.asStateFlow()
-
-    private val _hotReloadEvent = MutableSharedFlow<Long>()
-    val hotReloadEvent = _hotReloadEvent.asSharedFlow()
 
     fun onCodeChange(newCode: String) {
         _code.value = newCode
