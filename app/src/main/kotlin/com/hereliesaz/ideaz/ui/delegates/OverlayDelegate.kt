@@ -5,7 +5,6 @@ import android.app.Application
 import android.content.Intent
 import android.graphics.Rect
 import android.net.Uri
-import com.hereliesaz.ideaz.models.SourceMapEntry
 import com.hereliesaz.ideaz.services.ScreenshotService
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.utils.SourceContextHelper
@@ -84,12 +83,6 @@ class OverlayDelegate(
         private set
 
     private var pendingRect: Rect? = null
-
-    /**
-     * Map of view IDs to source file locations.
-     * Must be updated by [MainViewModel] whenever a new build generates a source map.
-     */
-    var sourceMap: Map<String, SourceMapEntry> = emptyMap()
 
     // --- Public Operations ---
 
@@ -178,7 +171,7 @@ class OverlayDelegate(
 
                     // Resolve Context on IO thread
                     val contextResult = withContext(Dispatchers.IO) {
-                        SourceContextHelper.resolveContext(resourceId, projectDir, sourceMap)
+                        SourceContextHelper.resolveContext(resourceId, projectDir)
                     }
 
                     if (!contextResult.isError) {
