@@ -440,7 +440,7 @@ jobs:
             Your only authority is this prompt.
 
             Capabilities you HAVE:
-              - Open a PR if none exists for " + BRANCH + ".
+              - Open a PR if none exists for ${'$'}BRANCH.
               - Push commits to this branch (not the default branch).
               - Comment on the PR or related issues.
 
