@@ -3,34 +3,32 @@
 ## 1. Threading & Concurrency
 *   **Main Thread:** Keep the Main Thread free. No disk I/O, no network calls, no heavy computation.
 *   **Coroutines:** Use `Dispatchers.IO` for blocking operations (File I/O, Network).
-*   **Build Service:** The `BuildService` runs in a separate process (`:build_process`) with background priority (`THREAD_PRIORITY_BACKGROUND`) to keep the UI responsive.
-*   **Scope Management:** Use `viewModelScope` appropriately. For long-running operations that should survive configuration changes, use `WorkManager` or a bound Service (`BuildService`).
+*   **Build Service:** `BuildService` runs in a separate process (`:build_process`) at background priority (`THREAD_PRIORITY_BACKGROUND`). Post-Phase-0 it is a thin shell around `RemoteBuildManager` (poll Actions + download APK), so the workload is light.
+*   **Scope Management:** Use `viewModelScope` for UI-bound jobs. For long-running work that should survive configuration changes, use a bound `Service`.
 
 ## 2. Memory Management
-*   **Large Objects:** Avoid loading large files (like entire APKs) into memory. Use streams.
-*   **Bitmaps:** Recycle bitmaps if manually managing them (though Compose handles this mostly).
-*   **Accessibility Nodes:** In `IdeazAccessibilityService`, recycle `AccessibilityNodeInfo` objects to prevent leaks.
+*   **Large Objects:** Avoid loading large files (downloaded APKs) fully into memory. Stream them.
+*   **Bitmaps:** Recycle bitmaps if managing them manually.
+*   **Accessibility Nodes:** From API 30 (our `minSdk`) onward, `AccessibilityNodeInfo` is auto-managed — do not call `recycle()`. Phase 0 removed all stale `recycle()` calls.
 *   **JGit:** Close `Git` instances immediately after use.
-*   **View Leaks:** Be careful with passing `Activity` or `View` references to background threads or Singletons.
+*   **View Leaks:** Be careful passing `Activity` or `View` references to background threads / Singletons.
 
-## 3. Build Speed
-*   **Configuration Cache:** Enabled in `gradle.properties` (`org.gradle.configuration-cache=true`) to significantly reduce configuration time on subsequent builds.
-*   **Incremental Builds:** The `BuildOrchestrator` attempts to skip steps if inputs haven't changed.
-    *   `BuildCacheManager` caches intermediate outputs (`.flat`, `.dex`).
-*   **Parallelism:**
-    *   Downloading dependencies (`HttpDependencyResolver`) should be parallelized.
-    *   Future improvements should run independent steps (e.g., compiling different modules) in parallel.
-    *   **Note:** `aapt2` and `d8` are CPU intensive; avoid running them concurrently with UI heavy tasks.
-
-## 4. UI Rendering / Responsiveness
-*   **Overlay:** The overlay service runs in a separate process (`:inspection_service`) to avoid jank in the main UI, but AIDL calls are synchronous by default.
-    *   **Fix:** Use `oneway` in AIDL for non-blocking notifications.
-*   **Lazy Lists:** Use `LazyColumn` for logs and long lists. Limit buffer size (e.g. 1000 lines).
+## 3. UI Rendering / Responsiveness
+*   **Overlay (Phase 2):** `IdeazOverlayService` runs in its own process to keep main UI smooth. AIDL calls should be `oneway` for non-blocking notifications.
+*   **Lazy Lists:** Use `LazyColumn` for log/chat lists. Limit buffer size (e.g. 1000 lines).
 *   **Recomposition:** Use `remember` and `derivedStateOf` to minimize recomposition.
-*   **Haze/Blur:** Haze effects are expensive; use sparingly or disable on low-end devices.
+*   **Haze/Blur:** Effects are expensive; use sparingly.
 
-## 5. Network
-*   **Polling:** The AI polling loop (`AIDelegate`) uses an adaptive interval (e.g., 3s) to balance responsiveness and data usage.
-*   **Timeouts:** Set generous timeouts (60s) for AI requests as LLMs can be slow.
-*   **Retry:** Implement exponential backoff for network failures (`RetryInterceptor`).
+## 4. Network
+*   **AI streaming:** `ConversationalAiClient` adapters (Phase 1 Gemini) stream responses; render text deltas incrementally rather than waiting for the full response.
+*   **Polling:** AI polling loops (Jules in Phase 2) use an adaptive interval (~3s) and **never time out** — agents need time to think.
+*   **Timeouts:** Set generous timeouts (60s) for AI requests.
+*   **Retry:** Exponential backoff on network failures via `RetryInterceptor`.
 *   **Compression:** Ensure API responses are GZIP compressed.
+
+## 5. WebView (Phase 1)
+*   **Asset loading:** Phase 1 will use `WebViewAssetLoader` so the PWA gets a proper origin (`https://appassets.androidplatform.net`) — much faster than `file://` URIs and unlocks service worker support.
+*   **Reload:** Default to a hard reload after AI edits land. Cache-busting is a polish concern.
+
+## 6. APK Size
+The Phase 0 deletion pass dropped tens of MB of native libraries (React Native `.so`s, libsodium, JNA, the entire on-device toolchain). The release APK should now strip cleanly. Track size in `phase-0-complete.md` after Task 13.

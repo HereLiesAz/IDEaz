@@ -1,78 +1,69 @@
 # Architectural Blueprint for IDEaz
 
+> **Authoritative source:** [`plans/2026-05-01-ideaz-revival-design.md`](plans/2026-05-01-ideaz-revival-design.md).
+
 ## 1. Vision: The Visual, Post-Code IDE
-IDEaz (com.hereliesaz.ideaz) is a mobile IDE that redefines app development. It is not a text editor; it is a **visual creation engine**. The user interacts primarily with their running application, not its source code.
 
-*   **Core Loop:** Run App -> Visual Select -> AI Prompt -> AI Edit -> Compile -> Run.
-*   **The Hybrid Host & Overlay:** The IDE hosts the running app internally (VirtualDisplay/WebView) or overlays it, providing a unified interaction layer.
-*   **Interaction:**
-    *   **Select:** User taps a component or drags to select an area.
-    *   **Prompt:** A text input appears near the selection.
-    *   **Action:** User describes the change (e.g., "Make this button blue").
-    *   **Execution:** The AI (Jules) accesses the source, implements changes, and the IDE rebuilds the app.
+IDEaz is an Android app that visually edits two kinds of projects:
 
-## 2. System Architecture
+* **Progressive Web Apps (Phase 1, daily driver):** rendered live inside `WebProjectHost`, sub-second edit loop driven by Gemini.
+* **Android apps (Phase 2, heavy artillery):** sideloaded to the device, overlaid via System Alert Window, edited via Jules opening PRs that auto-build via GitHub Actions.
 
-### 2.1 The "Race to Build" Strategy
-To minimize user wait time, the IDE employs a dual-build strategy:
-1.  **Local Build:** The device attempts to build the app using its internal toolchain (`aapt2`, `d8`, `kotlinc`).
-2.  **Remote Build:** GitHub CI/CD is triggered to build the app remotely.
+Git is the source of truth. Every project is a GitHub repo. There is no offline build.
 
-*   **Winner Takes All:** Whichever build finishes first (Local APK or Remote Release Artifact) is automatically downloaded/installed.
-*   **Prioritization:**
-    *   **Check Existing:** If the installed app matches the Repo Head (SHA), run it.
-    *   **Check Remote:** If a compiled Release exists for the current SHA, download and install it.
-    *   **Race:** If neither exists, start both Local and Remote builds.
-*   **Local Priority:** The local build runs on a lower priority thread to ensure the UI remains responsive for the user to continue prompting/planning.
+### Core loop
 
-### 2.2 GitHub Integration
-*   **Source of Truth:** GitHub is the backend. All changes are committed.
-*   **AI Access:** Jules (the AI) works on the GitHub repository, pulling source, editing, and pushing commits.
-*   **Synchronization:** The IDE automatically pulls changes from GitHub before building.
+```
+Pick / Create project
+  → Render target (WebView for PWA; sideloaded APK + overlay for Android)
+  → Tap element (DOM bridge or AccessibilityNodeInfo)
+  → Prompt AI with element context
+  → AI applies changes (Gemini tools for PWA; Jules PR for Android)
+  → Reload (WebView reload for PWA; build → install for Android)
+  → Commit & push
+```
 
-### 2.3 The Feedback Loop
-*   **Success:** App updates live.
-*   **Compilation Error:**
-    *   If **User Code** fails: The build log is sent to Jules. Jules fixes the code, commits, and the cycle repeats.
-    *   If **IDE Infrastructure** fails: The log is sent to the `HereLiesAz/IDEaz` repository as a GitHub Issue with the label `jules`. **Crucially, the user's AI is NOT asked to debug the IDE's own bugs.**
+## 2. What IDEaz is *not*
 
-## 3. User Experience (UI/UX)
+* Not multi-platform: no React Native, no Flutter, no Python, no generic-web path.
+* Not an offline IDE: no on-device `kotlinc` / `aapt2` / `d8`, no Maven resolver.
+* Not a hot-reload tool: no Zipline, no Redwood codegen.
+* Not a hybrid host: no `VirtualDisplay`-based `AndroidProjectHost`.
 
-### 3.1 The Host & Overlay Architecture
-*   **Host Mode (Primary):** The IDE runs the target app inside itself.
-    *   **Android:** Uses `AndroidProjectHost` (VirtualDisplay - Experimental) to render the running APK within the IDE window.
-        *   **Note:** Zipline-based Hot Reload features are present in the build pipeline (`RedwoodCodegen`, `ZiplineCompile`) but the runtime loader in `MainViewModel` is currently **disabled** due to API deprecation.
-    *   **Web:** Uses `WebProjectHost` (WebView) to render the web app.
-*   **Selection Overlay:** A Composable layer sits on top of the Host view (`SelectionOverlay`), intercepting touches for drag-selection and prompting.
-*   **System Overlay (Legacy/Fallback):** `IdeazOverlayService` (System Alert Window) exists to provide overlay capabilities when the app is running externally or for specific accessibility inspection tasks, but the Host mode is the primary integrated experience.
-*   **Transparency:** In Host mode, the overlay is part of the composition. In System Overlay mode, the window background is transparent.
-*   **Update Popup:** When a background build finishes, a popup ("Updating, gimme a sec") appears. Text in the prompt box is auto-copied to clipboard.
+## 3. AI Providers
 
-### 3.2 The Console (Bottom Card)
-*   **Live Logs:** A swipe-up bottom card displays the live build log (Logcat) or AI output.
-*   **Contextless Debugging:** Below the log is a prompt box for general questions or debugging assistance.
+| Phase | Provider | Notes |
+|---|---|---|
+| 1 (default) | **Gemini** | Free tier on-ramp; BYO-key; PBKDF2-encrypted credentials |
+| 2 | **Jules** | Android target loop; PR-based, agentic, async |
+| 3 (post-MVP) | **Claude / OpenAI** | Slot into the same `ConversationalAiClient` interface |
 
-### 3.3 Background Reliability
-*   **Notification:** A persistent notification displays the last 3 lines of the log, keeping the Build Service alive and the user informed even when the app is backgrounded.
+## 4. Build Pipeline
 
-## 4. Initialization vs. Loading
+Remote-only via GitHub Actions. On "Save & Initialize", IDEaz force-pushes a standardized `android_ci.yml` + `release.yml` to the project repo. Builds dispatch via push or workflow_dispatch; IDEaz polls GitHub Releases for the artifact and sideloads via `PackageInstaller`. PWAs do not need a build step — IDEaz renders the working tree directly.
 
-### 4.1 Loading
-*   **Action:** User selects a project to "Load".
-*   **Process:** Clone repo, Sync changes, Fetch branches.
-*   **Destination:** Takes user to the **Setup Tab**, NOT the build screen.
+## 5. Error Handling
 
-### 4.2 Initialization
-*   **Action:** User presses "Save & Initialize" in the Setup Tab.
-*   **Process:**
-    1.  **Inject Workflows:** Force-push critical workflow files (`android_ci_jules.yml`, `codeql.yml`, `jules.yml`, `release.yml`) to `.github/workflows/`.
-    2.  **Inject Scripts:** Force-push `setup_env.sh` and `AGENTS_SETUP.md`.
-    3.  **Start Build:** Initiate the first build/run cycle.
+* **User-code error:** build log routed back to the AI session (Phase 1 Gemini chat; Phase 2 Jules session).
+* **IDE infrastructure error:** stack trace posted to `HereLiesAz/IDEaz` as a GitHub Issue with the `jules` label. Never sent to the user's AI.
 
-## 5. Agent Constraints
-*   **Polling:** Polling for AI progress must **NEVER** time out. Agents need time to think and setup. Poll for *activities*, not just the final result.
-*   **Environment:** The user never touches a file. The AI handles the file system.
+## 6. Initialization vs Loading
 
-## 6. Developer Tools (Power Users)
-*   **File Explorer & Editor:** While the core philosophy is "post-code," a read-write File Explorer and basic Code Editor (`FileExplorerScreen`, `CodeEditor`) are available.
-*   **Purpose:** These tools are strictly intended for **debugging, quick fixes, or inspecting AI-generated code** as "escape hatches". They are NOT for primary development and should be used sparingly when the AI workflow is blocked.
+### Loading
+User selects a project on the Load tab → JGit clone/pull → `ProjectAnalyzer` flags type → navigate to Setup tab.
+
+### Initialization
+User taps "Save & Initialize" on the Setup tab → IDEaz force-pushes `.github/workflows/android_ci.yml`, `release.yml`, plus `setup_env.sh` / `AGENTS_SETUP.md` → first build is queued.
+
+## 7. Developer Tools (Escape Hatches)
+
+`FileExplorerScreen` and the basic code editor remain for emergencies — verifying AI-generated code, manual recovery — but they are **not** the workspace. The visual loop is.
+
+## 8. Phasing
+
+* **Phase 0 — Triage** (this branch): delete dead code paths, regain a green build.
+* **Phase 1 — PWA loop**: `WebViewAssetLoader` host + DOM bridge + `GeminiAdapter` + chat tab.
+* **Phase 2 — Android loop**: fix Jules call sites, restore overlay/accessibility, auto-merge → build → sideload.
+* **Phase 3+ — More AIs and polish.**
+
+See the design doc and phase plans for milestone detail.

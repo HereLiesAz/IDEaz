@@ -1,237 +1,31 @@
-# Jules Integration (API & CLI)
+# Jules Integration
 
-The IDEaz application integrates with the Jules AI Coding Agent using a direct API approach. The `Jules Tools CLI` integration is **DEPRECATED** and unused due to execution stability issues on Android. The primary interaction mechanism is the `Jules API` client (`JulesApiClient`).
+> **Status: Phase 2.** Jules is the agentic AI provider for the Android target loop.
+> The Phase 1 daily-driver loop uses **Gemini** (conversational, BYO-key, tool-use)
+> via `ConversationalAiClient`. Jules call sites are stubbed in Phase 0 to compile;
+> they are restored when Phase 2 starts.
 
 ## Jules API Client (`JulesApiClient`)
 
-The `JulesApiClient` is a Retrofit-based Kotlin implementation of the Jules API. It mirrors the structure of the official TypeScript SDK (`jules-api-node`).
+Retrofit-based Kotlin client. Mirrors the official TypeScript SDK shape.
 
 ### Key Features
-*   **Singleton Architecture**: Uses a thread-safe, lazy-initialized Singleton pattern for the `Retrofit` client to ensure optimal performance and resource usage.
-*   **Testability**: Supports configuring the `baseUrl` (observable via `@VisibleForTesting`), allowing comprehensive unit testing with `MockWebServer`.
-*   **Session Management**: Creates sessions with context (prompt, source repository) via `createSession`.
-*   **Activity Polling**: Provides access to `listActivities` and `sendMessage`, enabling polling-based asynchronous workflows to retrieve plans, patches, and messages.
-*   **Source Listing**: Fetches available repositories from the user's account via `listSources`.
-*   **Robustness**: Handles API authentication via `AuthInterceptor`, automatic retries via `RetryInterceptor`, and standard HTTP error handling.
+*   **Singleton, lazy-initialized Retrofit client.**
+*   **Testable `baseUrl` (`@VisibleForTesting`)** for `MockWebServer`.
+*   **Session management:** `createSession(prompt, source)`.
+*   **Activity polling:** `listActivities`, `sendMessage` — used to retrieve plans, patches, messages.
+*   **Source listing:** `listSources` — fetches available repositories from the user's account.
+*   **Robustness:** `AuthInterceptor` for auth, `RetryInterceptor` for backoff, standard HTTP error handling.
 
-### Usage in App
-*   **MainViewModel**: Uses `JulesApiClient` to:
-    *   Fetch the list of owned sources for the Project Screen.
-    *   Create new sessions for contextual and contextless prompts.
-    *   Poll for "Patch" activities to automatically apply code changes.
-*   **Integration**: The app constructs valid `SourceContext` strings (e.g., `sources/github/{user}/{repo}`) to ensure correct API routing.
+### Phase 2 usage in app
+Owned by `AIDelegate`:
 
----
+*   Fetch the list of owned sources for the Setup tab.
+*   Create new sessions for prompts captured from element-tap context.
+*   Poll for "Patch" activities and auto-merge resulting PRs.
 
-## Jules Tools CLI (Legacy / Reference)
+`AgenticAiClient.dispatchTask(prompt, context): Flow<TaskEvent>` is the Phase 2 abstraction; `JulesAdapter` will implement it on top of `JulesApiClient`. The chat UI is target-agnostic — the same `Flow<TaskEvent>` shape works for both PWA-loop (Gemini) and Android-loop (Jules) targets.
 
-*Note: The CLI integration (`JulesCliClient`) is preserved in the codebase but is currently bypassed in favor of the API client for core workflows.*
+## Jules CLI — REMOVED
 
-Jules Tools is a lightweight command-line interface (CLI) for interacting with Jules, Google’s autonomous AI coding agent. It allows you to manage coding sessions, inspect progress, and integrate Jules into your existing development workflows and scripts directly from your terminal.
-
-Think of Jules Tools as both a command surface and a dashboard for your coding agent, designed to keep you in your flow without needing to switch to a web browser.
-
-### Legacy Implementation Details
-*   **Binary:** `libjules.so` (Node.js runtime + script).
-*   **Wrapper:** `JulesCliClient.kt`.
-*   **Issues:** On-device execution of the Node runtime proved unstable on certain Android API levels due to seccomp filters and signal handling.
-*   **Status:** Retained for potential future use or debugging, but not active in the production flow.
-
-## Installation
-
-To get started, install the tool globally using npm or pnpm.
-
-```
-npm install -g @google/jules
-```
-
-Once installed, the jules command will be available in your terminal.
-
-### Authentication
-
-Before you can use the tool, you must authenticate with your Google account.
-
-### Login
-
-```
-jules login
-```
-
-This command will open a browser window to guide you through the Google authentication process.
-
-### Logout
-
-To log out from your account:
-
-```
-jules logout
-```
-
-## Usage
-
-The CLI is built around commands and subcommands. You can get help for any command by using the -h or —help flag.
-
-```
-# Get general help
-jules help
-# Get help for a specific command (e.g., remote)
-jules remote --help
-```
-
-### Global Flags
-
-*   `-h`, `--help`: Displays help information for jules or a specific command.
-
-*   `--theme <string>`: Sets the theme for the terminal user interface (TUI). Options are `dark` (default) or `light`.
-
-
-Example: `jules --theme light`
-
-### Available Commands
-
-`version`
-
-Shows the currently installed version of the Jules Tools CLI.
-
-```
-jules version
-```
-
-`remote`
-
-The `remote` command is the primary way to interact with Jules sessions running in the cloud. It has several subcommands.
-
-`remote list` Lists your connected repositories or active sessions.
-
-*   `--repo`: Flag to list all repositories connected to Jules.
-
-*   `--session`: Flag to list all your remote sessions.
-
-
-_Examples:_
-
-```
-# List all connected repositories
-jules remote list --repo
-# List all active and past sessions
-jules remote list --session
-```
-
-`remote new`
-
-Creates a new remote session to delegate a task to Jules.
-
-Jules can automatically infer the repository from your current working directory, so you can often omit the `--repo` flag.
-
-*   `--repo <repo_name>`: Specifies the repository for the session (e.g., torvalds/linux or . for the current directory’s repo).
-
-*   `--session "<prompt>"`: A string describing the task for Jules to perform.
-
-*   `--parallel <number>`: Starts multiple parallel sessions to work on the same task.
-
-
-_Example:_
-
-```
-# Start a new session to write unit tests in the 'torvalds/linux' repo
-jules remote new --repo torvalds/linux --session "write unit tests"
-```
-
-`remote pull`
-
-Pulls the results (e.g., code changes) from a completed session.
-
-*   `--session <session_id>`: The ID of the session you want to pull.
-
-_Example:_
-
-```
-# Pull the results for session ID 123456
-jules remote pull --session 123456
-```
-
-`completion`
-
-Generates an autocompletion script for your shell (e.g., bash, zsh) to enable tab completion for jules commands.
-
-```
-# Generate completion script for bash
-jules completion bash
-```
-
-## Interactive Dashboard (TUI)
-
-For a more interactive, visual experience, you can launch the Terminal User Interface (TUI) by running the jules command without any arguments.
-
-```
-jules
-```
-
-The TUI provides a dashboard view of your sessions, a side-by-side diff viewer for reviewing changes, and guided flows for creating new ones, similar to the web UI.
-
-
-# Practical Examples & Scripting
-
-Jules Tools is designed to be scriptable and can be composed with other command-line tools.
-
-Below are some examples of Jules Tools in action:
-
-**1\. Create sessions from a TODO.md file:**
-
-Assign each line item from a local TODO.md file as a new session in the current repository.
-
-```
-cat TODO.md | while IFS= read -r line; do  jules remote new --repo . --session "$line"done
-```
-
-**2\. Create a session from a GitHub Issue:**
-
-Pipe the title of the first GitHub issue assigned to you directly into a new Jules session. (Requires the gh and jq CLIs).
-
-```
-gh issue list --assignee @me --limit 1 --json title \  | jq -r '.[0].title' \  | jules remote new --repo .
-```
-
-**3\. Use Gemini to analyze and assign the hardest issue to Jules:** Use the Gemini CLI to analyze your assigned GitHub issues, identify the most tedious one, and pipe its title to Jules.
-
-```
-gemini -p "find the most tedious issue, print it verbatim\n$(gh issue list --assignee @me)" \  | jules remote new --repo .
-```
-
-
-<!-- Merged Content from docs/docs/jules-integration.md -->
-
-# Jules Integration (API & CLI)
-
-The IDEaz application integrates with the Jules AI Coding Agent using a hybrid approach. While the `Jules Tools CLI` is packaged with the application, the primary interaction mechanism on Android is now the `Jules API` client (`JulesApiClient`) due to execution stability issues with the CLI binary on some devices.
-
-## Jules API Client (`JulesApiClient`)
-
-The `JulesApiClient` is a Retrofit-based Kotlin implementation of the Jules API. It mirrors the structure of the official TypeScript SDK (`@kiwina/jules-api-sdk`).
-
-### Key Features
-*   **Session Management**: Creates sessions with context (prompt, source repository).
-*   **Activity Polling**: Polls for activities (plans, patches, messages) using `listActivities`.
-*   **Source Listing**: Fetches available repositories from the user's account.
-*   **Robustness**: Handles API authentication via `AuthInterceptor` and standard HTTP error handling.
-
-### Usage in App
-*   **MainViewModel / AIDelegate**: Uses `JulesApiClient` to:
-    *   Fetch the list of owned sources for the Project Screen.
-    *   Create new sessions for contextual and contextless prompts.
-    *   Poll for "Patch" activities to automatically apply code changes.
-*   **Integration**: The app constructs valid `SourceContext` strings (e.g., `sources/github/{user}/{repo}`) to ensure correct API routing.
-
----
-
-## Jules Tools CLI (Legacy / Reference)
-
-*Note: The CLI integration (`JulesCliClient`) is preserved in the codebase (and the binary `libjules.so` is bundled) but is currently **bypassed** in favor of the API client for core workflows.*
-
-The legacy CLI integration was designed to wrap the `jules` command line tool.
-
-### Legacy Implementation Details
-*   **Binary:** `libjules.so` (Node.js runtime + script).
-*   **Wrapper:** `JulesCliClient.kt`.
-*   **Issues:** On-device execution of the Node runtime proved unstable on certain Android API levels due to seccomp filters and signal handling.
-*   **Status:** Retained for potential future use or debugging, but not active in the production flow.
+`JulesCliClient.kt` and the bundled `libjules.so` Node runtime have been **deleted** in Phase 0. On-device execution of the CLI was unstable across Android API levels (seccomp / signal handling). All Jules interaction goes through HTTP via `JulesApiClient`.
