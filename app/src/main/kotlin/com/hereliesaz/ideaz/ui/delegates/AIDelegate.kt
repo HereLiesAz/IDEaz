@@ -5,16 +5,12 @@ import com.hereliesaz.ideaz.jules.IJulesApiClient
 import com.hereliesaz.ideaz.jules.JulesApiClient
 import com.hereliesaz.ideaz.ui.AiModels
 import com.hereliesaz.ideaz.ui.SettingsViewModel
-import com.hereliesaz.ideaz.services.JsCompilerService
-import com.hereliesaz.ideaz.models.ProjectType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 /**
  * Data class representing a simple chat message structure for the UI history.
@@ -37,17 +33,13 @@ data class Message(val role: String, val content: String)
  * @param onOverlayLog Callback to send status updates/logs to the UI overlay.
  * @param onUnidiffPatchReceived Callback invoked when a Git patch is received. Returns true if application succeeded.
  * @param julesApiClient Client for the Jules REST API. Defaults to the singleton [JulesApiClient].
- * @param jsCompilerService Optional service for compiling Web projects (Kotlin/JS) after a patch.
- * @param onWebReload Callback to trigger a WebView reload after a successful Web build.
  */
 class AIDelegate(
     private val settingsViewModel: SettingsViewModel,
     private val scope: CoroutineScope,
     private val onOverlayLog: (String) -> Unit,
     private val onUnidiffPatchReceived: suspend (String) -> Boolean,
-    private val julesApiClient: IJulesApiClient = JulesApiClient,
-    private val jsCompilerService: JsCompilerService? = null,
-    private val onWebReload: (() -> Unit)? = null
+    private val julesApiClient: IJulesApiClient = JulesApiClient
 ) {
 
     // --- StateFlows ---
@@ -284,29 +276,6 @@ class AIDelegate(
                             if (success) {
                                 onOverlayLog("Patch applied.")
                                 activityProcessed = true
-
-                                // Special Handling for Web Projects:
-                                // If a patch is applied, we must recompile the Kotlin/JS code to see changes.
-                                if (settingsViewModel.getProjectType() == ProjectType.WEB.name && jsCompilerService != null) {
-                                    val appName = settingsViewModel.getAppName()
-                                    if (appName != null) {
-                                        onOverlayLog("Compiling Web Project...")
-                                        val projectDir = settingsViewModel.getProjectPath(appName)
-
-                                        // Run compiler on IO thread (blocking op)
-                                        withContext(Dispatchers.IO) {
-                                            val result = jsCompilerService.compileProject(projectDir)
-                                            withContext(Dispatchers.Main) {
-                                                if (result.success) {
-                                                    onOverlayLog("Compilation successful. Reloading...")
-                                                    onWebReload?.invoke()
-                                                } else {
-                                                    onOverlayLog("Compilation failed:\n${result.logs}")
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
                             } else {
                                 onOverlayLog("Patch failed to apply.")
                             }

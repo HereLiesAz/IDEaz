@@ -197,7 +197,7 @@ fun ProjectSetupTab(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 TextField(
-                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                    modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                     readOnly = true,
                     value = selectedType.displayName,
                     onValueChange = {},
@@ -327,7 +327,7 @@ fun ProjectSetupTab(
                             onBuildTriggered()
                         }
                     },
-                    text = if (selectedType == ProjectType.FLUTTER) "Push & Build" else "Save & Initialize",
+                    text = "Save & Initialize",
                     shape = AzButtonShape.RECTANGLE,
                     modifier = Modifier.fillMaxWidth(),
                     isLoading = isBusy

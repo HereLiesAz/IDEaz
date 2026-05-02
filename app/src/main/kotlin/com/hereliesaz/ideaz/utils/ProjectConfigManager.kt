@@ -153,95 +153,6 @@ jobs:
           publish_dir: .
 """.trimIndent()
 
-    private val ANDROID_CI_FLUTTER_YML = """
-name: Android CI (Flutter)
-
-on:
-  push:
-    branches: [ "**" ]
-  pull_request:
-    branches: [ "**" ]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    - name: set up JDK 17
-      uses: actions/setup-java@v3
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        cache: gradle
-    - name: Set up Flutter
-      uses: subosito/flutter-action@v2
-      with:
-        flutter-version: '3.16.0'
-        channel: 'stable'
-    - name: Get Dependencies
-      run: flutter pub get
-    - name: Build APK
-      run: flutter build apk --debug
-    - name: Rename Artifact
-      run: |
-        VERSION=${'$'}(grep '^version:' pubspec.yaml | head -n 1 | sed 's/^version:[[:space:]]*//' | tr -d '\r' | tr -d ' ')
-        if [ -z "${'$'}VERSION" ]; then VERSION="1.0.0"; fi
-        mv build/app/outputs/flutter-apk/app-debug.apk build/app/outputs/flutter-apk/IDEaz-${'$'}VERSION-debug.apk
-    - name: Upload APK
-      uses: actions/upload-artifact@v3
-      with:
-        name: app-debug
-        path: build/app/outputs/flutter-apk/IDEaz-*-debug.apk
-""".trimIndent()
-
-    private val ANDROID_CI_REACT_NATIVE_YML = """
-name: Android CI (React Native)
-
-on:
-  push:
-    branches: [ "**" ]
-  pull_request:
-    branches: [ "**" ]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    - name: set up JDK 17
-      uses: actions/setup-java@v3
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        cache: gradle
-    - name: Setup Node
-      uses: actions/setup-node@v3
-      with:
-        node-version: 18
-        cache: 'npm'
-    - name: Install Dependencies
-      run: npm install
-    - name: Bundle JS
-      run: |
-        npx react-native bundle --platform android --dev false --entry-file index.js --bundle-output index.android.bundle --assets-dest assets
-    - name: Upload Bundle
-      uses: actions/upload-artifact@v3
-      with:
-        name: js-bundle
-        path: |
-          index.android.bundle
-          assets/
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-    - name: Build Android
-      run: ./gradlew assembleDebug
-    - name: Upload APK
-      uses: actions/upload-artifact@v3
-      with:
-        name: app-debug
-        path: app/build/outputs/apk/debug/app-debug.apk
-""".trimIndent()
-
     private val JULES_ISSUE_HANDLER_YML = """
 name: Jules Issue Handler
 
@@ -462,21 +373,9 @@ jobs:
     fun ensureWorkflow(projectDir: File, type: ProjectType): Boolean {
         // We use hardcoded strings for robustness if assets are missing
         val workflows = when (type) {
-            // Python projects are Chaquopy-style: a standard Android project with embedded
-            // Python, so they share the Android workflows.
-            ProjectType.ANDROID, ProjectType.PYTHON -> listOf(
+            ProjectType.ANDROID -> listOf(
                 "android_ci_jules.yml" to ANDROID_CI_JULES_YML,
                 "release.yml" to RELEASE_YML,
-                "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML,
-                "jules-branch-manager.yml" to JULES_BRANCH_MANAGER_YML
-            )
-            ProjectType.FLUTTER -> listOf(
-                "android_ci_flutter.yml" to ANDROID_CI_FLUTTER_YML,
-                "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML,
-                "jules-branch-manager.yml" to JULES_BRANCH_MANAGER_YML
-            )
-            ProjectType.REACT_NATIVE -> listOf(
-                "android_ci_react_native.yml" to ANDROID_CI_REACT_NATIVE_YML,
                 "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML,
                 "jules-branch-manager.yml" to JULES_BRANCH_MANAGER_YML
             )
@@ -549,8 +448,7 @@ jobs:
     fun ensureVersioning(projectDir: File, type: ProjectType): Boolean {
         var modified = false
         val androidRoot = when(type) {
-            ProjectType.ANDROID, ProjectType.PYTHON -> projectDir
-            ProjectType.FLUTTER, ProjectType.REACT_NATIVE -> File(projectDir, "android")
+            ProjectType.ANDROID -> projectDir
             else -> null
         }
 

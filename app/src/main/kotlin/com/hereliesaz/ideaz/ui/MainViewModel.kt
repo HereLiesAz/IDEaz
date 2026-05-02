@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.hereliesaz.ideaz.ui
 
 import android.app.Application
@@ -16,21 +14,13 @@ import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.services.CrashReportingService
 import com.hereliesaz.ideaz.ui.delegates.*
 import com.hereliesaz.ideaz.ui.editor.EditorViewModel
-import com.hereliesaz.ideaz.services.JsCompilerService
 import com.hereliesaz.ideaz.utils.ErrorCollector
+import com.hereliesaz.ideaz.ui.web.WebProjectUrlUtils
 import com.hereliesaz.ideaz.R
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ProjectFileObserver
-import com.hereliesaz.ideaz.utils.ToolManager
 import com.hereliesaz.ideaz.utils.VersionUtils
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.asCoroutineDispatcher
-import java.util.concurrent.Executors
-import app.cash.zipline.loader.ZiplineLoader
-import app.cash.zipline.loader.ManifestVerifier
-import app.cash.zipline.loader.asZiplineHttpClient
-import com.hereliesaz.ideaz.MainApplication
-import com.hereliesaz.ideaz.BuildConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -51,7 +41,7 @@ import java.net.URL
  * - The background build system ([BuildService]).
  * - The AI agent ([AIDelegate]).
  * - The Version Control System ([GitDelegate]).
- * - The Host Environment (VirtualDisplay/WebView).
+ * - The Host Environment (WebView).
  *
  * **Architecture:**
  * To avoid a "God Class" anti-pattern, logic is split into specialized [Delegates]:
@@ -76,35 +66,12 @@ class MainViewModel(
 
     /**
      * Lazy instantiation of [EditorViewModel] to avoid overhead if the editor is not used.
-     * Passed [JsCompilerService] to support on-the-fly JS compilation for Web projects.
      */
     val editorViewModel: EditorViewModel by lazy {
-        EditorViewModel(JsCompilerService(application))
+        EditorViewModel()
     }
 
     // --- Core Infrastructure ---
-
-    /**
-     * Dedicated single-threaded dispatcher for Zipline operations.
-     * Zipline (QuickJS) requires all access to occur on a single thread to ensure thread confinement.
-     */
-    private val ziplineDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
-
-    /**
-     * Loader for the Zipline dynamic code engine.
-     *
-     * **Security Note:**
-     * Currently using [ManifestVerifier.NO_SIGNATURE_CHECKS] for development velocity.
-     * TODO(Phase 11.5): Implement Ed25519 signature verification for production releases.
-     */
-    val ziplineLoader: ZiplineLoader by lazy {
-        val app = application as MainApplication
-        ZiplineLoader(
-            dispatcher = ziplineDispatcher,
-            manifestVerifier = ManifestVerifier.NO_SIGNATURE_CHECKS,
-            httpClient = app.okHttpClient.asZiplineHttpClient(),
-        )
-    }
 
     /**
      * Shared State Delegate. Holds all StateFlows used by the UI.
@@ -157,9 +124,7 @@ class MainViewModel(
         settingsViewModel,
         viewModelScope,
         logHandler::onAiLog,
-        { diff -> applyUnidiffPatchInternal(diff) },
-        jsCompilerService = JsCompilerService(application),
-        onWebReload = { stateDelegate.triggerWebReload() }
+        { diff -> applyUnidiffPatchInternal(diff) }
     )
 
     val overlayDelegate = OverlayDelegate(application, settingsViewModel, viewModelScope, logHandler::onAiLog)
@@ -172,11 +137,12 @@ class MainViewModel(
         viewModelScope,
         logHandler::onBuildLog,
         logHandler::onAiLog,
-        { map -> overlayDelegate.sourceMap = map },
         { log -> handleBuildFailure(log) },
         { path ->
             // Web Build Success Callback
-            stateDelegate.setCurrentWebUrl("file://$path")
+            val filesDir = getApplication<Application>().filesDir
+            val assetUrl = WebProjectUrlUtils.toAssetUrl(path, filesDir) ?: "file://$path"
+            stateDelegate.setCurrentWebUrl(assetUrl)
             stateDelegate.setTargetAppVisible(true) // Switch to "App View"
 
             // Update EditorViewModel with project context for file browsing
@@ -217,49 +183,7 @@ class MainViewModel(
         aiDelegate,
         overlayDelegate,
         stateDelegate
-    ) { manifestPath ->
-        reloadZipline(manifestPath)
-    }
-
-    // --- Zipline (Dynamic Code) Management ---
-
-    private var currentZipline: app.cash.zipline.Zipline? = null
-
-    /**
-     * Reloads the Zipline engine from a local manifest.
-     * Currently disabled due to deprecation of `loadOnce` API in the Zipline library.
-     */
-    private fun reloadZipline(manifestPath: String) {
-        viewModelScope.launch(ziplineDispatcher) {
-            try {
-                logHandler.onBuildLog("[Zipline] Reloading from $manifestPath...")
-                currentZipline?.close()
-                currentZipline = null
-
-                // Load from file URL
-                val manifestUrl = File(manifestPath).toURI().toString()
-
-                // FIXME: Zipline API loadOnce/load is deprecated (ERROR level) and cannot be used.
-                // Disabling temporarily to unblock build.
-                // val result = ziplineLoader.loadOnce("guest", manifestUrl) { ... }
-                val result: app.cash.zipline.loader.LoadResult = app.cash.zipline.loader.LoadResult.Failure(Exception("Zipline disabled due to deprecation"))
-
-                if (result is app.cash.zipline.loader.LoadResult.Success) {
-                    currentZipline = result.zipline
-                    logHandler.onBuildLog("[Zipline] Reload complete.")
-                } else if (result is app.cash.zipline.loader.LoadResult.Failure) {
-                    throw result.exception
-                }
-
-            } catch (e: Exception) {
-                val msg = "[Zipline] Reload failed: ${e.message}"
-                logHandler.onBuildLog(msg)
-                e.printStackTrace()
-                // Auto-report Guest runtime crash to Jules for analysis
-                aiDelegate.startContextualAITask("Guest Code Runtime Error. Please fix:\n$msg\n${e.stackTraceToString()}")
-            }
-        }
-    }
+    )
 
     // --- Public State Exposure (Delegated) ---
 
@@ -270,6 +194,8 @@ class MainViewModel(
     val buildLog = stateDelegate.buildLog
     val filteredLog = stateDelegate.filteredLog
     val pendingRoute = stateDelegate.pendingRoute
+    val webReloadTrigger = stateDelegate.webReloadTrigger
+    val webHardReloadTrigger = stateDelegate.webHardReloadTrigger
 
     val isSelectMode = overlayDelegate.isSelectMode
     val activeSelectionRect = overlayDelegate.activeSelectionRect
@@ -332,7 +258,6 @@ class MainViewModel(
         fileObserver?.stopWatching()
         buildDelegate.unbindService(getApplication())
         systemEventDelegate.cleanup()
-        ziplineDispatcher.close()
     }
 
     /**
@@ -372,76 +297,6 @@ class MainViewModel(
     fun bindBuildService(c: Context) = buildDelegate.bindService(c)
     fun unbindBuildService(c: Context) = buildDelegate.unbindService(c)
     fun startBuild(c: Context, p: File? = null) = buildDelegate.startBuild(p)
-    fun clearBuildCaches(c: Context) { /* TODO: Implement cache clearing logic in BuildService */ }
-
-    /**
-     * Downloads and installs the build tools (aapt2, d8, kotlinc) from the latest GitHub release.
-     * This is required for local builds to function.
-     */
-    fun downloadBuildTools() {
-        viewModelScope.launch {
-            val token = settingsViewModel.getGithubToken()
-            if (token.isNullOrBlank()) {
-                logHandler.onBuildLog("Error: GitHub Token required to download tools.")
-                return@launch
-            }
-
-            stateDelegate.setLoadingProgress(0)
-            logHandler.onBuildLog("Checking for build tools...")
-
-            var zipFile: File? = null
-            try {
-                // Fetch releases on IO thread
-                val releases = withContext(Dispatchers.IO) {
-                    val service = GitHubApiClient.createService(token)
-                    service.getReleases(BuildConfig.BUILD_TOOLS_OWNER, BuildConfig.BUILD_TOOLS_REPO)
-                }
-
-                // Look for 'tools.zip' in assets
-                val toolAsset = releases.asSequence()
-                    .flatMap { it.assets }
-                    .firstOrNull { it.name == "tools.zip" }
-
-                if (toolAsset == null) {
-                    logHandler.onBuildLog("Error: 'tools.zip' artifact not found in recent releases.")
-                    stateDelegate.setLoadingProgress(null)
-                    return@launch
-                }
-
-                logHandler.onBuildLog("Downloading build tools from ${toolAsset.name}...")
-                zipFile = File(getApplication<Application>().cacheDir, "tools.zip")
-
-                // Reuse download logic
-                val success = downloadFile(toolAsset.browserDownloadUrl, zipFile) { progress ->
-                    stateDelegate.setLoadingProgress(progress)
-                }
-
-                if (success) {
-                    logHandler.onBuildLog("Installing tools...")
-                    val installed = withContext(Dispatchers.IO) {
-                        ToolManager.installToolsFromZip(getApplication(), zipFile)
-                    }
-                    if (installed) {
-                        logHandler.onBuildLog("Build tools installed successfully.")
-                        settingsViewModel.setLocalBuildEnabled(true)
-                    } else {
-                        logHandler.onBuildLog("Error: Failed to install tools.")
-                        settingsViewModel.setLocalBuildEnabled(false)
-                    }
-                } else {
-                    logHandler.onBuildLog("Error: Download failed.")
-                    settingsViewModel.setLocalBuildEnabled(false)
-                }
-            } catch (e: Exception) {
-                logHandler.onBuildLog("Error downloading tools: ${e.message}")
-                e.printStackTrace()
-                settingsViewModel.setLocalBuildEnabled(false)
-            } finally {
-                zipFile?.delete()
-                stateDelegate.setLoadingProgress(null)
-            }
-        }
-    }
 
     // GIT Operations
     fun refreshGitData() { viewModelScope.launch { gitDelegate.refreshGitData() } }
@@ -455,7 +310,7 @@ class MainViewModel(
             val user = settingsViewModel.getGithubUser()
             if (!appName.isNullOrBlank() && !user.isNullOrBlank()) {
                 val type = ProjectType.fromString(settingsViewModel.getProjectType())
-                if (type == ProjectType.ANDROID || type == ProjectType.FLUTTER) {
+                if (type == ProjectType.ANDROID) {
                     startArtifactPolling(user, appName)
                 }
             }
@@ -472,7 +327,7 @@ class MainViewModel(
         val appName = settingsViewModel.getAppName()
         val projectTypeStr = settingsViewModel.getProjectType()
         val projectType = ProjectType.fromString(projectTypeStr)
-        if (projectType != ProjectType.WEB) return
+        if (projectType != ProjectType.WEB && projectType != ProjectType.PWA) return
 
         viewModelScope.launch {
             logHandler.onBuildLog("Deploying Web Project (Push to GitHub)...")
@@ -581,6 +436,20 @@ class MainViewModel(
         }
     }
 
+    /**
+     * Receives DOM context JSON from the web bridge when the user taps an element
+     * in Select Mode while a PWA/Web project is shown.
+     *
+     * Logs the raw JSON to the AI console and routes it to [OverlayDelegate] so
+     * [isContextualChatVisible] becomes true.
+     *
+     * @param json  Raw JSON from [WebViewBridge.onElementTapped].
+     */
+    fun handleWebElementContext(json: String) {
+        stateDelegate.appendAiLog("[WEB-ELEMENT] $json")
+        overlayDelegate.onWebElementContext(json)
+    }
+
     fun clearSelection() = overlayDelegate.clearSelection()
     fun closeContextualChat() = overlayDelegate.clearSelection()
     fun requestScreenCapturePermission() = overlayDelegate.requestScreenCapturePermission()
@@ -588,6 +457,12 @@ class MainViewModel(
     fun setScreenCapturePermission(c: Int, d: Intent?) = overlayDelegate.setScreenCapturePermission(c, d)
     fun hasScreenCapturePermission() = overlayDelegate.hasScreenCapturePermission()
     fun setPendingRoute(r: String?) = stateDelegate.setPendingRoute(r)
+
+    /** Triggers a soft reload of the WebView (no cache bust). */
+    fun triggerWebReload() = stateDelegate.triggerWebReload()
+
+    /** Clears the WebView cache and triggers a hard reload. */
+    fun triggerWebHardReload() = stateDelegate.triggerWebHardReload()
 
     // REPO Operations
     fun fetchGitHubRepos() = repoDelegate.fetchGitHubRepos()
@@ -635,7 +510,7 @@ class MainViewModel(
             buildDelegate.startBuild(context.filesDir.resolve(appName))
 
             // Check for remote artifacts if it's an Android project
-            if (type == ProjectType.ANDROID || type == ProjectType.FLUTTER) {
+            if (type == ProjectType.ANDROID) {
                 startArtifactPolling(user, appName)
             }
         }
@@ -692,8 +567,7 @@ class MainViewModel(
             val projectDir = context.filesDir.resolve(repo)
             val possibleDirs = listOf(
                 File(projectDir, "app/build/outputs/apk/debug"),
-                File(projectDir, "android/app/build/outputs/apk/debug"),
-                File(projectDir, "build/app/outputs/flutter-apk")
+                File(projectDir, "android/app/build/outputs/apk/debug")
             )
 
             val localApk = possibleDirs.asSequence()
@@ -993,45 +867,16 @@ class MainViewModel(
     fun confirmUpdate() = updateDelegate.confirmUpdate()
     fun dismissUpdateWarning() = updateDelegate.dismissUpdateWarning()
 
-    // DEPENDENCIES
-
-    private val _dependencies = MutableStateFlow<List<com.hereliesaz.ideaz.utils.DependencyItem>>(emptyList())
-    val dependencies = _dependencies.asStateFlow()
-
-    fun loadDependencies() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val appName = settingsViewModel.getAppName()
-            if (appName != null) {
-                val projectDir = settingsViewModel.getProjectPath(appName)
-                val deps = com.hereliesaz.ideaz.utils.DependencyManager.listDependencies(projectDir)
-                _dependencies.value = deps
-            }
-        }
-    }
-
-    fun addDependencyViaAI(coordinate: String) {
-        val typeStr = settingsViewModel.getProjectType()
-        val type = ProjectType.fromString(typeStr)
-
-        val prompt = if (type == ProjectType.FLUTTER) {
-            "Add dependency '$coordinate' to `pubspec.yaml` in the `dependencies` section."
-        } else {
-            "Add dependency '$coordinate' to the project. Update gradle/libs.versions.toml and app/build.gradle.kts (or build.gradle.kts) accordingly. Ensure to add version to [versions] and library to [libraries] with an alias, then implement it."
-        }
-        aiDelegate.startContextualAITask(prompt)
-    }
-
     // MISC
 
     fun clearLog() = stateDelegate.clearLog()
 
     /**
-     * Launches the target application (Android, Web, or React Native).
+     * Launches the target application (Android or Web).
      *
      * **Logic:**
      * - **Web:** Points the WebView to the project's `index.html`.
-     * - **React Native:** Launches `ReactNativeActivity` if the bundle exists, else fallback to APK.
-     * - **Android/Flutter:** Switches to "App View" (Host) or launches installed APK.
+     * - **Android:** Switches to "App View" (Host) or launches installed APK.
      */
     fun launchTargetApp(c: Context) {
         // Suppress launch if Artifact Dialog is open
@@ -1044,57 +889,21 @@ class MainViewModel(
         val projectTypeStr = settingsViewModel.getProjectType()
         val projectType = ProjectType.fromString(projectTypeStr)
 
-        if (projectType == ProjectType.WEB) {
+        if (projectType == ProjectType.WEB || projectType == ProjectType.PWA) {
             val projectDir = settingsViewModel.getProjectPath(appName)
             if (stateDelegate.currentWebUrl.value == null) {
-                // For Web Projects with Kotlin/JS, we rely on the extracted www/index.html
-                // which references the compiled app.js.
-                val wwwDir = File(c.filesDir, "www")
-                val indexFile = File(wwwDir, "index.html")
-                // Fallback to project source index.html if www/index.html is missing
-                val fileToLoad = if (indexFile.exists()) indexFile else File(projectDir, "index.html")
-
-                if (fileToLoad.exists()) {
-                    stateDelegate.setCurrentWebUrl("file://${fileToLoad.absolutePath}")
+                // Use the asset-loader URL (same-origin, service-worker safe).
+                val indexFile = File(projectDir, "index.html")
+                if (indexFile.exists()) {
+                    stateDelegate.setCurrentWebUrl(
+                        WebProjectUrlUtils.localProjectUrl(appName, c.filesDir)
+                    )
                 }
             }
             startFileObservation(projectDir)
             stateDelegate.setTargetAppVisible(true)
-        } else if (projectType == ProjectType.REACT_NATIVE) {
-            val projectDir = settingsViewModel.getProjectPath(appName)
-            val bundleFile = File(projectDir, "build/react_native_dist/index.android.bundle")
-
-            if (bundleFile.exists()) {
-                // Try to resolve module name from app.json
-                var moduleName = appName
-                val appJsonFile = File(projectDir, "app.json")
-                if (appJsonFile.exists()) {
-                    try {
-                        val json = org.json.JSONObject(appJsonFile.readText())
-                        moduleName = json.optString("name", appName)
-                        val expo = json.optJSONObject("expo")
-                        if (moduleName == appName && expo != null) {
-                            moduleName = expo.optString("name", appName)
-                        }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
-
-                val intent = Intent(c, com.hereliesaz.ideaz.react.ReactNativeActivity::class.java).apply {
-                    putExtra("BUNDLE_PATH", bundleFile.absolutePath)
-                    putExtra("MODULE_NAME", moduleName)
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                c.startActivity(intent)
-                return
-            }
-
-            // Fallback
-            val packageName = settingsViewModel.targetPackageName.value
-            launchInstalledApk(c, packageName, appName)
         } else {
-            // Android, Flutter
+            // Android
             val packageName = settingsViewModel.targetPackageName.value
             launchInstalledApk(c, packageName, appName)
         }
@@ -1122,10 +931,6 @@ class MainViewModel(
             } catch (e: Exception) {
                 Toast.makeText(c, c.getString(R.string.error_launch_failed, e.message), Toast.LENGTH_SHORT).show()
             }
-    }
-
-    fun downloadDependencies() {
-        buildDelegate.downloadDependencies()
     }
 
     fun checkRequiredKeys(): List<String> {
