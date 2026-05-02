@@ -1,7 +1,7 @@
 # Phase 0 — Complete
 
 **Date completed:** 2026-05-02
-**Final commit:** 8195948
+**Final commit:** 154588c (this commit)
 
 ## Acceptance criteria — all met
 - `./gradlew :app:assembleDebug` green from a clean state
