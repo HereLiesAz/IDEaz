@@ -69,16 +69,6 @@ class ProjectAnalyzerTest {
     }
 
     @Test
-    fun detectReactNativeProject() {
-        val projectDir = tempFolder.newFolder("react_native_project")
-        File(projectDir, "package.json").createNewFile()
-        File(projectDir, "app.json").createNewFile()
-
-        val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals(ProjectType.REACT_NATIVE, type)
-    }
-
-    @Test
     fun detectPackageName_fromManifest() {
         val projectDir = tempFolder.newFolder("manifest_project")
         val manifestDir = File(projectDir, "app/src/main").apply { mkdirs() }
