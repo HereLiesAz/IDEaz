@@ -9,11 +9,13 @@ import android.webkit.JavascriptInterface
  * [ideaz-bridge.js] calls `IdeazBridge.onElementTapped(json)` after
  * [window.ideaz.getElementContext] collects DOM context for the tapped element.
  *
- * @param onElementTapped  Callback invoked on the WebView's JS thread with the
- *                         raw JSON string produced by [ideaz-bridge.js]. Callers
- *                         should deserialize it into [com.hereliesaz.ideaz.models.ElementContext].
+ * @param onTapped  Callback invoked on the WebView's JS thread with the
+ *                  raw JSON string produced by [ideaz-bridge.js]. The callback
+ *                  must be thread-safe; callers are responsible for switching to
+ *                  the main thread before touching UI state. Deserialize the
+ *                  string into [com.hereliesaz.ideaz.models.ElementContext].
  */
-class WebViewBridge(private val onElementTapped: (String) -> Unit) {
+class WebViewBridge(private val onTapped: (String) -> Unit) {
 
     /**
      * Called from JavaScript as `IdeazBridge.onElementTapped(json)`.
@@ -22,6 +24,6 @@ class WebViewBridge(private val onElementTapped: (String) -> Unit) {
      */
     @JavascriptInterface
     fun onElementTapped(json: String) {
-        onElementTapped.invoke(json)
+        onTapped(json)
     }
 }
