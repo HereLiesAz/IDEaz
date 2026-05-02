@@ -194,6 +194,8 @@ class MainViewModel(
     val buildLog = stateDelegate.buildLog
     val filteredLog = stateDelegate.filteredLog
     val pendingRoute = stateDelegate.pendingRoute
+    val webReloadTrigger = stateDelegate.webReloadTrigger
+    val webHardReloadTrigger = stateDelegate.webHardReloadTrigger
 
     val isSelectMode = overlayDelegate.isSelectMode
     val activeSelectionRect = overlayDelegate.activeSelectionRect
@@ -441,6 +443,12 @@ class MainViewModel(
     fun setScreenCapturePermission(c: Int, d: Intent?) = overlayDelegate.setScreenCapturePermission(c, d)
     fun hasScreenCapturePermission() = overlayDelegate.hasScreenCapturePermission()
     fun setPendingRoute(r: String?) = stateDelegate.setPendingRoute(r)
+
+    /** Triggers a soft reload of the WebView (no cache bust). */
+    fun triggerWebReload() = stateDelegate.triggerWebReload()
+
+    /** Clears the WebView cache and triggers a hard reload. */
+    fun triggerWebHardReload() = stateDelegate.triggerWebHardReload()
 
     // REPO Operations
     fun fetchGitHubRepos() = repoDelegate.fetchGitHubRepos()
