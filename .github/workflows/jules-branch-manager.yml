@@ -68,8 +68,14 @@ jobs:
           REVIEWER: ${{ github.event.review.user.login }}
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
           # Explicitly set these to avoid picking up ambient GCP credentials
+          # and unset GCP-specific vars that might trigger Vertex AI fallback
           GOOGLE_API_KEY: ""
           GEMINI_API_KEY: ${{ secrets.JULES_API_KEY }}
+          GOOGLE_CLOUD_PROJECT: ""
+          GOOGLE_CLOUD_LOCATION: ""
+          GCP_PROJECT_ID: ""
+          GCP_LOCATION: ""
+          GOOGLE_APPLICATION_CREDENTIALS: ""
         with:
           gemini_api_key: '${{ secrets.JULES_API_KEY }}'
           gemini_cli_version: '0.24.0'

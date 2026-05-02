@@ -56,8 +56,14 @@ jobs:
           REPOSITORY: '${{ github.repository }}'
           ADDITIONAL_CONTEXT: '${{ inputs.additional_context }}'
           # Explicitly set these to avoid picking up ambient GCP credentials
+          # and unset GCP-specific vars that might trigger Vertex AI fallback
           GOOGLE_API_KEY: ""
           GEMINI_API_KEY: ${{ secrets.JULES_API_KEY }}
+          GOOGLE_CLOUD_PROJECT: ""
+          GOOGLE_CLOUD_LOCATION: ""
+          GCP_PROJECT_ID: ""
+          GCP_LOCATION: ""
+          GOOGLE_APPLICATION_CREDENTIALS: ""
         with:
           gcp_location: '${{ vars.GOOGLE_CLOUD_LOCATION }}'
           gcp_project_id: '${{ vars.GOOGLE_CLOUD_PROJECT }}'
