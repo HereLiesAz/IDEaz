@@ -115,6 +115,60 @@ class ProjectAnalyzerTest {
     }
 
     @Test
+    fun detectPwaProject_withManifestWebmanifest() {
+        val projectDir = tempFolder.newFolder("pwa_manifest")
+        File(projectDir, "index.html").createNewFile()
+        File(projectDir, "manifest.webmanifest").createNewFile()
+
+        val type = ProjectAnalyzer.detectProjectType(projectDir)
+        assertEquals(ProjectType.PWA, type)
+    }
+
+    @Test
+    fun detectPwaProject_withServiceWorker() {
+        val projectDir = tempFolder.newFolder("pwa_sw")
+        File(projectDir, "index.html").createNewFile()
+        File(projectDir, "service-worker.js").createNewFile()
+
+        val type = ProjectAnalyzer.detectProjectType(projectDir)
+        assertEquals(ProjectType.PWA, type)
+    }
+
+    @Test
+    fun detectPwaProject_withSwJs() {
+        val projectDir = tempFolder.newFolder("pwa_sw_js")
+        File(projectDir, "index.html").createNewFile()
+        File(projectDir, "sw.js").createNewFile()
+
+        val type = ProjectAnalyzer.detectProjectType(projectDir)
+        assertEquals(ProjectType.PWA, type)
+    }
+
+    @Test
+    fun detectPwaProject_withManifestJsonContainingDisplay() {
+        val projectDir = tempFolder.newFolder("pwa_manifest_json")
+        File(projectDir, "index.html").createNewFile()
+        File(projectDir, "manifest.json").writeText("""{"display": "standalone"}""")
+
+        val type = ProjectAnalyzer.detectProjectType(projectDir)
+        assertEquals(ProjectType.PWA, type)
+    }
+
+    @Test
+    fun detectWebProject_indexHtmlOnly_remainsWEB() {
+        val projectDir = tempFolder.newFolder("web_only")
+        File(projectDir, "index.html").createNewFile()
+
+        val type = ProjectAnalyzer.detectProjectType(projectDir)
+        assertEquals(ProjectType.WEB, type)
+    }
+
+    @Test
+    fun projectTypePwaFromString() {
+        assertEquals(ProjectType.PWA, ProjectType.fromString("PWA"))
+    }
+
+    @Test
     fun detectPackageName_fallbackToFolderName() {
         val projectDir = tempFolder.newFolder("My-Project_123")
         // No manifest, no gradle, no source
