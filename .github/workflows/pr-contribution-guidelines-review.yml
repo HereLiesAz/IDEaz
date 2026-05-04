@@ -112,7 +112,9 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         with:
           gemini_api_key: ${{ secrets.JULES_API_KEY }}
-          gemini_cli_version: '0.24.0'
+          gemini_cli_version: '${{ vars.GEMINI_CLI_VERSION || '0.40.1' }}'
+          use_gemini_code_assist: false
+          use_vertex_ai: false
           settings: |
             {
               "coreTools": [
