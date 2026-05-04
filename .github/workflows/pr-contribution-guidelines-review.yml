@@ -74,25 +74,28 @@ jobs:
           TITLE=$(echo "$PR_DATA" | jq -r '.title')
           BODY=$(echo "$PR_DATA" | jq -r '.body // ""')
 
+          # Dynamic delimiter to avoid "Matching delimiter not found 'EOF'"
+          DELIMITER="EOF_${{ github.run_id }}_${{ github.run_attempt }}"
+
           # Safely write PR title (handles quotes and newlines)
           {
-            echo "title<<EOF"
+            echo "title<<EOF_${{ github.run_id }}_${{ github.run_attempt }}"
             printf "%s\n" "$TITLE"
-            echo "EOF"
+            echo "EOF_${{ github.run_id }}_${{ github.run_attempt }}"
           } >> "$GITHUB_OUTPUT"
 
           # Safely write PR body (handles quotes and newlines)
           {
-            echo "body<<EOF"
+            echo "body<<EOF_${{ github.run_id }}_${{ github.run_attempt }}"
             printf "%s\n" "$BODY"
-            echo "EOF"
+            echo "EOF_${{ github.run_id }}_${{ github.run_attempt }}"
           } >> "$GITHUB_OUTPUT"
 
           # Safely capture changed files (one per line)
           {
-            echo "changed_files<<EOF"
+            echo "changed_files<<EOF_${{ github.run_id }}_${{ github.run_attempt }}"
             gh pr diff "${PR_NUMBER}" --name-only --repo "${REPOSITORY}"
-            echo "EOF"
+            echo "EOF_${{ github.run_id }}_${{ github.run_attempt }}"
           } >> "$GITHUB_OUTPUT"
 
           # Safely capture full diff to a file (to avoid "Argument list too long" in subsequent steps)
@@ -173,9 +176,9 @@ jobs:
 
 
                - Save the content to /tmp/guidelines_comment.md using a heredoc, then run:
-                 cat > /tmp/guidelines_comment.md <<'EOF'
+                 cat > /tmp/guidelines_comment.md <<'EOF_${{ github.run_id }}_${{ github.run_attempt }}'
                  <the markdown from above>
-                 EOF
+                 EOF_${{ github.run_id }}_${{ github.run_attempt }}
                  gh pr comment "${PR_NUMBER}" --repo "${REPOSITORY}" --body-file /tmp/guidelines_comment.md
 
             Constraints:
