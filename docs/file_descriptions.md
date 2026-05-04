@@ -15,7 +15,7 @@
 *   `.gitignore`: Git ignore rules.
 
 ## app/
-*   `build.gradle.kts`: App module build script.
+*   `build.gradle.kts`: App module build script (includes standard Java imports for versioning logic).
 *   `src/main/AndroidManifest.xml`: Application manifest (Permissions, Activities, Services).
 
 ### app/src/main/kotlin/com/hereliesaz/ideaz/
