@@ -7,6 +7,8 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+import java.io.FileInputStream
+
 val versionProps = Properties()
 val versionPropsFile = rootProject.file("version.properties")
 if (versionPropsFile.exists()) {
