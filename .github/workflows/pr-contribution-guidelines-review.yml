@@ -60,6 +60,8 @@ jobs:
       - name: Collect PR metadata and diff
         id: pr
         env:
+          GOOGLE_CLOUD_PROJECT: ""
+          GOOGLE_APPLICATION_CREDENTIALS: ""
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ steps.get_pr.outputs.number }}
@@ -105,6 +107,9 @@ jobs:
         id: gemini
         uses: google-github-actions/run-gemini-cli@v0
         env:
+          GOOGLE_CLOUD_PROJECT: ""
+          GOOGLE_APPLICATION_CREDENTIALS: ""
+          GEMINI_CLI_TRUST_WORKSPACE: true
           # gh CLI inside Gemini
           GH_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
@@ -112,9 +117,7 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         with:
           gemini_api_key: ${{ secrets.JULES_API_KEY }}
-          gemini_cli_version: '${{ vars.GEMINI_CLI_VERSION || '0.40.1' }}'
-          use_gemini_code_assist: false
-          use_vertex_ai: false
+          gemini_cli_version: '0.40.1'
           settings: |
             {
               "coreTools": [
@@ -185,6 +188,8 @@ jobs:
         id: detect
         uses: actions/github-script@v7
         env:
+          GOOGLE_CLOUD_PROJECT: ""
+          GOOGLE_APPLICATION_CREDENTIALS: ""
           PR_NUMBER: ${{ steps.pr.outputs.number }}
         with:
           github-token: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
