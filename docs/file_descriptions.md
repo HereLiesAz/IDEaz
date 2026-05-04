@@ -123,7 +123,6 @@
 *   `BackupManager.kt`: Project backup logic.
 *   `ErrorCollector.kt`: Non-fatal error collection.
 *   `LogcatReader.kt`: System logcat reader.
-*   `LogSanitizer.kt`: Utility for redacting sensitive information (API keys, tokens, passwords) from logs and error reports.
 
 ## docs/
 See the index in `AGENTS.md`. The current source-of-truth is `docs/plans/2026-05-01-ideaz-revival-design.md`.

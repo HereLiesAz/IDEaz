@@ -57,4 +57,3 @@ gha-creds-*.json
 app/release/baselineProfiles/0/IDEaz-1.9.13.1-release.dm
 app/release/baselineProfiles/1/IDEaz-1.9.13.1-release.dm
 /app/release
-!/app/release/
