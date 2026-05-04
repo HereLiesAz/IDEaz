@@ -79,23 +79,23 @@ jobs:
 
           # Safely write PR title (handles quotes and newlines)
           {
-            echo "title<<${DELIMITER}"
+            echo "title<<EOF_${{ github.run_id }}_${{ github.run_attempt }}"
             printf "%s\n" "$TITLE"
-            echo "${DELIMITER}"
+            echo "EOF_${{ github.run_id }}_${{ github.run_attempt }}"
           } >> "$GITHUB_OUTPUT"
 
           # Safely write PR body (handles quotes and newlines)
           {
-            echo "body<<${DELIMITER}"
+            echo "body<<EOF_${{ github.run_id }}_${{ github.run_attempt }}"
             printf "%s\n" "$BODY"
-            echo "${DELIMITER}"
+            echo "EOF_${{ github.run_id }}_${{ github.run_attempt }}"
           } >> "$GITHUB_OUTPUT"
 
           # Safely capture changed files (one per line)
           {
-            echo "changed_files<<${DELIMITER}"
+            echo "changed_files<<EOF_${{ github.run_id }}_${{ github.run_attempt }}"
             gh pr diff "${PR_NUMBER}" --name-only --repo "${REPOSITORY}"
-            echo "${DELIMITER}"
+            echo "EOF_${{ github.run_id }}_${{ github.run_attempt }}"
           } >> "$GITHUB_OUTPUT"
 
           # Safely capture full diff to a file (to avoid "Argument list too long" in subsequent steps)
@@ -176,9 +176,9 @@ jobs:
 
 
                - Save the content to /tmp/guidelines_comment.md using a heredoc, then run:
-                 cat > /tmp/guidelines_comment.md <<'EOF'
+                 cat > /tmp/guidelines_comment.md <<'EOF_${{ github.run_id }}_${{ github.run_attempt }}'
                  <the markdown from above>
-                 EOF
+                 EOF_${{ github.run_id }}_${{ github.run_attempt }}
                  gh pr comment "${PR_NUMBER}" --repo "${REPOSITORY}" --body-file /tmp/guidelines_comment.md
 
             Constraints:
