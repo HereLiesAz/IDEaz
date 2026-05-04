@@ -89,4 +89,4 @@
 ## Security Configuration
 
 *   **`android:allowBackup`**
-    *   Set to `false` in the application manifest to explicitly prevent adb backup and cloud backup, mitigating potential data exposure risks.
+    *   Set to false to prevent adb and cloud backups. Note: For Android 12+, device-to-device migration must be separately disabled in dataExtractionRules to fully mitigate data exposure.
