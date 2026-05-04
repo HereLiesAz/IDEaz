@@ -85,3 +85,8 @@
     * Description (Does): Utilities to post GitHub issues. Takes a `Throwable` and `contextMessage`, creates a formatted markdown bug report, and posts it to the `HereLiesAz/IDEaz` GitHub repo via API. Falls back to a browser intent if the API fails.
 * **Class: MainActivity**
     * Description (Does): Registers a `packageInstallReceiver` to detect when the user's app is installed/updated and launches it immediately.
+
+## Security Configuration
+
+*   **`android:allowBackup`**
+    *   Set to `false` in the application manifest to explicitly prevent adb backup and cloud backup, mitigating potential data exposure risks.
