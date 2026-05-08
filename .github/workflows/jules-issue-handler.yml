@@ -53,9 +53,6 @@ jobs:
         # from https://github.com/google-github-actions/run-gemini-cli/releases
         uses: 'google-github-actions/run-gemini-cli@v0'
         env:
-          GOOGLE_CLOUD_PROJECT: ""
-          GOOGLE_APPLICATION_CREDENTIALS: ""
-          GEMINI_CLI_TRUST_WORKSPACE: true
           # Untrusted inputs delivered out-of-band. The prompt below references
           # these by name so they cannot break out of the YAML template.
           ISSUE_TITLE: ${{ github.event.issue.title }}
@@ -66,7 +63,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
         with:
           gemini_api_key: '${{ secrets.JULES_API_KEY }}'
-          gemini_cli_version: '0.40.1'
+          gemini_cli_version: "${{ vars.GEMINI_CLI_VERSION || '0.40.1' }}"
           workflow_name: 'jules-issue-handler'
           use_gemini_code_assist: false
           use_vertex_ai: false

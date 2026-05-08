@@ -60,8 +60,6 @@ jobs:
       - name: Collect PR metadata and diff
         id: pr
         env:
-          GOOGLE_CLOUD_PROJECT: ""
-          GOOGLE_APPLICATION_CREDENTIALS: ""
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ steps.get_pr.outputs.number }}
@@ -76,23 +74,23 @@ jobs:
 
           # Safely write PR title (handles quotes and newlines)
           {
-            echo "title<<DELIMITER_${{ github.run_id }}-${{ github.run_attempt }}"
+            echo "title<<EOF"
             printf "%s\n" "$TITLE"
-            echo "DELIMITER_${{ github.run_id }}-${{ github.run_attempt }}"
+            echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
           # Safely write PR body (handles quotes and newlines)
           {
-            echo "body<<DELIMITER_${{ github.run_id }}-${{ github.run_attempt }}"
+            echo "body<<EOF"
             printf "%s\n" "$BODY"
-            echo "DELIMITER_${{ github.run_id }}-${{ github.run_attempt }}"
+            echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
           # Safely capture changed files (one per line)
           {
-            echo "changed_files<<DELIMITER_${{ github.run_id }}-${{ github.run_attempt }}"
+            echo "changed_files<<EOF"
             gh pr diff "${PR_NUMBER}" --name-only --repo "${REPOSITORY}"
-            echo "DELIMITER_${{ github.run_id }}-${{ github.run_attempt }}"
+            echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
           # Safely capture full diff to a file (to avoid "Argument list too long" in subsequent steps)
@@ -107,9 +105,6 @@ jobs:
         id: gemini
         uses: google-github-actions/run-gemini-cli@v0
         env:
-          GOOGLE_CLOUD_PROJECT: ""
-          GOOGLE_APPLICATION_CREDENTIALS: ""
-          GEMINI_CLI_TRUST_WORKSPACE: true
           # gh CLI inside Gemini
           GH_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
@@ -117,7 +112,9 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         with:
           gemini_api_key: ${{ secrets.JULES_API_KEY }}
-          gemini_cli_version: '0.40.1'
+          gemini_cli_version: "${{ vars.GEMINI_CLI_VERSION || '0.40.1' }}"
+          use_gemini_code_assist: false
+          use_vertex_ai: false
           settings: |
             {
               "coreTools": [
@@ -188,8 +185,6 @@ jobs:
         id: detect
         uses: actions/github-script@v7
         env:
-          GOOGLE_CLOUD_PROJECT: ""
-          GOOGLE_APPLICATION_CREDENTIALS: ""
           PR_NUMBER: ${{ steps.pr.outputs.number }}
         with:
           github-token: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
