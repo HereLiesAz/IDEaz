@@ -74,28 +74,25 @@ jobs:
           TITLE=$(echo "$PR_DATA" | jq -r '.title')
           BODY=$(echo "$PR_DATA" | jq -r '.body // ""')
 
-          # Dynamic delimiter to avoid "Matching delimiter not found 'EOF'"
-          DELIMITER="EOF_${{ github.run_id }}_${{ github.run_attempt }}"
-
           # Safely write PR title (handles quotes and newlines)
           {
-            echo "title<<DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
+            echo "title<<DELIMITER_${{ github.run_id }}-${{ github.run_attempt }}"
             printf "%s\n" "$TITLE"
-            echo "DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
+            echo "DELIMITER_${{ github.run_id }}-${{ github.run_attempt }}"
           } >> "$GITHUB_OUTPUT"
 
           # Safely write PR body (handles quotes and newlines)
           {
-            echo "body<<DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
+            echo "body<<DELIMITER_${{ github.run_id }}-${{ github.run_attempt }}"
             printf "%s\n" "$BODY"
-            echo "DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
+            echo "DELIMITER_${{ github.run_id }}-${{ github.run_attempt }}"
           } >> "$GITHUB_OUTPUT"
 
           # Safely capture changed files (one per line)
           {
-            echo "changed_files<<DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
+            echo "changed_files<<DELIMITER_${{ github.run_id }}-${{ github.run_attempt }}"
             gh pr diff "${PR_NUMBER}" --name-only --repo "${REPOSITORY}"
-            echo "DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
+            echo "DELIMITER_${{ github.run_id }}-${{ github.run_attempt }}"
           } >> "$GITHUB_OUTPUT"
 
           # Safely capture full diff to a file (to avoid "Argument list too long" in subsequent steps)
@@ -118,9 +115,6 @@ jobs:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           REPOSITORY: ${{ github.repository }}
-          TITLE: ${{ steps.pr.outputs.title }}
-          BODY: ${{ steps.pr.outputs.body }}
-          CHANGED_FILES: ${{ steps.pr.outputs.changed_files }}
         with:
           gemini_api_key: ${{ secrets.JULES_API_KEY }}
           gemini_cli_version: '0.40.1'
@@ -144,10 +138,10 @@ jobs:
             Inputs:
             - Repository: ${REPOSITORY}
             - PR Number: ${PR_NUMBER}
-            - Title: ${TITLE}
-            - Body: ${BODY}
+            - Title: ${{ steps.pr.outputs.title }}
+            - Body: ${{ steps.pr.outputs.body }}
             - Changed files:
-              ${CHANGED_FILES}
+              ${{ steps.pr.outputs.changed_files }}
 
             Action:
             Please use your tools to read the file 'pr_diff.txt' (using 'cat pr_diff.txt') to see the code changes in this PR.
@@ -179,9 +173,9 @@ jobs:
 
 
                - Save the content to /tmp/guidelines_comment.md using a heredoc, then run:
-                 cat > /tmp/guidelines_comment.md <<'EOF_${{ github.run_id }}_${{ github.run_attempt }}'
+                 cat > /tmp/guidelines_comment.md <<'EOF'
                  <the markdown from above>
-                 EOF_${{ github.run_id }}_${{ github.run_attempt }}
+                 EOF
                  gh pr comment "${PR_NUMBER}" --repo "${REPOSITORY}" --body-file /tmp/guidelines_comment.md
 
             Constraints:

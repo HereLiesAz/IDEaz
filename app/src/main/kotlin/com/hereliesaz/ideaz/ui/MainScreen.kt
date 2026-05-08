@@ -1,17 +1,13 @@
 package com.hereliesaz.ideaz.ui
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,13 +25,11 @@ import androidx.compose.ui.zIndex
 import androidx.navigation.compose.rememberNavController
 import com.composables.core.SheetDetent
 import com.composables.core.rememberBottomSheetState
+import com.hereliesaz.aznavrail.AzHostActivityLayout
 import kotlinx.coroutines.launch
 import com.hereliesaz.ideaz.ui.web.WebProjectHost
 import androidx.compose.ui.platform.LocalConfiguration
 
-const val Z_INDEX_WEB_VIEW = 0f
-const val Z_INDEX_IDE_CONTENT = 1f
-const val Z_INDEX_NAV_RAIL = 100f
 const val Z_INDEX_OVERLAY = 200f
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,6 +61,8 @@ fun MainScreen(
     val isContextualChatVisible by viewModel.isContextualChatVisible.collectAsState()
     val activeSelectionRect by viewModel.activeSelectionRect.collectAsState()
     val isSelectMode by viewModel.isSelectMode.collectAsState()
+
+    val projectType by viewModel.settingsViewModel.projectType.collectAsState()
 
     var isPromptPopupVisible by remember { mutableStateOf(false) }
 
@@ -111,57 +107,13 @@ fun MainScreen(
                     }
                 }
         ) {
-
-            // LAYER 1: Content (Full Screen)
-            Box(modifier = Modifier.fillMaxSize()) {
-                if (isIdeVisible) {
-                    if (currentWebUrl != null) {
-                        // Web Mode: Show WebView
-                        currentWebUrl?.let { webUrl ->
-                            WebProjectHost(
-                                url = webUrl,
-                                reloadTrigger = webReloadTrigger,
-                                hardReloadTrigger = webHardReloadTrigger,
-                                selectMode = isSelectMode,
-                                onElementContext = { viewModel.handleWebElementContext(it) },
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                    } else {
-                        // Android Mode: Placeholder until Phase 2 rebuilds the host
-                        // on top of IdeazOverlayService (System Alert Window overlay).
-                        // The previous VirtualDisplay-based AndroidProjectHost was removed
-                        // because it required signature-level permissions unavailable to
-                        // sideloaded apps. See docs/plans/2026-05-01-phase-0-triage.md.
-                        AndroidProjectHostPlaceholder()
-                    }
-                } else {
-                    // IDE Mode: Show Settings/Project screens
-                    IdeNavHost(
-                        modifier = Modifier.fillMaxSize(),
-                        navController = navController,
-                        viewModel = viewModel,
-                        settingsViewModel = viewModel.settingsViewModel,
-                        onThemeToggle = onThemeToggle
-                    )
-                }
-            }
-
-            // LAYER 2: Navigation Rail (Overlay, Aligned Start)
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .align(Alignment.CenterStart)
-                    .zIndex(Z_INDEX_NAV_RAIL)
-            ) {
-                IdeNavRail(
-                    navController = navController,
-                    viewModel = viewModel,
-                    context = context,
-                    onShowPromptPopup = {
-                        // Show the prompt input dialog
-                        isPromptPopupVisible = true
-                    },
+            // AzHostActivityLayout manages safe zones, rail rendering, and z-ordering.
+            // Rail items are configured via the DSL; screen content goes in background {}.
+            AzHostActivityLayout(navController = navController) {
+                // Rail configuration & items
+                ideNavRailItems(
+                    projectType = projectType,
+                    onShowPromptPopup = { isPromptPopupVisible = true },
                     handleActionClick = { it() },
                     isIdeVisible = isIdeVisible,
                     onToggleMode = {
@@ -173,17 +125,45 @@ fun MainScreen(
                     scope = scope,
                     onNavigateToMainApp = { route ->
                         viewModel.clearSelection()
-                        // Exit App View (Web or Android)
                         viewModel.stateDelegate.setTargetAppVisible(false)
                         navController.navigate(route) {
                             launchSingleTop = true
                             restoreState = true
                         }
-                    }
+                    },
+                    viewModel = viewModel
                 )
+
+                // Main content layer (behind rail)
+                background {
+                    if (isIdeVisible) {
+                        if (currentWebUrl != null) {
+                            currentWebUrl?.let { webUrl ->
+                                WebProjectHost(
+                                    url = webUrl,
+                                    reloadTrigger = webReloadTrigger,
+                                    hardReloadTrigger = webHardReloadTrigger,
+                                    selectMode = isSelectMode,
+                                    onElementContext = { viewModel.handleWebElementContext(it) },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        } else {
+                            AndroidProjectHostPlaceholder()
+                        }
+                    } else {
+                        IdeNavHost(
+                            modifier = Modifier.fillMaxSize(),
+                            navController = navController,
+                            viewModel = viewModel,
+                            settingsViewModel = viewModel.settingsViewModel,
+                            onThemeToggle = onThemeToggle
+                        )
+                    }
+                }
             }
 
-            // LAYER 2.5: Selection Overlay
+            // Overlays (above the rail, outside AzHostActivityLayout)
             if (isSelectMode) {
                 Box(modifier = Modifier.fillMaxSize().zIndex(Z_INDEX_OVERLAY)) {
                     SelectionOverlay(
@@ -193,7 +173,6 @@ fun MainScreen(
                 }
             }
 
-            // LAYER 3: Contextual Chat Overlay
             if (isContextualChatVisible && activeSelectionRect != null) {
                 Box(modifier = Modifier.fillMaxSize().zIndex(Z_INDEX_OVERLAY)) {
                     ContextualChatOverlay(
@@ -204,7 +183,7 @@ fun MainScreen(
                 }
             }
 
-            // LAYER 4: Bottom Sheet (Console)
+            // Bottom Sheet (Console)
             IdeBottomSheet(
                 sheetState = sheetState,
                 viewModel = viewModel,

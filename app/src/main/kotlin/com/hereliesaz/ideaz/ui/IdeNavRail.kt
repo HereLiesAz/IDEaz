@@ -1,142 +1,123 @@
 package com.hereliesaz.ideaz.ui
 
-import android.content.Context
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.navigation.NavHostController
 import com.composables.core.BottomSheetState
-import com.hereliesaz.aznavrail.AzNavRail
+import com.hereliesaz.aznavrail.AzNavRailScope
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.aznavrail.model.AzHeaderIconShape
 import com.hereliesaz.ideaz.models.ProjectType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-@Composable
-fun IdeNavRail(
-    navController: NavHostController,
-    viewModel: MainViewModel,
-    context: Context,
+/**
+ * Configures the IDE navigation rail items within an [AzNavRailScope] DSL block.
+ * Call this inside [AzHostActivityLayout]'s content lambda.
+ */
+fun AzNavRailScope.ideNavRailItems(
+    projectType: String,
     onShowPromptPopup: () -> Unit,
     handleActionClick: (() -> Unit) -> Unit,
     isIdeVisible: Boolean,
     onToggleMode: () -> Unit,
     sheetState: BottomSheetState,
     scope: CoroutineScope,
-    initiallyExpanded: Boolean = false,
     onUndock: (() -> Unit)? = null,
-    enableRailDraggingOverride: Boolean? = null, // NEW
-    onOverlayDrag: ((Float, Float) -> Unit)? = null, // NEW: Manual drag handler
-    onNavigateToMainApp: (String) -> Unit = { navController.navigate(it) }
+    enableRailDraggingOverride: Boolean? = null,
+    onOverlayDrag: ((Float, Float) -> Unit)? = null,
+    onNavigateToMainApp: (String) -> Unit,
+    viewModel: MainViewModel
 ) {
-    val projectType by viewModel.settingsViewModel.projectType.collectAsState()
+    azSettings(
+        packRailButtons = true,
+        defaultShape = AzButtonShape.RECTANGLE,
+        enableRailDragging = enableRailDraggingOverride ?: true,
+        onUndock = onUndock,
+        onOverlayDrag = onOverlayDrag,
+        headerIconShape = AzHeaderIconShape.NONE,
+    )
 
-    AzNavRail(
-        navController = navController,
-        initiallyExpanded = initiallyExpanded
-    ) {
-        azSettings(
-            packRailButtons = true,
-            defaultShape = AzButtonShape.RECTANGLE,
-            enableRailDragging = enableRailDraggingOverride ?: true, // Default true unless override
-            onUndock = onUndock,
-            onOverlayDrag = onOverlayDrag,
-            headerIconShape = AzHeaderIconShape.NONE,
-        )
+    azRailItem(id = "project_settings", text = "Project", onClick = { onNavigateToMainApp("project_settings") })
+    azMenuItem(id = "git",  text = "Git", onClick = { onNavigateToMainApp("git") })
 
-        // ... (rest of items unchanged)
-        azRailItem(id = "project_settings", text = "Project", onClick = { onNavigateToMainApp("project_settings") })
-        azMenuItem(id = "git",  text = "Git", onClick = { onNavigateToMainApp("git") })
+    azRailHostItem(
+        id = "main",
+        text = "IDEaz",
+        onClick = { }
+    )
 
-        azRailHostItem(
-            id = "main",
-            text = "IDEaz",
-            onClick = {
-                // Previously handled launching overlay, now default behavior
+    azRailSubItem(
+        id = "prompt",
+        hostId = "main",
+        text = "Prompt",
+        onClick = {
+            handleActionClick {
+                onShowPromptPopup()
             }
-        )
-        // Only show Prompt option if in IDE Mode (isIdeVisible = true) or if we want it everywhere.
-        // The user complained about "contextless prompt popup over the project screen".
-        // This implies they triggered it accidentally or it shouldn't be there.
-        // However, user might want to prompt from Project Screen too (to control AI).
-        // But if it's "contextless", maybe they mean the overlay version.
-        // Let's keep it but ensure the popup handles dismissal/focus correctly.
-        azRailSubItem(
-            id = "prompt",
-            hostId = "main",
-            text = "Prompt",
-            onClick = {
-                handleActionClick {
-                    onShowPromptPopup()
-                }
-            }
-        )
-
-        azRailSubItem(
-            id = "build",
-            hostId = "main",
-            text = "Build",
-            onClick = {
-                handleActionClick {
-                    scope.launch {
-                        sheetState.animateTo(Halfway)
-                    }
-                }
-            }
-        )
-
-        if (projectType == ProjectType.WEB.name || projectType == ProjectType.PWA.name) {
-            azRailSubItem(
-                id = "reload",
-                hostId = "main",
-                text = "Reload",
-                onClick = {
-                    handleActionClick {
-                        viewModel.triggerWebReload()
-                    }
-                }
-            )
-            azRailSubItem(
-                id = "hard_reload",
-                hostId = "main",
-                text = "Hard Reload",
-                onClick = {
-                    handleActionClick {
-                        viewModel.triggerWebHardReload()
-                    }
-                }
-            )
         }
+    )
 
-        if (projectType == ProjectType.WEB.name || projectType == ProjectType.PWA.name) {
-            azRailSubItem(
-                id = "deploy",
-                hostId = "main",
-                text = "Deploy",
-                onClick = {
-                    handleActionClick {
-                        viewModel.deployWebProject()
-                    }
+    azRailSubItem(
+        id = "build",
+        hostId = "main",
+        text = "Build",
+        onClick = {
+            handleActionClick {
+                scope.launch {
+                    sheetState.animateTo(Halfway)
                 }
-            )
+            }
         }
+    )
 
-        azRailSubToggle(
-            id = "mode_toggle",
+    if (projectType == ProjectType.WEB.name || projectType == ProjectType.PWA.name) {
+        azRailSubItem(
+            id = "reload",
             hostId = "main",
-            isChecked = isIdeVisible,
-            toggleOnText = "Interact",
-            toggleOffText = "Select",
-            shape = AzButtonShape.NONE,
+            text = "Reload",
             onClick = {
                 handleActionClick {
-                    onToggleMode()
+                    viewModel.triggerWebReload()
                 }
             }
         )
-
-        azMenuItem(id = "file_explorer",  text = "Files", onClick = { onNavigateToMainApp("file_explorer") })
-        azRailItem(id = "settings", text = "Settings", onClick = { onNavigateToMainApp("settings") })
+        azRailSubItem(
+            id = "hard_reload",
+            hostId = "main",
+            text = "Hard Reload",
+            onClick = {
+                handleActionClick {
+                    viewModel.triggerWebHardReload()
+                }
+            }
+        )
     }
+
+    if (projectType == ProjectType.WEB.name || projectType == ProjectType.PWA.name) {
+        azRailSubItem(
+            id = "deploy",
+            hostId = "main",
+            text = "Deploy",
+            onClick = {
+                handleActionClick {
+                    viewModel.deployWebProject()
+                }
+            }
+        )
+    }
+
+    azRailSubToggle(
+        id = "mode_toggle",
+        hostId = "main",
+        isChecked = isIdeVisible,
+        toggleOnText = "Interact",
+        toggleOffText = "Select",
+        shape = AzButtonShape.NONE,
+        onClick = {
+            handleActionClick {
+                onToggleMode()
+            }
+        }
+    )
+
+    azMenuItem(id = "file_explorer",  text = "Files", onClick = { onNavigateToMainApp("file_explorer") })
+    azRailItem(id = "settings", text = "Settings", onClick = { onNavigateToMainApp("settings") })
 }
