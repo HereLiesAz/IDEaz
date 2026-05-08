@@ -7,3 +7,6 @@ abandoned-and-now-revived project. It has been superseded.
 **Active phase plan:** [`plans/2026-05-01-phase-0-triage.md`](plans/2026-05-01-phase-0-triage.md)
 
 When Phase 0 completes, this file will point to Phase 1's plan.
+
+## Completed (Triage Phase)
+- Fixed build failure in `app/build.gradle.kts` caused by missing `java.util.Properties` and `java.io.FileInputStream` imports.

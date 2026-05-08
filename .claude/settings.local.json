@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(jar tf:*)",
+      "Bash(javap:*)",
+      "Bash(java:*)",
+      "Bash(jar xf:*)",
+      "Bash(./gradlew :app:compileDebugKotlin:*)"
+    ]
+  }
+}
