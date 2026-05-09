@@ -5,8 +5,9 @@
    See https://developer.android.com/guide/topics/data/autobackup
 -->
 <full-backup-content>
-    <!-- Include all files by default -->
+    <!-- Include all files and shared preferences by default -->
     <include domain="file" path="."/>
+    <include domain="sharedpref" path="."/>
 
     <!-- Exclude temporary build caches -->
     <exclude domain="file" path="cache"/>

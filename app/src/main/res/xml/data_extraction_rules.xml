@@ -6,8 +6,9 @@
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- Include all files by default (projects, user data) -->
+        <!-- Include all files and shared preferences by default (projects, user data) -->
         <include domain="file" path="."/>
+        <include domain="sharedpref" path="."/>
 
         <!-- Exclude temporary build caches -->
         <exclude domain="file" path="cache"/>
@@ -23,6 +24,7 @@
 
     <device-transfer>
         <include domain="file" path="."/>
+        <include domain="sharedpref" path="."/>
         <exclude domain="file" path="cache"/>
         <exclude domain="file" path="web_dist"/>
         <exclude domain="sharedpref" path="com.hereliesaz.ideaz_preferences.xml"/>
