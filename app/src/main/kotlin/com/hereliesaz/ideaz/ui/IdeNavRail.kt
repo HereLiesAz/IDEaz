@@ -1,19 +1,16 @@
 package com.hereliesaz.ideaz.ui
 
 import com.composables.core.BottomSheetState
-import com.hereliesaz.aznavrail.AzNavRailScope
+import com.hereliesaz.aznavrail.AzNavHostScope
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.aznavrail.model.AzHeaderIconShape
 import com.hereliesaz.ideaz.models.ProjectType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-/**
- * Configures the IDE navigation rail items within an [AzNavRailScope] DSL block.
- * Call this inside [AzHostActivityLayout]'s content lambda.
- */
-fun AzNavRailScope.ideNavRailItems(
-    projectType: String,
+fun AzNavHostScope.ideNavRail(
+    viewModel: MainViewModel,
+    projectType: String?,
     onShowPromptPopup: () -> Unit,
     handleActionClick: (() -> Unit) -> Unit,
     isIdeVisible: Boolean,
@@ -23,8 +20,7 @@ fun AzNavRailScope.ideNavRailItems(
     onUndock: (() -> Unit)? = null,
     enableRailDraggingOverride: Boolean? = null,
     onOverlayDrag: ((Float, Float) -> Unit)? = null,
-    onNavigateToMainApp: (String) -> Unit,
-    viewModel: MainViewModel
+    onNavigateToMainApp: (String) -> Unit = { navController.navigate(it) }
 ) {
     azSettings(
         packRailButtons = true,
@@ -68,7 +64,7 @@ fun AzNavRailScope.ideNavRailItems(
         }
     )
 
-    if (projectType == ProjectType.WEB.name || projectType == ProjectType.PWA.name) {
+    if ((projectType == ProjectType.WEB.name) || (projectType == ProjectType.PWA.name)) {
         azRailSubItem(
             id = "reload",
             hostId = "main",
@@ -91,7 +87,7 @@ fun AzNavRailScope.ideNavRailItems(
         )
     }
 
-    if (projectType == ProjectType.WEB.name || projectType == ProjectType.PWA.name) {
+    if ((projectType == ProjectType.WEB.name) || (projectType == ProjectType.PWA.name)) {
         azRailSubItem(
             id = "deploy",
             hostId = "main",
