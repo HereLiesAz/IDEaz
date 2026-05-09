@@ -31,8 +31,8 @@ fun AzNavHostScope.ideNavRail(
         headerIconShape = AzHeaderIconShape.NONE,
     )
 
-    azRailItem(id = "project_settings", text = "Project", onClick = { onNavigateToMainApp("project_settings") })
-    azMenuItem(id = "git",  text = "Git", onClick = { onNavigateToMainApp("git") })
+    azRailItem(id = "project_settings", text = "Project", route = "project_settings", onClick = { onNavigateToMainApp("project_settings") })
+    azMenuItem(id = "git",  text = "Git", route = "git", onClick = { onNavigateToMainApp("git") })
 
     azRailHostItem(
         id = "main",
@@ -114,6 +114,6 @@ fun AzNavHostScope.ideNavRail(
         }
     )
 
-    azMenuItem(id = "file_explorer",  text = "Files", onClick = { onNavigateToMainApp("file_explorer") })
-    azRailItem(id = "settings", text = "Settings", onClick = { onNavigateToMainApp("settings") })
+    azMenuItem(id = "file_explorer",  text = "Files", route = "file_explorer", onClick = { onNavigateToMainApp("file_explorer") })
+    azRailItem(id = "settings", text = "Settings", route = "settings", onClick = { onNavigateToMainApp("settings") })
 }

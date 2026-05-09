@@ -108,6 +108,22 @@ fun MainScreen(
                 }
             )
 
+            // Console bottom sheet lives in the rail's background layer so it
+            // spans full width (no rail-side padding) and the rail itself draws
+            // on top. The sheet's own elevation/scrim handles foreground state
+            // when expanded.
+            background(weight = 100) {
+                IdeBottomSheet(
+                    sheetState = sheetState,
+                    viewModel = viewModel,
+                    peekDetent = Peek,
+                    halfwayDetent = Halfway,
+                    fullyExpandedDetent = FullyExpanded,
+                    screenHeight = screenHeight,
+                    onSendPrompt = { viewModel.sendPrompt(it) }
+                )
+            }
+
             onscreen {
                 Box(
                     modifier = Modifier
@@ -181,16 +197,6 @@ fun MainScreen(
                         }
                     }
 
-                    // LAYER 2.5: Selection Overlay
-                    if (isSelectMode) {
-                        Box(modifier = Modifier.fillMaxSize().zIndex(Z_INDEX_OVERLAY)) {
-                            SelectionOverlay(
-                                onTap = { x, y -> viewModel.handleSelection(android.graphics.Rect(x.toInt(), y.toInt(), x.toInt()+1, y.toInt()+1)) },
-                                onDragEnd = { rect -> viewModel.handleSelection(rect) }
-                            )
-                        }
-                    }
-
                     // LAYER 3: Contextual Chat Overlay
                     if (isContextualChatVisible && activeSelectionRect != null) {
                         Box(modifier = Modifier.fillMaxSize().zIndex(Z_INDEX_OVERLAY)) {
@@ -202,17 +208,6 @@ fun MainScreen(
                         }
                     }
 
-                    // LAYER 4: Bottom Sheet (Console)
-                    IdeBottomSheet(
-                        sheetState = sheetState,
-                        viewModel = viewModel,
-                        peekDetent = Peek,
-                        halfwayDetent = Halfway,
-                        fullyExpandedDetent = FullyExpanded,
-                        screenHeight = screenHeight,
-                        onSendPrompt = { viewModel.sendPrompt(it) }
-                    )
-
                     if (isPromptPopupVisible) {
                         PromptPopup(
                             onDismiss = { isPromptPopupVisible = false },
@@ -222,6 +217,18 @@ fun MainScreen(
                             }
                         )
                     }
+                }
+            }
+
+            // Selection overlay lives in its own onscreen layer so AzNavRail's
+            // safe-zone padding applies natively — the rail strip and system
+            // bars stay reachable while drag-to-select is active.
+            onscreen {
+                if (isSelectMode) {
+                    SelectionOverlay(
+                        onTap = { x, y -> viewModel.handleSelection(android.graphics.Rect(x.toInt(), y.toInt(), x.toInt()+1, y.toInt()+1)) },
+                        onDragEnd = { rect -> viewModel.handleSelection(rect) }
+                    )
                 }
             }
         }
