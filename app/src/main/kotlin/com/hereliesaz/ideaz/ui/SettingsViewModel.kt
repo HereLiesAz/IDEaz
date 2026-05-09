@@ -410,7 +410,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
     fun getGithubUser() = sharedPreferences.getString(KEY_GITHUB_USER, null)
     fun setGithubUser(githubUser: String) = sharedPreferences.edit().putString(KEY_GITHUB_USER, githubUser).apply()
-    fun getBranchName() = sharedPreferences.getString(KEY_BRANCH_NAME, "main")!!
+    fun getBranchName() = sharedPreferences.getString(KEY_BRANCH_NAME, "main") ?: "main"
     fun saveBranchName(branchName: String) = sharedPreferences.edit().putString(KEY_BRANCH_NAME, branchName).apply()
     fun getProjectType() = sharedPreferences.getString(KEY_PROJECT_TYPE, "UNKNOWN") ?: "UNKNOWN"
     fun setProjectType(type: String) {

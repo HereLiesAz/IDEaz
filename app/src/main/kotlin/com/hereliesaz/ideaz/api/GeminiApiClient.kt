@@ -1,67 +1,67 @@
 package com.hereliesaz.ideaz.api
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.util.Base64
 import android.util.Log
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.content
+import com.google.genai.Client
+import com.google.genai.types.Blob
+import com.google.genai.types.Content
+import com.google.genai.types.Part
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 object GeminiApiClient {
 
+    private const val TAG = "GeminiApiClient"
     private const val IMAGE_TAG = "[IMAGE: data:image/png;base64,"
+    private const val MODEL = "gemini-2.0-flash"
 
     /**
-     * Calls the Gemini API with the given prompt and API key on an IO thread.
-     * The prompt can be purely text, or multimodal with a text part and an image part.
-     * Multimodal prompts are expected to have the format:
-     * "text part... [IMAGE: data:image/png;base64,base64_encoded_image]"
-     * Returns the response text, including a formatted error message if one occurs.
+     * One-shot Gemini call used by the contextual chat overlay.
+     *
+     * Accepts either a pure-text prompt or a multimodal prompt encoded as
+     * `"text part... [IMAGE: data:image/png;base64,<base64>]"` — the same
+     * format produced by [com.hereliesaz.ideaz.ui.MainViewModel] when a
+     * screenshot is attached. Returns the response text, or a formatted
+     * error string on failure.
      */
-    suspend fun generateContent(prompt: String, apiKey: String): String {
-        return withContext(Dispatchers.IO) {
+    suspend fun generateContent(prompt: String, apiKey: String): String =
+        withContext(Dispatchers.IO) {
             try {
-                // Use a multimodal model that can handle both text and images.
-                val generativeModel = GenerativeModel(
-                    modelName = "gemini-1.5-flash-latest",
-                    apiKey = apiKey
-                )
+                val client = Client.builder().apiKey(apiKey).build()
+                val parts = mutableListOf<Part>()
 
-                val textPrompt: String
-                var image: Bitmap? = null
-
-                // Parse prompt for text and image
                 if (prompt.contains(IMAGE_TAG)) {
-                    textPrompt = prompt.substringBefore(IMAGE_TAG).trim()
+                    val textPrompt = prompt.substringBefore(IMAGE_TAG).trim()
                     val base64Image = prompt.substringAfter(IMAGE_TAG).removeSuffix("]")
-                    try {
-                        val decodedString = Base64.decode(base64Image, Base64.DEFAULT)
-                        image = BitmapFactory.decodeByteArray(decodedString, 0, decodedString.size)
+                    val imageBytes = try {
+                        Base64.decode(base64Image, Base64.DEFAULT)
                     } catch (e: IllegalArgumentException) {
-                        Log.e("GeminiApiClient", "Base64 decoding failed", e)
+                        Log.e(TAG, "Base64 decoding failed", e)
                         return@withContext "Error: Invalid image format."
                     }
-                } else {
-                    textPrompt = prompt
-                }
-
-                val response = if (image != null) {
-                    val inputContent = content {
-                        image(image)
-                        text(textPrompt)
+                    if (textPrompt.isNotBlank()) {
+                        parts.add(Part.builder().text(textPrompt).build())
                     }
-                    generativeModel.generateContent(inputContent)
+                    parts.add(
+                        Part.builder()
+                            .inlineData(
+                                Blob.builder()
+                                    .data(imageBytes)
+                                    .mimeType("image/png")
+                                    .build()
+                            )
+                            .build()
+                    )
                 } else {
-                    generativeModel.generateContent(textPrompt)
+                    parts.add(Part.builder().text(prompt).build())
                 }
 
-                response.text ?: "Error: Received an empty response from the API."
+                val content = Content.builder().role("user").parts(parts).build()
+                val response = client.models.generateContent(MODEL, listOf(content), null)
+                response.text() ?: "Error: Received an empty response from the API."
             } catch (e: Exception) {
-                Log.e("GeminiApiClient", "Gemini API call failed", e)
+                Log.e(TAG, "Gemini API call failed", e)
                 "Error: ${e.message}"
             }
         }
-    }
 }

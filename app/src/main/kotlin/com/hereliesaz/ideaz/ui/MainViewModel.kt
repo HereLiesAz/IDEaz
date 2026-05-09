@@ -204,9 +204,11 @@ class MainViewModel(
         {
             // Android Build Success Callback
             // Notify System that update is ready (if applicable) or just launch
-            val intent = Intent("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP")
-            if (lastPrompt != null) {
-                intent.putExtra("PROMPT", lastPrompt)
+            val intent = Intent("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP").apply {
+                setPackage(application.packageName)
+                if (lastPrompt != null) {
+                    putExtra("PROMPT", lastPrompt)
+                }
             }
             application.sendBroadcast(intent)
             launchTargetApp(application)

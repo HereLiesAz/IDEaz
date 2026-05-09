@@ -6,9 +6,6 @@
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- Include all shared preferences (settings, keys) -->
-        <include domain="sharedpref" path="."/>
-
         <!-- Include all files by default (projects, user data) -->
         <include domain="file" path="."/>
 
@@ -17,13 +14,17 @@
 
         <!-- Exclude build artifacts -->
         <exclude domain="file" path="web_dist"/>
+
+        <!-- Default-shared-prefs file holds GitHub PATs, Google API keys,
+             Jules API keys, and keystore passwords. Excluded from cloud backup
+             so they don't ride along with Auto Backup. -->
+        <exclude domain="sharedpref" path="com.hereliesaz.ideaz_preferences.xml"/>
     </cloud-backup>
 
     <device-transfer>
-        <!-- Use the same rules for device-to-device transfer -->
-        <include domain="sharedpref" path="."/>
         <include domain="file" path="."/>
         <exclude domain="file" path="cache"/>
         <exclude domain="file" path="web_dist"/>
+        <exclude domain="sharedpref" path="com.hereliesaz.ideaz_preferences.xml"/>
     </device-transfer>
 </data-extraction-rules>

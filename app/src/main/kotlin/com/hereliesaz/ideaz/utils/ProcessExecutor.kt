@@ -7,24 +7,22 @@ data class ProcessResult(val exitCode: Int, val output: String)
 
 object ProcessExecutor {
     fun execute(command: List<String>): ProcessResult {
-        try {
+        return try {
             val process = ProcessBuilder(command)
                 .redirectErrorStream(true)
                 .start()
 
-            val reader = BufferedReader(InputStreamReader(process.inputStream))
-            val output = StringBuilder()
-            var line: String?
-            while (reader.readLine().also { line = it } != null) {
-                output.append(line).append(System.lineSeparator())
+            val output = BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
+                buildString {
+                    reader.lineSequence().forEach { append(it).append(System.lineSeparator()) }
+                }
             }
 
             val exitCode = process.waitFor()
-
-            return ProcessResult(exitCode, output.toString())
+            ProcessResult(exitCode, output)
         } catch (e: Exception) {
             e.printStackTrace()
-            return ProcessResult(-1, e.message ?: "Unknown error")
+            ProcessResult(-1, e.message ?: "Unknown error")
         }
     }
 
@@ -38,16 +36,11 @@ object ProcessExecutor {
                 .redirectErrorStream(true)
                 .start()
 
-            val reader = BufferedReader(InputStreamReader(process.inputStream))
-
-            var line: String?
-            while (reader.readLine().also { line = it } != null) {
-                line?.let { onOutputLine(it) }
+            BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
+                reader.lineSequence().forEach(onOutputLine)
             }
 
-            val exitCode = process.waitFor()
-            onCompletion(exitCode)
-
+            onCompletion(process.waitFor())
         } catch (e: Exception) {
             e.printStackTrace()
             onOutputLine("Error: ${e.message ?: "Unknown error"}")
@@ -59,30 +52,27 @@ object ProcessExecutor {
         command: List<String>,
         onOutputLine: (String) -> Unit
     ): ProcessResult {
-        try {
+        return try {
             val process = ProcessBuilder(command)
                 .redirectErrorStream(true)
                 .start()
 
-            val reader = BufferedReader(InputStreamReader(process.inputStream))
-            val fullOutput = StringBuilder()
-            var line: String?
-
-            while (reader.readLine().also { line = it } != null) {
-                line?.let {
-                    onOutputLine(it)
-                    fullOutput.append(it).append(System.lineSeparator())
+            val fullOutput = BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
+                buildString {
+                    reader.lineSequence().forEach { line ->
+                        onOutputLine(line)
+                        append(line).append(System.lineSeparator())
+                    }
                 }
             }
 
             val exitCode = process.waitFor()
-            return ProcessResult(exitCode, fullOutput.toString())
-
+            ProcessResult(exitCode, fullOutput)
         } catch (e: Exception) {
             e.printStackTrace()
             val msg = e.message ?: "Unknown error"
             onOutputLine("Error: $msg")
-            return ProcessResult(-1, msg)
+            ProcessResult(-1, msg)
         }
     }
 }

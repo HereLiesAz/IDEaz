@@ -133,7 +133,6 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging.interceptor)
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.generativeai)
     implementation(libs.google.genai)
     implementation(libs.androidx.localbroadcastmanager)
     implementation(libs.compose.unstyled.core)
