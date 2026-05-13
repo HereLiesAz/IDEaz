@@ -61,7 +61,16 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
             signingConfig = signingConfigs.getByName("debug")
         }
         release {
-            signingConfig = signingConfigs.getByName("release")
+            // CI sets KEYSTORE_FILE (and matching password/alias env vars) to sign with
+            // the real release keystore. Local builds without those env vars fall back
+            // to the debug keystore so `./gradlew build` and `assembleRelease` work
+            // out of the box. The release signingConfig is only used when fully
+            // populated; otherwise the debug config takes over.
+            signingConfig = if (System.getenv("KEYSTORE_FILE") != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

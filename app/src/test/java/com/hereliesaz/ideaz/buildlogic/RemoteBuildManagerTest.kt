@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.hereliesaz.ideaz.api.*
 import kotlinx.coroutines.runBlocking
-import okhttp3.ResponseBody
+import okhttp3.ResponseBody.Companion.toResponseBody
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -13,6 +13,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import retrofit2.Response
 import java.io.File
 import java.io.ByteArrayOutputStream
@@ -20,6 +21,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class RemoteBuildManagerTest {
 
     private val context = ApplicationProvider.getApplicationContext<Context>()
@@ -65,7 +67,7 @@ class RemoteBuildManagerTest {
         }
 
         override suspend fun getRunJobs(owner: String, repo: String, runId: Long) = GitHubJobsResponse(emptyList())
-        override suspend fun getJobLogs(owner: String, repo: String, jobId: Long) = Response.success(ResponseBody.create(null, ""))
+        override suspend fun getJobLogs(owner: String, repo: String, jobId: Long) = Response.success("".toResponseBody(null))
         override suspend fun listRepos() = emptyList<GitHubRepoResponse>()
     }
 
