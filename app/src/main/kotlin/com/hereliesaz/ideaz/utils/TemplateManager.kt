@@ -32,7 +32,7 @@ object TemplateManager {
                 relocatePackage(destinationDir, packageName)
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("TemplateManager", "Template copy failed", e)
         }
     }
 

@@ -470,7 +470,7 @@ class MainViewModel(
 
                 } catch (e: Exception) {
                     logHandler.onBuildLog("Error polling pages: ${e.message}")
-                    e.printStackTrace()
+                    android.util.Log.w("MainViewModel", "Operation failed", e)
                 }
 
                 delay(15_000) // 15 seconds
@@ -699,7 +699,7 @@ class MainViewModel(
             )
 
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("MainViewModel", "Operation failed", e)
         }
     }
 
@@ -768,7 +768,7 @@ class MainViewModel(
                 "same"
 
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.w("MainViewModel", "Operation failed", e)
                 "unknown"
             }
         }
@@ -778,6 +778,13 @@ class MainViewModel(
         viewModelScope.launch {
             aiDelegate.clearSession()
             settingsViewModel.setAppName(name)
+            // Sync the saved branch name to whatever the local repo is actually on.
+            // Previously, KEY_BRANCH_NAME stayed at whatever the prior project used
+            // (or the literal "main" default), so loading a "master"-default repo
+            // would commit/push to the wrong branch.
+            gitDelegate.getCurrentBranch()?.let { actualBranch ->
+                settingsViewModel.saveBranchName(actualBranch)
+            }
             val user = settingsViewModel.getGithubUser()
             if (!user.isNullOrBlank()) repoDelegate.uploadProjectSecrets(user, name)
             onSuccess()
@@ -870,7 +877,7 @@ class MainViewModel(
 
             } catch (e: Exception) {
                 logHandler.onOverlayLog("Failed to import project: ${e.message}")
-                e.printStackTrace()
+                android.util.Log.w("MainViewModel", "Operation failed", e)
             } finally {
                 logHandler.onProgress(null)
             }
@@ -1094,7 +1101,7 @@ class MainViewModel(
                 input.close()
                 true
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.w("MainViewModel", "Operation failed", e)
                 false
             }
         }

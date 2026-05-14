@@ -49,7 +49,7 @@ class IdeazAccessibilityService : AccessibilityService() {
         try {
             unregisterReceiver(tapReceiver)
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("IdeazAccessibility", "Receiver unregister failed", e)
         }
     }
 

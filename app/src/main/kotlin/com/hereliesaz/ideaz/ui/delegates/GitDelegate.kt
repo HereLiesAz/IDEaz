@@ -156,7 +156,7 @@ class GitDelegate(
             true
         } catch (e: Exception) {
             onLog("[GIT] Commit Error: ${e.message}\n")
-            e.printStackTrace()
+            android.util.Log.w("GitDelegate", "Git delegate operation failed", e)
             false
         }
     }
@@ -214,5 +214,15 @@ class GitDelegate(
      */
     suspend fun getHeadSha(): String? = withContext(Dispatchers.IO) {
         getGitManager()?.getHeadSha()
+    }
+
+    /**
+     * Returns the branch currently checked out in the local repository, or null
+     * if the project directory isn't a git repo. Used to sync KEY_BRANCH_NAME
+     * when loading an existing local project (avoids defaulting to "main" when
+     * the user's repo is on "master" or any other branch).
+     */
+    suspend fun getCurrentBranch(): String? = withContext(Dispatchers.IO) {
+        getGitManager()?.getCurrentBranch()
     }
 }

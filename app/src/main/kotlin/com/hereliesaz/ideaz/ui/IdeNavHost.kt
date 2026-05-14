@@ -37,7 +37,7 @@ fun IdeNavHost(
                 viewModel.setPendingRoute(null)
             } catch (e: Exception) {
                 // Navigation might fail if graph isn't ready
-                e.printStackTrace()
+                android.util.Log.w("IdeNavHost", "Pending nav route navigation failed", e)
             }
         }
     }

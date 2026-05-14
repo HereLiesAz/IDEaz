@@ -181,7 +181,7 @@ class IdeazOverlayService : Service() {
             windowManager.addView(overlayView, params)
             isOverlayAdded = true
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("IdeazOverlay", "Overlay service operation failed", e)
         }
     }
 
@@ -208,7 +208,7 @@ class IdeazOverlayService : Service() {
         try {
             windowManager.updateViewLayout(overlayView, params)
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("IdeazOverlay", "Overlay service operation failed", e)
         }
     }
 
@@ -247,7 +247,7 @@ class IdeazOverlayService : Service() {
             val clip = ClipData.newPlainText("Copied Prompt", text)
             clipboard.setPrimaryClip(clip)
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("IdeazOverlay", "Overlay service operation failed", e)
         }
     }
 

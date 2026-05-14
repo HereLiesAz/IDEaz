@@ -201,7 +201,7 @@ class UpdateDelegate(
                 input.close()
                 file
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.w("UpdateDelegate", "Update operation failed", e)
                 null
             }
         }

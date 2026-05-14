@@ -21,7 +21,7 @@ object ProcessExecutor {
             val exitCode = process.waitFor()
             ProcessResult(exitCode, output)
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("ProcessExecutor", "Process invocation failed", e)
             ProcessResult(-1, e.message ?: "Unknown error")
         }
     }
@@ -42,7 +42,7 @@ object ProcessExecutor {
 
             onCompletion(process.waitFor())
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("ProcessExecutor", "Process invocation failed", e)
             onOutputLine("Error: ${e.message ?: "Unknown error"}")
             onCompletion(-1)
         }
@@ -69,7 +69,7 @@ object ProcessExecutor {
             val exitCode = process.waitFor()
             ProcessResult(exitCode, fullOutput)
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("ProcessExecutor", "Process invocation failed", e)
             val msg = e.message ?: "Unknown error"
             onOutputLine("Error: $msg")
             ProcessResult(-1, msg)

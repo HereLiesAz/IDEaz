@@ -358,7 +358,7 @@ class GitManager(private val projectDir: File) {
             // Log the error (if we had a logger) or at least don't swallow it silently without a trace.
             // Since this class doesn't have a logger, we rely on the caller to handle the false return.
             // But we should print stack trace for debugging purposes as requested.
-            e.printStackTrace()
+            android.util.Log.w("GitManager", "Git operation failed", e)
             false
         }
     }

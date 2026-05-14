@@ -37,6 +37,17 @@ import com.hereliesaz.aznavrail.AzHostActivityLayout
 const val Z_INDEX_WEB_VIEW = 0f
 const val Z_INDEX_OVERLAY = 200f
 
+/**
+ * Top clearance reserved for the AzNavRail-provided screen title.
+ *
+ * AzNavRail renders the active item's title at `screenHeight * 0.1f` from the top,
+ * occupying another `screenHeight * 0.1f` of vertical space (see AzNavHost). On
+ * common phones that's around 80–160 dp total. Screens that draw their own content
+ * from the top need to push down by at least this much to avoid colliding with the
+ * title text. Centralized here so it doesn't drift across screens.
+ */
+val RAIL_TITLE_CLEARANCE = 80.dp
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(

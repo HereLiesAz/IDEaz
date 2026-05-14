@@ -202,7 +202,12 @@ fun ProjectScreen(
         return true
     }
 
-    LaunchedEffect(Unit) { checkLoadRequirements() }
+    // Permission probes (ALL_FILES_ACCESS, keys check) used to fire on first
+    // composition via LaunchedEffect(Unit). That meant first-launch users got a
+    // system "Allow access to all files?" dialog before they'd done anything.
+    // checkLoadRequirements/checkKeys are still invoked at action time — Load
+    // tab project-pick, SetupTab Save & Initialize / Create & Save — so the
+    // user is prompted only when a path actually needs the permission/keys.
 
     // --- UI ---
     if (showRequirementDialog) {
@@ -265,7 +270,7 @@ fun ProjectScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         // The rail provides the "Project" screen title (from AzNavRail's route → text
         // mapping in IdeNavRail). Leave clearance for that title at the top.
-        Spacer(modifier = Modifier.height(80.dp))
+        Spacer(modifier = Modifier.height(RAIL_TITLE_CLEARANCE))
 
         if (displayAppName.isNotBlank()) {
             Card(

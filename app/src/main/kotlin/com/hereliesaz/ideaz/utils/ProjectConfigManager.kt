@@ -31,7 +31,7 @@ object ProjectConfigManager {
             val jsonString = json.encodeToString(IdeazProjectConfig.serializer(), config)
             file.writeText(jsonString)
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("ProjectConfigManager", "Project config operation failed", e)
         }
     }
 
@@ -44,7 +44,7 @@ object ProjectConfigManager {
                 null
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("ProjectConfigManager", "Project config operation failed", e)
             null
         }
     }
@@ -63,7 +63,7 @@ object ProjectConfigManager {
                 gitignore.writeText("$ideazEntry\n")
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("ProjectConfigManager", "Project config operation failed", e)
         }
     }
 
@@ -402,7 +402,7 @@ jobs:
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("ProjectConfigManager", "Project config operation failed", e)
         }
         return modified
     }
@@ -423,7 +423,7 @@ jobs:
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("ProjectConfigManager", "Project config operation failed", e)
         }
         return modified
     }
@@ -440,7 +440,7 @@ jobs:
                 modified = true
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("ProjectConfigManager", "Project config operation failed", e)
         }
         return modified
     }
@@ -473,7 +473,7 @@ jobs:
                     }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.w("ProjectConfigManager", "Project config operation failed", e)
             }
         }
         return modified
@@ -622,7 +622,7 @@ def buildNumber = System.getenv("BUILD_NUMBER")?.toInteger() ?: 1
                     FileOutputStream(file).use { it.write(imageBytes) }
                     screenshotFilename = filename
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    android.util.Log.w("ProjectConfigManager", "Project config operation failed", e)
                 }
             }
 
@@ -637,7 +637,7 @@ def buildNumber = System.getenv("BUILD_NUMBER")?.toInteger() ?: 1
             historyFile.writeText(json.encodeToString(PromptHistory.serializer(), newHistory))
 
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("ProjectConfigManager", "Project config operation failed", e)
         }
     }
 }

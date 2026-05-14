@@ -44,7 +44,8 @@ fun FileExplorerScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Spacer(modifier = Modifier.height(64.dp))
+        // Clearance for the rail-provided "Files" screen title.
+        Spacer(modifier = Modifier.height(RAIL_TITLE_CLEARANCE))
 
         Text(currentPath?.absolutePath?.removePrefix(projectDir.absolutePath) ?: "/", style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
 
