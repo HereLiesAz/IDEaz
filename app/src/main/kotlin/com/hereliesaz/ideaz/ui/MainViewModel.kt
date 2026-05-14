@@ -370,6 +370,10 @@ class MainViewModel(
     fun gitStash(m: String?) { viewModelScope.launch { gitDelegate.stash(m) } }
     fun gitUnstash() { viewModelScope.launch { gitDelegate.unstash() } }
     fun switchBranch(b: String) { viewModelScope.launch { gitDelegate.switchBranch(b) } }
+    fun gitCommit(message: String) {
+        if (message.isBlank()) return
+        viewModelScope.launch { gitDelegate.commit(message) }
+    }
 
     /**
      * Triggers deployment for Web Projects (GitHub Pages).
@@ -429,9 +433,14 @@ class MainViewModel(
                         val url = body?.htmlUrl
 
                         if (status == "built" && url != null) {
-                            logHandler.onBuildLog("Deployment successful! Loading: $url")
-                            stateDelegate.setCurrentWebUrl(url)
-                            stateDelegate.setTargetAppVisible(true)
+                            // Don't swap the WebView to the public URL automatically — the user
+                            // is likely still iterating on local edits served from
+                            // appassets.androidplatform.net, and silently switching away from
+                            // them was a confusing surprise (userflow audit #11). Just announce
+                            // the deployed URL prominently; the user can open it in a browser
+                            // when they're ready.
+                            logHandler.onBuildLog("Deployment successful: $url")
+                            logHandler.onAiLog("Deployment successful: $url (open in browser to verify the live site)")
                             break
                         } else {
                             logHandler.onBuildLog("Deployment status: $status...")

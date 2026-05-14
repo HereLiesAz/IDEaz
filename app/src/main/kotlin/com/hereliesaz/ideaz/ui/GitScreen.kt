@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.hereliesaz.aznavrail.AzButton
+import com.hereliesaz.aznavrail.AzTextBox
 import com.hereliesaz.aznavrail.model.AzButtonShape
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -25,6 +26,7 @@ fun GitScreen(
     val gitStatus by viewModel.gitStatus.collectAsState()
     var expanded by remember { mutableStateOf(false) }
     var selectedBranch by remember { mutableStateOf(settingsViewModel.getBranchName()) }
+    var commitMessage by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         viewModel.refreshGitData()
@@ -32,13 +34,25 @@ fun GitScreen(
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
 
-        Spacer(modifier = Modifier.height(64.dp))
+        // Top spacer leaves room for the rail-provided "Git" screen title.
+        Spacer(modifier = Modifier.height(80.dp))
 
-        // Force Commit Button
-        AzButton(
-            onClick = { viewModel.forceUpdateInitFiles() },
-            text = "Push Inits",
-            shape = AzButtonShape.NONE
+        // Commit a custom message — Phase 1 had no UI for this, so commits only
+        // happened indirectly through deploy/build with timestamp-only messages.
+        Text("Commit", style = MaterialTheme.typography.headlineSmall)
+        Spacer(modifier = Modifier.height(8.dp))
+        AzTextBox(
+            value = commitMessage,
+            onValueChange = { commitMessage = it },
+            hint = "Commit message",
+            onSubmit = { msg ->
+                if (msg.isNotBlank()) {
+                    viewModel.gitCommit(msg)
+                    commitMessage = ""
+                }
+            },
+            submitButtonContent = { Text("Commit") },
+            modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -53,6 +67,22 @@ fun GitScreen(
             AzButton(onClick = { viewModel.gitStash("Stash") }, text = "Stash", shape = AzButtonShape.RECTANGLE)
             AzButton(onClick = { viewModel.gitUnstash() }, text = "Unstash", shape = AzButtonShape.RECTANGLE)
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Regenerate the GitHub Actions workflow, setup.sh, and AGENTS_SETUP.md.
+        // Previously labeled "Push Inits" which gave no clue what it does.
+        AzButton(
+            onClick = { viewModel.forceUpdateInitFiles() },
+            text = "Regenerate CI Files",
+            shape = AzButtonShape.RECTANGLE
+        )
+        Text(
+            text = "Rebuilds workflow YAML, setup.sh, and AGENTS_SETUP.md, then commits and pushes.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
