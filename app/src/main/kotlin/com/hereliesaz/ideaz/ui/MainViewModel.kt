@@ -984,10 +984,30 @@ class MainViewModel(
             }
     }
 
+    /**
+     * Returns the list of credentials the user still needs to configure before any
+     * project flow (Create / Save & Initialize / Clone-select) can succeed.
+     *
+     * Phase 1 default is Gemini, so the Google API key is the AI credential that
+     * gates these flows. The Jules API key is only required if the user has
+     * explicitly assigned Jules to one of the AI task slots (Phase 2 territory).
+     */
     fun checkRequiredKeys(): List<String> {
         val missing = mutableListOf<String>()
-        if (settingsViewModel.getApiKey().isNullOrBlank()) missing.add("Jules API Key")
+        if (settingsViewModel.getGoogleApiKey().isNullOrBlank()) missing.add("Google AI Studio API Key")
         if (settingsViewModel.getGithubToken().isNullOrBlank()) missing.add("GitHub Token")
+
+        // Only flag the Jules key as missing if Jules is actually assigned to a task.
+        val julesAssigned = listOf(
+            SettingsViewModel.KEY_AI_ASSIGNMENT_DEFAULT,
+            SettingsViewModel.KEY_AI_ASSIGNMENT_INIT,
+            SettingsViewModel.KEY_AI_ASSIGNMENT_CONTEXTLESS,
+            SettingsViewModel.KEY_AI_ASSIGNMENT_OVERLAY,
+        ).any { settingsViewModel.getAiAssignment(it) == AiModels.JULES_DEFAULT }
+        if (julesAssigned && settingsViewModel.getApiKey().isNullOrBlank()) {
+            missing.add("Jules API Key")
+        }
+
         return missing
     }
 

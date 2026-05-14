@@ -220,7 +220,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun saveAiAssignment(taskKey: String, modelId: String) = sharedPreferences.edit().putString(taskKey, modelId).apply()
     fun getAiAssignment(taskKey: String): String? {
-        val defaultModelId = sharedPreferences.getString(KEY_AI_ASSIGNMENT_DEFAULT, AiModels.JULES_DEFAULT)
+        // Phase 1 default is Gemini (AGENTS.md). Jules is Phase 2; users opt into it
+        // explicitly via the AI assignment dropdowns in Settings.
+        val defaultModelId = sharedPreferences.getString(KEY_AI_ASSIGNMENT_DEFAULT, AiModels.GEMINI_FLASH)
         if (taskKey == KEY_AI_ASSIGNMENT_DEFAULT) return defaultModelId
         return sharedPreferences.getString(taskKey, defaultModelId)
     }

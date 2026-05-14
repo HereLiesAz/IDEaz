@@ -152,9 +152,10 @@ class AIDelegate(
         _isLoadingJulesResponse.value = true
         _julesError.value = null
 
-        // Resolve Model and Key
+        // Resolve Model and Key. Phase 1 default is Gemini; Jules requires explicit
+        // assignment via Settings → AI Assignments.
         val modelId = settingsViewModel.getAiAssignment(SettingsViewModel.KEY_AI_ASSIGNMENT_OVERLAY)
-        val model = AiModels.findById(modelId) ?: AiModels.JULES
+        val model = AiModels.findById(modelId) ?: AiModels.GEMINI
         val key = settingsViewModel.getApiKey(model.requiredKey)
 
         if (key.isNullOrBlank()) {

@@ -35,11 +35,11 @@ fun ProjectSetupTab(
     viewModel: MainViewModel,
     settingsViewModel: SettingsViewModel,
     context: Context,
-    onBuildTriggered: () -> Unit,
     onCheckRequirements: () -> Boolean,
     isCreateMode: Boolean,
     onCreateModeChanged: (Boolean) -> Unit,
     onNavigateToTab: (String) -> Unit,
+    onNavigateToSettings: () -> Unit,
     onSelectApk: () -> Unit = {}
 ) {
     val currentAppNameState by settingsViewModel.currentAppName.collectAsState()
@@ -86,12 +86,13 @@ fun ProjectSetupTab(
                 AzButton(
                     onClick = {
                         showTokenRequiredDialog = false
-                        onNavigateToTab("Clone") // Assuming Settings is accessible or navigate via nav controller if available, but here we just close or guide.
-                        // Actually, checkKeys() directs to Settings. Let's just use the same guidance logic or call a nav callback if we had one for settings.
-                        // Since we don't have direct nav to settings here easily without callback, we rely on the existing checkKeys flow, but this dialog satisfies the explicit requirement.
+                        onNavigateToSettings()
                     },
-                    text = "OK"
+                    text = "Go to Settings"
                 )
+            },
+            dismissButton = {
+                TextButton(onClick = { showTokenRequiredDialog = false }) { Text("Cancel") }
             }
         )
     }
@@ -274,7 +275,6 @@ fun ProjectSetupTab(
                                 if (initialPrompt.isNotBlank()) {
                                     viewModel.sendPrompt(initialPrompt)
                                 }
-                                onBuildTriggered()
                             }
                         }
                     },
@@ -324,7 +324,6 @@ fun ProjectSetupTab(
                             viewModel.saveAndInitialize(
                                 appName, githubUser, branchName, packageName, selectedType, context, null
                             )
-                            onBuildTriggered()
                         }
                     },
                     text = "Save & Initialize",

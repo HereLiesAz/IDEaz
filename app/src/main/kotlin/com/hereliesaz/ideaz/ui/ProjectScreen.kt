@@ -49,7 +49,6 @@ import com.hereliesaz.ideaz.utils.ApkInstaller
 fun ProjectScreen(
     viewModel: MainViewModel,
     settingsViewModel: SettingsViewModel,
-    onBuildTriggered: () -> Unit,
     navController: NavController
 ) {
     val context = LocalContext.current
@@ -264,15 +263,9 @@ fun ProjectScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        // Use padding for the title area instead of a Spacer
-        Column(modifier = Modifier.padding(top = 64.dp)) {
-             Text(
-                text = "Project",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
-            )
-        }
+        // The rail provides the "Project" screen title (from AzNavRail's route → text
+        // mapping in IdeNavRail). Leave clearance for that title at the top.
+        Spacer(modifier = Modifier.height(80.dp))
 
         if (displayAppName.isNotBlank()) {
             Card(
@@ -328,7 +321,6 @@ fun ProjectScreen(
                     viewModel,
                     settingsViewModel,
                     context,
-                    onBuildTriggered,
                     onCheckRequirements = { checkLoadRequirements() },
                     isCreateMode = isCreateMode,
                     onCreateModeChanged = { isCreateMode = it },
@@ -336,6 +328,7 @@ fun ProjectScreen(
                         val idx = tabs.indexOf(tabName)
                         if (idx != -1) tabIndex = idx
                     },
+                    onNavigateToSettings = { navController.navigate("settings") },
                     onSelectApk = {
                         apkPickerLauncher.launch("application/vnd.android.package-archive")
                     }
