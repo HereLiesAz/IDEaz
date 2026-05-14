@@ -60,6 +60,7 @@ fun ProjectSetupTab(
 
     var repoDescription by remember { mutableStateOf("Created with IDEaz") }
     var initialPrompt by remember { mutableStateOf("") }
+    var initialPromptTouched by remember { mutableStateOf(false) }
 
     LaunchedEffect(currentAppNameState, isCreateMode) {
         if (!isCreateMode) {
@@ -235,12 +236,17 @@ fun ProjectSetupTab(
 
                 Spacer(Modifier.height(24.dp))
 
-                // Prompt Text Box
-                val isPromptError = initialPrompt.isBlank()
+                // Prompt Text Box. Error only surfaces once the user has interacted
+                // with the field — previously the "* Required" message rendered from
+                // the moment Create mode opened, which read as a premature complaint.
+                val isPromptError = initialPromptTouched && initialPrompt.isBlank()
                 AzTextBox(
                     value = initialPrompt,
-                    onValueChange = { initialPrompt = it },
-                hint = "Initial Prompt (Mandatory)",
+                    onValueChange = {
+                        initialPrompt = it
+                        initialPromptTouched = true
+                    },
+                    hint = "Initial Prompt (Mandatory)",
                     onSubmit = {},
                     modifier = Modifier.fillMaxWidth(),
                     isError = isPromptError,
@@ -295,10 +301,16 @@ fun ProjectSetupTab(
                             viewModel.sendPrompt(DOCS_PROMPT)
                         }
                     },
-                    text = "Add Docs",
+                    text = "Generate Project Docs (AI)",
                     shape = AzButtonShape.RECTANGLE,
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !isBusy
+                )
+                Text(
+                    text = "Asks the AI to scaffold AGENTS.md and the docs/ folder for this repo. Sends a detailed prompt to the conversational chat.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp, top = 4.dp)
                 )
 
                 Spacer(Modifier.height(8.dp))

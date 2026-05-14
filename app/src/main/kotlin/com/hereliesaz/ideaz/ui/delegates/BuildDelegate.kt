@@ -119,12 +119,11 @@ class BuildDelegate(
             if (type == ProjectType.WEB || type == ProjectType.PWA) {
                 onLog("[IDE] Web Project ready. Loading WebView...\n")
                 onWebBuildSuccess(apkPath)
-
-                // Push to GitHub for deployment (Pages)
-                if (!settingsViewModel.getGithubToken().isNullOrBlank()) {
-                    onLog("[IDE] Triggering remote Web Build (Pushing to GitHub)...\n")
-                    gitDelegate.push()
-                }
+                // Deployment (push to GitHub Pages) is now an explicit action via
+                // the rail's "Deploy" item / MainViewModel.deployWebProject(). Avoid
+                // the auto-push that previously fired here — it duplicated the push
+                // already done by startBuild and surprised users by deploying every
+                // time they just wanted to preview locally.
             } else {
                 onOverlayLog("Build successful. Updating...")
                 onAndroidBuildSuccess()
@@ -178,15 +177,14 @@ class BuildDelegate(
 
             val dir = projectDir ?: settingsViewModel.getProjectPath(settingsViewModel.getAppName() ?: "")
 
-            // Web projects don't have a remote build artifact — push and let the
-            // Pages workflow deploy. The success callback simply points the
-            // WebView at the local index.html.
+            // Web projects: no remote build to wait on — just verify the local
+            // index.html exists and let the WebView load it. Deploy is now an
+            // explicit user action (rail → Deploy / deployWebProject), so
+            // startBuild no longer commits or pushes on its own. Previously
+            // "Save & Initialize" silently fired an unconditional commit+push,
+            // which was a surprise the userflow audit flagged.
             if (type == ProjectType.WEB || type == ProjectType.PWA) {
-                pushLog("[IDE] Web Project: triggering deploy via push.\n")
-                if (!token.isNullOrBlank() && !user.isNullOrBlank()) {
-                    gitDelegate.commit("Web Build Trigger: ${System.currentTimeMillis()}")
-                    gitDelegate.push()
-                }
+                pushLog("[IDE] Web Project: preparing local preview.\n")
                 val indexHtml = File(dir, "index.html")
                 if (indexHtml.exists()) {
                     handleSuccess(indexHtml.absolutePath)

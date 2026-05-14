@@ -138,6 +138,24 @@ class MainViewModel(
      * model's response to [stateDelegate.chatMessages]. Triggers a hard WebView reload
      * after each response in case Gemini wrote files.
      */
+    // Cache the GeminiAdapter keyed by (apiKey, appName). Recreating it per message
+    // throws away the lazy-init google-genai Client; on a long conversation that's
+    // dozens of redundant builder calls. The adapter is rebuilt only when the user
+    // changes their API key or switches projects.
+    private var cachedGeminiAdapter: GeminiAdapter? = null
+    private var cachedGeminiKey: Pair<String, String>? = null
+
+    private fun geminiAdapterFor(apiKey: String, appName: String): GeminiAdapter {
+        val key = apiKey to appName
+        val existing = cachedGeminiAdapter
+        if (existing != null && cachedGeminiKey == key) return existing
+        val projectDir = settingsViewModel.getProjectPath(appName)
+        val fresh = GeminiAdapter(apiKey = apiKey, tools = IdeTools(projectDir))
+        cachedGeminiAdapter = fresh
+        cachedGeminiKey = key
+        return fresh
+    }
+
     fun sendChatMessage(text: String) {
         val apiKey = settingsViewModel.getGoogleApiKey()
         if (apiKey.isNullOrBlank()) {
@@ -153,8 +171,7 @@ class MainViewModel(
             return
         }
 
-        val projectDir = settingsViewModel.getProjectPath(appName)
-        val client = GeminiAdapter(apiKey = apiKey, tools = IdeTools(projectDir))
+        val client = geminiAdapterFor(apiKey, appName)
 
         stateDelegate.appendChatMessage(ChatMessage("user", text))
         stateDelegate.setChatLoading(true)
