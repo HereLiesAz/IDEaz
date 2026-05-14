@@ -340,10 +340,19 @@ class RepoDelegate(
      * Currently a no-op: the libsodium sealed-box encryption was removed during Phase 0
      * triage. Re-enable by reintroducing a sodium binding (or a pure-JVM NaCl
      * implementation) and the matching GitHub Actions secrets workflow.
+     *
+     * Notifies both the build log and the overlay/AI log so the user actually sees
+     * this — without it, every Save & Initialize / Create flow silently appeared
+     * to upload secrets that were never uploaded.
      */
     fun uploadProjectSecrets(owner: String, repo: String) {
         scope.launch(Dispatchers.Default) {
-            onLog("Skipping GitHub Actions secrets upload: encryption support is disabled.")
+            val msg = "GitHub Actions secrets upload is disabled in this build " +
+                "(Phase 2 debt: libsodium binding removed). Configure required " +
+                "secrets manually under $owner/$repo → Settings → Secrets and " +
+                "variables for now."
+            onLog(msg)
+            onOverlayLog(msg)
         }
     }
 

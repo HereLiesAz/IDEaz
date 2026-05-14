@@ -243,8 +243,9 @@ class AIDelegate(
      * - Checks for `artifacts` containing `gitPatch` to apply code changes.
      */
     private suspend fun pollForResponse(sessionId: String) {
+        val maxAttempts = 15
         var attempts = 0
-        while (attempts < 15) { // 45 seconds max wait
+        while (attempts < maxAttempts) { // 45 seconds max wait
             delay(3000)
 
             // Retrieve full activity history
@@ -289,6 +290,9 @@ class AIDelegate(
             }
             attempts++
         }
+        // Loop exited without finding a final agent message. Surface this to the
+        // user instead of leaving them with a silent stuck spinner.
+        onOverlayLog("Jules: no response after ${maxAttempts * 3}s. Try resending or switching to Gemini.")
     }
 
     /**

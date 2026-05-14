@@ -10,7 +10,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -30,13 +29,16 @@ fun ContextualChatOverlay(
     onClose: () -> Unit
 ) {
     val density = LocalDensity.current
-    val logs by viewModel.filteredLog.collectAsState(initial = emptyList())
+    // Show the actual AI conversation, not the global log feed. The bottom-sheet
+    // Chat tab also reads stateDelegate.chatMessages, so what the user sees here
+    // mirrors what's there.
+    val chatMessages by viewModel.stateDelegate.chatMessages.collectAsState()
     val scrollState = androidx.compose.foundation.lazy.rememberLazyListState()
 
     // Auto-scroll to bottom
-    LaunchedEffect(logs.size) {
-        if (logs.isNotEmpty()) {
-            scrollState.animateScrollToItem(logs.size - 1)
+    LaunchedEffect(chatMessages.size) {
+        if (chatMessages.isNotEmpty()) {
+            scrollState.animateScrollToItem(chatMessages.size - 1)
         }
     }
 
@@ -77,9 +79,10 @@ fun ContextualChatOverlay(
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
                 ) {
-                    items(logs) { log ->
+                    items(chatMessages) { msg ->
+                        val prefix = if (msg.role == "user") "You: " else "Gemini: "
                         Text(
-                            text = log,
+                            text = prefix + msg.content,
                             color = Color.White,
                             modifier = Modifier.padding(vertical = 2.dp)
                         )
@@ -91,11 +94,6 @@ fun ContextualChatOverlay(
                     modifier = Modifier.fillMaxWidth(),
                     hint = "Ask AI...",
                     onSubmit = { text -> viewModel.submitContextualPrompt(text) },
-                    trailingIcon = {
-                        IconButton(onClick = { }) {
-                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.Green)
-                        }
-                    },
                     submitButtonContent = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.Green) },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send)
                 )
@@ -126,9 +124,10 @@ fun ContextualChatOverlay(
                     state = scrollState,
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    items(logs) { log ->
+                    items(chatMessages) { msg ->
+                        val prefix = if (msg.role == "user") "You: " else "Gemini: "
                         Text(
-                            text = log,
+                            text = prefix + msg.content,
                             color = Color.White,
                             modifier = Modifier.padding(vertical = 2.dp)
                         )
@@ -142,11 +141,6 @@ fun ContextualChatOverlay(
                     .width(with(density) { rect.width().toDp() }),
                 hint = "Ask AI...",
                 onSubmit = { text -> viewModel.submitContextualPrompt(text) },
-                trailingIcon = {
-                    IconButton(onClick = { }) {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.Green)
-                    }
-                },
                 submitButtonContent = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.Green) },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send)
             )

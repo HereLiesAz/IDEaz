@@ -453,19 +453,47 @@ class MainViewModel(
     }
 
     // AI Operations
+    //
+    // Phase 1 default: every prompt entry point routes through [sendChatMessage] so
+    // the GeminiAdapter conversational/tool-use path drives all AI work. The legacy
+    // [AIDelegate.startContextualAITask] (Jules + Gemini one-shot) is invoked only
+    // when the user has explicitly assigned Jules to a task slot. Without this
+    // unification, the rail's Prompt popup, the bottom-sheet log-tab input, and the
+    // contextual chat overlay each ran on different code paths with different
+    // capabilities (text-only vs tool-using) — a surprise documented in the
+    // userflow audit.
+    private fun isJulesAssigned(taskKey: String): Boolean =
+        settingsViewModel.getAiAssignment(taskKey) == AiModels.JULES_DEFAULT
+
     fun sendPrompt(p: String?) {
-        if (!p.isNullOrBlank()) {
-            lastPrompt = p
+        if (p.isNullOrBlank()) return
+        lastPrompt = p
+        if (isJulesAssigned(SettingsViewModel.KEY_AI_ASSIGNMENT_CONTEXTLESS)) {
             aiDelegate.startContextualAITask(p)
+        } else {
+            sendChatMessage(p)
         }
     }
 
     fun submitContextualPrompt(p: String) {
         lastPrompt = p
         val context = overlayDelegate.pendingContextInfo ?: "No context"
-        val base64 = overlayDelegate.pendingBase64Screenshot
-        val richPrompt = if (base64 != null) "$context\n\n$p\n\n[IMAGE: data:image/png;base64,$base64]" else "$context\n\n$p"
-        aiDelegate.startContextualAITask(richPrompt)
+        val richPrompt = "$context\n\n$p"
+        if (isJulesAssigned(SettingsViewModel.KEY_AI_ASSIGNMENT_OVERLAY)) {
+            // Phase 2: Jules path retains screenshot attachment when available.
+            val base64 = overlayDelegate.pendingBase64Screenshot
+            val julesPrompt = if (base64 != null) {
+                "$richPrompt\n\n[IMAGE: data:image/png;base64,$base64]"
+            } else {
+                richPrompt
+            }
+            aiDelegate.startContextualAITask(julesPrompt)
+        } else {
+            // Phase 1: Gemini conversational. Image attachment is dropped here —
+            // ChatMessage/GeminiAdapter accept text only. Re-add multimodal when
+            // the chat-message model is extended.
+            sendChatMessage(richPrompt)
+        }
     }
 
     fun resumeSession(id: String) = aiDelegate.resumeSession(id)
