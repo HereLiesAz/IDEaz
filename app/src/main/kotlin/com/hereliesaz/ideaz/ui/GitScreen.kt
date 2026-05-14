@@ -27,9 +27,74 @@ fun GitScreen(
     var expanded by remember { mutableStateOf(false) }
     var selectedBranch by remember { mutableStateOf(settingsViewModel.getBranchName()) }
     var commitMessage by remember { mutableStateOf("") }
+    var showStashDialog by remember { mutableStateOf(false) }
+    var stashMessage by remember { mutableStateOf("") }
+    var pendingBranchSwitch by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.refreshGitData()
+    }
+
+    if (showStashDialog) {
+        AlertDialog(
+            onDismissRequest = { showStashDialog = false },
+            title = { Text("Stash changes") },
+            text = {
+                Column {
+                    Text("Save a message for this stash (optional).")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    AzTextBox(
+                        value = stashMessage,
+                        onValueChange = { stashMessage = it },
+                        hint = "Stash message",
+                        onSubmit = {}
+                    )
+                }
+            },
+            confirmButton = {
+                AzButton(
+                    onClick = {
+                        viewModel.gitStash(stashMessage.ifBlank { null })
+                        stashMessage = ""
+                        showStashDialog = false
+                    },
+                    text = "Stash",
+                    shape = AzButtonShape.RECTANGLE
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { showStashDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (pendingBranchSwitch != null) {
+        val targetBranch = pendingBranchSwitch!!
+        AlertDialog(
+            onDismissRequest = { pendingBranchSwitch = null },
+            title = { Text("Uncommitted changes") },
+            text = {
+                Text(
+                    "Switching to '$targetBranch' with a dirty working tree may " +
+                    "fail or overwrite changes. Commit or stash first, or proceed " +
+                    "anyway."
+                )
+            },
+            confirmButton = {
+                AzButton(
+                    onClick = {
+                        viewModel.switchBranch(targetBranch)
+                        selectedBranch = targetBranch
+                        pendingBranchSwitch = null
+                    },
+                    text = "Switch anyway",
+                    shape = AzButtonShape.RECTANGLE
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingBranchSwitch = null }) { Text("Cancel") }
+            }
+        )
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -64,7 +129,7 @@ fun GitScreen(
             AzButton(onClick = { viewModel.gitPush() }, text = "Push", shape = AzButtonShape.RECTANGLE)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-            AzButton(onClick = { viewModel.gitStash("Stash") }, text = "Stash", shape = AzButtonShape.RECTANGLE)
+            AzButton(onClick = { showStashDialog = true }, text = "Stash", shape = AzButtonShape.RECTANGLE)
             AzButton(onClick = { viewModel.gitUnstash() }, text = "Unstash", shape = AzButtonShape.RECTANGLE)
         }
 
@@ -88,15 +153,21 @@ fun GitScreen(
 
         Text("Branches", style = MaterialTheme.typography.headlineSmall)
 
-        // Branch Tree
+        // Branch Tree. Tapping a branch when the working tree is dirty pops a
+        // confirmation dialog rather than immediately invoking JGit's switch
+        // (which would fail or overwrite).
         if (branches.isEmpty()) {
             GitEmptyState("No branches found")
         } else {
             LazyColumn(modifier = Modifier.height(200.dp)) {
                 item {
                     BranchTree(branches) { branch ->
-                        selectedBranch = branch
-                        viewModel.switchBranch(branch)
+                        if (gitStatus.isEmpty()) {
+                            selectedBranch = branch
+                            viewModel.switchBranch(branch)
+                        } else {
+                            pendingBranchSwitch = branch
+                        }
                     }
                 }
             }

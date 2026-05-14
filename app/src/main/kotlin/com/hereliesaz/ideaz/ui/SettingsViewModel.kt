@@ -34,7 +34,10 @@ object AiModels {
     const val GEMINI_CLI = "GEMINI_CLI"
 
     val JULES = AiModel(JULES_DEFAULT, "Jules", SettingsViewModel.KEY_API_KEY)
-    val GEMINI = AiModel(GEMINI_FLASH, "Gemini Flash", SettingsViewModel.KEY_GOOGLE_API_KEY)
+    // Display name tracks the actual model id used in GeminiAdapter (currently
+    // "gemini-2.0-flash"). The id constant GEMINI_FLASH is kept stable for
+    // backward compatibility with stored AI assignments.
+    val GEMINI = AiModel(GEMINI_FLASH, "Gemini 2.0 Flash", SettingsViewModel.KEY_GOOGLE_API_KEY)
     val CLI = AiModel(GEMINI_CLI, "Gemini CLI", SettingsViewModel.KEY_GOOGLE_API_KEY)
 
     val availableModels = listOf(JULES, GEMINI, CLI)
