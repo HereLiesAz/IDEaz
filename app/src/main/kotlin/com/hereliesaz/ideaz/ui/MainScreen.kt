@@ -119,22 +119,6 @@ fun MainScreen(
                 }
             )
 
-            // Console bottom sheet lives in the rail's background layer so it
-            // spans full width (no rail-side padding) and the rail itself draws
-            // on top. The sheet's own elevation/scrim handles foreground state
-            // when expanded.
-            background(weight = 100) {
-                IdeBottomSheet(
-                    sheetState = sheetState,
-                    viewModel = viewModel,
-                    peekDetent = Peek,
-                    halfwayDetent = Halfway,
-                    fullyExpandedDetent = FullyExpanded,
-                    screenHeight = screenHeight,
-                    onSendPrompt = { viewModel.sendPrompt(it) }
-                )
-            }
-
             onscreen {
                 Box(
                     modifier = Modifier
@@ -241,6 +225,24 @@ fun MainScreen(
                         onDragEnd = { rect -> viewModel.handleSelection(rect) }
                     )
                 }
+            }
+
+            // Console bottom sheet sits in the topmost onscreen layer so it
+            // renders above the IDE host, contextual chat overlay, and
+            // selection overlay. AzNavRail still draws over all onscreen
+            // layers, so the rail (and the system nav bar above it) remain
+            // the only things above the sheet — matching the required
+            // z-order: system nav > AzNavRail > bottom sheet > rest of UI.
+            onscreen {
+                IdeBottomSheet(
+                    sheetState = sheetState,
+                    viewModel = viewModel,
+                    peekDetent = Peek,
+                    halfwayDetent = Halfway,
+                    fullyExpandedDetent = FullyExpanded,
+                    screenHeight = screenHeight,
+                    onSendPrompt = { viewModel.sendPrompt(it) }
+                )
             }
         }
     }
