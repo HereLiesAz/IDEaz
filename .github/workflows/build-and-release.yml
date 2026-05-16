@@ -79,9 +79,12 @@ jobs:
              echo "KEYSTORE_FILE=$(pwd)/release.keystore" >> $GITHUB_ENV
              # Ensure Gradle uses the same password for the key as the store (OpenSSL default behavior)
              # Using heredoc for safe environment variable export
-             echo "KEY_PASSWORD<<DELIMITER_${{ github.run_id }}-${{ github.run_attempt }}" >> $GITHUB_ENV
-             echo "$KEYSTORE_PASSWORD" >> $GITHUB_ENV
-             echo "EOF" >> $GITHUB_ENV
+             DELIM="DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
+             {
+               echo "KEY_PASSWORD<<${DELIM}"
+               echo "$KEYSTORE_PASSWORD"
+               echo "${DELIM}"
+             } >> "$GITHUB_ENV"
           else
              echo "Warning: KEYSTORE_PRIVATE or KEYSTORE_CHAIN not set. Skipping release signing setup."
           fi
