@@ -1120,10 +1120,16 @@ class MainViewModel(
         val isAutoDebug = settingsViewModel.isAutoDebugBuildsEnabled()
         if (!isAutoDebug) return
 
-        // Heuristics to separate IDE errors from User Project errors
+        // Heuristics to separate IDE errors from User Project errors.
+        // The IDE app id appears in every project file path under filesDir
+        // (e.g. "/data/user/0/com.hereliesaz.ideaz/files/foo"), so matching
+        // the bare package name treated every missing-file error in a user
+        // project as an IDE failure. Anchor to the stack-frame format
+        // ("\tat com.hereliesaz.ideaz") so we only flag actual IDE-code
+        // throws, not project paths embedded in error text.
         val isIdeError = log.contains("[IDE] Failed") ||
                 log.contains("tools not found") ||
-                log.contains("com.hereliesaz.ideaz") ||
+                log.contains("\tat com.hereliesaz.ideaz") ||
                 (log.contains("FileNotFoundException") && !log.contains("build.gradle")) ||
                 log.contains("OutOfMemoryError") ||
                 log.contains("No space left on device") ||
