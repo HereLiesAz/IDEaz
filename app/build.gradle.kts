@@ -126,8 +126,8 @@ androidComponents.onVariants { variant ->
 // Pin both modules to the alpha version that matches runtime to break the deadlock.
 configurations.all {
     resolutionStrategy {
-        force("androidx.concurrent:concurrent-futures:1.2.0-alpha03")
-        force("androidx.concurrent:concurrent-futures-ktx:1.2.0-alpha03")
+        force("androidx.concurrent:concurrent-futures:1.3.0")
+        force("androidx.concurrent:concurrent-futures-ktx:1.3.0")
     }
 }
 
