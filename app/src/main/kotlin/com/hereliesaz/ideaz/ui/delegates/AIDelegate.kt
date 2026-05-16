@@ -246,6 +246,30 @@ class AIDelegate(
     // --- Private Implementation ---
 
     /**
+     * Returns the repo's current default branch from GitHub, persisting the
+     * result so the UI catches up. Falls back to the stored value (which
+     * itself defaults to "main") if no token is set or the API call fails —
+     * we'd rather try a slightly stale branch than block the prompt
+     * entirely on a network hiccup.
+     */
+    private suspend fun resolveDefaultBranch(user: String, appName: String): String {
+        val stored = settingsViewModel.getBranchName()
+        val token = settingsViewModel.getGithubToken() ?: return stored
+        return try {
+            val remote = GitHubApiClient.createService(token)
+                .getRepo(user, appName)
+                .defaultBranch
+                ?: return stored
+            if (remote != stored) {
+                settingsViewModel.saveBranchName(remote)
+            }
+            remote
+        } catch (e: Exception) {
+            stored
+        }
+    }
+
+    /**
      * Handles the interaction with the Jules API.
      *
      * **Logic:**
@@ -256,7 +280,14 @@ class AIDelegate(
     private suspend fun runJulesTask(promptText: String) {
         val appName = settingsViewModel.getAppName() ?: "project"
         val user = settingsViewModel.getGithubUser() ?: "user"
-        val branch = settingsViewModel.getBranchName()
+
+        // Refresh the branch from GitHub before handing off to Jules. The
+        // stored value defaults to "main" but real repos may use "master"
+        // or anything else; if we send the wrong name Jules' clone fails
+        // with "Remote branch <X> not found in upstream origin" and the
+        // session never starts. Fall back to whatever we have locally on
+        // any API failure (offline, missing token, rate-limited).
+        val branch = resolveDefaultBranch(user, appName)
 
         // Construct SourceContext for the API
         val currentSourceContext = SourceContext(
