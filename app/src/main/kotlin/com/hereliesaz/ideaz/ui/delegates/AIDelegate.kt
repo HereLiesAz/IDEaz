@@ -8,6 +8,7 @@ import com.hereliesaz.ideaz.jules.IJulesApiClient
 import com.hereliesaz.ideaz.jules.JulesApiClient
 import com.hereliesaz.ideaz.ui.AiModels
 import com.hereliesaz.ideaz.ui.SettingsViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -267,11 +268,15 @@ class AIDelegate(
             val remote = GitHubApiClient.createService(token)
                 .getRepo(user, appName)
                 .defaultBranch
+                ?.takeIf { it.isNotBlank() }
                 ?: return stored
             if (remote != stored) {
                 settingsViewModel.saveBranchName(remote)
             }
             remote
+        } catch (e: CancellationException) {
+            // Structured-concurrency contract: never swallow cancellation.
+            throw e
         } catch (e: Exception) {
             stored
         }
