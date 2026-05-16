@@ -78,14 +78,15 @@ jobs:
              echo "Verifying generated keystore..."
              keytool -list -keystore release.keystore -storepass "$KEYSTORE_PASSWORD" > /dev/null
 
-             echo "KEYSTORE_FILE=$(pwd)/release.keystore" >> $GITHUB_ENV
+             echo "KEYSTORE_FILE=$(pwd)/release.keystore" >> "$GITHUB_ENV"
              # Ensure Gradle uses the same password for the key as the store (OpenSSL default behavior)
-             # Using heredoc for safe environment variable export
+             # Using heredoc for safe environment variable export. printf avoids
+             # echo's handling of leading '-' or backslashes in the password.
              DELIM="DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
              {
-               echo "KEY_PASSWORD<<${DELIM}"
-               echo "$KEYSTORE_PASSWORD"
-               echo "${DELIM}"
+               printf '%s\n' "KEY_PASSWORD<<${DELIM}"
+               printf '%s\n' "$KEYSTORE_PASSWORD"
+               printf '%s\n' "${DELIM}"
              } >> "$GITHUB_ENV"
           else
              echo "Warning: KEYSTORE_PRIVATE or KEYSTORE_CHAIN not set. Skipping release signing setup."
@@ -204,8 +205,8 @@ jobs:
           # Rename for release
           mv "$APK_ORIGINAL" "$TARGET_NAME"
           
-          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
-          echo "APK_FILE=$TARGET_NAME" >> $GITHUB_ENV
+          echo "TAG_NAME=$TAG_NAME" >> "$GITHUB_ENV"
+          echo "APK_FILE=$TARGET_NAME" >> "$GITHUB_ENV"
 
       - name: Publish Release
         if: success() && github.event_name == 'push'
