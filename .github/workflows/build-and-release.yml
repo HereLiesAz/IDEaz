@@ -72,9 +72,11 @@ jobs:
              openssl pkcs12 -export -in chain.crt -inkey private.key -out release.keystore \
                -name "$KEY_ALIAS" -passout env:KEYSTORE_PASSWORD
 
-             # Verify the keystore immediately to catch password/format issues
+             # Verify the keystore immediately to catch password/format issues.
+             # Suppress verbose output — it would leak certificate metadata
+             # (subject, issuer, fingerprints, validity) into the public log.
              echo "Verifying generated keystore..."
-             keytool -list -keystore release.keystore -storepass "$KEYSTORE_PASSWORD" -v
+             keytool -list -keystore release.keystore -storepass "$KEYSTORE_PASSWORD" > /dev/null
 
              echo "KEYSTORE_FILE=$(pwd)/release.keystore" >> $GITHUB_ENV
              # Ensure Gradle uses the same password for the key as the store (OpenSSL default behavior)
