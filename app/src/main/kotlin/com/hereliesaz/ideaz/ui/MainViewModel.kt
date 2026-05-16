@@ -129,7 +129,10 @@ class MainViewModel(
         logHandler::onAiLog,
         { diff -> applyUnidiffPatchInternal(diff) },
         geminiAdapterFactory = { apiKey, appName -> geminiAdapterFor(apiKey, appName) },
-        onFilesChanged = { stateDelegate.triggerWebHardReload() }
+        // Just nudge the file tree — the WebView already reloads via
+        // ProjectFileObserver when files actually change on disk, so a
+        // hard reload here would be redundant work for every prompt.
+        onFilesChanged = { stateDelegate.triggerFileTreeReload() }
     )
 
     /**

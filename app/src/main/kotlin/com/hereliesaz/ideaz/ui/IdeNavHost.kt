@@ -64,7 +64,8 @@ fun IdeNavHost(
         composable("file_explorer") {
             FileExplorerScreen(
                 settingsViewModel = settingsViewModel,
-                navController = navController
+                navController = navController,
+                viewModel = viewModel
             )
         }
         composable("git") {

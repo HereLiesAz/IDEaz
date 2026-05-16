@@ -199,6 +199,16 @@ class StateDelegate(
      */
     val webHardReloadTrigger = _webHardReloadTrigger.asStateFlow()
 
+    private val _fileTreeReloadTrigger = MutableStateFlow(0L)
+    /**
+     * Signal to re-list the project directory in the file explorer.
+     * Used when an external actor (e.g. the Gemini agent loop) writes
+     * files into the project so the tree picks up the change without
+     * requiring a heavier WebView reload. Observers should react when
+     * the value changes; the initial 0L is a sentinel.
+     */
+    val fileTreeReloadTrigger = _fileTreeReloadTrigger.asStateFlow()
+
     private val _chatMessages = MutableStateFlow<List<com.hereliesaz.ideaz.ai.ChatMessage>>(emptyList())
     /** Ordered list of turns in the AI Chat tab conversation. */
     val chatMessages = _chatMessages.asStateFlow()
@@ -260,6 +270,9 @@ class StateDelegate(
 
     /** Clears the WebView cache and triggers a full reload. */
     fun triggerWebHardReload() { _webHardReloadTrigger.value = System.currentTimeMillis() }
+
+    /** Asks any file-tree observers to re-list the project directory. */
+    fun triggerFileTreeReload() { _fileTreeReloadTrigger.value = System.currentTimeMillis() }
 
     /** Append one turn to the chat conversation history. */
     fun appendChatMessage(msg: com.hereliesaz.ideaz.ai.ChatMessage) {

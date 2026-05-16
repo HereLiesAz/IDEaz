@@ -45,7 +45,8 @@ private sealed class FileExplorerDialog {
 @Composable
 fun FileExplorerScreen(
     settingsViewModel: SettingsViewModel,
-    navController: NavController
+    navController: NavController,
+    viewModel: MainViewModel
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -60,7 +61,10 @@ fun FileExplorerScreen(
     var dialogInput by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    val files = remember(currentPath, refreshTick) {
+    // External re-list signal — e.g. Gemini wrote files into the project.
+    val externalReloadTrigger by viewModel.stateDelegate.fileTreeReloadTrigger.collectAsState()
+
+    val files = remember(currentPath, refreshTick, externalReloadTrigger) {
         // Bolt: Optimized sorting - Single pass, Directories first, then alphabetical.
         currentPath?.listFiles()?.sortedWith(compareBy({ !it.isDirectory }, { it.name })) ?: emptyList()
     }
