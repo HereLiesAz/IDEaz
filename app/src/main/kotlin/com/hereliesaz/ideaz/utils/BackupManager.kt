@@ -50,13 +50,18 @@ object BackupManager {
         return withContext(Dispatchers.IO) {
             try {
                 val filesDir = context.filesDir
+                // Trailing separator closes the prefix-attack hole where an
+                // entry like ../files-evil/x would otherwise pass a bare
+                // startsWith(filesDir.canonicalPath) check.
+                val canonicalDestPrefix = filesDir.canonicalPath + File.separator
                 val `in` = context.contentResolver.openInputStream(uri) ?: return@withContext false
                 `in`.use { inputStream ->
                     ZipInputStream(inputStream).use { zipIn ->
                         var entry = zipIn.nextEntry
                         while (entry != null) {
                             val filePath = File(filesDir, entry.name)
-                            if (!filePath.canonicalPath.startsWith(filesDir.canonicalPath)) {
+                            val canonical = filePath.canonicalPath
+                            if (canonical != filesDir.canonicalPath && !canonical.startsWith(canonicalDestPrefix)) {
                                 throw IOException("Zip entry is outside of the target dir: ${entry.name}")
                             }
 
