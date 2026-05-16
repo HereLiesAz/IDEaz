@@ -42,8 +42,8 @@ jobs:
 
     steps:
       - name: Checkout repository
-        # TODO: replace with the SHA for actions/checkout@v4 once verified.
-        uses: actions/checkout@v4
+        # TODO: replace with the SHA for actions/checkout@v6 once verified.
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           persist-credentials: false
