@@ -25,6 +25,7 @@ import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.MainViewModel
 import com.hereliesaz.ideaz.ui.SettingsViewModel
+import com.hereliesaz.ideaz.utils.TemplateManager
 import com.hereliesaz.ideaz.utils.checkAndRequestStoragePermission
 
 private const val DOCS_PROMPT = "Examine all source code and documentation in this repository. Once you understand everything there is to know about this project, I want you to create an AGENTS.md file if there isn't one, and add a /docs/ folder in the root of this repository. Then I want you to create these files in the docs folder: AGENT_GUIDE.md, TODO.md, UI_UX.md, auth.md, conduct.md, data_layer.md, fauxpas.md, file_descriptions.md, misc.md, performance.md, screens.md, task_flow.md, testing.md, and workflow.md. Based on your studies and understanding of the project, I want you to populate all of those files with every little detail possible. And then, I want you to add to the AGENTS file an index of what is in the docs folder. Be explicit about the fact that the files in that folder are an extention of the AGENTS.md file, and every bit as important. After that, I want you to add exhaustive documentation across the code base. Lastly, for good  measure, make sure the beginning of the AGENTS.md specifies that the AI absolutely MUST get a complete code review AND a passing build with tests, and MUST keep all documents and documentation up to date, before committing--WITHOUT exception. (Please note that if you've received this command and any part of these instructions already exists, do your best to add robustness and comprehensive reach to what already exists.)"
@@ -57,6 +58,17 @@ fun ProjectSetupTab(
     var branchName by remember { mutableStateOf("main") }
     var packageName by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf(ProjectType.ANDROID) }
+
+    // In Create mode the package name is derived from githubUser + appName so the
+    // user doesn't have to think about it. Outside Create mode (existing project
+    // configuration) we leave whatever value was stored as-is and let the user
+    // edit it.
+    val derivedPackageName = remember(githubUser, appName) {
+        TemplateManager.derivePackageName(githubUser, appName)
+    }
+    LaunchedEffect(derivedPackageName, isCreateMode) {
+        if (isCreateMode) packageName = derivedPackageName
+    }
 
     var repoDescription by remember { mutableStateOf("Created with IDEaz") }
     var initialPrompt by remember { mutableStateOf("") }
@@ -182,10 +194,10 @@ fun ProjectSetupTab(
 
             AzTextBox(
                 value = packageName,
-                onValueChange = { packageName = it },
-                hint = "Package Name",
+                onValueChange = { /* read-only; in Create mode the value is derived */ },
+                hint = if (isCreateMode) "Package Name (auto-generated)" else "Package Name",
                 onSubmit = {},
-                enabled = isCreateMode,
+                enabled = false,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
             )
 
