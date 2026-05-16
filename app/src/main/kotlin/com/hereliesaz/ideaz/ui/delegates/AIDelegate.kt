@@ -13,6 +13,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 
 /**
@@ -233,12 +235,18 @@ class AIDelegate(
         }
         val adapter = geminiAdapterFactory(apiKey, appName)
 
-        val withUser = _geminiHistory.value + ChatMessage("user", richPrompt)
-        _geminiHistory.value = withUser
+        // updateAndGet returns the post-update snapshot so we can hand the
+        // exact history we appended to into chat(). Using atomic update
+        // ops on both sides means a second prompt that lands while
+        // chat() is in flight can't overwrite the user turn we just
+        // recorded — its messages slot in around ours instead of replacing
+        // them. Conversation order across concurrent prompts is therefore
+        // non-deterministic, but no message is lost.
+        val historyForChat = _geminiHistory.updateAndGet { it + ChatMessage("user", richPrompt) }
 
-        val response = adapter.chat(withUser)
+        val response = adapter.chat(historyForChat)
 
-        _geminiHistory.value = withUser + ChatMessage("model", response)
+        _geminiHistory.update { it + ChatMessage("model", response) }
         onOverlayLog("Gemini: $response")
         onFilesChanged()
     }

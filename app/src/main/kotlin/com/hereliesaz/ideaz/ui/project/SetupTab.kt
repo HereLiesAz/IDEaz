@@ -194,10 +194,16 @@ fun ProjectSetupTab(
 
             AzTextBox(
                 value = packageName,
-                onValueChange = { /* read-only; in Create mode the value is derived */ },
+                // Editable in Configure mode so an existing project can be
+                // corrected if the stored package drifted from the source
+                // (e.g. someone moved the manifest namespace by hand).
+                // In Create mode the field is driven by the derivedPackageName
+                // LaunchedEffect above, so user edits would just be
+                // immediately overwritten — keep it read-only there.
+                onValueChange = { if (!isCreateMode) packageName = it },
                 hint = if (isCreateMode) "Package Name (auto-generated)" else "Package Name",
                 onSubmit = {},
-                enabled = false,
+                enabled = !isCreateMode,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
             )
 
