@@ -9,8 +9,27 @@ import java.io.IOException
 
 object TemplateManager {
 
-    private const val PLACEHOLDER_PACKAGE = "com.example.my_app"
-    private const val PLACEHOLDER_APP_NAME = "my_app"
+    // Must match the actual contents of app/src/main/assets/project/.
+    // If you change the bundled template's package, update these too —
+    // copyAssetFile substitutes them verbatim.
+    private const val PLACEHOLDER_PACKAGE = "com.example.helloworld"
+    private const val PLACEHOLDER_APP_NAME = "helloworld"
+
+    /**
+     * Derives a valid Android package name from a GitHub username and project name.
+     * Strips non-alphanumerics, lowercases each segment, and prefixes any segment
+     * that would otherwise start with a digit (or be empty) with an underscore.
+     *
+     * `derivePackageName("HereLiesAz", "My Cool App")` → `"com.hereliesaz.mycoolapp"`
+     * `derivePackageName("", "")`                       → `"com._._"` (avoids invalid output)
+     */
+    fun derivePackageName(user: String, app: String): String {
+        fun sanitize(s: String): String {
+            val cleaned = s.replace(Regex("[^a-zA-Z0-9]"), "").lowercase()
+            return if (cleaned.isEmpty() || cleaned[0].isDigit()) "_$cleaned" else cleaned
+        }
+        return "com.${sanitize(user)}.${sanitize(app)}"
+    }
 
     fun copyTemplate(context: Context, type: ProjectType, destinationDir: File, packageName: String, appName: String) {
         val assetPath = when (type) {

@@ -25,7 +25,12 @@ fun AzNavHostScope.ideNavRail(
     azSettings(
         packRailButtons = true,
         defaultShape = AzButtonShape.RECTANGLE,
-        enableRailDragging = enableRailDraggingOverride ?: true,
+        // Default to docked. Per the AzNavRail guide, enableRailDragging = true
+        // puts the rail in "FAB Mode (detach rail)" — keeping that on by default
+        // forced the rail into overlay/floating mode in layouts where docking
+        // would have been fine. Call sites that want a draggable FAB can opt in
+        // via enableRailDraggingOverride.
+        enableRailDragging = enableRailDraggingOverride ?: false,
         onUndock = onUndock,
         onOverlayDrag = onOverlayDrag,
         headerIconShape = AzHeaderIconShape.NONE,
