@@ -168,11 +168,7 @@ class AIDelegate(
             try {
                 when (model.id) {
                     AiModels.JULES_DEFAULT -> runJulesTask(richPrompt)
-                    AiModels.GEMINI_FLASH -> {
-                        // Gemini fallback (Simple request/response, no session/patching yet)
-                        val response = com.hereliesaz.ideaz.api.GeminiApiClient.generateContent(richPrompt, key)
-                        onOverlayLog(response)
-                    }
+                    AiModels.GEMINI_FLASH -> runGeminiTask(richPrompt, key)
                 }
             } catch (e: Exception) {
                 onOverlayLog("Error: ${e.message}")
@@ -181,6 +177,29 @@ class AIDelegate(
                 _isLoadingJulesResponse.value = false
             }
         }
+    }
+
+    /**
+     * Runs the Gemini agent loop against the current project directory.
+     *
+     * Unlike the simple text-only [GeminiApiClient.generateContent] this drives
+     * [GeminiAdapter], which exposes `read_file`, `write_file`, `list_files`,
+     * and `apply_patch` to Gemini via function-calling. Files Gemini decides to
+     * write land directly in the project's local directory (sandboxed by
+     * [IdeTools] to that subtree).
+     */
+    private suspend fun runGeminiTask(richPrompt: String, apiKey: String) {
+        val appName = settingsViewModel.getAppName()
+        if (appName.isNullOrBlank()) {
+            onOverlayLog("Error: No project selected. Open or create a project before asking Gemini.")
+            return
+        }
+        val projectDir = settingsViewModel.getProjectPath(appName)
+        val tools = com.hereliesaz.ideaz.ai.IdeTools(projectDir)
+        val adapter = com.hereliesaz.ideaz.ai.GeminiAdapter(apiKey, tools)
+        val messages = listOf(com.hereliesaz.ideaz.ai.ChatMessage("user", richPrompt))
+        val response = adapter.chat(messages)
+        onOverlayLog("Gemini: $response")
     }
 
     // --- Private Implementation ---
