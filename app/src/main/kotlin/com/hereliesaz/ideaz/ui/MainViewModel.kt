@@ -127,7 +127,9 @@ class MainViewModel(
         settingsViewModel,
         viewModelScope,
         logHandler::onAiLog,
-        { diff -> applyUnidiffPatchInternal(diff) }
+        { diff -> applyUnidiffPatchInternal(diff) },
+        geminiAdapterFactory = { apiKey, appName -> geminiAdapterFor(apiKey, appName) },
+        onFilesChanged = { stateDelegate.triggerWebHardReload() }
     )
 
     /**

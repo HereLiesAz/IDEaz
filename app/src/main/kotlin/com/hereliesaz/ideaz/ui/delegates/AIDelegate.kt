@@ -1,5 +1,8 @@
 package com.hereliesaz.ideaz.ui.delegates
 
+import com.hereliesaz.ideaz.ai.ChatMessage
+import com.hereliesaz.ideaz.ai.GeminiAdapter
+import com.hereliesaz.ideaz.ai.IdeTools
 import com.hereliesaz.ideaz.api.*
 import com.hereliesaz.ideaz.jules.IJulesApiClient
 import com.hereliesaz.ideaz.jules.JulesApiClient
@@ -39,7 +42,26 @@ class AIDelegate(
     private val scope: CoroutineScope,
     private val onOverlayLog: (String) -> Unit,
     private val onUnidiffPatchReceived: suspend (String) -> Boolean,
-    private val julesApiClient: IJulesApiClient = JulesApiClient
+    private val julesApiClient: IJulesApiClient = JulesApiClient,
+    /**
+     * Factory for the Gemini agent client. Shared with MainViewModel's chat
+     * tab so the same cached client (and its lazily-built google-genai
+     * Client) backs both call sites; we don't want to spin up a second
+     * adapter for every contextual prompt.
+     *
+     * Default builds a fresh adapter per call — fine for tests that don't
+     * exercise the Gemini path, but production callers should supply
+     * MainViewModel.geminiAdapterFor.
+     */
+    private val geminiAdapterFactory: (apiKey: String, appName: String) -> GeminiAdapter = { key, name ->
+        GeminiAdapter(key, IdeTools(settingsViewModel.getProjectPath(name)))
+    },
+    /**
+     * Called after Gemini's tool-use loop completes, so the UI can refresh
+     * any view that mirrors the project tree (e.g. the WebView, file
+     * explorer). Default is a no-op for tests.
+     */
+    private val onFilesChanged: () -> Unit = {}
 ) {
 
     // --- StateFlows ---
@@ -67,6 +89,16 @@ class AIDelegate(
     private val _sessions = MutableStateFlow<List<Session>>(emptyList())
     /** The list of available (historical) Jules sessions associated with the current repository. */
     val sessions = _sessions.asStateFlow()
+
+    private val _geminiHistory = MutableStateFlow<List<ChatMessage>>(emptyList())
+    /**
+     * The conversation history Gemini sees for contextual/overlay prompts.
+     * Distinct from MainViewModel's chat-tab history so the overlay path
+     * keeps its own coherent thread; cleared on project switch via
+     * [clearSession]. (Phase 3: unify with the chat-tab history — see
+     * the TODO above [Message].)
+     */
+    val geminiHistory = _geminiHistory.asStateFlow()
 
     // --- Internal State ---
 
@@ -99,6 +131,7 @@ class AIDelegate(
         _julesResponse.value = null
         _julesHistory.value = emptyList()
         _julesError.value = null
+        _geminiHistory.value = emptyList()
         processedActivityIds.clear()
     }
 
@@ -187,6 +220,10 @@ class AIDelegate(
      * and `apply_patch` to Gemini via function-calling. Files Gemini decides to
      * write land directly in the project's local directory (sandboxed by
      * [IdeTools] to that subtree).
+     *
+     * Maintains a multi-turn history in [_geminiHistory] so follow-up prompts
+     * carry context. After the tool-use loop completes, fires [onFilesChanged]
+     * so the UI can refresh anything mirroring the project tree.
      */
     private suspend fun runGeminiTask(richPrompt: String, apiKey: String) {
         val appName = settingsViewModel.getAppName()
@@ -194,12 +231,16 @@ class AIDelegate(
             onOverlayLog("Error: No project selected. Open or create a project before asking Gemini.")
             return
         }
-        val projectDir = settingsViewModel.getProjectPath(appName)
-        val tools = com.hereliesaz.ideaz.ai.IdeTools(projectDir)
-        val adapter = com.hereliesaz.ideaz.ai.GeminiAdapter(apiKey, tools)
-        val messages = listOf(com.hereliesaz.ideaz.ai.ChatMessage("user", richPrompt))
-        val response = adapter.chat(messages)
+        val adapter = geminiAdapterFactory(apiKey, appName)
+
+        val withUser = _geminiHistory.value + ChatMessage("user", richPrompt)
+        _geminiHistory.value = withUser
+
+        val response = adapter.chat(withUser)
+
+        _geminiHistory.value = withUser + ChatMessage("model", response)
         onOverlayLog("Gemini: $response")
+        onFilesChanged()
     }
 
     // --- Private Implementation ---
