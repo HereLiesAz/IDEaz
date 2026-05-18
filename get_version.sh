@@ -1,5 +1,5 @@
 #!/bin/bash
-# Returns the full version string (major.minor.patch)
+# Returns the full version string (major.minor.patch.build)
 
 FILE="version.properties"
 
@@ -15,5 +15,6 @@ get_prop() {
 MAJOR=$(get_prop major)
 MINOR=$(get_prop minor)
 PATCH=$(get_prop patch)
+BUILD=$(get_prop build)
 
-echo "$MAJOR.$MINOR.$PATCH"
+echo "$MAJOR.$MINOR.$PATCH.$BUILD"

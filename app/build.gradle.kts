@@ -10,13 +10,13 @@ plugins {
 val versionProps = Properties()
 val versionPropsFile = rootProject.file("version.properties")
 if (versionPropsFile.exists()) {
-    versionProps.load(FileInputStream(versionPropsFile))
+    versionPropsFile.inputStream().use { versionProps.load(it) }
 }
 
 val major = versionProps.getProperty("major").toInt()
 val minor = versionProps.getProperty("minor").toInt()
 val patch = versionProps.getProperty("patch").toInt()
-val buildNumber = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
+val buildNumber = versionProps.getProperty("build", "0").toInt() + 1
 
 extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
     namespace = "com.hereliesaz.ideaz"
@@ -179,4 +179,24 @@ dependencies {
 
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.webkit)
+}
+
+tasks.register("incrementBuildNumber") {
+    val versionFile = rootProject.file("version.properties")
+    outputs.upToDateWhen { false }
+    doFirst {
+        val props = Properties()
+        if (versionFile.exists()) {
+            versionFile.inputStream().use { props.load(it) }
+        }
+        val currentBuild = props.getProperty("build", "0").toInt()
+        props.setProperty("build", (currentBuild + 1).toString())
+        versionFile.outputStream().use { props.store(it, null) }
+    }
+}
+
+tasks.configureEach {
+    if (name.startsWith("assemble") || name.startsWith("bundle") || name.startsWith("install")) {
+        dependsOn("incrementBuildNumber")
+    }
 }

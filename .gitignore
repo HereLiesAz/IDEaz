@@ -65,3 +65,4 @@ IDEaz-*-release.dm
 /app/release/baselineProfiles/
 output-metadata.json
 /app/src/main/assets/adi-registration.properties
+app-release.aab

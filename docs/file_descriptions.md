@@ -10,7 +10,7 @@
 *   `README.md`: Project overview.
 *   `build.gradle.kts`: Root Gradle build script.
 *   `settings.gradle.kts`: Gradle settings and repository configuration.
-*   `version.properties`: Single Source of Truth for the project version.
+*   `version.properties`: Single Source of Truth for the project version (automatically incremented during build).
 *   `get_version.sh`: Script to retrieve the version string for CI/CD workflows.
 *   `.gitignore`: Git ignore rules.
 
