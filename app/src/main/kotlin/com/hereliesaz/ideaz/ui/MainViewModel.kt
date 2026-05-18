@@ -712,7 +712,7 @@ class MainViewModel(
     fun downloadLatestArtifact(url: String, onSuccess: (File) -> Unit) {
         viewModelScope.launch {
             stateDelegate.setLoadingProgress(0)
-            stateDelegate.setBottomSheetState(com.composables.core.SheetDetent.FullyExpanded) // Expand logs
+            stateDelegate.setBottomSheetState(com.hereliesaz.aznavrail.model.AzSheetDetent.FULL) // Expand logs
             logHandler.onBuildLog("Downloading latest artifact from $url...")
 
             val destFile = File(getApplication<Application>().cacheDir, "downloaded_project.apk")

@@ -179,7 +179,7 @@ class StateDelegate(
     /** Combined stream of log lines for UI display (currently aliases `buildLog`). */
     val filteredLog = _buildLog.asStateFlow()
 
-    private val _bottomSheetState = MutableStateFlow<com.composables.core.SheetDetent>(com.composables.core.SheetDetent.Hidden)
+    private val _bottomSheetState = MutableStateFlow(com.hereliesaz.aznavrail.model.AzSheetDetent.HIDDEN)
     /** Controls the expansion state of the global bottom sheet (Console). */
     val bottomSheetState = _bottomSheetState.asStateFlow()
 
@@ -256,8 +256,8 @@ class StateDelegate(
     /** Sets the visibility of the target app/WebView. */
     fun setTargetAppVisible(v: Boolean) { _isTargetAppVisible.value = v }
 
-    /** Sets the bottom sheet state (Hidden, Peek, Expanded). */
-    fun setBottomSheetState(s: com.composables.core.SheetDetent) { _bottomSheetState.value = s }
+    /** Sets the bottom sheet state (HIDDEN, PEEK, HALF, FULL). */
+    fun setBottomSheetState(s: com.hereliesaz.aznavrail.model.AzSheetDetent) { _bottomSheetState.value = s }
 
     /** Sets the pending navigation route. */
     fun setPendingRoute(r: String?) { _pendingRoute.value = r }

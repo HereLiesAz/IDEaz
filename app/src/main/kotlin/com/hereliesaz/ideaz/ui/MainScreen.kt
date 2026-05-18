@@ -16,23 +16,19 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.changedToDown
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.currentBackStackEntryAsState
-import com.composables.core.SheetDetent
-import com.composables.core.rememberBottomSheetState
-import kotlinx.coroutines.launch
 import com.hereliesaz.ideaz.ui.web.WebProjectHost
 import androidx.compose.ui.platform.LocalConfiguration
 import com.hereliesaz.aznavrail.AzHostActivityLayout
+import com.hereliesaz.aznavrail.bottomsheet.AzBottomSheet
+import com.hereliesaz.aznavrail.bottomsheet.rememberAzSheetController
+import com.hereliesaz.aznavrail.model.AzSheetDetent
 
 const val Z_INDEX_WEB_VIEW = 0f
 const val Z_INDEX_OVERLAY = 200f
@@ -56,19 +52,12 @@ fun MainScreen(
     onThemeToggle: (Boolean) -> Unit
 ) {
     val navController = rememberNavController()
-    val scope = rememberCoroutineScope()
     val config = LocalConfiguration.current
     val screenHeight = config.screenHeightDp.dp
 
     val currentDestination by navController.currentBackStackEntryAsState()
 
-    val supportedDetents = remember {
-        listOf(SheetDetent.Hidden, AlmostHidden, Peek, Halfway, FullyExpanded)
-    }
-    val sheetState = rememberBottomSheetState(
-        detents = supportedDetents,
-        initialDetent = Halfway
-    )
+    val sheetController = rememberAzSheetController(initial = AzSheetDetent.HALF)
 
     val isIdeVisible by viewModel.isTargetAppVisible.collectAsState()
     val projectType by viewModel.settingsViewModel.projectType.collectAsState()
@@ -107,8 +96,7 @@ fun MainScreen(
                         viewModel.toggleSelectMode(!viewModel.isSelectMode.value)
                     }
                 },
-                sheetState = sheetState,
-                scope = scope,
+                sheetController = sheetController,
                 onNavigateToMainApp = { route ->
                     viewModel.clearSelection()
                     viewModel.stateDelegate.setTargetAppVisible(false)
@@ -120,42 +108,7 @@ fun MainScreen(
             )
 
             onscreen {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(sheetState) {
-                            awaitPointerEventScope {
-                                while (true) {
-                                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                                    val downChange = event.changes.firstOrNull { it.changedToDown() }
-
-                                    if (downChange != null) {
-                                        val sheetHeightFactor = when (sheetState.currentDetent) {
-                                            FullyExpanded -> 0.8f
-                                            Halfway -> 0.5f
-                                            Peek -> 0.2f
-                                            AlmostHidden -> 0.01f
-                                            else -> 0f
-                                        }
-                                        val screenHeightPx = size.height
-                                        val sheetTopY = screenHeightPx * (1f - sheetHeightFactor)
-
-                                        if (downChange.position.y < sheetTopY) {
-                                            val targetDetent = when (sheetState.currentDetent) {
-                                                FullyExpanded -> Halfway
-                                                Halfway -> Peek
-                                                Peek -> AlmostHidden
-                                                else -> null
-                                            }
-                                            if (targetDetent != null) {
-                                                scope.launch { sheetState.animateTo(targetDetent) }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                ) {
+                Box(modifier = Modifier.fillMaxSize()) {
 
                     // LAYER 1: Content (Full Screen)
                     Box(modifier = Modifier.fillMaxSize()) {
@@ -234,15 +187,17 @@ fun MainScreen(
             // the only things above the sheet — matching the required
             // z-order: system nav > AzNavRail > bottom sheet > rest of UI.
             onscreen {
-                IdeBottomSheet(
-                    sheetState = sheetState,
-                    viewModel = viewModel,
-                    peekDetent = Peek,
-                    halfwayDetent = Halfway,
-                    fullyExpandedDetent = FullyExpanded,
-                    screenHeight = screenHeight,
-                    onSendPrompt = { viewModel.sendPrompt(it) }
-                )
+                AzBottomSheet(
+                    controller = sheetController,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    IdeBottomSheet(
+                        controller = sheetController,
+                        viewModel = viewModel,
+                        screenHeight = screenHeight,
+                        onSendPrompt = { viewModel.sendPrompt(it) }
+                    )
+                }
             }
         }
     }

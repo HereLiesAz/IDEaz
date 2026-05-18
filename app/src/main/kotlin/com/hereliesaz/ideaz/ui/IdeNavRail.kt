@@ -1,12 +1,11 @@
 package com.hereliesaz.ideaz.ui
 
-import com.composables.core.BottomSheetState
 import com.hereliesaz.aznavrail.AzNavHostScope
+import com.hereliesaz.aznavrail.bottomsheet.AzSheetController
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.aznavrail.model.AzHeaderIconShape
+import com.hereliesaz.aznavrail.model.AzSheetDetent
 import com.hereliesaz.ideaz.models.ProjectType
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 
 fun AzNavHostScope.ideNavRail(
     viewModel: MainViewModel,
@@ -15,8 +14,7 @@ fun AzNavHostScope.ideNavRail(
     handleActionClick: (() -> Unit) -> Unit,
     isIdeVisible: Boolean,
     onToggleMode: () -> Unit,
-    sheetState: BottomSheetState,
-    scope: CoroutineScope,
+    sheetController: AzSheetController,
     onUndock: (() -> Unit)? = null,
     enableRailDraggingOverride: Boolean? = null,
     onOverlayDrag: ((Float, Float) -> Unit)? = null,
@@ -62,9 +60,7 @@ fun AzNavHostScope.ideNavRail(
         text = "Build",
         onClick = {
             handleActionClick {
-                scope.launch {
-                    sheetState.animateTo(Halfway)
-                }
+                sheetController.snapTo(AzSheetDetent.HALF)
             }
         }
     )

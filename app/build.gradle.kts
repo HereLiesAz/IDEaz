@@ -144,7 +144,6 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.google.genai)
     implementation(libs.androidx.localbroadcastmanager)
-    implementation(libs.compose.unstyled.core)
     implementation(libs.aznavrail)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
