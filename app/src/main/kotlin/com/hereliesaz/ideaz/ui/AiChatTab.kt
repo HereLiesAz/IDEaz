@@ -18,17 +18,16 @@ import com.hereliesaz.ideaz.ai.ChatMessage
  *
  * Displays the ordered [messages] history with user bubbles right-aligned and
  * model bubbles left-aligned. Shows a loading spinner when [isLoading] is true.
- * The [onSend] callback is invoked when the user submits text.
  *
  * @param messages  Ordered conversation history (user + model turns).
  * @param isLoading True while waiting for an AI response.
- * @param onSend    Called with the user's message text when they tap Send.
+ * @param viewModel MainViewModel to handle message sending.
  */
 @Composable
 fun AiChatTab(
     messages: List<ChatMessage>,
     isLoading: Boolean,
-    onSend: (String) -> Unit,
+    viewModel: MainViewModel,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -80,7 +79,7 @@ fun AiChatTab(
         // Reuse the existing chat input component
         ContextlessChatInput(
             modifier = Modifier.fillMaxWidth(),
-            onSend = onSend
+            viewModel = viewModel
         )
     }
 }

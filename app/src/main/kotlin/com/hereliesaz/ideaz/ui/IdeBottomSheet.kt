@@ -106,7 +106,6 @@ fun IdeBottomSheet(
                     chatMessages = chatMessages,
                     isChatLoading = isChatLoading,
                     onClearLog = { viewModel.clearLog() },
-                    onSendChat = { viewModel.sendChatMessage(it) },
                     onSendPrompt = onSendPrompt,
                     viewModel = viewModel,
                     screenHeight = screenHeight,
@@ -141,7 +140,6 @@ private fun ExpandedContent(
     chatMessages: List<com.hereliesaz.ideaz.ai.ChatMessage>,
     isChatLoading: Boolean,
     onClearLog: () -> Unit,
-    onSendChat: (String) -> Unit,
     onSendPrompt: (String) -> Unit,
     viewModel: MainViewModel,
     screenHeight: Dp
@@ -236,7 +234,7 @@ private fun ExpandedContent(
             AiChatTab(
                 messages = chatMessages,
                 isLoading = isChatLoading,
-                onSend = onSendChat,
+                viewModel = viewModel,
                 modifier = Modifier.weight(1f)
             )
             Spacer(modifier = Modifier.height(bottomBufferHeight))
