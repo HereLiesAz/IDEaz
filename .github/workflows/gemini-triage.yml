@@ -66,6 +66,8 @@ jobs:
           ISSUE_BODY: '${{ github.event.issue.body }}'
           AVAILABLE_LABELS: '${{ steps.get_labels.outputs.available_labels }}'
           GEMINI_CLI_TRUST_WORKSPACE: true
+          GOOGLE_API_KEY: ${{ secrets.JULES_API_KEY }}
+          GOOGLE_CLOUD_PROJECT: ""
         with:
           gcp_location: '${{ vars.GOOGLE_CLOUD_LOCATION }}'
           gcp_project_id: '${{ vars.GOOGLE_CLOUD_PROJECT }}'

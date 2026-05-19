@@ -74,23 +74,23 @@ jobs:
 
           # Safely write PR title (handles quotes and newlines)
           {
-            echo "title<<EOF"
+            echo "title<<DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
             printf "%s\n" "$TITLE"
-            echo "EOF"
+            echo "DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
           } >> "$GITHUB_OUTPUT"
 
           # Safely write PR body (handles quotes and newlines)
           {
-            echo "body<<EOF"
+            echo "body<<DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
             printf "%s\n" "$BODY"
-            echo "EOF"
+            echo "DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
           } >> "$GITHUB_OUTPUT"
 
           # Safely capture changed files (one per line)
           {
-            echo "changed_files<<EOF"
+            echo "changed_files<<DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
             gh pr diff "${PR_NUMBER}" --name-only --repo "${REPOSITORY}"
-            echo "EOF"
+            echo "DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
           } >> "$GITHUB_OUTPUT"
 
           # Safely capture full diff to a file (to avoid "Argument list too long" in subsequent steps)
@@ -111,6 +111,8 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           REPOSITORY: ${{ github.repository }}
           GEMINI_CLI_TRUST_WORKSPACE: true
+          GOOGLE_API_KEY: ${{ secrets.JULES_API_KEY }}
+          GOOGLE_CLOUD_PROJECT: ""
         with:
           gemini_api_key: ${{ secrets.JULES_API_KEY }}
           gemini_cli_version: "${{ vars.GEMINI_CLI_VERSION || '0.40.1' }}"

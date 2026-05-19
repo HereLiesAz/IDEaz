@@ -56,6 +56,8 @@ jobs:
           REPOSITORY: '${{ github.repository }}'
           ADDITIONAL_CONTEXT: '${{ inputs.additional_context }}'
           GEMINI_CLI_TRUST_WORKSPACE: true
+          GOOGLE_API_KEY: ${{ secrets.JULES_API_KEY }}
+          GOOGLE_CLOUD_PROJECT: ""
         with:
           gcp_location: '${{ vars.GOOGLE_CLOUD_LOCATION }}'
           gcp_project_id: '${{ vars.GOOGLE_CLOUD_PROJECT }}'

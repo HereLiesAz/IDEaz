@@ -203,6 +203,8 @@ jobs:
           REPOSITORY: ${'$'}{{ github.repository }}
           GITHUB_TOKEN: ${'$'}{{ secrets.GH_TOKEN || github.token }}
           GEMINI_CLI_TRUST_WORKSPACE: true
+          GOOGLE_API_KEY: ${'$'}{{ secrets.JULES_API_KEY }}
+          GOOGLE_CLOUD_PROJECT: ""
         with:
           gemini_api_key: '${'$'}{{ secrets.JULES_API_KEY }}'
           gemini_cli_version: '0.24.0'
@@ -312,6 +314,8 @@ jobs:
           REVIEWER: ${'$'}{{ github.event.review.user.login }}
           GITHUB_TOKEN: ${'$'}{{ secrets.GH_TOKEN || github.token }}
           GEMINI_CLI_TRUST_WORKSPACE: true
+          GOOGLE_API_KEY: ${'$'}{{ secrets.JULES_API_KEY }}
+          GOOGLE_CLOUD_PROJECT: ""
         with:
           gemini_api_key: '${'$'}{{ secrets.JULES_API_KEY }}'
           gemini_cli_version: '0.24.0'
