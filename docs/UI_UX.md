@@ -79,3 +79,18 @@ A versatile bottom sheet that provides visibility into the background processes.
 *   **Content Descriptions:** All icons and images must have content descriptions.
 *   **Touch Targets:** Minimum 48dp touch targets. Group related elements (e.g. Label + Switch) into a single toggleable row.
 *   **Semantics:** Use `heading()` semantics for section titles.
+
+## Layout Rule: AzNavRail Owns Top-Level Layout
+
+AzNavRail is the sole top-level layout authority. Inside `onscreen { }` / `background { }` slots, do **not** add padding to clear the rail title, the rail strip, or the system bars — AzNavRail handles all of that.
+
+A `fillMaxSize()` (or `fillMaxHeight()` / `fillMaxWidth()`) container is justified only when:
+
+1.  **It draws** — a background, scrim, border, or other visible paint.
+2.  **It hit-tests** — a gesture detector that actually consumes pointer events (`pointerInput`, `combinedClickable`, etc.).
+3.  **It is the direct child of an AzNavRail slot** — `onscreen { }`, `background { }`, or `azBottomSheet { }` — and needs to fill that slot.
+4.  **It owns alignment** — `Box(contentAlignment = ...)` or similar where the size is required for the alignment to be meaningful.
+
+Anything else is redundant. Do not introduce a global "rail title clearance" constant — if a screen's content collides with the rail title, that is an AzNavRail bug to file upstream, not a per-screen spacer to add.
+
+Bottom sheets mount via the `azBottomSheet` DSL on `AzNavHostScope`, never wrapped in `onscreen { }` — that gives the sheet the documented `zIndex(2f)` placement and the touch-targetable HIDDEN-detent strip at the screen bottom edge. See `docs/AZNAVRAIL_COMPLETE_GUIDE.md` §10.2.

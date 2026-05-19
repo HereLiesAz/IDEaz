@@ -24,8 +24,6 @@ fun FileContentScreen(
     var fileContent by remember { mutableStateOf(file.readText()) }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Spacer(modifier = Modifier.height(64.dp))
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,

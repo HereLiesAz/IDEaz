@@ -268,10 +268,6 @@ fun ProjectScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        // The rail provides the "Project" screen title (from AzNavRail's route → text
-        // mapping in IdeNavRail). Leave clearance for that title at the top.
-        Spacer(modifier = Modifier.height(RAIL_TITLE_CLEARANCE))
-
         if (displayAppName.isNotBlank()) {
             Card(
                 modifier = Modifier

@@ -32,17 +32,6 @@ import com.hereliesaz.aznavrail.model.AzSheetDetent
 const val Z_INDEX_WEB_VIEW = 0f
 const val Z_INDEX_OVERLAY = 200f
 
-/**
- * Top clearance reserved for the AzNavRail-provided screen title.
- *
- * AzNavRail renders the active item's title at `screenHeight * 0.1f` from the top,
- * occupying another `screenHeight * 0.1f` of vertical space (see AzNavHost). On
- * common phones that's around 80–160 dp total. Screens that draw their own content
- * from the top need to push down by at least this much to avoid colliding with the
- * title text. Centralized here so it doesn't drift across screens.
- */
-val RAIL_TITLE_CLEARANCE = 80.dp
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
@@ -69,6 +58,7 @@ fun MainScreen(
     val isSelectMode by viewModel.isSelectMode.collectAsState()
 
     var isPromptPopupVisible by remember { mutableStateOf(false) }
+    var showHelp by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -96,6 +86,8 @@ fun MainScreen(
                     }
                 },
                 sheetController = sheetController,
+                showHelp = showHelp,
+                onDismissHelp = { showHelp = false },
                 onNavigateToMainApp = { route ->
                     viewModel.clearSelection()
                     viewModel.stateDelegate.setTargetAppVisible(false)
@@ -106,42 +98,41 @@ fun MainScreen(
                 }
             )
 
+            // The Box stacks three siblings (content layer, contextual-chat
+            // overlay, prompt popup) — it draws nothing itself but is the only
+            // way to layer composables inside an onscreen { } slot.
             onscreen {
                 Box(modifier = Modifier.fillMaxSize()) {
-
-                    // LAYER 1: Content (Full Screen)
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        if (isIdeVisible) {
-                            if (currentWebUrl != null) {
-                                // Web Mode: Show WebView
-                                currentWebUrl?.let { webUrl ->
-                                    WebProjectHost(
-                                        url = webUrl,
-                                        reloadTrigger = webReloadTrigger,
-                                        hardReloadTrigger = webHardReloadTrigger,
-                                        selectMode = isSelectMode,
-                                        onElementContext = { viewModel.handleWebElementContext(it) },
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                }
-                            } else {
-                                // Android Mode: Placeholder until Phase 2 rebuilds the host
-                                // on top of IdeazOverlayService (System Alert Window overlay).
-                                // The previous VirtualDisplay-based AndroidProjectHost was removed
-                                // because it required signature-level permissions unavailable to
-                                // sideloaded apps. See docs/plans/2026-05-01-phase-0-triage.md.
-                                AndroidProjectHostPlaceholder()
+                    // LAYER 1: Content
+                    if (isIdeVisible) {
+                        if (currentWebUrl != null) {
+                            currentWebUrl?.let { webUrl ->
+                                WebProjectHost(
+                                    url = webUrl,
+                                    reloadTrigger = webReloadTrigger,
+                                    hardReloadTrigger = webHardReloadTrigger,
+                                    selectMode = isSelectMode,
+                                    onElementContext = { viewModel.handleWebElementContext(it) },
+                                    modifier = Modifier.fillMaxSize()
+                                )
                             }
                         } else {
-                            // IDE Mode: Show Settings/Project screens
-                            IdeNavHost(
-                                modifier = Modifier.fillMaxSize(),
-                                navController = navController,
-                                viewModel = viewModel,
-                                settingsViewModel = viewModel.settingsViewModel,
-                                onThemeToggle = onThemeToggle
-                            )
+                            // Placeholder until Phase 2 rebuilds the Android target host
+                            // on top of IdeazOverlayService (System Alert Window overlay).
+                            // The previous VirtualDisplay-based AndroidProjectHost was
+                            // removed because it required signature-level permissions
+                            // unavailable to sideloaded apps. See
+                            // docs/plans/2026-05-01-phase-0-triage.md.
+                            AndroidProjectHostPlaceholder()
                         }
+                    } else {
+                        IdeNavHost(
+                            modifier = Modifier.fillMaxSize(),
+                            navController = navController,
+                            viewModel = viewModel,
+                            settingsViewModel = viewModel.settingsViewModel,
+                            onThemeToggle = onThemeToggle
+                        )
                     }
 
                     // LAYER 3: Contextual Chat Overlay

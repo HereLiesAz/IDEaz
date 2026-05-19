@@ -1,11 +1,28 @@
 package com.hereliesaz.ideaz.ui
 
+import androidx.compose.ui.graphics.Color
 import com.hereliesaz.aznavrail.AzNavHostScope
 import com.hereliesaz.aznavrail.bottomsheet.AzSheetController
 import com.hereliesaz.aznavrail.model.AzButtonShape
+import com.hereliesaz.aznavrail.model.AzDockingSide
 import com.hereliesaz.aznavrail.model.AzHeaderIconShape
 import com.hereliesaz.aznavrail.model.AzSheetDetent
 import com.hereliesaz.ideaz.models.ProjectType
+
+private val ideHelpList: Map<String, String> = mapOf(
+    "project_settings" to "Open the project's settings and switches.",
+    "git" to "Git status, history, and remote actions.",
+    "main" to "IDEaz actions: prompt, build, deploy, mode.",
+    "prompt" to "Open the prompt input to instruct the AI.",
+    "build" to "Trigger a build and open the console.",
+    "reload" to "Soft-reload the PWA preview.",
+    "hard_reload" to "Cache-bypassing reload of the PWA preview.",
+    "deploy" to "Push the current PWA to its remote host.",
+    "mode_toggle" to "Switch between Interact and Select on the live preview.",
+    "file_explorer" to "Browse and open files in the project.",
+    "settings" to "App-wide settings: theme, API keys, providers.",
+    "help" to "This overlay. Tap any card to expand its full description.",
+)
 
 fun AzNavHostScope.ideNavRail(
     viewModel: MainViewModel,
@@ -15,14 +32,28 @@ fun AzNavHostScope.ideNavRail(
     isIdeVisible: Boolean,
     onToggleMode: () -> Unit,
     sheetController: AzSheetController,
+    showHelp: Boolean = false,
+    onDismissHelp: () -> Unit = {},
     onUndock: (() -> Unit)? = null,
     enableRailDraggingOverride: Boolean? = null,
     onOverlayDrag: ((Float, Float) -> Unit)? = null,
     onNavigateToMainApp: (String) -> Unit = { navController.navigate(it) }
 ) {
-    azSettings(
-        packRailButtons = true,
+    // v9 split configuration (azConfig + azTheme + azAdvanced) per
+    // docs/AZNAVRAIL_COMPLETE_GUIDE.md §2. Replaces the legacy single
+    // azSettings(...) call.
+    azConfig(
+        packButtons = true,
+        dockingSide = AzDockingSide.LEFT,
+    )
+
+    azTheme(
         defaultShape = AzButtonShape.RECTANGLE,
+        headerIconShape = AzHeaderIconShape.NONE,
+        translucentBackground = Color.Black.copy(alpha = 0.5f),
+    )
+
+    azAdvanced(
         // Default to docked. Per the AzNavRail guide, enableRailDragging = true
         // puts the rail in "FAB Mode (detach rail)" — keeping that on by default
         // forced the rail into overlay/floating mode in layouts where docking
@@ -31,7 +62,12 @@ fun AzNavHostScope.ideNavRail(
         enableRailDragging = enableRailDraggingOverride ?: false,
         onUndock = onUndock,
         onOverlayDrag = onOverlayDrag,
-        headerIconShape = AzHeaderIconShape.NONE,
+        // Help overlay: azHelpRailItem (below) is the dedicated tap trigger.
+        // showHelp is the external override callers can flip if they want to
+        // force the overlay open from outside the rail (e.g. a tutorial step).
+        helpEnabled = showHelp,
+        helpList = ideHelpList,
+        onDismissHelp = onDismissHelp,
     )
 
     azRailItem(id = "project_settings", text = "Project", route = "project_settings", onClick = { onNavigateToMainApp("project_settings") })
@@ -117,4 +153,9 @@ fun AzNavHostScope.ideNavRail(
 
     azMenuItem(id = "file_explorer",  text = "Files", route = "file_explorer", onClick = { onNavigateToMainApp("file_explorer") })
     azRailItem(id = "settings", text = "Settings", route = "settings", onClick = { onNavigateToMainApp("settings") })
+
+    // Help overlay trigger. Tapping shows ideHelpList entries for each rail
+    // item (and the defaults that AzNavRail computes for items without an
+    // explicit entry).
+    azHelpRailItem(id = "help", text = "Help")
 }

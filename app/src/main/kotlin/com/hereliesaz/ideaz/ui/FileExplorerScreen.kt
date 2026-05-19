@@ -282,9 +282,6 @@ fun FileExplorerScreen(
     // --- UI ---
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        // Clearance for the rail-provided "Files" screen title.
-        Spacer(modifier = Modifier.height(RAIL_TITLE_CLEARANCE))
-
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = currentPath?.absolutePath?.removePrefix(projectDir.absolutePath)?.ifBlank { "/" } ?: "/",

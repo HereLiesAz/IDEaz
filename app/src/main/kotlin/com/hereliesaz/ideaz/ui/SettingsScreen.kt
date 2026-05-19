@@ -239,20 +239,12 @@ fun SettingsScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(
-                    top = 64.dp,
-                    bottom = 0.dp
-                )
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState())
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
                 Text(
                     text = "IDEaz $appVersion",
                     style = MaterialTheme.typography.headlineMedium,
@@ -743,8 +735,6 @@ fun SettingsScreen(
                     shape = AzButtonShape.RECTANGLE,
                     modifier = Modifier.fillMaxWidth()
                 )
-
-            }
         }
     }
 }

@@ -98,10 +98,6 @@ fun GitScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-
-        // Top spacer leaves room for the rail-provided "Git" screen title.
-        Spacer(modifier = Modifier.height(RAIL_TITLE_CLEARANCE))
-
         // Commit a custom message — Phase 1 had no UI for this, so commits only
         // happened indirectly through deploy/build with timestamp-only messages.
         Text("Commit", style = MaterialTheme.typography.headlineSmall)
