@@ -68,11 +68,11 @@ jobs:
           REVIEWER: ${{ github.event.review.user.login }}
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
           GEMINI_CLI_TRUST_WORKSPACE: true
-          GOOGLE_API_KEY: ${{ secrets.JULES_API_KEY }}
           GOOGLE_CLOUD_PROJECT: ""
         with:
           gemini_api_key: '${{ secrets.JULES_API_KEY }}'
-          gemini_cli_version: "${{ vars.GEMINI_CLI_VERSION || '0.40.1' }}"
+          google_api_key: '${{ secrets.JULES_API_KEY }}'
+          gemini_cli_version: '0.24.0'
           workflow_name: 'jules-branch-manager'
           use_gemini_code_assist: false
           use_vertex_ai: false
