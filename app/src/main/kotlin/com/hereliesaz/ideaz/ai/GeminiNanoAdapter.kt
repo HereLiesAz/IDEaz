@@ -34,7 +34,12 @@ class GeminiNanoAdapter(
     @Volatile private var cachedModel: GenerativeModel? = null
 
     override suspend fun chat(messages: List<ChatMessage>): String = withContext(Dispatchers.IO) {
-        val prompt = messages.joinToString("\n\n") { msg ->
+        // On-device API is text-only. Flatten parts; if any non-text parts
+        // were attached, surface a one-line notice in the prompt so the user
+        // sees why the model isn't responding to their image / file.
+        val droppedNonText = messages.any { msg -> msg.parts.any { it !is ChatPart.Text } }
+        val notice = if (droppedNonText) "[Gemini Nano is text-only. Attached images and files were not forwarded.]\n\n" else ""
+        val prompt = notice + messages.joinToString("\n\n") { msg ->
             val speaker = if (msg.role == "user") "User" else "Assistant"
             "$speaker: ${msg.content}"
         } + "\n\nAssistant:"

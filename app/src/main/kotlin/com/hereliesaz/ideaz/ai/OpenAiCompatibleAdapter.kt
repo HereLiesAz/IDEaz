@@ -46,12 +46,7 @@ class OpenAiCompatibleAdapter(
 ) : ConversationalAiClient {
 
     override suspend fun chat(messages: List<ChatMessage>): String = withContext(Dispatchers.IO) {
-        val history = messages.map { msg ->
-            buildJsonObject {
-                put("role", msg.role.toOpenAiRole())
-                put("content", msg.content)
-            }
-        }.toMutableList()
+        val history = messages.map { it.toOpenAiMessage() }.toMutableList()
 
         var rounds = 0
         while (rounds < MAX_TOOL_ROUNDS) {
@@ -132,6 +127,59 @@ private fun String.toOpenAiRole(): String = when (this) {
     "system" -> "system"
     "tool" -> "tool"
     else -> error("Unsupported ChatMessage role '$this'.")
+}
+
+/**
+ * Build the per-message JSON object for the OpenAI chat-completions wire
+ * format. If the message has only [ChatPart.Text] parts, emit `content` as a
+ * plain string (the common case — most non-vision providers refuse the array
+ * shape). If any [ChatPart.Image] is present, switch to the array form with
+ * `image_url` entries holding base64 data URIs.
+ *
+ * [ChatPart.FileBlob] is not supported by the OpenAI vision schema, so we
+ * inline a short notice as text — the model will see "(file <name>: not
+ * forwarded to this provider)" rather than the bytes. Vision-capable Gemini
+ * is the path for PDFs.
+ */
+private fun ChatMessage.toOpenAiMessage(): JsonObject = buildJsonObject {
+    put("role", role.toOpenAiRole())
+    val hasImage = parts.any { it is ChatPart.Image }
+    if (!hasImage) {
+        // Concatenate text parts + any file-blob notices so non-vision
+        // providers (most free-tier models) get a usable string.
+        val text = parts.joinToString("\n") { part ->
+            when (part) {
+                is ChatPart.Text -> part.text
+                is ChatPart.FileBlob -> "(file ${part.fileName ?: "[unnamed]"}: not forwarded to this provider)"
+                is ChatPart.Image -> ""
+            }
+        }
+        put("content", text)
+    } else {
+        putJsonArray("content") {
+            for (part in parts) {
+                when (part) {
+                    is ChatPart.Text -> add(buildJsonObject {
+                        put("type", "text")
+                        put("text", part.text)
+                    })
+                    is ChatPart.Image -> {
+                        val b64 = android.util.Base64.encodeToString(part.bytes, android.util.Base64.NO_WRAP)
+                        add(buildJsonObject {
+                            put("type", "image_url")
+                            putJsonObject("image_url") {
+                                put("url", "data:${part.mimeType};base64,$b64")
+                            }
+                        })
+                    }
+                    is ChatPart.FileBlob -> add(buildJsonObject {
+                        put("type", "text")
+                        put("text", "(file ${part.fileName ?: "[unnamed]"}: not forwarded to this provider)")
+                    })
+                }
+            }
+        }
+    }
 }
 
 private fun JsonPrimitive.contentOrNullSafe(): String? = if (isString) content else content

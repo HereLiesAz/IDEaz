@@ -6,4 +6,9 @@
     <files-path
         name="files"
         path="." />
+    <!-- Bridge-staged images (cacheDir/gemini-bridge/) shared into the Gemini
+         app via EXTRA_STREAM. -->
+    <cache-path
+        name="gemini-bridge"
+        path="gemini-bridge/" />
 </paths>

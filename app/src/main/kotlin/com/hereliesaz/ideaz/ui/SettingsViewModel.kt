@@ -24,8 +24,21 @@ import java.io.FileOutputStream
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.saveable.Saver
 
-// Define AI models and their requirements
-data class AiModel(val id: String, val displayName: String, val requiredKey: String)
+// Define AI models and their requirements.
+//
+// supportsImages: whether the provider accepts image parts in prompts.
+//   - true: Gemini cloud (vision-capable), Gemini-app bridge (forwards one
+//           image via EXTRA_STREAM), OpenAI-compat vision models.
+//   - false: Nano (text-only), non-vision OpenAI-compat models (Groq Llama
+//            text, Cerebras Llama text, default Mistral Small).
+//   The Settings UI uses this to disable "Reference" attachment mode when
+//   the active provider can't actually use the bytes.
+data class AiModel(
+    val id: String,
+    val displayName: String,
+    val requiredKey: String,
+    val supportsImages: Boolean = false,
+)
 
 object AiModels {
     const val JULES_DEFAULT = "JULES_DEFAULT"
@@ -42,18 +55,23 @@ object AiModels {
     val JULES = AiModel(JULES_DEFAULT, "Jules", SettingsViewModel.KEY_API_KEY)
     // Display name tracks the actual model id used in GeminiAdapter (currently
     // "gemini-2.0-flash"). The id constant GEMINI_FLASH is kept stable for
-    // backward compatibility with stored AI assignments.
-    val GEMINI = AiModel(GEMINI_FLASH, "Gemini 2.0 Flash", SettingsViewModel.KEY_GOOGLE_API_KEY)
-    val CLI = AiModel(GEMINI_CLI, "Gemini CLI", SettingsViewModel.KEY_GOOGLE_API_KEY)
+    // backward compatibility with stored AI assignments. Gemini 2.0 Flash is
+    // vision-capable.
+    val GEMINI = AiModel(GEMINI_FLASH, "Gemini 2.0 Flash", SettingsViewModel.KEY_GOOGLE_API_KEY, supportsImages = true)
+    val CLI = AiModel(GEMINI_CLI, "Gemini CLI", SettingsViewModel.KEY_GOOGLE_API_KEY, supportsImages = true)
 
     // On-device, no key. requiredKey = "" is the sentinel meaning "no key needed".
     val NANO = AiModel(GEMINI_NANO, "Gemini Nano (on-device)", "")
     // Routes prompts through the user's installed Gemini app via the
     // GeminiAppBridgeAccessibilityService. No API key; requires the user to
-    // grant the IDEaz accessibility service.
-    val BRIDGE = AiModel(GEMINI_APP_BRIDGE, "Gemini App (Accessibility)", "")
+    // grant the IDEaz accessibility service. Forwards one image at a time
+    // via the share intent's EXTRA_STREAM.
+    val BRIDGE = AiModel(GEMINI_APP_BRIDGE, "Gemini App (Accessibility)", "", supportsImages = true)
 
-    // Free-tier hosted, OpenAI-compatible.
+    // Free-tier hosted, OpenAI-compatible. The default Llama models on Groq /
+    // Cerebras and Mistral Small (free) are NOT vision-capable; HF Inference
+    // depends on the served model. Mark all conservatively as text-only.
+    // Users who add a key for a vision model can override per-call later.
     val GROQ      = AiModel(GROQ_LLAMA,      "Groq · Llama 3.3 70B",       SettingsViewModel.KEY_GROQ_API_KEY)
     val CEREBRAS  = AiModel(CEREBRAS_LLAMA,  "Cerebras · Llama 3.1 70B",   SettingsViewModel.KEY_CEREBRAS_API_KEY)
     val HF        = AiModel(HF_INFERENCE,    "Hugging Face Inference",     SettingsViewModel.KEY_HF_API_KEY)

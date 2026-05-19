@@ -1,6 +1,7 @@
 package com.hereliesaz.ideaz.ai
 
 import com.google.genai.Client
+import com.google.genai.types.Blob
 import com.google.genai.types.Content
 import com.google.genai.types.FunctionDeclaration
 import com.google.genai.types.FunctionResponse
@@ -122,8 +123,21 @@ private fun ChatMessage.toContent(): Content {
         "model" -> "model"
         else    -> error("Unsupported ChatMessage role '$role'. Expected \"user\" or \"model\".")
     }
+    val sdkParts = parts.map { part ->
+        when (part) {
+            is ChatPart.Text -> Part.builder().text(part.text).build()
+            is ChatPart.Image -> Part.builder()
+                .inlineData(Blob.builder().mimeType(part.mimeType).data(part.bytes).build())
+                .build()
+            // Gemini natively supports PDFs and other binary blobs via the same
+            // inline-data part shape — no special-casing needed beyond mime.
+            is ChatPart.FileBlob -> Part.builder()
+                .inlineData(Blob.builder().mimeType(part.mimeType).data(part.bytes).build())
+                .build()
+        }
+    }
     return Content.builder()
         .role(sdkRole)
-        .parts(listOf(Part.builder().text(content).build()))
+        .parts(sdkParts)
         .build()
 }

@@ -2,13 +2,18 @@ package com.hereliesaz.ideaz.ai.bridge
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.provider.Settings
+import androidx.core.content.FileProvider
 import com.hereliesaz.ideaz.ai.ChatMessage
+import com.hereliesaz.ideaz.ai.ChatPart
 import com.hereliesaz.ideaz.ai.ConversationalAiClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import java.io.File
+import java.util.UUID
 
 /**
  * Routes prompts through the user's installed Gemini app. Sends the prompt
@@ -35,16 +40,53 @@ class GeminiAppBridgeAdapter(
         val geminiPackage = resolveGeminiPackage(context)
             ?: error("Gemini app bridge: Gemini app not installed.")
 
-        val lastUserMessage = messages.lastOrNull { it.role == "user" }?.content
+        val lastUser = messages.lastOrNull { it.role == "user" }
             ?: error("Gemini app bridge: no user message to forward.")
+        val lastUserText = lastUser.content.ifBlank {
+            // No text part — synthesise a minimal prompt so the share intent
+            // still has something. Without EXTRA_TEXT the Gemini app's share
+            // handler may refuse the intent entirely.
+            "(image-only prompt)"
+        }
+
+        // Gemini app's share intent accepts a single EXTRA_STREAM. Pick the
+        // first image part if any. Multi-image attachments downgrade to
+        // first-only with a notice; PDFs aren't supported through this path
+        // and are dropped with a notice in the forwarded prompt text.
+        val images = lastUser.parts.filterIsInstance<ChatPart.Image>()
+        val files = lastUser.parts.filterIsInstance<ChatPart.FileBlob>()
+        val droppedNotice = buildString {
+            if (images.size > 1) append("[${images.size - 1} extra image(s) dropped — bridge supports one.] ")
+            if (files.isNotEmpty()) append("[${files.size} file blob(s) dropped — bridge can't forward non-image files.] ")
+        }
+        val firstImage = images.firstOrNull()
+        val outboundText = if (droppedNotice.isBlank()) lastUserText else "$droppedNotice\n$lastUserText"
+
+        // Stage image to cacheDir + share via FileProvider URI. Cleaned up
+        // when chat() returns (success or timeout).
+        var stagedFile: File? = null
+        val stagedUri: Uri? = firstImage?.let { img ->
+            val ext = mimeToExt(img.mimeType)
+            val cacheDir = File(context.cacheDir, "gemini-bridge").apply { mkdirs() }
+            val f = File(cacheDir, "${UUID.randomUUID()}.$ext")
+            f.writeBytes(img.bytes)
+            stagedFile = f
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f)
+        }
 
         GeminiAppBridge.reset()
-        GeminiAppBridge.pendingPrompt = lastUserMessage
+        GeminiAppBridge.pendingPrompt = outboundText
         GeminiAppBridge.isWaiting = true
 
         val sendIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_TEXT, lastUserMessage)
+            if (stagedUri != null) {
+                type = firstImage!!.mimeType
+                putExtra(Intent.EXTRA_STREAM, stagedUri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } else {
+                type = "text/plain"
+            }
+            putExtra(Intent.EXTRA_TEXT, outboundText)
             setPackage(geminiPackage)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
@@ -57,7 +99,18 @@ class GeminiAppBridgeAdapter(
         } catch (e: TimeoutCancellationException) {
             GeminiAppBridge.isWaiting = false
             error("Gemini app bridge: no response within ${TIMEOUT_MS / 1000}s.")
+        } finally {
+            stagedFile?.delete()
         }
+    }
+
+    private fun mimeToExt(mime: String): String = when (mime.lowercase()) {
+        "image/png" -> "png"
+        "image/jpeg", "image/jpg" -> "jpg"
+        "image/gif" -> "gif"
+        "image/webp" -> "webp"
+        "image/heic" -> "heic"
+        else -> "bin"
     }
 
     companion object {
