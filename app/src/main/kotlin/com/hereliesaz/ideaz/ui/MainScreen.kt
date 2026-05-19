@@ -26,7 +26,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.hereliesaz.ideaz.ui.web.WebProjectHost
 import androidx.compose.ui.platform.LocalConfiguration
 import com.hereliesaz.aznavrail.AzHostActivityLayout
-import com.hereliesaz.aznavrail.bottomsheet.AzBottomSheet
 import com.hereliesaz.aznavrail.bottomsheet.rememberAzSheetController
 import com.hereliesaz.aznavrail.model.AzSheetDetent
 
@@ -57,7 +56,7 @@ fun MainScreen(
 
     val currentDestination by navController.currentBackStackEntryAsState()
 
-    val sheetController = rememberAzSheetController(initial = AzSheetDetent.HALF)
+    val sheetController = rememberAzSheetController(initial = AzSheetDetent.PEEK)
 
     val isIdeVisible by viewModel.isTargetAppVisible.collectAsState()
     val projectType by viewModel.settingsViewModel.projectType.collectAsState()
@@ -180,24 +179,21 @@ fun MainScreen(
                 }
             }
 
-            // Console bottom sheet sits in the topmost onscreen layer so it
-            // renders above the IDE host, contextual chat overlay, and
-            // selection overlay. AzNavRail still draws over all onscreen
-            // layers, so the rail (and the system nav bar above it) remain
-            // the only things above the sheet — matching the required
-            // z-order: system nav > AzNavRail > bottom sheet > rest of UI.
-            onscreen {
-                AzBottomSheet(
+            // Console bottom sheet uses the AzNavHostScope DSL form. Per
+            // AZNAVRAIL_COMPLETE_GUIDE.md §10.2 it draws at zIndex(2f) above
+            // the rail's onscreen layers, spans full screen width edge-to-edge,
+            // and extends to the bottom of the screen so the HIDDEN-detent
+            // strip remains touch-targetable from the system-nav-bar area.
+            // AzNavRail's expanded menu still composes above the sheet,
+            // preserving: system nav > AzNavRail menu > bottom sheet >
+            // onscreen layers.
+            azBottomSheet(controller = sheetController) {
+                IdeBottomSheet(
                     controller = sheetController,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    IdeBottomSheet(
-                        controller = sheetController,
-                        viewModel = viewModel,
-                        screenHeight = screenHeight,
-                        onSendPrompt = { viewModel.sendPrompt(it) }
-                    )
-                }
+                    viewModel = viewModel,
+                    screenHeight = screenHeight,
+                    onSendPrompt = { viewModel.sendPrompt(it) }
+                )
             }
         }
     }

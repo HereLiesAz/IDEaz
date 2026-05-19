@@ -734,3 +734,113 @@ Provide `checklistItems` on a card. The Next button is disabled until every item
 ### 9.9 Media Cards
 
 Provide `mediaContent` (a composable/component) on a card. It is rendered between the title and the body text, clipped to a max height of 120dp/120px with 8dp/8px corner rounding. Useful for images, animated GIFs, or short video previews.
+
+---
+
+## 10. Bottom Sheets
+
+AzNavRail ships a four-detent bottom-sheet shell ported from [LogKitty](https://github.com/HereLiesAz/LogKitty). It is offered in two flavors that share state, theming, and gesture handling, so consumers get identical visual behavior whether the sheet lives inside a normal Activity or floats over the screen from a foreground Service.
+
+### 10.1 The Detent Model
+
+| Detent | Default height | Purpose |
+| :--- | :--- | :--- |
+| `HIDDEN` | 14dp swipe strip | Sheet is collapsed; the strip is a touch-target for a drag-up gesture but otherwise lets the underlying UI receive touches. |
+| `PEEK` | 56dp ticker | Single-line preview of the sheet content. |
+| `HALF` | 50% of parent | Half-screen view with a dim scrim above. |
+| `FULL` | 90% of parent | Near-full-screen view with the same scrim. |
+
+The fractions and the absolute heights are tunable via `AzSheetConfig`.
+
+### 10.2 In-tree usage
+
+Inside `AzHostActivityLayout` use the `azBottomSheet` DSL. The sheet draws above the rail, the menu, and the `onscreen` content area with `zIndex(2f)`, spans the full screen width edge-to-edge, and extends all the way to the bottom of the screen (no automatic `windowInsetsPadding`) so the HIDDEN-detent strip — 28dp tall by default, with a dimmed drag-handle — is reachable from the system-navigation-bar area. A tap on the strip steps up to PEEK alongside the swipe-up gesture. It is *not* a background. If your sheet body needs to clear the system nav bar visually, pad inside your `content` lambda or use `AzBottomSheetInsetAware` directly outside the DSL.
+
+```kotlin
+val sheetController = rememberAzSheetController(initial = AzSheetDetent.PEEK)
+
+AzHostActivityLayout(navController = nav, currentDestination = currentRoute) {
+    azConfig(dockingSide = AzDockingSide.LEFT)
+    azMenuItem(id = "home", text = "Home", route = "home", onClick = { /* … */ })
+    onscreen { AzNavHost(startDestination = "home") { /* … */ } }
+
+    azBottomSheet(controller = sheetController) {
+        Column(Modifier.fillMaxSize().padding(16.dp)) {
+            Text("Hello sheet")
+            Button(onClick = { sheetController.stepUp() }) { Text("Expand") }
+        }
+    }
+}
+```
+
+### 10.3 Controller and state
+
+`AzSheetController` carries two channels: a Compose `mutableStateOf`-backed `var` for in-tree consumers, and a `StateFlow` for the system-overlay flavor's window-resize coroutine. Mutate `detent` and `isEnabled` from the main thread; both channels stay in sync.
+
+```kotlin
+sheetController.stepUp()                          // HIDDEN → PEEK → HALF → FULL
+sheetController.stepDown()                        // reverse
+sheetController.snapTo(AzSheetDetent.FULL)         // direct jump
+sheetController.isEnabled = false                  // forces HIDDEN, blocks step calls
+```
+
+### 10.4 Gestures
+
+- Vertical drag on the sheet card or the hidden swipe strip accumulates per-frame delta and steps the detent exactly once when `config.dragThresholdDp` is crossed. This mirrors LogKitty's drag accumulator verbatim, including the per-gesture single-fire latch.
+- Scrim tap in `HALF` / `FULL` calls `stepDown()`.
+- System back press calls `stepDown()` while the sheet is non-HIDDEN when `config.collapseOnBack = true`.
+- Horizontal swipe is opt-in via `config.horizontalSwipeEnabled` and the `onSwipeLeft` / `onSwipeRight` callbacks — LogKitty uses these for tab navigation.
+
+### 10.5 Theming
+
+`AzSheetConfig.backgroundColor` defaults to `MaterialTheme.colorScheme.surface` blended with `backgroundAlpha`. Override both for custom looks; LogKitty wires its user-configurable color + opacity directly through.
+
+### 10.6 System-overlay flavor
+
+For Services that float a sheet over the active foreground app, use `AzBottomSheetWindowHost`. The library ships no `Service` and no permissions; the consumer's Service supplies the lifecycle/savedState owners and declares `SYSTEM_ALERT_WINDOW` itself.
+
+```kotlin
+class MyOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateRegistryOwner {
+    private lateinit var sheetHost: AzBottomSheetWindowHost
+    private val controller = AzSheetController(initial = AzSheetDetent.HIDDEN)
+
+    override fun onCreate() {
+        super.onCreate()
+        sheetHost = AzBottomSheetWindowHost(
+            context = this,
+            controller = controller,
+            config = AzSheetConfig(
+                backgroundColor = userBg,
+                backgroundAlpha = userAlpha,
+            ),
+            lifecycleOwner = this,
+            viewModelStoreOwner = this,
+            savedStateRegistryOwner = this,
+            navBarHeightPx = resources.getDimensionPixelSize(
+                resources.getIdentifier("navigation_bar_height", "dimen", "android")
+            ),
+        ) { MyContent(controller) }
+        sheetHost.attach()
+    }
+
+    override fun onDestroy() {
+        sheetHost.detach()
+        super.onDestroy()
+    }
+}
+```
+
+Call `sheetHost.attachNavBarDecor()` from an accessibility service's `onServiceConnected` to add the secondary `TYPE_ACCESSIBILITY_OVERLAY` window that tints the system nav bar to match the sheet color.
+
+The in-tree flavor animates between detent heights with `animateDpAsState`; the system-overlay flavor hard-jumps via `WindowManager.updateViewLayout`, matching LogKitty's existing look frame-for-frame.
+
+### 10.7 LogKitty migration
+
+LogKitty currently maintains its own `SheetController`, `LogBottomSheet`, and nav-bar-decoration code inside `LogKittyOverlayService`. To replace them with AzNavRail's shell:
+
+1. Add the `aznavrail` dependency.
+2. Replace `SheetController` and `LogBottomSheet` with `AzSheetController` and `AzBottomSheetWindowHost` (see snippet above).
+3. Pass LogKitty's existing tabs / log-list composable as the `content` slot.
+4. Delete `LogBottomSheet.kt`, `SheetController.kt`, and the inline nav-bar decoration block.
+
+Visual behavior — detent heights, drag feel, scrim, animation timing, and nav-bar color sync — is preserved frame-for-frame because `AzBottomSheetWindowHost` ports the same `WindowManager` flag set, the same accumulated-delta gesture, and the same nav-bar decoration window verbatim.
