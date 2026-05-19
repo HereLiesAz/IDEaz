@@ -1,0 +1,29 @@
+# Gradle
+.gradle/
+build/
+local.properties
+captures/
+
+# IntelliJ / Android Studio
+.idea/
+*.iml
+
+# Build outputs
+*.apk
+*.aab
+*.ap_
+*.aar
+
+# Keystore (never commit signing keys)
+*.jks
+*.keystore
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated google-services.json (rendered from template by CI)
+app/google-services.json

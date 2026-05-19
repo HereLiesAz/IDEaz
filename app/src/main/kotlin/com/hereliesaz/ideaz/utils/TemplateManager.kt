@@ -34,6 +34,7 @@ object TemplateManager {
     fun copyTemplate(context: Context, type: ProjectType, destinationDir: File, packageName: String, appName: String) {
         val assetPath = when (type) {
             ProjectType.WEB -> "templates/web"
+            ProjectType.PWA -> "templates/pwa"
             ProjectType.ANDROID -> "project"
             else -> return
         }
@@ -52,6 +53,33 @@ object TemplateManager {
             }
         } catch (e: Exception) {
             android.util.Log.w("TemplateManager", "Template copy failed", e)
+        }
+    }
+
+    /**
+     * Copy the bundled template into [destinationDir] only when it doesn't
+     * already contain a recognisable project. "Recognisable" means:
+     *
+     *  - Web/PWA: an `index.html` at the project root.
+     *  - Android: a top-level `build.gradle.kts` (or legacy `build.gradle`).
+     *
+     * Used by `Save & Initialize` so a brand-new project gets scaffolded
+     * automatically instead of failing the first preview/build because the
+     * directory is empty. Returns true when files were copied, false when an
+     * existing project was preserved.
+     */
+    fun ensureTemplate(context: Context, type: ProjectType, destinationDir: File, packageName: String, appName: String): Boolean {
+        if (alreadyHasProjectFiles(type, destinationDir)) return false
+        copyTemplate(context, type, destinationDir, packageName, appName)
+        return true
+    }
+
+    private fun alreadyHasProjectFiles(type: ProjectType, dir: File): Boolean {
+        if (!dir.exists()) return false
+        return when (type) {
+            ProjectType.WEB, ProjectType.PWA -> File(dir, "index.html").exists()
+            ProjectType.ANDROID -> File(dir, "build.gradle.kts").exists() || File(dir, "build.gradle").exists()
+            else -> false
         }
     }
 
@@ -137,7 +165,13 @@ object TemplateManager {
             if (!it.exists()) it.mkdirs()
         }
 
-        val isText = fromPath.endsWith(".xml") || fromPath.endsWith(".gradle") || fromPath.endsWith(".kt") || fromPath.endsWith(".java") || fromPath.endsWith(".yaml") || fromPath.endsWith(".html") || fromPath.endsWith(".css") || fromPath.endsWith(".js") || fromPath.endsWith(".json") || fromPath.endsWith(".properties")
+        val textExtensions = listOf(
+            ".xml", ".gradle", ".kts", ".kt", ".java", ".yaml", ".yml",
+            ".html", ".css", ".js", ".json", ".properties", ".toml",
+            ".md", ".pro", ".txt", ".sh",
+        )
+        val fileName = fromPath.substringAfterLast('/')
+        val isText = textExtensions.any { fromPath.endsWith(it) } || fileName == ".gitignore" || fileName == "gradlew"
 
         if (isText) {
              val content = assets.open(fromPath).bufferedReader().use { it.readText() }

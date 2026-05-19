@@ -645,6 +645,19 @@ class MainViewModel(
             settingsViewModel.saveTargetPackageName(pkg)
             settingsViewModel.setProjectType(type.name)
 
+            // Scaffold the project directory from the bundled template if it
+            // doesn't already contain a recognisable project. Makes Save &
+            // Initialize work for brand-new projects without the user having
+            // to populate index.html (PWA) or build.gradle.kts (Android)
+            // first.
+            val projectDir = context.filesDir.resolve(appName)
+            withContext(Dispatchers.IO) {
+                projectDir.mkdirs()
+                com.hereliesaz.ideaz.utils.TemplateManager.ensureTemplate(
+                    context, type, projectDir, pkg, appName
+                )
+            }
+
             // Web/PWA projects live entirely on-device for the edit loop. No
             // GitHub upload, no Actions workflow scaffold, no Pages deploy.
             // The user explicitly triggers remote hosting via the rail's
@@ -655,7 +668,7 @@ class MainViewModel(
                 repoDelegate.forceUpdateInitFiles()
             }
 
-            buildDelegate.startBuild(context.filesDir.resolve(appName))
+            buildDelegate.startBuild(projectDir)
 
             // Check for remote artifacts if it's an Android project
             if (type == ProjectType.ANDROID) {
