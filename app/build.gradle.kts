@@ -143,6 +143,7 @@ dependencies {
     implementation(libs.okhttp.logging.interceptor)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.google.genai)
+    implementation(libs.google.ai.edge.aicore)
     implementation(libs.androidx.localbroadcastmanager)
     implementation(libs.aznavrail)
     implementation(libs.androidx.navigation.compose)

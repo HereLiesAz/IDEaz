@@ -461,6 +461,56 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                Text("Free Providers", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Free-tier hosted models. Enter a key once per provider; pick one as your AI Assignment below.",
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+
+                FreeProviderKeyRow(
+                    label = "Groq · Llama 3.3 70B",
+                    storedKey = settingsViewModel.getApiKey(SettingsViewModel.KEY_GROQ_API_KEY).orEmpty(),
+                    signupUrl = "https://console.groq.com/keys",
+                    onSave = {
+                        settingsViewModel.saveString(SettingsViewModel.KEY_GROQ_API_KEY, it)
+                        Toast.makeText(context, "Groq key saved", Toast.LENGTH_SHORT).show()
+                    },
+                )
+                FreeProviderKeyRow(
+                    label = "Cerebras · Llama 3.1 70B",
+                    storedKey = settingsViewModel.getApiKey(SettingsViewModel.KEY_CEREBRAS_API_KEY).orEmpty(),
+                    signupUrl = "https://cloud.cerebras.ai/",
+                    onSave = {
+                        settingsViewModel.saveString(SettingsViewModel.KEY_CEREBRAS_API_KEY, it)
+                        Toast.makeText(context, "Cerebras key saved", Toast.LENGTH_SHORT).show()
+                    },
+                )
+                FreeProviderKeyRow(
+                    label = "Hugging Face Inference",
+                    storedKey = settingsViewModel.getApiKey(SettingsViewModel.KEY_HF_API_KEY).orEmpty(),
+                    signupUrl = "https://huggingface.co/settings/tokens",
+                    onSave = {
+                        settingsViewModel.saveString(SettingsViewModel.KEY_HF_API_KEY, it)
+                        Toast.makeText(context, "HF key saved", Toast.LENGTH_SHORT).show()
+                    },
+                )
+                FreeProviderKeyRow(
+                    label = "Mistral Small (free)",
+                    storedKey = settingsViewModel.getApiKey(SettingsViewModel.KEY_MISTRAL_API_KEY).orEmpty(),
+                    signupUrl = "https://console.mistral.ai/api-keys/",
+                    onSave = {
+                        settingsViewModel.saveString(SettingsViewModel.KEY_MISTRAL_API_KEY, it)
+                        Toast.makeText(context, "Mistral key saved", Toast.LENGTH_SHORT).show()
+                    },
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+                GeminiAppBridgeRow(context = context)
+
+                Spacer(modifier = Modifier.height(24.dp))
+
                 Text("AI Assignments", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
 
                 SettingsViewModel.aiTasks.forEach { (taskKey, taskName) ->
@@ -736,6 +786,71 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
         }
+    }
+}
+
+@Composable
+private fun FreeProviderKeyRow(
+    label: String,
+    storedKey: String,
+    signupUrl: String,
+    onSave: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    var key by remember(storedKey) { mutableStateOf(storedKey) }
+    Spacer(modifier = Modifier.height(8.dp))
+    Text(label, color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        AzTextBox(
+            modifier = Modifier.weight(1f),
+            value = key,
+            onValueChange = { key = it },
+            hint = "$label API key",
+            secret = true,
+            onSubmit = { onSave(key) },
+            submitButtonContent = { Text("Save") },
+        )
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        AzButton(
+            onClick = {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(signupUrl)))
+            },
+            text = "Get Key",
+            shape = AzButtonShape.NONE,
+        )
+    }
+}
+
+@Composable
+private fun GeminiAppBridgeRow(context: android.content.Context) {
+    val enabled = remember(context) {
+        com.hereliesaz.ideaz.ai.bridge.GeminiAppBridgeAdapter
+            .isAccessibilityServiceEnabled(context)
+    }
+    val statusText = if (enabled) "Service enabled" else "Service not granted — tap to enable"
+    Spacer(modifier = Modifier.height(8.dp))
+    Text(
+        "Gemini App (Accessibility)",
+        color = MaterialTheme.colorScheme.onBackground,
+        style = MaterialTheme.typography.labelSmall,
+    )
+    Text(
+        "Routes prompts through the Gemini app you already have installed. Requires Accessibility permission. " +
+            "Only reads the Gemini app's window, only while a prompt is in flight.",
+        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+        style = MaterialTheme.typography.bodySmall,
+    )
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        AzButton(
+            onClick = {
+                context.startActivity(
+                    com.hereliesaz.ideaz.ai.bridge.GeminiAppBridgeAdapter.openAccessibilitySettingsIntent()
+                )
+            },
+            text = statusText,
+            shape = AzButtonShape.NONE,
+        )
     }
 }
 

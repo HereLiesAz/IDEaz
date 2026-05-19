@@ -1,11 +1,14 @@
 package com.hereliesaz.ideaz.ui.delegates
 
 import com.hereliesaz.ideaz.ai.ChatMessage
+import com.hereliesaz.ideaz.ai.ConversationalAiClient
 import com.hereliesaz.ideaz.ai.GeminiAdapter
 import com.hereliesaz.ideaz.ai.IdeTools
+import com.hereliesaz.ideaz.ui.AiModel
 import com.hereliesaz.ideaz.api.*
 import com.hereliesaz.ideaz.jules.IJulesApiClient
 import com.hereliesaz.ideaz.jules.JulesApiClient
+import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.AiModels
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import kotlinx.coroutines.CancellationException
@@ -64,7 +67,17 @@ class AIDelegate(
      * any view that mirrors the project tree (e.g. the WebView, file
      * explorer). Default is a no-op for tests.
      */
-    private val onFilesChanged: () -> Unit = {}
+    private val onFilesChanged: () -> Unit = {},
+    /**
+     * Resolves a [ConversationalAiClient] for the given model id. Built by
+     * [AiAdapterFactory] in production callers (MainViewModel); tests can
+     * supply a stub. Returns null when the model isn't a chat-style
+     * provider — Jules in particular has its own session/poll lifecycle
+     * outside the ConversationalAiClient contract, so AIDelegate falls back
+     * to [runJulesTask] when the provider is null and the requested model
+     * is Jules.
+     */
+    private val aiClientProvider: (model: AiModel) -> ConversationalAiClient? = { null }
 ) {
 
     // --- StateFlows ---
@@ -188,23 +201,47 @@ class AIDelegate(
         _isLoadingJulesResponse.value = true
         _julesError.value = null
 
-        // Resolve Model and Key. Phase 1 default is Gemini; Jules requires explicit
+        // Resolve Model. Phase 1 default is Gemini; Jules requires explicit
         // assignment via Settings → AI Assignments.
         val modelId = settingsViewModel.getAiAssignment(SettingsViewModel.KEY_AI_ASSIGNMENT_OVERLAY)
-        val model = AiModels.findById(modelId) ?: AiModels.GEMINI
-        val key = settingsViewModel.getApiKey(model.requiredKey)
+        var model = AiModels.findById(modelId) ?: AiModels.GEMINI
 
-        if (key.isNullOrBlank()) {
-            onOverlayLog("Error: API Key missing for ${model.displayName}")
-            _isLoadingJulesResponse.value = false
-            return
+        // Jules is GitHub-anchored and pointless for Web/PWA projects (it needs a
+        // sourceContext and produces unidiff patches — Web/PWA edits run locally
+        // through the Gemini tool-use loop and ProjectFileObserver-driven reload).
+        val projectType = ProjectType.fromString(settingsViewModel.getProjectType())
+        val isWebOrPwa = projectType == ProjectType.WEB || projectType == ProjectType.PWA
+        if (isWebOrPwa && model.id == AiModels.JULES_DEFAULT) {
+            onOverlayLog("Jules is not used for Web/PWA projects. Routing through Gemini.")
+            model = AiModels.GEMINI
+        }
+
+        // Models with empty requiredKey (e.g. Gemini Nano) need no key check.
+        if (model.requiredKey.isNotEmpty()) {
+            val key = settingsViewModel.getApiKey(model.requiredKey)
+            if (key.isNullOrBlank()) {
+                onOverlayLog("Error: API Key missing for ${model.displayName}")
+                _isLoadingJulesResponse.value = false
+                return
+            }
         }
 
         contextualTaskJob = scope.launch {
             try {
-                when (model.id) {
-                    AiModels.JULES_DEFAULT -> runJulesTask(richPrompt)
-                    AiModels.GEMINI_FLASH -> runGeminiTask(richPrompt, key)
+                // Try the multi-provider factory first. If it returns a client,
+                // route through the unified runConversationalTask path. Jules
+                // and providers without configured keys return null and fall
+                // through to their dedicated paths.
+                val client = aiClientProvider(model)
+                when {
+                    client != null -> runConversationalTask(model, client, richPrompt)
+                    model.id == AiModels.JULES_DEFAULT -> runJulesTask(richPrompt)
+                    else -> {
+                        // No factory-provided client and not Jules — legacy fallback
+                        // for the explicit Gemini path used in older tests/wiring.
+                        val key = settingsViewModel.getApiKey(model.requiredKey).orEmpty()
+                        runGeminiTask(richPrompt, key)
+                    }
                 }
             } catch (e: Exception) {
                 onOverlayLog("Error: ${e.message}")
@@ -213,6 +250,24 @@ class AIDelegate(
                 _isLoadingJulesResponse.value = false
             }
         }
+    }
+
+    /**
+     * Multi-provider conversational path. Sends the user prompt against the
+     * given [client]'s chat history, appends the response to [_geminiHistory]
+     * (shared overlay-thread history), and fires [onFilesChanged] so the UI
+     * and WebView refresh after any tool-induced file writes.
+     */
+    private suspend fun runConversationalTask(
+        model: AiModel,
+        client: ConversationalAiClient,
+        richPrompt: String,
+    ) {
+        val historyForChat = _geminiHistory.updateAndGet { it + ChatMessage("user", richPrompt) }
+        val response = client.chat(historyForChat)
+        _geminiHistory.update { it + ChatMessage("model", response) }
+        onOverlayLog("${model.displayName}: $response")
+        onFilesChanged()
     }
 
     /**

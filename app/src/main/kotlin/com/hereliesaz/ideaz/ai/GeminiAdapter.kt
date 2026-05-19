@@ -12,12 +12,13 @@ import com.google.genai.types.Type
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private const val MODEL = "gemini-2.0-flash"
+private const val DEFAULT_MODEL = "gemini-2.0-flash"
 private const val MAX_TOOL_ROUNDS = 10
 
 class GeminiAdapter(
     private val apiKey: String,
-    private val tools: IdeTools
+    private val tools: IdeTools,
+    private val model: String = DEFAULT_MODEL,
 ) : ConversationalAiClient {
 
     private val client: Client by lazy { Client.builder().apiKey(apiKey).build() }
@@ -28,7 +29,7 @@ class GeminiAdapter(
 
         var rounds = 0
         while (rounds < MAX_TOOL_ROUNDS) {
-            val response = client.models.generateContent(MODEL, contents, toolConfig)
+            val response = client.models.generateContent(model, contents, toolConfig)
 
             val calls = response.functionCalls()
             if (calls.isNullOrEmpty()) {
@@ -69,69 +70,50 @@ class GeminiAdapter(
 
     internal fun dispatchTool(name: String, args: Any?): String {
         @Suppress("UNCHECKED_CAST")
-        val map = args as? Map<String, Any?> ?: emptyMap()
-        return when (name) {
-            "read_file"   -> tools.readFile(map["path"] as? String ?: "")
-            "write_file"  -> tools.writeFile(
-                                map["path"]    as? String ?: "",
-                                map["content"] as? String ?: ""
-                            )
-            "list_files"  -> tools.listFiles(map["path"] as? String ?: ".")
-            "apply_patch" -> tools.applyPatch(map["patch"] as? String ?: "")
-            else          -> "Error: Unknown tool '$name'."
-        }
+        val map = (args as? Map<String, Any?>).orEmpty()
+        val stringArgs = map.mapValues { (_, v) -> v?.toString() }
+        return dispatchIdeTool(name, stringArgs, tools)
     }
 
     internal fun testDispatchTool(name: String, args: Map<String, Any?>): String =
         dispatchTool(name, args)
 
     private fun buildToolConfig(): GenerateContentConfig {
-        fun str(description: String): Schema = Schema.builder()
-            .type(Type.Known.STRING)
-            .description(description)
-            .build()
-
-        fun obj(vararg props: Pair<String, Schema>, required: List<String>): Schema =
-            Schema.builder()
-                .type(Type.Known.OBJECT)
-                .properties(props.toMap())
-                .required(required)
-                .build()
-
-        val readFile = FunctionDeclaration.builder()
-            .name("read_file")
-            .description("Read the full text content of a project file. Path is relative to project root.")
-            .parameters(obj("path" to str("Relative file path, e.g. 'index.html'"), required = listOf("path")))
-            .build()
-
-        val writeFile = FunctionDeclaration.builder()
-            .name("write_file")
-            .description("Overwrite a project file. Creates parent directories. Returns 'OK' or 'Error: ...'.")
-            .parameters(obj(
-                "path"    to str("Relative file path"),
-                "content" to str("Full text content to write"),
-                required = listOf("path", "content")
-            ))
-            .build()
-
-        val listFiles = FunctionDeclaration.builder()
-            .name("list_files")
-            .description("List files and subdirectories at the given path. Use '.' for the project root.")
-            .parameters(obj("path" to str("Relative directory path"), required = listOf("path")))
-            .build()
-
-        val applyPatch = FunctionDeclaration.builder()
-            .name("apply_patch")
-            .description("Apply a unified diff patch to the working tree. Returns 'OK' or 'Error: ...'.")
-            .parameters(obj("patch" to str("Unified diff patch string"), required = listOf("patch")))
-            .build()
-
+        val declarations = IdeToolSchema.all.map { spec -> spec.toFunctionDeclaration() }
         val tool = Tool.builder()
-            .functionDeclarations(listOf(readFile, writeFile, listFiles, applyPatch))
+            .functionDeclarations(declarations)
             .build()
-
         return GenerateContentConfig.builder().tools(listOf(tool)).build()
     }
+}
+
+private fun AiToolSpec.toFunctionDeclaration(): FunctionDeclaration {
+    val properties = params.associate { param ->
+        param.name to Schema.builder()
+            .type(param.type.toSchemaType())
+            .description(param.description)
+            .build()
+    }
+    val required = params.filter { it.required }.map { it.name }
+    val parametersSchema = Schema.builder()
+        .type(Type.Known.OBJECT)
+        .properties(properties)
+        .required(required)
+        .build()
+    return FunctionDeclaration.builder()
+        .name(name)
+        .description(description)
+        .parameters(parametersSchema)
+        .build()
+}
+
+private fun String.toSchemaType(): Type.Known = when (this) {
+    "string" -> Type.Known.STRING
+    "number" -> Type.Known.NUMBER
+    "boolean" -> Type.Known.BOOLEAN
+    "object" -> Type.Known.OBJECT
+    "array" -> Type.Known.ARRAY
+    else -> error("Unsupported AiToolParam type '$this'.")
 }
 
 private fun ChatMessage.toContent(): Content {

@@ -6,6 +6,8 @@
     <string name="starting_task">Starting task...</string>
 <string name="accessibility_service_label">IDEaz Inspection Service</string>
 <string name="accessibility_service_description">Allows IDEaz to inspect the UI layout to provide contextual AI assistance.</string>
+<string name="gemini_bridge_service_label">IDEaz Gemini App Bridge</string>
+<string name="gemini_bridge_service_description">Reads the rendered response from the Gemini app when you send a prompt from IDEaz, so you can use Gemini without an API key. Only active while a prompt is in flight; only reads the Gemini app\'s window.</string>
     <string name="error_app_not_installed">App not installed. Please build first.</string>
     <string name="error_launch_failed">Failed to launch app: %1$s</string>
     <string name="deploy_instruction_gh_pages">Deployed! Enable GitHub Pages in repo settings.</string>

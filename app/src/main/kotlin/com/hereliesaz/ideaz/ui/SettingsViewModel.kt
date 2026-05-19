@@ -32,6 +32,12 @@ object AiModels {
     const val GEMINI_FLASH = "GEMINI_FLASH"
     const val GEMINI_PRO = "GEMINI_PRO"
     const val GEMINI_CLI = "GEMINI_CLI"
+    const val GEMINI_NANO = "GEMINI_NANO"
+    const val GEMINI_APP_BRIDGE = "GEMINI_APP_BRIDGE"
+    const val GROQ_LLAMA = "GROQ_LLAMA"
+    const val CEREBRAS_LLAMA = "CEREBRAS_LLAMA"
+    const val HF_INFERENCE = "HF_INFERENCE"
+    const val MISTRAL_SMALL = "MISTRAL_SMALL"
 
     val JULES = AiModel(JULES_DEFAULT, "Jules", SettingsViewModel.KEY_API_KEY)
     // Display name tracks the actual model id used in GeminiAdapter (currently
@@ -40,7 +46,20 @@ object AiModels {
     val GEMINI = AiModel(GEMINI_FLASH, "Gemini 2.0 Flash", SettingsViewModel.KEY_GOOGLE_API_KEY)
     val CLI = AiModel(GEMINI_CLI, "Gemini CLI", SettingsViewModel.KEY_GOOGLE_API_KEY)
 
-    val availableModels = listOf(JULES, GEMINI, CLI)
+    // On-device, no key. requiredKey = "" is the sentinel meaning "no key needed".
+    val NANO = AiModel(GEMINI_NANO, "Gemini Nano (on-device)", "")
+    // Routes prompts through the user's installed Gemini app via the
+    // GeminiAppBridgeAccessibilityService. No API key; requires the user to
+    // grant the IDEaz accessibility service.
+    val BRIDGE = AiModel(GEMINI_APP_BRIDGE, "Gemini App (Accessibility)", "")
+
+    // Free-tier hosted, OpenAI-compatible.
+    val GROQ      = AiModel(GROQ_LLAMA,      "Groq · Llama 3.3 70B",       SettingsViewModel.KEY_GROQ_API_KEY)
+    val CEREBRAS  = AiModel(CEREBRAS_LLAMA,  "Cerebras · Llama 3.1 70B",   SettingsViewModel.KEY_CEREBRAS_API_KEY)
+    val HF        = AiModel(HF_INFERENCE,    "Hugging Face Inference",     SettingsViewModel.KEY_HF_API_KEY)
+    val MISTRAL   = AiModel(MISTRAL_SMALL,   "Mistral Small (free)",       SettingsViewModel.KEY_MISTRAL_API_KEY)
+
+    val availableModels = listOf(NANO, BRIDGE, GEMINI, GROQ, CEREBRAS, HF, MISTRAL, JULES, CLI)
 
     fun findById(id: String?): AiModel? = availableModels.find { it.id == id }
 }
@@ -77,6 +96,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_GOOGLE_API_KEY = "google_api_key" // Gemini
         const val KEY_GITHUB_TOKEN = "github_token"
         const val KEY_JULES_PROJECT_ID = "jules_project_id" // Google Cloud Project ID (Number)
+
+        // Free-tier OpenAI-compatible providers (multi-provider-ai spec).
+        const val KEY_GROQ_API_KEY = "groq_api_key"
+        const val KEY_CEREBRAS_API_KEY = "cerebras_api_key"
+        const val KEY_HF_API_KEY = "hf_api_key"
+        const val KEY_MISTRAL_API_KEY = "mistral_api_key"
+
+        // One-shot flag: true after the app has explained the Gemini-app
+        // bridge during first-run on a device that lacks Gemini Nano.
+        const val KEY_BRIDGE_FIRST_RUN_SHOWN = "bridge_first_run_shown"
 
         const val KEY_PROJECT_TYPE = "project_type"
         const val KEY_TARGET_PACKAGE_NAME = "target_package_name"
@@ -220,6 +249,26 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
     fun getApiKey() = sharedPreferences.getString(KEY_API_KEY, null)
     fun getApiKey(keyName: String) = sharedPreferences.getString(keyName, null)
+
+    /**
+     * Generic string-pref setter. Used by the free-provider rows in Settings
+     * so each provider's key gets persisted under its own KEY_* constant
+     * without growing a save method per provider.
+     */
+    fun saveString(keyName: String, value: String) {
+        sharedPreferences.edit().putString(keyName, value.trim()).apply()
+    }
+
+    /**
+     * Has the Gemini-app bridge first-run explainer been shown? Returns true
+     * after the first time [markBridgeFirstRunShown] is called.
+     */
+    fun hasShownBridgeFirstRun(): Boolean =
+        sharedPreferences.getBoolean(KEY_BRIDGE_FIRST_RUN_SHOWN, false)
+
+    fun markBridgeFirstRunShown() {
+        sharedPreferences.edit().putBoolean(KEY_BRIDGE_FIRST_RUN_SHOWN, true).apply()
+    }
 
     fun saveAiAssignment(taskKey: String, modelId: String) = sharedPreferences.edit().putString(taskKey, modelId).apply()
     fun getAiAssignment(taskKey: String): String? {

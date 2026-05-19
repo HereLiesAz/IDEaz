@@ -34,6 +34,7 @@ kotlinxCoroutinesTest = "1.11.0"
 json = "20251224"
 appcompat = "1.7.1"
 webkit = "1.16.0"
+aicore = "0.0.1-exp02"
 
 [libraries]
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
@@ -52,6 +53,7 @@ androidx-localbroadcastmanager = { module = "androidx.localbroadcastmanager:loca
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
 aznavrail = { module = "com.github.HereLiesAz:AzNavRail", version.ref = "aznavrail" }
 google-genai = { module = "com.google.genai:google-genai", version.ref = "googleGenai" }
+google-ai-edge-aicore = { module = "com.google.ai.edge.aicore:aicore", version.ref = "aicore" }
 mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "mockwebserver" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }

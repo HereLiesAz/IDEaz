@@ -6,10 +6,12 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -19,10 +21,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.hereliesaz.ideaz.ai.GeminiNanoAdapter
+import com.hereliesaz.ideaz.ai.bridge.GeminiAppBridgeAdapter
 import com.hereliesaz.ideaz.ui.web.WebProjectHost
 import androidx.compose.ui.platform.LocalConfiguration
 import com.hereliesaz.aznavrail.AzHostActivityLayout
@@ -59,6 +64,60 @@ fun MainScreen(
 
     var isPromptPopupVisible by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
+    var showBridgeFirstRun by remember { mutableStateOf(false) }
+
+    // First-run check: if Nano isn't available and the user hasn't seen the
+    // bridge explainer yet, suggest the Gemini-app bridge as a zero-key path.
+    val settingsViewModel = viewModel.settingsViewModel
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        if (!settingsViewModel.hasShownBridgeFirstRun() &&
+            GeminiAppBridgeAdapter.resolveGeminiPackage(context) != null &&
+            !GeminiNanoAdapter.isAvailable(context)
+        ) {
+            showBridgeFirstRun = true
+        }
+    }
+
+    if (showBridgeFirstRun) {
+        AlertDialog(
+            onDismissRequest = {
+                settingsViewModel.markBridgeFirstRunShown()
+                showBridgeFirstRun = false
+            },
+            title = { Text("Use Gemini for free?") },
+            text = {
+                Text(
+                    "Your device doesn't ship Gemini Nano, but you have the Gemini " +
+                        "app installed. IDEaz can route prompts through it — no API " +
+                        "key needed. Requires the Accessibility permission. Only " +
+                        "reads the Gemini app's window, only while a prompt is in " +
+                        "flight."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    settingsViewModel.markBridgeFirstRunShown()
+                    settingsViewModel.saveAiAssignment(
+                        SettingsViewModel.KEY_AI_ASSIGNMENT_DEFAULT,
+                        AiModels.GEMINI_APP_BRIDGE,
+                    )
+                    settingsViewModel.saveAiAssignment(
+                        SettingsViewModel.KEY_AI_ASSIGNMENT_OVERLAY,
+                        AiModels.GEMINI_APP_BRIDGE,
+                    )
+                    context.startActivity(GeminiAppBridgeAdapter.openAccessibilitySettingsIntent())
+                    showBridgeFirstRun = false
+                }) { Text("Enable bridge") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    settingsViewModel.markBridgeFirstRunShown()
+                    showBridgeFirstRun = false
+                }) { Text("Use an API key instead") }
+            },
+        )
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),

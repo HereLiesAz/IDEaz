@@ -225,3 +225,78 @@ Modified:
 - Should the AI assignment be per-project-type instead of global? (e.g., "Nano for chat, Groq for contextual tasks, Jules for Android only"). Default to **per-task** (matching existing `KEY_AI_ASSIGNMENT_*` constants); per-project-type can come later.
 - Should we expose a "cheapest-available" auto-routing mode? Possible follow-up. Out of this spec.
 - Streaming. Likely the next request; explicit non-goal here.
+
+---
+
+## Addendum (2026-05-18, post-implementation revisit): Gemini-app bridge via AccessibilityService
+
+The original spec **skipped** the Gemini-app bridge based on the brainstorm conclusion that clipboard-handoff was too clunky and AccessibilityService was too invasive. On revisit the user opted to add the bridge with **full automation** via AccessibilityService, gated behind a first-run prompt if Gemini Nano is unavailable, with **silent fall-through to the Gemini API** when the bridge can't operate.
+
+### Why include it now
+
+The first-run free-tier story for devices without Nano is weak. A user without Nano sees a "needs key" prompt for every provider. The bridge gives them a zero-config path if they already have the Gemini app installed and signed in — which on Pixel/most Android devices is by default.
+
+### Design
+
+#### Components
+
+1. **`GeminiAppBridge.kt`** — singleton in `app/src/main/kotlin/com/hereliesaz/ideaz/ai/bridge/`. Holds:
+   - `Channel<String>` for response delivery (capacity = 1, drops oldest).
+   - `pendingPrompt: String?` — the text we just sent (used by the service to diff against captured Gemini-app text and isolate the response).
+   - `isWaiting: Boolean` — set to true between intent fire and channel receive; the AccessibilityService only scrapes when this is true.
+
+2. **`GeminiAppBridgeAccessibilityService.kt`** — extends `android.accessibilityservice.AccessibilityService`. Listens to `TYPE_WINDOW_CONTENT_CHANGED` and `TYPE_WINDOW_STATE_CHANGED` events from the Gemini app's package. When `GeminiAppBridge.isWaiting`, walks the active window's `AccessibilityNodeInfo` tree, collects all text bubbles, debounces for 2 seconds of stability, computes the response by removing `pendingPrompt` and any prior conversation text from the latest snapshot, and emits to the channel.
+
+3. **`res/xml/accessibility_service_config.xml`** — declares `accessibilityEventTypes="typeWindowContentChanged|typeWindowStateChanged"`, `packageNames="com.google.android.apps.bard,com.google.android.googlequicksearchbox"` (Gemini app + Assistant fallback), `accessibilityFlags="flagDefault"`, `canRetrieveWindowContent="true"`, short description string.
+
+4. **`AndroidManifest.xml`** — `<service>` entry with `android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"`, intent filter `android.accessibilityservice.AccessibilityService`, meta-data pointing at the config XML. **Not exported.**
+
+5. **`GeminiAppBridgeAdapter.kt`** — implements `ConversationalAiClient`. In `chat()`:
+   - Build a single-prompt string from the conversation history (Gemini app does its own context tracking — we don't replay history).
+   - Check `isAccessibilityServiceEnabled(context)`; if false, throw → factory's fallback path kicks in.
+   - Resolve the Gemini app package via `PackageManager`; if missing, throw.
+   - Set `GeminiAppBridge.pendingPrompt = prompt` and `isWaiting = true`.
+   - Fire `Intent.ACTION_SEND` with `EXTRA_TEXT = prompt`, `setPackage = "com.google.android.apps.bard"`, `FLAG_ACTIVITY_NEW_TASK`.
+   - Wait on `bridge.channel.receive()` with a 90-second `withTimeout`.
+   - On timeout or exception, throw → fall-through.
+
+6. **`AiAdapterFactory`** — wraps the bridge adapter in a fallback decorator: if the bridge throws, the wrapper tries `GeminiAdapter(geminiApiKey, tools)` if a Google API key is present.
+
+#### Routing
+
+`AiModels.BRIDGE = AiModel("GEMINI_APP_BRIDGE", "Gemini App (Accessibility)", requiredKey = "")` — no key required. Stored as a regular registered model; user picks it in Settings like any other.
+
+#### Consent flow
+
+- **First-run heuristic:** if `GeminiNanoAdapter.isAvailable()` returns false on first launch, surface the bridge as the recommended free option via a one-time bottom-sheet card with: "Use the Gemini app you already have installed. Requires Accessibility permission. [Enable] [Use API key instead]". `[Enable]` opens `Settings.ACTION_ACCESSIBILITY_SETTINGS` and stores `prefs.put("first_run_bridge_shown", true)`.
+
+- **Settings entry:** "Free providers" section gets a Gemini App row with a switch. The switch label reflects current accessibility state ("Service enabled" / "Service not granted — tap to enable"). Tapping opens accessibility settings and shows a one-paragraph explainer of what gets read (only the Gemini app's response text, only after the user has triggered a prompt).
+
+#### Failure-mode default: silent fall-through to Gemini API
+
+In `AiAdapterFactory.create(BRIDGE, …)`: return a `FallbackAdapter(primary = GeminiAppBridgeAdapter, fallback = GeminiAdapter(googleKey, tools))`. `FallbackAdapter.chat()` calls primary; on any `Exception` (including `TimeoutCancellationException` and the service-not-enabled throws), it logs `"Gemini app bridge unavailable, falling back to Gemini API"` and calls `fallback.chat(messages)`. If `googleKey` is blank, no fallback wrapper — bridge errors surface directly.
+
+### New files
+
+- `app/src/main/kotlin/com/hereliesaz/ideaz/ai/bridge/GeminiAppBridge.kt`
+- `app/src/main/kotlin/com/hereliesaz/ideaz/ai/bridge/GeminiAppBridgeAccessibilityService.kt`
+- `app/src/main/kotlin/com/hereliesaz/ideaz/ai/bridge/GeminiAppBridgeAdapter.kt`
+- `app/src/main/kotlin/com/hereliesaz/ideaz/ai/bridge/FallbackAdapter.kt`
+- `app/src/main/res/xml/accessibility_service_config.xml`
+
+### Modified files
+
+- `app/src/main/AndroidManifest.xml` — add the service entry.
+- `app/src/main/res/values/strings.xml` — service label and description.
+- `app/src/main/kotlin/com/hereliesaz/ideaz/ai/AiAdapterFactory.kt` — add bridge branch with fallback wrap.
+- `app/src/main/kotlin/com/hereliesaz/ideaz/ui/SettingsViewModel.kt` — `GEMINI_APP_BRIDGE` constant + `BRIDGE` model + `KEY_BRIDGE_FIRST_RUN_SHOWN` flag.
+- `app/src/main/kotlin/com/hereliesaz/ideaz/ui/SettingsScreen.kt` — bridge row in providers section.
+- Wherever first-run logic lives — likely `MainViewModel` or an init flow — add the Nano-unavailable bottom sheet.
+
+### Risks
+
+- **Restricted Settings on Android 14+:** accessibility services for non-system apps may require the user to manually toggle "Restricted Settings" in App Info before they can enable the service. Mitigation: detect this state and instruct the user with a step-by-step explainer; cannot bypass.
+- **Gemini app UI changes:** the response bubble's node hierarchy is undocumented and may shift. Mitigation: keep the scraper liberal — collect *all* text from the active window, debounce, diff against the sent prompt. Don't depend on view-ids.
+- **Privacy perception:** an accessibility service is a heavy permission. Mitigation: scope the manifest's `packageNames` to only the Gemini app's package; document this clearly in the consent explainer.
+- **Two Gemini apps:** the standalone Gemini app and Assistant share branding; the package names diverge. Detect both and pick whichever is installed.
+- **Latency:** the user sees the Gemini app foreground briefly. Mitigation: a future enhancement could use `WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY` to hide the Gemini app behind an overlay, but that's a separate scope.

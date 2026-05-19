@@ -20,6 +20,7 @@ import com.hereliesaz.ideaz.R
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ProjectFileObserver
 import com.hereliesaz.ideaz.utils.VersionUtils
+import com.hereliesaz.ideaz.ai.AiAdapterFactory
 import com.hereliesaz.ideaz.ai.ChatMessage
 import com.hereliesaz.ideaz.ai.GeminiAdapter
 import com.hereliesaz.ideaz.ai.IdeTools
@@ -132,7 +133,16 @@ class MainViewModel(
         // Just nudge the file tree — the WebView already reloads via
         // ProjectFileObserver when files actually change on disk, so a
         // hard reload here would be redundant work for every prompt.
-        onFilesChanged = { stateDelegate.triggerFileTreeReload() }
+        onFilesChanged = { stateDelegate.triggerFileTreeReload() },
+        aiClientProvider = { model ->
+            val appName = settingsViewModel.getAppName() ?: return@AIDelegate null
+            AiAdapterFactory.create(
+                model = model,
+                context = getApplication(),
+                tools = IdeTools(settingsViewModel.getProjectPath(appName)),
+                settings = settingsViewModel,
+            )
+        },
     )
 
     /**
@@ -162,21 +172,35 @@ class MainViewModel(
     }
 
     fun sendChatMessage(text: String) {
-        val apiKey = settingsViewModel.getGoogleApiKey()
-        if (apiKey.isNullOrBlank()) {
-            stateDelegate.appendChatMessage(
-                ChatMessage("model", "Error: No AI Studio API key set. Go to Settings → API Keys → AI Studio API Key.")
-            )
-            return
-        }
-
         val appName = settingsViewModel.getAppName()
         if (appName == null) {
             stateDelegate.appendChatMessage(ChatMessage("model", "Error: No project open."))
             return
         }
 
-        val client = geminiAdapterFor(apiKey, appName)
+        // Route through the AI provider factory so the user's chosen default
+        // model (Gemini, Nano, Groq, Cerebras, HF, Mistral, etc.) backs the
+        // chat tab the same way it backs contextual prompts.
+        val modelId = settingsViewModel.getAiAssignment(SettingsViewModel.KEY_AI_ASSIGNMENT_DEFAULT)
+        val model = AiModels.findById(modelId) ?: AiModels.GEMINI
+        val projectDir = settingsViewModel.getProjectPath(appName)
+        val tools = IdeTools(projectDir)
+        val client = AiAdapterFactory.create(
+            model = model,
+            context = getApplication(),
+            tools = tools,
+            settings = settingsViewModel,
+        )
+        if (client == null) {
+            val msg = when (model.id) {
+                AiModels.JULES_DEFAULT ->
+                    "Error: Jules is not supported in the chat tab. Pick a different provider in Settings."
+                else ->
+                    "Error: No API key set for ${model.displayName}. Go to Settings → AI Providers."
+            }
+            stateDelegate.appendChatMessage(ChatMessage("model", msg))
+            return
+        }
 
         stateDelegate.appendChatMessage(ChatMessage("user", text))
         stateDelegate.setChatLoading(true)
