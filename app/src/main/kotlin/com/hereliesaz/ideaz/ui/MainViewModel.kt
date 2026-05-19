@@ -433,6 +433,11 @@ class MainViewModel(
         viewModelScope.launch {
             logHandler.onBuildLog("Deploying Web Project (Push to GitHub)...")
             try {
+                // Ensure GitHub Pages workflow / AGENTS.md / setup script are
+                // in the project before deploying. Save & Initialize for PWAs
+                // is local-only now, so the first Deploy is what generates
+                // these and pushes them.
+                repoDelegate.forceUpdateInitFiles()
                 // Ensure latest changes are committed
                 gitDelegate.commit("Deploy: ${System.currentTimeMillis()}")
                 // Use default push (uses settings creds)
@@ -639,8 +644,17 @@ class MainViewModel(
             settingsViewModel.saveProjectConfig(appName, user, branch)
             settingsViewModel.saveTargetPackageName(pkg)
             settingsViewModel.setProjectType(type.name)
-            repoDelegate.uploadProjectSecrets(user, appName)
-            repoDelegate.forceUpdateInitFiles()
+
+            // Web/PWA projects live entirely on-device for the edit loop. No
+            // GitHub upload, no Actions workflow scaffold, no Pages deploy.
+            // The user explicitly triggers remote hosting via the rail's
+            // Deploy item / deployWebProject(). For Android, init still pushes
+            // GitHub Actions workflows because there's no on-device toolchain.
+            if (type != ProjectType.WEB && type != ProjectType.PWA) {
+                repoDelegate.uploadProjectSecrets(user, appName)
+                repoDelegate.forceUpdateInitFiles()
+            }
+
             buildDelegate.startBuild(context.filesDir.resolve(appName))
 
             // Check for remote artifacts if it's an Android project

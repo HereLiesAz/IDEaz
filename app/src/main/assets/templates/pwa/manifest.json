@@ -1,0 +1,12 @@
+{
+  "name": "helloworld",
+  "short_name": "helloworld",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "description": "A PWA scaffolded by IDEaz.",
+  "icons": []
+}
