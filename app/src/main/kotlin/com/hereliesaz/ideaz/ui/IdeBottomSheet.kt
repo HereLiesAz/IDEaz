@@ -108,7 +108,8 @@ fun IdeBottomSheet(
                     onClearLog = { viewModel.clearLog() },
                     onSendChat = { viewModel.sendChatMessage(it) },
                     onSendPrompt = onSendPrompt,
-                    screenHeight = screenHeight
+                    viewModel = viewModel,
+                    screenHeight = screenHeight,
                 )
                 AzSheetDetent.HIDDEN -> Unit
             }
@@ -142,6 +143,7 @@ private fun ExpandedContent(
     onClearLog: () -> Unit,
     onSendChat: (String) -> Unit,
     onSendPrompt: (String) -> Unit,
+    viewModel: MainViewModel,
     screenHeight: Dp
 ) {
     val clipboard = LocalClipboard.current
@@ -386,7 +388,7 @@ private fun ExpandedContent(
 
         ContextlessChatInput(
             modifier = Modifier.fillMaxWidth(),
-            onSend = onSendPrompt
+            viewModel = viewModel,
         )
 
         Spacer(modifier = Modifier.height(bottomBufferHeight))

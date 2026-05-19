@@ -208,10 +208,7 @@ fun MainScreen(
                     if (isPromptPopupVisible) {
                         PromptPopup(
                             onDismiss = { isPromptPopupVisible = false },
-                            onSubmit = { prompt ->
-                                viewModel.sendPrompt(prompt)
-                                isPromptPopupVisible = false
-                            }
+                            viewModel = viewModel,
                         )
                     }
                 }

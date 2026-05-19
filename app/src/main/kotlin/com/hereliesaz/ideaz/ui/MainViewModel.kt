@@ -171,7 +171,9 @@ class MainViewModel(
         return fresh
     }
 
-    fun sendChatMessage(text: String) {
+    fun sendChatMessage(text: String) = sendChatMessage(text, emptyList())
+
+    fun sendChatMessage(text: String, referenceParts: List<com.hereliesaz.ideaz.ai.ChatPart>) {
         val appName = settingsViewModel.getAppName()
         if (appName == null) {
             stateDelegate.appendChatMessage(ChatMessage("model", "Error: No project open."))
@@ -202,7 +204,11 @@ class MainViewModel(
             return
         }
 
-        stateDelegate.appendChatMessage(ChatMessage("user", text))
+        val userParts = buildList {
+            add(com.hereliesaz.ideaz.ai.ChatPart.Text(text))
+            addAll(referenceParts)
+        }
+        stateDelegate.appendChatMessage(ChatMessage("user", userParts))
         stateDelegate.setChatLoading(true)
 
         viewModelScope.launch {
@@ -525,13 +531,23 @@ class MainViewModel(
     private fun isJulesAssigned(taskKey: String): Boolean =
         settingsViewModel.getAiAssignment(taskKey) == AiModels.JULES_DEFAULT
 
-    fun sendPrompt(p: String?) {
-        if (p.isNullOrBlank()) return
-        lastPrompt = p
+    fun sendPrompt(p: String?) = sendPrompt(p, emptyList())
+
+    fun sendPrompt(p: String?, referenceParts: List<com.hereliesaz.ideaz.ai.ChatPart>) {
+        if (p.isNullOrBlank() && referenceParts.isEmpty()) return
+        val text = p.orEmpty()
+        lastPrompt = text
         if (isJulesAssigned(SettingsViewModel.KEY_AI_ASSIGNMENT_CONTEXTLESS)) {
-            aiDelegate.startContextualAITask(p)
+            // Jules path can't carry binary parts — it polls for unidiff
+            // patches via a GitHub session. Reference parts are dropped here
+            // with a note; the chat tab + factory-routed contextual path
+            // both handle them correctly.
+            val notice = if (referenceParts.isNotEmpty()) {
+                "\n\n[${referenceParts.size} reference attachment(s) dropped — Jules can't accept inline files.]"
+            } else ""
+            aiDelegate.startContextualAITask(text + notice)
         } else {
-            sendChatMessage(p)
+            sendChatMessage(text, referenceParts)
         }
     }
 
