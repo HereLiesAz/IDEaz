@@ -236,7 +236,7 @@ private fun ExpandedContent(
             AiChatTab(
                 messages = chatMessages,
                 isLoading = isChatLoading,
-                onSend = onSendChat,
+                viewModel = viewModel,
                 modifier = Modifier.weight(1f)
             )
             Spacer(modifier = Modifier.height(bottomBufferHeight))

@@ -28,7 +28,7 @@ import com.hereliesaz.ideaz.ai.ChatMessage
 fun AiChatTab(
     messages: List<ChatMessage>,
     isLoading: Boolean,
-    onSend: (String) -> Unit,
+    viewModel: MainViewModel,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -80,7 +80,7 @@ fun AiChatTab(
         // Reuse the existing chat input component
         ContextlessChatInput(
             modifier = Modifier.fillMaxWidth(),
-            onSend = onSend
+            viewModel = viewModel,
         )
     }
 }
