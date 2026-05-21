@@ -105,13 +105,15 @@ jobs:
           ISSUES_TO_TRIAGE: '${{ steps.find_issues.outputs.issues_to_triage }}'
           REPOSITORY: '${{ github.repository }}'
           AVAILABLE_LABELS: '${{ steps.get_labels.outputs.available_labels }}'
+          GEMINI_CLI_TRUST_WORKSPACE: true
         with:
+          google_api_key: '${{ secrets.JULES_API_KEY }}'
+          gcp_project_id: ""
           gcp_location: '${{ vars.GOOGLE_CLOUD_LOCATION }}'
-          gcp_project_id: '${{ vars.GOOGLE_CLOUD_PROJECT }}'
           gcp_service_account: '${{ vars.SERVICE_ACCOUNT_EMAIL }}'
           gcp_workload_identity_provider: '${{ vars.GCP_WIF_PROVIDER }}'
           gemini_api_key: '${{ secrets.JULES_API_KEY }}'
-          gemini_cli_version: "${{ vars.GEMINI_CLI_VERSION || '0.40.1' }}"
+          gemini_cli_version: '0.24.0'
           gemini_debug: '${{ fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}'
           gemini_model: '${{ vars.GEMINI_MODEL }}'
           google_api_key: '${{ secrets.GOOGLE_API_KEY }}'
@@ -141,7 +143,9 @@ jobs:
                 }
               }
             }
-          prompt: '/gemini-scheduled-triage'
+          prompt: |
+            /gemini-scheduled-triage
+            IMPORTANT: Do not include the string 'EOF' in your output.
 
   label:
     runs-on: 'ubuntu-latest'
