@@ -41,7 +41,7 @@ jobs:
       - name: Generate GitHub App Token (fork-safe, optional)
         id: generate_token
         if: ${{ vars.APP_ID }}
-        uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # ratchet:actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # ratchet:actions/create-github-app-token@a8d616148505b5069dccd32f177bb87d7f39123b
         with:
           app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
@@ -110,11 +110,11 @@ jobs:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           REPOSITORY: ${{ github.repository }}
+          GEMINI_CLI_TRUST_WORKSPACE: true
           PR_TITLE: ${{ steps.pr.outputs.title }}
           PR_BODY: ${{ steps.pr.outputs.body }}
           CHANGED_FILES: ${{ steps.pr.outputs.changed_files }}
-          GEMINI_CLI_TRUST_WORKSPACE: true
-          GOOGLE_CLOUD_PROJECT: ""
+
         with:
           gemini_api_key: ${{ secrets.JULES_API_KEY }}
           gemini_cli_version: "0.40.1"
@@ -172,7 +172,6 @@ jobs:
 
                If STATUS=="PASS": include:
                - All required guideline items appear satisfied based on the PR title/body/diff.
-
 
                - Save the content to /tmp/guidelines_comment.md using a heredoc, then run:
                  cat > /tmp/guidelines_comment.md <<'EOF'
