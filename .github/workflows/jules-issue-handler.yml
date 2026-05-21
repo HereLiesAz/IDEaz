@@ -62,11 +62,10 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
           GEMINI_CLI_TRUST_WORKSPACE: true
-
         with:
           gemini_api_key: '${{ secrets.JULES_API_KEY }}'
-
           gemini_cli_version: "0.40.1"
+          workflow_name: 'jules-issue-handler'
           use_gemini_code_assist: false
           use_vertex_ai: false
           settings: |-

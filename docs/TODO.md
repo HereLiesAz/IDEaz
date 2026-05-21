@@ -14,3 +14,4 @@ When Phase 0 completes, this file will point to Phase 1's plan.
 - Updated `get_version.sh` to return the full `major.minor.patch.build` version string.
 - Fixed compilation error in `AiChatTab.kt` by updating it to pass `MainViewModel` to `ContextlessChatInput`.
 - Fixed typo in `AiChatTab.kt` where `viewMode` was used instead of `viewModel`.
+- Standardized Gemini CLI version and fixed authentication conflicts in GitHub Actions workflows.
