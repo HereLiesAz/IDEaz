@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: '${{ github.workflow }}'
+  group: '${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}'
   cancel-in-progress: true
 
 defaults:
@@ -26,128 +26,26 @@ defaults:
     shell: 'bash'
 
 jobs:
+  debugger:
+    if: |-
+     ${{ fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}
+    runs-on: 'ubuntu-latest'
+    permissions:
+      contents: 'write'
+    steps:
+      - name: 'Print context for debugging'
+        env:
+          DEBUG_event_name: '${{ github.event_name }}'
+          DEBUG_event__action: '${{ github.event.action }}'
+          DEBUG_event: '${{ toJSON(github.event) }}'
+        run: |-
+          env | grep '^DEBUG_'
+
   triage:
     runs-on: 'ubuntu-latest'
-    timeout-minutes: 7
     permissions:
-      contents: 'read'
+      contents: 'write'
       id-token: 'write'
-      issues: 'read'
-      pull-requests: 'read'
-    outputs:
-      available_labels: '${{ steps.get_labels.outputs.available_labels }}'
-      triaged_issues: '${{ env.TRIAGED_ISSUES }}'
-    steps:
-      - name: 'Get repository labels'
-        id: 'get_labels'
-        uses: 'actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3' # ratchet:actions/github-script@v9.0.0
-        with:
-          # NOTE: we intentionally do not use the minted token. The default
-          # GITHUB_TOKEN provided by the action has enough permissions to read
-          # the labels.
-          script: |-
-            const labels = [];
-            for await (const response of github.paginate.iterator(github.rest.issues.listLabelsForRepo, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              per_page: 100, // Maximum per page to reduce API calls
-            })) {
-              labels.push(...response.data);
-            }
-
-            if (!labels || labels.length === 0) {
-              core.setFailed('There are no issue labels in this repository.')
-            }
-
-            const labelNames = labels.map(label => label.name).sort();
-            core.setOutput('available_labels', labelNames.join(','));
-            core.info(`Found ${labelNames.length} labels: ${labelNames.join(', ')}`);
-            return labelNames;
-
-      - name: 'Find untriaged issues'
-        id: 'find_issues'
-        env:
-          GITHUB_REPOSITORY: '${{ github.repository }}'
-          GITHUB_TOKEN: '${{ secrets.GH_TOKEN || github.token }}'
-        run: |-
-          echo '🔍 Finding unlabeled issues...'
-          ISSUES_NO_LABEL="$(gh issue list \
-            --state 'open' \
-            --search 'no:label' \
-            --json number,title,body \
-            --limit '100' \
-            --repo "${GITHUB_REPOSITORY}" || echo "[]")"
-
-          echo '🔍 Finding issues marked for triage...'
-          ISSUES_NEEDS_TRIAGE="$(gh issue list \
-            --state 'open' \
-            --search 'label:"status/needs-triage"' \
-            --json number,title,body \
-            --limit '100' \
-            --repo "${GITHUB_REPOSITORY}" || echo "[]")"
-
-          echo '📝 Combining and setting output...'
-          # Combine arrays and deduplicate by number just in case
-          ISSUES="$(echo "${ISSUES_NO_LABEL}" "${ISSUES_NEEDS_TRIAGE}" | jq -s -c 'add | unique_by(.number)')"
-
-          echo "issues_to_triage=${ISSUES}" >> "${GITHUB_OUTPUT}"
-
-          ISSUE_COUNT="$(echo "${ISSUES}" | jq 'length')"
-          echo "✅ Found ${ISSUE_COUNT} issue(s) to triage! 🎯"
-
-      - name: 'Run Gemini Issue Analysis'
-        id: 'gemini_issue_analysis'
-        if: |-
-          ${{ steps.find_issues.outputs.issues_to_triage != '[]' }}
-        uses: 'google-github-actions/run-gemini-cli@v0' # ratchet:exclude
-        env:
-          GITHUB_TOKEN: '' # Do not pass any auth token here since this runs on untrusted inputs
-          ISSUES_TO_TRIAGE: '${{ steps.find_issues.outputs.issues_to_triage }}'
-          REPOSITORY: '${{ github.repository }}'
-          AVAILABLE_LABELS: '${{ steps.get_labels.outputs.available_labels }}'
-          GEMINI_CLI_TRUST_WORKSPACE: true
-        with:
-          gemini_api_key: '${{ secrets.JULES_API_KEY }}'
-          google_api_key: '${{ secrets.JULES_API_KEY }}'
-          gemini_cli_version: "${{ vars.GEMINI_CLI_VERSION || '0.40.1' }}"
-          gemini_debug: '${{ fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}'
-          gemini_model: '${{ vars.GEMINI_MODEL }}'
-          upload_artifacts: '${{ vars.UPLOAD_ARTIFACTS }}'
-          workflow_name: 'gemini-scheduled-triage'
-          settings: |-
-            {
-              "model": {
-                "maxSessionTurns": 25
-              },
-              "telemetry": {
-                "enabled": true,
-                "target": "local",
-                "outfile": ".gemini/telemetry.log"
-              },
-              "tools": {
-                "core": [
-                  "run_shell_command(echo)",
-                  "run_shell_command(jq)",
-                  "run_shell_command(printenv)"
-                ],
-                "github": {
-                  "token": "${{ steps.mint_identity_token.outputs.token || secrets.GH_TOKEN || github.token }}"
-                }
-              }
-            }
-          prompt: '/gemini-scheduled-triage'
-
-  label:
-    runs-on: 'ubuntu-latest'
-    needs:
-      - 'triage'
-    if: |-
-      needs.triage.outputs.available_labels != '' &&
-      needs.triage.outputs.available_labels != '[]' &&
-      needs.triage.outputs.triaged_issues != '' &&
-      needs.triage.outputs.triaged_issues != '[]'
-    permissions:
-      contents: 'read'
       issues: 'write'
       pull-requests: 'write'
     steps:
@@ -163,60 +61,141 @@ jobs:
           permission-issues: 'write'
           permission-pull-requests: 'write'
 
-      - name: 'Apply labels'
-        env:
-          AVAILABLE_LABELS: '${{ needs.triage.outputs.available_labels }}'
-          TRIAGED_ISSUES: '${{ needs.triage.outputs.triaged_issues }}'
-        uses: 'actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3' # ratchet:actions/github-script@v9.0.0
+      - name: 'Checkout repository'
+        uses: 'actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd' # ratchet:actions/checkout@v5
+
+      - name: 'Get available labels'
+        id: 'get_labels'
+        uses: 'actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3' # ratchet:actions/github-script@v7
         with:
-          # Use the provided token so that the "gemini-cli" is the actor in the
-          # log for what changed the labels.
-          github-token: '${{ steps.mint_identity_token.outputs.token || secrets.GH_TOKEN || github.token }}'
+          # NOTE: we intentionally do not use the minted token. The default
+          # GITHUB_TOKEN provided by the action has enough permissions to read
+          # the labels.
           script: |-
-            // Parse the available labels
-            const availableLabels = (process.env.AVAILABLE_LABELS || '').split(',')
-              .map((label) => label.trim())
-              .sort()
-
-            // Parse out the triaged issues
-            const triagedIssues = (JSON.parse(process.env.TRIAGED_ISSUES || '{}'))
-              .sort((a, b) => a.issue_number - b.issue_number)
-
-            core.debug(`Triaged issues: ${JSON.stringify(triagedIssues)}`);
-
-            // Iterate over each label
-            for (const issue of triagedIssues) {
-              if (!issue) {
-                core.debug(`Skipping empty issue: ${JSON.stringify(issue)}`);
-                continue;
+            const labels = [];
+            for await (const response of github.paginate.iterator(github.rest.issues.listLabelsForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            })) {
+              for (const label of response.data) {
+                labels.push(label.name);
               }
-
-              const issueNumber = issue.issue_number;
-              if (!issueNumber) {
-                core.debug(`Skipping issue with no data: ${JSON.stringify(issue)}`);
-                continue;
-              }
-
-              // Extract and reject invalid labels - we do this just in case
-              // someone was able to prompt inject malicious labels.
-              let labelsToSet = (issue.labels_to_set || [])
-                .map((label) => label.trim())
-                .filter((label) => availableLabels.includes(label))
-                .sort()
-
-              core.debug(`Identified labels to set: ${JSON.stringify(labelsToSet)}`);
-
-              if (labelsToSet.length === 0) {
-                core.info(`Skipping issue #${issueNumber} - no labels to set.`)
-                continue;
-              }
-
-              core.debug(`Setting labels on issue #${issueNumber} to ${labelsToSet.join(', ')} (${issue.explanation || 'no explanation'})`)
-
-              await github.rest.issues.setLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issueNumber,
-                labels: labelsToSet,
-              });
             }
+            core.setOutput('available_labels', labels.join(', '));
+
+      - name: 'Find issues to triage'
+        id: 'find_issues'
+        uses: 'actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3' # ratchet:actions/github-script@v7
+        with:
+          # NOTE: we intentionally do not use the minted token. The default
+          # GITHUB_TOKEN provided by the action has enough permissions to read
+          # the issues.
+          script: |-
+            const issues = [];
+            for await (const response of github.paginate.iterator(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'needs-triage',
+            })) {
+              for (const issue of response.data) {
+                if (issue.pull_request) {
+                  continue;
+                }
+                issues.push({
+                  number: issue.number,
+                  title: issue.title,
+                  body: issue.body,
+                });
+              }
+            }
+            core.setOutput('issues_to_triage', JSON.stringify(issues));
+
+      - name: 'Run Gemini scheduled issue triage'
+        if: |-
+          fromJSON(steps.find_issues.outputs.issues_to_triage).length > 0
+        uses: 'google-github-actions/run-gemini-cli@v0' # ratchet:exclude
+        id: 'gemini_scheduled_triage'
+        env:
+          GITHUB_TOKEN: '${{ steps.mint_identity_token.outputs.token || secrets.GH_TOKEN || github.token }}'
+          ISSUES_TO_TRIAGE: '${{ steps.find_issues.outputs.issues_to_triage }}'
+          REPOSITORY: '${{ github.repository }}'
+          AVAILABLE_LABELS: '${{ steps.get_labels.outputs.available_labels }}'
+          GEMINI_CLI_TRUST_WORKSPACE: true
+          GOOGLE_API_KEY: ""
+          GOOGLE_CLOUD_PROJECT: ""
+          GEMINI_API_KEY: ""
+        with:
+          gemini_api_key: '${{ secrets.JULES_API_KEY }}'
+          google_api_key: '${{ secrets.JULES_API_KEY }}'
+          gemini_cli_version: '0.40.1'
+          gemini_debug: '${{ fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}'
+          gemini_model: '${{ vars.GEMINI_MODEL }}'
+          use_gemini_code_assist: false
+          use_vertex_ai: false
+          upload_artifacts: '${{ vars.UPLOAD_ARTIFACTS }}'
+          workflow_name: 'gemini-scheduled-triage'
+          gcp_project_id: ''
+          settings: |-
+            {
+              "model": {
+                "maxSessionTurns": 25
+              },
+              "telemetry": {
+                "enabled": true,
+                "target": "local",
+                "outfile": ".gemini/telemetry.log"
+              },
+              "mcpServers": {
+                "github": {
+                  "command": "docker",
+                  "args": [
+                    "run",
+                    "-i",
+                    "--rm",
+                    "-e",
+                    "GITHUB_PERSONAL_ACCESS_TOKEN",
+                    "ghcr.io/github/github-mcp-server:v0.18.0"
+                  ],
+                  "includeTools": [
+                    "add_issue_comment",
+                    "get_issue",
+                    "get_issue_comments",
+                    "list_issues",
+                    "search_issues",
+                    "create_pull_request",
+                    "pull_request_read",
+                    "list_pull_requests",
+                    "search_pull_requests",
+                    "create_branch",
+                    "create_or_update_file",
+                    "delete_file",
+                    "fork_repository",
+                    "get_commit",
+                    "get_file_contents",
+                    "list_commits",
+                    "push_files",
+                    "search_code",
+                    "add_comment_to_pending_review",
+                    "create_pending_pull_request_review",
+                    "submit_pending_pull_request_review"
+                  ],
+                  "env": {
+                    "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+                  }
+                }
+              },
+              "tools": {
+                "core": [
+                  "run_shell_command(cat)",
+                  "run_shell_command(echo)",
+                  "run_shell_command(grep)",
+                  "run_shell_command(head)",
+                  "run_shell_command(tail)",
+                  "run_shell_command(git)",
+                  "run_shell_command(gh)",
+                  "run_shell_command(ls)"
+                ]
+              }
+            }
+          prompt: '/gemini-scheduled-triage'

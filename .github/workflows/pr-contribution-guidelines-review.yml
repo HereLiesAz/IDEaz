@@ -114,11 +114,16 @@ jobs:
           BODY: ${{ steps.pr.outputs.body }}
           CHANGED_FILES: ${{ steps.pr.outputs.changed_files }}
           GEMINI_CLI_TRUST_WORKSPACE: true
+          GOOGLE_API_KEY: ""
+          GOOGLE_CLOUD_PROJECT: ""
+          GEMINI_API_KEY: ""
         with:
           gemini_api_key: ${{ secrets.JULES_API_KEY }}
-          gemini_cli_version: "${{ vars.GEMINI_CLI_VERSION || '0.40.1' }}"
+          google_api_key: ${{ secrets.JULES_API_KEY }}
+          gemini_cli_version: '0.40.1'
           use_gemini_code_assist: false
           use_vertex_ai: false
+          gcp_project_id: ''
           settings: |
             {
               "coreTools": [
@@ -174,9 +179,9 @@ jobs:
 
 
                - Save the content to /tmp/guidelines_comment.md using a heredoc, then run:
-                 cat > /tmp/guidelines_comment.md <<'EOF'
+                 cat > /tmp/guidelines_comment.md <<'EOF_MARKER'
                  <the markdown from above>
-                 EOF
+                 EOF_MARKER
                  gh pr comment "${PR_NUMBER}" --repo "${REPOSITORY}" --body-file /tmp/guidelines_comment.md
 
             Constraints:

@@ -203,12 +203,17 @@ jobs:
           REPOSITORY: ${'$'}{{ github.repository }}
           GITHUB_TOKEN: ${'$'}{{ secrets.GH_TOKEN || github.token }}
           GEMINI_CLI_TRUST_WORKSPACE: true
+          GOOGLE_API_KEY: ""
+          GOOGLE_CLOUD_PROJECT: ""
+          GEMINI_API_KEY: ""
         with:
           gemini_api_key: '${'$'}{{ secrets.JULES_API_KEY }}'
+          google_api_key: '${'$'}{{ secrets.JULES_API_KEY }}'
           gemini_cli_version: '0.40.1'
           workflow_name: 'jules-issue-handler'
           use_gemini_code_assist: false
           use_vertex_ai: false
+          gcp_project_id: ''
           settings: |-
             {
               "model": { "maxSessionTurns": 10 },
@@ -312,12 +317,17 @@ jobs:
           REVIEWER: ${'$'}{{ github.event.review.user.login }}
           GITHUB_TOKEN: ${'$'}{{ secrets.GH_TOKEN || github.token }}
           GEMINI_CLI_TRUST_WORKSPACE: true
+          GOOGLE_API_KEY: ""
+          GOOGLE_CLOUD_PROJECT: ""
+          GEMINI_API_KEY: ""
         with:
           gemini_api_key: '${'$'}{{ secrets.JULES_API_KEY }}'
+          google_api_key: '${'$'}{{ secrets.JULES_API_KEY }}'
           gemini_cli_version: '0.40.1'
           workflow_name: 'jules-branch-manager'
           use_gemini_code_assist: false
           use_vertex_ai: false
+          gcp_project_id: ''
           settings: |-
             {
               "model": { "maxSessionTurns": 15 },
