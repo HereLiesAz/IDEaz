@@ -110,12 +110,14 @@ jobs:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           REPOSITORY: ${{ github.repository }}
+          PR_TITLE: ${{ steps.pr.outputs.title }}
+          PR_BODY: ${{ steps.pr.outputs.body }}
+          CHANGED_FILES: ${{ steps.pr.outputs.changed_files }}
           GEMINI_CLI_TRUST_WORKSPACE: true
-          GOOGLE_API_KEY: ${{ secrets.JULES_API_KEY }}
           GOOGLE_CLOUD_PROJECT: ""
         with:
           gemini_api_key: ${{ secrets.JULES_API_KEY }}
-          gemini_cli_version: "${{ vars.GEMINI_CLI_VERSION || '0.40.1' }}"
+          gemini_cli_version: "0.40.1"
           use_gemini_code_assist: false
           use_vertex_ai: false
           settings: |
@@ -138,10 +140,10 @@ jobs:
             Inputs:
             - Repository: ${REPOSITORY}
             - PR Number: ${PR_NUMBER}
-            - Title: ${{ steps.pr.outputs.title }}
-            - Body: ${{ steps.pr.outputs.body }}
+            - Title: ${PR_TITLE}
+            - Body: ${PR_BODY}
             - Changed files:
-              ${{ steps.pr.outputs.changed_files }}
+              ${CHANGED_FILES}
 
             Action:
             Please use your tools to read the file 'pr_diff.txt' (using 'cat pr_diff.txt') to see the code changes in this PR.
