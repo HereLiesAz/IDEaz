@@ -110,16 +110,12 @@ jobs:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           REPOSITORY: ${{ github.repository }}
-          TITLE: ${{ steps.pr.outputs.title }}
-          BODY: ${{ steps.pr.outputs.body }}
-          CHANGED_FILES: ${{ steps.pr.outputs.changed_files }}
           GEMINI_CLI_TRUST_WORKSPACE: true
-          PR_TITLE: ${{ steps.pr.outputs.title }}
-          PR_BODY: ${{ steps.pr.outputs.body }}
-          CHANGED_FILES: ${{ steps.pr.outputs.changed_files }}
         with:
           gemini_api_key: ${{ secrets.JULES_API_KEY }}
-          gemini_cli_version: "0.40.1"
+          google_api_key: ${{ secrets.JULES_API_KEY }}
+          gcp_project_id: ""
+          gemini_cli_version: '0.24.0'
           use_gemini_code_assist: false
           use_vertex_ai: false
           gcp_project_id: ''
@@ -177,9 +173,9 @@ jobs:
                - All required guideline items appear satisfied based on the PR title/body/diff.
 
                - Save the content to /tmp/guidelines_comment.md using a heredoc, then run:
-                 cat > /tmp/guidelines_comment.md <<'EOF_MARKER'
+                 cat > /tmp/guidelines_comment.md <<'DELIMITER'
                  <the markdown from above>
-                 EOF_MARKER
+                 DELIMITER
                  gh pr comment "${PR_NUMBER}" --repo "${REPOSITORY}" --body-file /tmp/guidelines_comment.md
 
             Constraints:

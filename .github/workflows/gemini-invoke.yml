@@ -57,8 +57,12 @@ jobs:
           ADDITIONAL_CONTEXT: '${{ inputs.additional_context }}'
           GEMINI_CLI_TRUST_WORKSPACE: true
         with:
+          google_api_key: '${{ secrets.JULES_API_KEY }}'
+          gcp_project_id: ""
+          gcp_location: '${{ vars.GOOGLE_CLOUD_LOCATION }}'
+          gcp_service_account: '${{ vars.SERVICE_ACCOUNT_EMAIL }}'
           gemini_api_key: '${{ secrets.JULES_API_KEY }}'
-          gemini_cli_version: "0.40.1"
+          gemini_cli_version: '0.24.0'
           gemini_debug: '${{ fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}'
           gemini_model: '${{ vars.GEMINI_MODEL }}'
           use_gemini_code_assist: false
@@ -129,3 +133,6 @@ jobs:
                 ]
               }
             }
+          prompt: |
+            ${{ inputs.additional_context }}
+            IMPORTANT: Do not include the string 'EOF' in your output.
