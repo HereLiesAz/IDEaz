@@ -114,13 +114,12 @@ jobs:
           BODY: ${{ steps.pr.outputs.body }}
           CHANGED_FILES: ${{ steps.pr.outputs.changed_files }}
           GEMINI_CLI_TRUST_WORKSPACE: true
-          GOOGLE_API_KEY: ""
-          GOOGLE_CLOUD_PROJECT: ""
-          GEMINI_API_KEY: ""
+          PR_TITLE: ${{ steps.pr.outputs.title }}
+          PR_BODY: ${{ steps.pr.outputs.body }}
+          CHANGED_FILES: ${{ steps.pr.outputs.changed_files }}
         with:
           gemini_api_key: ${{ secrets.JULES_API_KEY }}
-          google_api_key: ${{ secrets.JULES_API_KEY }}
-          gemini_cli_version: '0.40.1'
+          gemini_cli_version: "0.40.1"
           use_gemini_code_assist: false
           use_vertex_ai: false
           gcp_project_id: ''
@@ -144,8 +143,8 @@ jobs:
             Inputs:
             - Repository: ${REPOSITORY}
             - PR Number: ${PR_NUMBER}
-            - Title: ${TITLE}
-            - Body: ${BODY}
+            - Title: ${PR_TITLE}
+            - Body: ${PR_BODY}
             - Changed files:
               ${CHANGED_FILES}
 
@@ -176,7 +175,6 @@ jobs:
 
                If STATUS=="PASS": include:
                - All required guideline items appear satisfied based on the PR title/body/diff.
-
 
                - Save the content to /tmp/guidelines_comment.md using a heredoc, then run:
                  cat > /tmp/guidelines_comment.md <<'EOF_MARKER'
