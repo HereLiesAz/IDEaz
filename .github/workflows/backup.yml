@@ -141,7 +141,7 @@ jobs:
           echo "BACKUP_FILE=$OUTFILE" >> $GITHUB_ENV
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: surgical-backup
           path: ${{ env.BACKUP_FILE }}

@@ -34,12 +34,12 @@ jobs:
           java-version: '19'
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Give permission to executable
         run: chmod +x gradlew
@@ -51,4 +51,4 @@ jobs:
           arguments: clean assembleDebug --no-build-cache
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4

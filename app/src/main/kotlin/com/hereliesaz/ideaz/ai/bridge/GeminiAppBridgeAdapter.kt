@@ -79,8 +79,8 @@ class GeminiAppBridgeAdapter(
         GeminiAppBridge.isWaiting = true
 
         val sendIntent = Intent(Intent.ACTION_SEND).apply {
-            if (stagedUri != null) {
-                type = firstImage!!.mimeType
+            if (stagedUri != null && firstImage != null) {
+                type = firstImage.mimeType
                 putExtra(Intent.EXTRA_STREAM, stagedUri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             } else {

@@ -118,6 +118,7 @@ jobs:
           gemini_cli_version: '0.24.0'
           use_gemini_code_assist: false
           use_vertex_ai: false
+          gcp_project_id: ''
           settings: |
             {
               "coreTools": [
@@ -138,10 +139,10 @@ jobs:
             Inputs:
             - Repository: ${REPOSITORY}
             - PR Number: ${PR_NUMBER}
-            - Title: ${{ steps.pr.outputs.title }}
-            - Body: ${{ steps.pr.outputs.body }}
+            - Title: ${PR_TITLE}
+            - Body: ${PR_BODY}
             - Changed files:
-              ${{ steps.pr.outputs.changed_files }}
+              ${CHANGED_FILES}
 
             Action:
             Please use your tools to read the file 'pr_diff.txt' (using 'cat pr_diff.txt') to see the code changes in this PR.
@@ -171,7 +172,6 @@ jobs:
                If STATUS=="PASS": include:
                - All required guideline items appear satisfied based on the PR title/body/diff.
 
-
                - Save the content to /tmp/guidelines_comment.md using a heredoc, then run:
                  cat > /tmp/guidelines_comment.md <<'DELIMITER'
                  <the markdown from above>
@@ -186,7 +186,7 @@ jobs:
 
       - name: Detect guideline status from comment
         id: detect
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
         with:

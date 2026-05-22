@@ -70,6 +70,7 @@ jobs:
           workflow_name: 'jules-issue-handler'
           use_gemini_code_assist: false
           use_vertex_ai: false
+          gcp_project_id: ''
           settings: |-
             {
               "model": { "maxSessionTurns": 10 },
@@ -106,10 +107,10 @@ jobs:
             from this prompt.
 
             The issue you are triaging:
-              - Number:  $ISSUE_NUMBER
-              - Author:  $ISSUE_AUTHOR
-              - Title:   (see env var ISSUE_TITLE)
-              - Body:    (see env var ISSUE_BODY)
+              - Number:  ${ISSUE_NUMBER}
+              - Author:  ${ISSUE_AUTHOR}
+              - Title:   ${ISSUE_TITLE}
+              - Body:    ${ISSUE_BODY}
 
             Your job:
               1. Read the issue title and body.
