@@ -79,7 +79,7 @@ fun AiChatTab(
         // Reuse the existing chat input component
         ContextlessChatInput(
             modifier = Modifier.fillMaxWidth(),
-            viewModel = viewMode,
+            viewModel = viewModel,
         )
     }
 }
