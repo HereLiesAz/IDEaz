@@ -256,13 +256,13 @@ class RemoteBuildManager(
      * trailing separator closes that hole.
      */
     private suspend fun extractZip(zipFile: File, destDir: File) = withContext(Dispatchers.IO) {
-        val canonicalDestPrefix = destDir.canonicalPath + File.separator
+        val canonicalDestPath = destDir.toPath().normalize()
         ZipInputStream(zipFile.inputStream()).use { zis ->
             var entry = zis.nextEntry
             while (entry != null) {
                 val newFile = File(destDir, entry.name)
-                val newPath = newFile.canonicalPath
-                if (newPath != destDir.canonicalPath && !newPath.startsWith(canonicalDestPrefix)) {
+                val entryPath = newFile.toPath().normalize()
+                if (!entryPath.startsWith(canonicalDestPath)) {
                     throw SecurityException("Zip Entry outside of target dir: ${entry.name}")
                 }
                 if (entry.isDirectory) {
