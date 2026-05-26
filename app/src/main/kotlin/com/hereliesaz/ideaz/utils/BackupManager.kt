@@ -50,7 +50,7 @@ object BackupManager {
         return withContext(Dispatchers.IO) {
             try {
                 val filesDir = context.filesDir
-                val canonicalDestPath = filesDir.toPath().normalize()
+                val canonicalDestPath = filesDir.canonicalFile.toPath()
                 val `in` = context.contentResolver.openInputStream(uri) ?: return@withContext false
                 `in`.use { inputStream ->
                     ZipInputStream(inputStream).use { zipIn ->
