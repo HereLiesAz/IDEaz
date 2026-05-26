@@ -13,3 +13,4 @@ When Phase 0 completes, this file will point to Phase 1's plan.
 - Implemented automatic build versioning: `build` property in `version.properties` now increments automatically on `assemble`, `bundle`, or `install` tasks.
 - Updated `get_version.sh` to return the full `major.minor.patch.build` version string.
 - Fixed compilation error in `AiChatTab.kt` by updating it to pass `MainViewModel` to `ContextlessChatInput`.
+- Fixed CodeQL high priority "Zip Slip" vulnerability in `BackupManager.kt` and `RemoteBuildManager.kt`.
