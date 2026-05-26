@@ -57,8 +57,8 @@ object BackupManager {
                         var entry = zipIn.nextEntry
                         while (entry != null) {
                             val filePath = File(filesDir, entry.name)
-                            val entryPath = filePath.toPath().normalize()
-                            if (!entryPath.startsWith(canonicalDestPath)) {
+                            val entryCanonicalPath = filePath.canonicalFile.toPath()
+                            if (!entryCanonicalPath.startsWith(canonicalDestPath)) {
                                 throw IOException("Zip entry is outside of the target dir: ${entry.name}")
                             }
 
