@@ -261,8 +261,8 @@ class RemoteBuildManager(
             var entry = zis.nextEntry
             while (entry != null) {
                 val newFile = File(destDir, entry.name)
-                val entryPath = newFile.toPath().normalize()
-                if (!entryPath.startsWith(canonicalDestPath)) {
+                val entryCanonicalPath = newFile.canonicalFile.toPath()
+                if (!entryCanonicalPath.startsWith(canonicalDestPath)) {
                     throw SecurityException("Zip Entry outside of target dir: ${entry.name}")
                 }
                 if (entry.isDirectory) {
