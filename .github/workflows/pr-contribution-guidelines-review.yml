@@ -186,7 +186,7 @@ jobs:
 
       - name: Detect guideline status from comment
         id: detect
-        uses: actions/github-script@v9
+        uses: actions/github-script@v9.0.0
         env:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
         with:
