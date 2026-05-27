@@ -435,7 +435,7 @@ class MainViewModel(
         val appName = settingsViewModel.getAppName()
         val projectTypeStr = settingsViewModel.getProjectType()
         val projectType = ProjectType.fromString(projectTypeStr)
-        if (projectType != ProjectType.WEB && projectType != ProjectType.PWA) return
+        if (!projectType.isWebLike()) return
 
         viewModelScope.launch {
             logHandler.onBuildLog("Deploying Web Project (Push to GitHub)...")
@@ -630,14 +630,13 @@ class MainViewModel(
     /** Creates a new repo and initializes the project. */
     fun createGitHubRepository(name: String, desc: String, priv: Boolean, type: ProjectType, pkg: String, ctx: Context, onSuccess: () -> Unit) {
         repoDelegate.createGitHubRepository(name, desc, priv, type, pkg, ctx) { owner, branch ->
-            viewModelScope.launch(Dispatchers.IO) {
-                // Copy template files
-                com.hereliesaz.ideaz.utils.TemplateManager.copyTemplate(ctx, type, ctx.filesDir.resolve(name), pkg, name)
-                withContext(Dispatchers.Main) {
-                    saveAndInitialize(name, owner, branch, pkg, type, ctx)
-                    onSuccess()
-                }
-            }
+            // Local content is either cloned from the template repo (generate
+            // flow, handled in RepoDelegate) or scaffolded from the bundled
+            // template by saveAndInitialize's ensureTemplate when the directory
+            // is still empty (fallback). Either way ensureTemplate is a no-op
+            // once files are present, so we don't copy here.
+            saveAndInitialize(name, owner, branch, pkg, type, ctx)
+            onSuccess()
         }
     }
 
@@ -680,7 +679,7 @@ class MainViewModel(
             // The user explicitly triggers remote hosting via the rail's
             // Deploy item / deployWebProject(). For Android, init still pushes
             // GitHub Actions workflows because there's no on-device toolchain.
-            if (type != ProjectType.WEB && type != ProjectType.PWA) {
+            if (!type.isWebLike()) {
                 repoDelegate.uploadProjectSecrets(user, appName)
                 repoDelegate.forceUpdateInitFiles()
             }
@@ -1074,7 +1073,7 @@ class MainViewModel(
         val projectTypeStr = settingsViewModel.getProjectType()
         val projectType = ProjectType.fromString(projectTypeStr)
 
-        if (projectType == ProjectType.WEB || projectType == ProjectType.PWA) {
+        if (projectType.isWebLike()) {
             val projectDir = settingsViewModel.getProjectPath(appName)
             if (stateDelegate.currentWebUrl.value == null) {
                 // Mount the project at the asset-loader root (same-origin,

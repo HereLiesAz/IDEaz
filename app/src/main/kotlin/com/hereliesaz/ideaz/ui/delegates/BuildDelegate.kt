@@ -116,7 +116,7 @@ class BuildDelegate(
 
             val type = ProjectType.fromString(settingsViewModel.getProjectType())
 
-            if (type == ProjectType.WEB || type == ProjectType.PWA) {
+            if (type.isWebLike()) {
                 onLog("[IDE] Web Project ready. Loading WebView...\n")
                 onWebBuildSuccess(apkPath)
                 // Deployment (push to GitHub Pages) is now an explicit action via
@@ -183,7 +183,7 @@ class BuildDelegate(
             // startBuild no longer commits or pushes on its own. Previously
             // "Save & Initialize" silently fired an unconditional commit+push,
             // which was a surprise the userflow audit flagged.
-            if (type == ProjectType.WEB || type == ProjectType.PWA) {
+            if (type.isWebLike()) {
                 pushLog("[IDE] Web Project: preparing local preview.\n")
                 val indexHtml = File(dir, "index.html")
                 if (indexHtml.exists()) {

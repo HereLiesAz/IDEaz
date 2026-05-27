@@ -210,7 +210,7 @@ class AIDelegate(
         // sourceContext and produces unidiff patches — Web/PWA edits run locally
         // through the Gemini tool-use loop and ProjectFileObserver-driven reload).
         val projectType = ProjectType.fromString(settingsViewModel.getProjectType())
-        val isWebOrPwa = projectType == ProjectType.WEB || projectType == ProjectType.PWA
+        val isWebOrPwa = projectType.isWebLike()
         if (isWebOrPwa && model.id == AiModels.JULES_DEFAULT) {
             onOverlayLog("Jules is not used for Web/PWA projects. Routing through Gemini.")
             model = AiModels.GEMINI

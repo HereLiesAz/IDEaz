@@ -1,31 +1,30 @@
 # IDEaz starter templates
 
-Self-contained starter projects. Each subfolder is meant to be exported to its
-own repository and used as a "Use this template" base.
+The canonical starters live in their own GitHub repositories (and are wired into
+project creation via the generate-from-template flow). This folder keeps the
+React starter as an in-repo reference; the others have been exported to their
+own repos.
 
-Two families:
-
-## Deploy-ready static (work everywhere)
-Plain static files — no build step. They render in the IDEaz preview **and**
-deploy to GitHub Pages as-is.
-
-- [`static-site`](./static-site) — vanilla HTML/CSS/JS landing page.
-- [`pwa`](./pwa) — installable PWA: manifest, service worker, offline fallback.
+## Template repositories
+- **`HereLiesAz/ideaz-web`** — vanilla HTML/CSS/JS static site. No build; renders
+  in the IDEaz preview and deploys to GitHub Pages as-is.
+- **`HereLiesAz/ideaz-pwa`** — installable PWA: manifest, service worker, offline
+  fallback. No build.
+- **`HereLiesAz/ideaz-react`** — the React starter mirrored below.
+- **`HereLiesAz/ideaz-android`** — View-based Kotlin app (AppCompatActivity + XML
+  layouts, ViewBinding, Material Components) with its own build-and-release /
+  CodeQL workflows.
 
 ## React (Vite) — preview instantly, build to deploy
-Real Vite + React repos. **IDEaz previews the source directly** (no `npm install`,
-no build) using its in-browser runtime, which transpiles JSX/TSX and resolves the
-bundled libraries via an import map. To **deploy**, run a real build
-(`npm install && npm run build`); each template ships a GitHub Pages workflow that
-does this automatically on push.
+[`react`](./react) is a real Vite + React repo. **IDEaz previews the source
+directly** (no `npm install`, no build) using its in-browser runtime, which
+transpiles JSX/TSX and resolves the bundled libraries via an import map. To
+**deploy**, run a real build (`npm install && npm run build`); the template ships
+a GitHub Pages workflow that does this automatically on push.
 
-- [`react-minimal`](./react-minimal) — React + ReactDOM only.
-- [`react-router`](./react-router) — `react-router-dom` multi-route SPA.
-- [`react-zustand`](./react-zustand) — `zustand` state management.
-- [`react-redux`](./react-redux) — `@reduxjs/toolkit` + `react-redux`.
-- [`react-query`](./react-query) — `@tanstack/react-query` + `axios` data fetching.
-- [`react-styled`](./react-styled) — `styled-components` (and `@emotion`-ready).
-- [`react-spa`](./react-spa) — full app: router + zustand + react-query + styled-components.
+It's batteries-included: router + zustand + react-query + axios +
+styled-components. Delete what you don't need; Redux Toolkit and Emotion are also
+available in the preview runtime if you prefer them.
 
 > **Library versions are pinned to match IDEaz's bundled runtime**, so what you
 > see in the preview matches a real build. The bundled set is: react, react-dom,
@@ -33,6 +32,3 @@ does this automatically on push.
 > @tanstack/react-query, styled-components, @emotion/react, @emotion/styled.
 > Importing a library outside that set works in a real build but not in the
 > in-app preview.
-
-The Android (Jetpack Compose) starter already lives in the app at
-`app/src/main/assets/project` and can be exported from there.

@@ -15,6 +15,42 @@ object TemplateManager {
     private const val PLACEHOLDER_PACKAGE = "com.example.helloworld"
     private const val PLACEHOLDER_APP_NAME = "helloworld"
 
+    private val TEXT_EXTENSIONS = listOf(
+        ".xml", ".gradle", ".kts", ".kt", ".java", ".yaml", ".yml",
+        ".html", ".css", ".js", ".jsx", ".ts", ".tsx", ".json", ".properties",
+        ".toml", ".md", ".pro", ".txt", ".sh",
+    )
+
+    private fun isTextFile(name: String): Boolean =
+        TEXT_EXTENSIONS.any { name.endsWith(it) } || name == ".gitignore" || name == "gradlew"
+
+    /**
+     * Applies the package/app-name placeholder substitution and package
+     * directory relocation to an *existing* project directory (e.g. one cloned
+     * from the `ideaz-android` template repo, which ships the placeholder
+     * package `com.example.helloworld`). Skips the `.git` directory and binary
+     * files. No-op for non-placeholder content.
+     */
+    fun applyAndroidPlaceholders(projectDir: File, packageName: String, appName: String) {
+        val replacements = mapOf(
+            PLACEHOLDER_PACKAGE to packageName,
+            PLACEHOLDER_APP_NAME to appName
+        )
+        projectDir.walkTopDown()
+            .filter { file ->
+                file.isFile &&
+                    !file.path.contains("${File.separator}.git${File.separator}") &&
+                    isTextFile(file.name)
+            }
+            .forEach { file ->
+                val content = file.readText()
+                var updated = content
+                replacements.forEach { (k, v) -> updated = updated.replace(k, v) }
+                if (updated != content) file.writeText(updated)
+            }
+        relocatePackage(projectDir, packageName)
+    }
+
     /**
      * Derives a valid Android package name from a GitHub username and project name.
      * Strips non-alphanumerics, lowercases each segment, and prefixes any segment
@@ -35,6 +71,7 @@ object TemplateManager {
         val assetPath = when (type) {
             ProjectType.WEB -> "templates/web"
             ProjectType.PWA -> "templates/pwa"
+            ProjectType.REACT -> "templates/react"
             ProjectType.ANDROID -> "project"
             else -> return
         }
@@ -77,7 +114,7 @@ object TemplateManager {
     private fun alreadyHasProjectFiles(type: ProjectType, dir: File): Boolean {
         if (!dir.exists()) return false
         return when (type) {
-            ProjectType.WEB, ProjectType.PWA -> File(dir, "index.html").exists()
+            ProjectType.WEB, ProjectType.PWA, ProjectType.REACT -> File(dir, "index.html").exists()
             ProjectType.ANDROID -> File(dir, "build.gradle.kts").exists() || File(dir, "build.gradle").exists()
             else -> false
         }
@@ -165,13 +202,8 @@ object TemplateManager {
             if (!it.exists()) it.mkdirs()
         }
 
-        val textExtensions = listOf(
-            ".xml", ".gradle", ".kts", ".kt", ".java", ".yaml", ".yml",
-            ".html", ".css", ".js", ".json", ".properties", ".toml",
-            ".md", ".pro", ".txt", ".sh",
-        )
         val fileName = fromPath.substringAfterLast('/')
-        val isText = textExtensions.any { fromPath.endsWith(it) } || fileName == ".gitignore" || fileName == "gradlew"
+        val isText = isTextFile(fileName)
 
         if (isText) {
              val content = assets.open(fromPath).bufferedReader().use { it.readText() }
