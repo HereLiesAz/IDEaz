@@ -30,5 +30,8 @@ does this automatically on push.
 > Importing a library outside that set works in a real build but not in the
 > in-app preview.
 
-The Android (Jetpack Compose) starter already lives in the app at
-`app/src/main/assets/project` and can be exported from there.
+The Android (Kotlin) starter is not here — it's the scaffold IDEaz unpacks when
+you create a new Android project, bundled inside the app at
+`app/src/main/assets/project`. It's a View-based app (AppCompatActivity + XML
+layouts with ViewBinding and Material Components) and ships its own
+build-and-release / CodeQL GitHub Actions workflows. Export it from there.
