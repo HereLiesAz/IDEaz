@@ -49,6 +49,14 @@ class WebProjectUrlUtilsTest {
     }
 
     @Test
+    fun localProjectRootUrl_isOriginRootIndex() {
+        assertEquals(
+            "https://appassets.androidplatform.net/index.html",
+            WebProjectUrlUtils.localProjectRootUrl()
+        )
+    }
+
+    @Test
     fun isAssetUrl_trueForAssetLoaderUrls() {
         assertTrue(WebProjectUrlUtils.isAssetUrl(
             "https://appassets.androidplatform.net/files/myapp/index.html"

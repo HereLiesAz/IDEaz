@@ -176,6 +176,14 @@ class StateDelegate(
     /** The URL currently loaded in the WebView (only relevant for Web projects). */
     val currentWebUrl = _currentWebUrl.asStateFlow()
 
+    private val _currentWebProjectDir = MutableStateFlow<java.io.File?>(null)
+    /**
+     * The directory of the local web/PWA project currently previewed, mounted at
+     * the asset-loader root by [com.hereliesaz.ideaz.ui.web.WebProjectPathHandler].
+     * `null` when a remote URL is loaded (no local interception).
+     */
+    val currentWebProjectDir = _currentWebProjectDir.asStateFlow()
+
     /** Combined stream of log lines for UI display (currently aliases `buildLog`). */
     val filteredLog = _buildLog.asStateFlow()
 
@@ -264,6 +272,9 @@ class StateDelegate(
 
     /** Sets the current Web URL. */
     fun setCurrentWebUrl(url: String?) { _currentWebUrl.value = url }
+
+    /** Sets the directory of the local web/PWA project mounted in the WebView. */
+    fun setCurrentWebProjectDir(dir: java.io.File?) { _currentWebProjectDir.value = dir }
 
     /** Triggers a WebView reload by updating the trigger timestamp. */
     fun triggerWebReload() { _webReloadTrigger.value = System.currentTimeMillis() }

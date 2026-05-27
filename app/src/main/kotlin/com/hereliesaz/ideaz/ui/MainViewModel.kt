@@ -240,16 +240,16 @@ class MainViewModel(
         logHandler::onAiLog,
         { log -> handleBuildFailure(log) },
         { path ->
-            // Web Build Success Callback
-            val filesDir = getApplication<Application>().filesDir
-            val assetUrl = WebProjectUrlUtils.toAssetUrl(path, filesDir) ?: "file://$path"
-            stateDelegate.setCurrentWebUrl(assetUrl)
+            // Web Build Success Callback. `path` is the project's index.html, so its
+            // parent is the project root. The project is mounted at the asset-loader
+            // root (see WebProjectPathHandler) and loaded from there.
+            val projectDir = File(path).parentFile
+            stateDelegate.setCurrentWebProjectDir(projectDir)
+            stateDelegate.setCurrentWebUrl(WebProjectUrlUtils.localProjectRootUrl())
             stateDelegate.setTargetAppVisible(true) // Switch to "App View"
 
             // Update EditorViewModel with project context for file browsing
-            val appName = settingsViewModel.getAppName()
-            if (appName != null) {
-                val projectDir = settingsViewModel.getProjectPath(appName)
+            if (projectDir != null) {
                 editorViewModel.setProjectDir(projectDir)
             }
         },
@@ -294,6 +294,7 @@ class MainViewModel(
     val loadingProgress = stateDelegate.loadingProgress
     val isTargetAppVisible = stateDelegate.isTargetAppVisible
     val currentWebUrl = stateDelegate.currentWebUrl
+    val currentWebProjectDir = stateDelegate.currentWebProjectDir
     val buildLog = stateDelegate.buildLog
     val filteredLog = stateDelegate.filteredLog
     val pendingRoute = stateDelegate.pendingRoute
@@ -1076,12 +1077,12 @@ class MainViewModel(
         if (projectType == ProjectType.WEB || projectType == ProjectType.PWA) {
             val projectDir = settingsViewModel.getProjectPath(appName)
             if (stateDelegate.currentWebUrl.value == null) {
-                // Use the asset-loader URL (same-origin, service-worker safe).
+                // Mount the project at the asset-loader root (same-origin,
+                // service-worker safe; resolves root-absolute references).
                 val indexFile = File(projectDir, "index.html")
                 if (indexFile.exists()) {
-                    stateDelegate.setCurrentWebUrl(
-                        WebProjectUrlUtils.localProjectUrl(appName, c.filesDir)
-                    )
+                    stateDelegate.setCurrentWebProjectDir(projectDir)
+                    stateDelegate.setCurrentWebUrl(WebProjectUrlUtils.localProjectRootUrl())
                 }
             }
             startFileObservation(projectDir)

@@ -55,6 +55,7 @@ fun MainScreen(
     val isIdeVisible by viewModel.isTargetAppVisible.collectAsState()
     val projectType by viewModel.settingsViewModel.projectType.collectAsState()
     val currentWebUrl by viewModel.currentWebUrl.collectAsState()
+    val currentWebProjectDir by viewModel.currentWebProjectDir.collectAsState()
     val webReloadTrigger by viewModel.webReloadTrigger.collectAsState()
     val webHardReloadTrigger by viewModel.webHardReloadTrigger.collectAsState()
 
@@ -168,6 +169,7 @@ fun MainScreen(
                             currentWebUrl?.let { webUrl ->
                                 WebProjectHost(
                                     url = webUrl,
+                                    projectDir = currentWebProjectDir,
                                     reloadTrigger = webReloadTrigger,
                                     hardReloadTrigger = webHardReloadTrigger,
                                     selectMode = isSelectMode,
