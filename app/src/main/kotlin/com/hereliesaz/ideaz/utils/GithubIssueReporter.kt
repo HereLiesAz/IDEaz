@@ -39,10 +39,17 @@ object GithubIssueReporter {
      * 2. Falls back to opening a browser with pre-filled data.
      */
     suspend fun reportError(context: Context, token: String?, error: Throwable, contextMessage: String, logContent: String? = null): String {
-        val stackTrace = error.stackTraceToString()
+        // The real crash/error is in logContent when provided (callers pass a
+        // synthetic Throwable plus the actual stack/log). Prefer it; the head of
+        // a stack trace (exception + app frames) is the useful part, so we never
+        // tail-truncate it below.
+        val sanitizedPrimary = sanitizeContent(logContent ?: error.stackTraceToString())
+        val firstLine = sanitizedPrimary.lineSequence()
+            .map { it.trim() }.firstOrNull { it.isNotBlank() } ?: "Unknown"
 
-        // Deduplication Logic
-        val errorSignature = "$contextMessage|${error::class.simpleName}|${error.message}"
+        // Deduplicate on the real error (not the synthetic Throwable, which would
+        // collapse every crash to one hash and suppress later, different crashes).
+        val errorSignature = "$contextMessage|$firstLine"
         val errorHash = errorSignature.hashCode()
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val timestampKey = "$KEY_PREFIX_TIMESTAMP$errorHash"
@@ -69,35 +76,23 @@ object GithubIssueReporter {
             return "Skipped (Duplicate report within 24h) [Hash: $errorHash, PID: $pid]"
         }
 
-        val sanitizedLogContent = logContent?.let { sanitizeContent(it) }
-        val sanitizedStackTrace = sanitizeContent(stackTrace)
-
-        val logSection = if (sanitizedLogContent != null) {
-            """
-
-            **Log Output:**
-            ```
-            ${sanitizedLogContent.takeLast(2000)}
-            ```
-            """.trimIndent()
-        } else ""
-
-        // Truncate for safety (API limit is roughly 65k chars, URL limit 2k-8k)
+        // Truncate for safety (API limit ~65k chars, URL limit 2k-8k). Keep the
+        // head — the exception and app frames live at the top of a stack trace.
         val bodyContent = """
             **Context:** $contextMessage
             **Device:** ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})
             **App Version:** 1.0 (Development)
-            
+
             **Stack Trace:**
             ```
-            ${sanitizedStackTrace.take(3000)}
+            ${sanitizedPrimary.take(4000)}
             ```
-            $logSection
 
-            Please debug this, Jules. Make sure you get both a correct code review and a passing build with tests before submitting your solution. 
+            Please debug this, Jules. Make sure you get both a correct code review and a passing build with tests before submitting your solution.
         """.trimIndent()
 
-        val titleContent = "IDE Error: ${error::class.simpleName} - ${error.message?.take(50) ?: "Unknown"}"
+        val label = error.message?.takeIf { it.isNotBlank() } ?: (error::class.simpleName ?: "Error")
+        val titleContent = "IDE Error: $label — ${firstLine.take(80)}"
 
         // 1. Try API Reporting
         if (!token.isNullOrBlank()) {
