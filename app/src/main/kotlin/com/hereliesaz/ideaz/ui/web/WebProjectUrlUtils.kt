@@ -19,6 +19,18 @@ object WebProjectUrlUtils {
     /** Base URL prefix; all local project paths are appended after this. */
     const val ASSET_BASE_URL = "https://$ASSET_DOMAIN/files/"
 
+    /** Origin root; the active project is mounted here by [WebProjectPathHandler]. */
+    const val ASSET_ROOT_URL = "https://$ASSET_DOMAIN/"
+
+    /**
+     * URL for a local project served at the asset-loader **root**.
+     *
+     * The project directory is mounted at `/` (see [WebProjectPathHandler]) so that
+     * root-absolute references like `/src/main.jsx` resolve. The entry document is
+     * always `index.html`.
+     */
+    fun localProjectRootUrl(): String = "${ASSET_ROOT_URL}index.html"
+
     /**
      * Returns the canonical WebViewAssetLoader URL for a project's `index.html`.
      *

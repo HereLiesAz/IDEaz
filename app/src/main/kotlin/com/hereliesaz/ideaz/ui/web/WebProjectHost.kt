@@ -23,7 +23,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.webkit.WebViewAssetLoader
-import androidx.webkit.WebViewAssetLoader.InternalStoragePathHandler
 import com.hereliesaz.ideaz.models.ACTION_AI_LOG
 import com.hereliesaz.ideaz.models.EXTRA_MESSAGE
 
@@ -47,8 +46,11 @@ class IdeazJsInterface(private val context: Context) {
  * `allowUniversalAccessFromFileURLs` approach and gives the WebView a proper
  * same-origin policy and service-worker support.
  *
- * @param url            The URL to load. Local projects: use [WebProjectUrlUtils.localProjectUrl].
- *                       Remote URLs (e.g. GitHub Pages) are passed through unchanged.
+ * @param url            The URL to load. Remote URLs (e.g. GitHub Pages) are passed
+ *                       through unchanged. For local projects [projectDir] is set and
+ *                       the project is loaded from the asset-loader root.
+ * @param projectDir     The local project directory to mount at the asset-loader root
+ *                       (via [WebProjectPathHandler]). `null` for remote URLs.
  * @param reloadTrigger  Soft-reload signal. When this Long changes (and is > 0), the
  *                       WebView reloads the current page without clearing its cache.
  *                       Driven by [StateDelegate.webReloadTrigger].
@@ -59,6 +61,7 @@ class IdeazJsInterface(private val context: Context) {
 @Composable
 fun WebProjectHost(
     url: String,
+    projectDir: java.io.File? = null,
     reloadTrigger: Long = 0L,
     hardReloadTrigger: Long = 0L,
     selectMode: Boolean = false,
@@ -85,16 +88,19 @@ fun WebProjectHost(
     val currentOnElementContext by rememberUpdatedState(onElementContext)
     val scope = rememberCoroutineScope()
 
-    // AssetLoader maps /files/ → context.filesDir so that all local project
-    // content is served from https://appassets.androidplatform.net/files/{appName}/.
-    // Requests to any other origin are not intercepted and proceed normally.
+    // The active project directory is held in mutable state so the (single,
+    // long-lived) asset loader always serves the currently-previewed project
+    // without recreating the WebView when the user switches projects.
+    val projectDirState = remember { mutableStateOf(projectDir) }
+
+    // AssetLoader mounts the active project at the origin root
+    // (https://appassets.androidplatform.net/) via WebProjectPathHandler, so
+    // root-absolute references like /src/main.jsx resolve, and serves the bundled
+    // in-browser runtime under /__ideaz__/. Other origins proceed normally.
     val assetLoader = remember {
         WebViewAssetLoader.Builder()
             .setDomain(WebProjectUrlUtils.ASSET_DOMAIN)
-            .addPathHandler(
-                "/files/",
-                InternalStoragePathHandler(context, context.filesDir)
-            )
+            .addPathHandler("/", WebProjectPathHandler(context) { projectDirState.value })
             .build()
     }
 
@@ -232,14 +238,21 @@ fun WebProjectHost(
         }
     }
 
+    // Load (and reload on project / URL change). Local projects load from the
+    // asset-loader root; remote URLs load as-is. Keyed so unrelated recompositions
+    // (e.g. selectMode toggles) don't trigger reloads.
+    LaunchedEffect(projectDir, url) {
+        projectDirState.value = projectDir
+        if (!isWebViewDestroyed.value) {
+            val target = if (projectDir != null) WebProjectUrlUtils.localProjectRootUrl() else url
+            webView.loadUrl(target)
+        }
+    }
+
     AndroidView(
         modifier = modifier.fillMaxSize(),
         factory = { webView },
-        update = { view ->
-            if (view.url != url) {
-                view.loadUrl(url)
-            }
-        }
+        update = { projectDirState.value = projectDir }
     )
 
     DisposableEffect(lifecycleOwner) {
