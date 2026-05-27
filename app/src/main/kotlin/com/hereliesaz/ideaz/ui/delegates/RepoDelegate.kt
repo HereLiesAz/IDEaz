@@ -131,31 +131,108 @@ class RepoDelegate(
                 }
 
                 val service = GitHubApiClient.createService(token)
-                val request = CreateRepoRequest(
-                    name = appName,
-                    description = description,
-                    private = isPrivate,
-                    autoInit = true // Essential to create the initial commit/main branch
-                )
+                val templateRepo = com.hereliesaz.ideaz.utils.TemplateRegistry.repoFor(projectType)
+                val configuredUser = settingsViewModel.getGithubUser()?.takeIf { it.isNotBlank() }
 
-                val repo = service.createRepo(request)
+                // Prefer generating the new repo from its official template (the
+                // remote starts pre-populated with the starter). Fall back to an
+                // empty auto-init repo if no template is registered or generation
+                // fails (e.g. the template isn't marked as a template repo).
+                var generated = false
+                val repo = if (templateRepo != null) {
+                    try {
+                        onOverlayLog("Creating $appName from ${com.hereliesaz.ideaz.utils.TemplateRegistry.OWNER}/$templateRepo...")
+                        val generatedRepo = service.generateFromTemplate(
+                            com.hereliesaz.ideaz.utils.TemplateRegistry.OWNER,
+                            templateRepo,
+                            com.hereliesaz.ideaz.api.GenerateFromTemplateRequest(
+                                owner = configuredUser,
+                                name = appName,
+                                description = description,
+                                private = isPrivate
+                            )
+                        )
+                        generated = true
+                        generatedRepo
+                    } catch (e: Exception) {
+                        onLog("Template generate failed (${e.message}); creating an empty repository instead.")
+                        service.createRepo(
+                            CreateRepoRequest(name = appName, description = description, private = isPrivate, autoInit = true)
+                        )
+                    }
+                } else {
+                    service.createRepo(
+                        CreateRepoRequest(name = appName, description = description, private = isPrivate, autoInit = true)
+                    )
+                }
+
                 val derivedOwner = repo.fullName.split("/")[0]
+                val branch = repo.defaultBranch ?: "main"
 
                 // Update Local Config
                 settingsViewModel.setAppName(appName)
                 settingsViewModel.setGithubUser(derivedOwner)
-                settingsViewModel.saveProjectConfig(appName, derivedOwner, repo.defaultBranch ?: "main")
+                settingsViewModel.saveProjectConfig(appName, derivedOwner, branch)
                 settingsViewModel.saveTargetPackageName(packageName)
                 settingsViewModel.setProjectType(projectType.name)
 
+                // When generated from a template, mirror the populated remote
+                // locally by cloning. Otherwise the caller scaffolds the empty
+                // project from the bundled template.
+                if (generated) {
+                    val projectDir = settingsViewModel.getProjectPath(appName)
+                    cloneWithRetry(projectDir, derivedOwner, appName, token)
+                    // The Android template ships the placeholder package; rename
+                    // it to the user's chosen package in the cloned copy.
+                    if (projectType == ProjectType.ANDROID) {
+                        withContext(Dispatchers.IO) {
+                            com.hereliesaz.ideaz.utils.TemplateManager.applyAndroidPlaceholders(
+                                projectDir, packageName, appName
+                            )
+                        }
+                    }
+                }
+
                 onOverlayLog("Repository created: ${repo.htmlUrl}")
-                onSuccess(derivedOwner, repo.defaultBranch ?: "main")
+                onSuccess(derivedOwner, branch)
 
             } catch (e: Exception) {
                 onOverlayLog("Failed to create repository: ${e.message}")
             } finally {
                 onLoadingProgress(null)
             }
+        }
+    }
+
+    /**
+     * Clones [owner]/[repo] into [projectDir], retrying with exponential backoff.
+     * A freshly generated repository can take a moment to become clonable, so we
+     * retry before giving up. No-op if the directory is already a git repo.
+     */
+    private suspend fun cloneWithRetry(projectDir: File, owner: String, repo: String, token: String?) {
+        withContext(Dispatchers.IO) {
+            val git = GitManager(projectDir)
+            if (git.isRepo()) return@withContext
+            var delayMs = 2000L
+            var lastError: Exception? = null
+            var attempt = 0
+            var success = false
+            while (attempt < 4 && !success) {
+                try {
+                    onOverlayLog("Cloning $owner/$repo...")
+                    git.clone(owner, repo, owner, token) { p, t -> onGitProgress(p, t) }
+                    onOverlayLog("Clone complete.")
+                    success = true
+                } catch (e: Exception) {
+                    lastError = e
+                    if (attempt < 3) {
+                        delay(delayMs)
+                        delayMs *= 2
+                    }
+                }
+                attempt++
+            }
+            if (!success) onOverlayLog("Clone failed after retries: ${lastError?.message}")
         }
     }
 

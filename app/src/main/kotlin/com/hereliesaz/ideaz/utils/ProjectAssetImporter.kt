@@ -42,7 +42,7 @@ object ProjectAssetImporter {
      */
     private fun destinationDir(projectDir: File, type: ProjectType, originalName: String): File {
         return when (type) {
-            ProjectType.WEB, ProjectType.PWA -> File(projectDir, "assets")
+            ProjectType.WEB, ProjectType.PWA, ProjectType.REACT -> File(projectDir, "assets")
             ProjectType.ANDROID -> {
                 val nameOnly = originalName.substringBeforeLast('.', originalName)
                 val resRawOk = nameOnly == nameOnly.lowercase() &&

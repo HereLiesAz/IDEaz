@@ -101,7 +101,7 @@ fun AzNavHostScope.ideNavRail(
         }
     )
 
-    if ((projectType == ProjectType.WEB.name) || (projectType == ProjectType.PWA.name)) {
+    if ((projectType == ProjectType.WEB.name) || (projectType == ProjectType.PWA.name) || (projectType == ProjectType.REACT.name)) {
         azRailSubItem(
             id = "reload",
             hostId = "main",
@@ -124,7 +124,7 @@ fun AzNavHostScope.ideNavRail(
         )
     }
 
-    if ((projectType == ProjectType.WEB.name) || (projectType == ProjectType.PWA.name)) {
+    if ((projectType == ProjectType.WEB.name) || (projectType == ProjectType.PWA.name) || (projectType == ProjectType.REACT.name)) {
         azRailSubItem(
             id = "deploy",
             hostId = "main",

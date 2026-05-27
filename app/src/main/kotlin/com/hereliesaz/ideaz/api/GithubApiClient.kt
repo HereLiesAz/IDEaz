@@ -23,6 +23,17 @@ data class CreateRepoRequest(
 )
 
 @Serializable
+data class GenerateFromTemplateRequest(
+    // Target account for the new repo. Omitted when null → defaults to the
+    // authenticated user (kotlinx omits default-null fields).
+    val owner: String? = null,
+    val name: String,
+    val description: String? = null,
+    val private: Boolean = false,
+    @SerialName("include_all_branches") val includeAllBranches: Boolean = false
+)
+
+@Serializable
 data class GitHubRepoResponse(
     val id: Long,
     val name: String,
@@ -175,6 +186,18 @@ data class GitHubPagesResponse(
 interface GitHubApi {
     @POST("user/repos")
     suspend fun createRepo(@Body request: CreateRepoRequest): GitHubRepoResponse
+
+    /**
+     * Create a new repository from a template repository. The template repo
+     * (`{template_owner}/{template_repo}`) must have "Template repository"
+     * enabled in its settings.
+     */
+    @POST("repos/{template_owner}/{template_repo}/generate")
+    suspend fun generateFromTemplate(
+        @Path("template_owner") templateOwner: String,
+        @Path("template_repo") templateRepo: String,
+        @Body request: GenerateFromTemplateRequest
+    ): GitHubRepoResponse
 
     @POST("repos/{owner}/{repo}/forks")
     suspend fun forkRepo(
