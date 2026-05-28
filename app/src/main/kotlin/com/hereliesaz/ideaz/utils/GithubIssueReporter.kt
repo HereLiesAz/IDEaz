@@ -89,7 +89,7 @@ object GithubIssueReporter {
 
             **Stack Trace:**
             ```
-            ${sanitizedPrimary.take(4000)}
+            ${sanitizeContent(stackTrace).take(4000)}
             ```
 
             Please debug this, Jules. Make sure you get both a correct code review and a passing build with tests before submitting your solution.
