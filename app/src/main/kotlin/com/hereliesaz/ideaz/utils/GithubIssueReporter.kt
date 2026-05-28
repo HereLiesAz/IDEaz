@@ -80,32 +80,19 @@ object GithubIssueReporter {
             return "Skipped (Duplicate report within 24h) [Hash: $errorHash, PID: $pid]"
         }
 
-        val sanitizedLogContent = logContent?.let { sanitizeContent(it) }
-        val sanitizedStackTrace = sanitizeContent(stackTrace)
-
-        val logSection = if (sanitizedLogContent != null) {
-            """
-
-            **Log Output:**
-            ```
-            ${sanitizedLogContent.takeLast(2000)}
-            ```
-            """.trimIndent()
-        } else ""
-
-        // Truncate for safety (API limit is roughly 65k chars, URL limit 2k-8k)
+        // Truncate for safety (API limit ~65k chars, URL limit 2k-8k). Keep the
+        // head — the exception and app frames live at the top of a stack trace.
         val bodyContent = """
             **Context:** $contextMessage
             **Device:** ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})
             **App Version:** 1.0 (Development)
-            
+
             **Stack Trace:**
             ```
-            ${sanitizedStackTrace.take(3000)}
+            ${sanitizedPrimary.take(4000)}
             ```
-            $logSection
 
-            Please debug this, Jules. Make sure you get both a correct code review and a passing build with tests before submitting your solution. 
+            Please debug this, Jules. Make sure you get both a correct code review and a passing build with tests before submitting your solution.
         """.trimIndent()
 
         val errorTitle = when {

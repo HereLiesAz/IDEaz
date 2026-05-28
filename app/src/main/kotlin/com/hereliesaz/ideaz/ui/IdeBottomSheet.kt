@@ -44,7 +44,6 @@ fun IdeBottomSheet(
     onSendPrompt: (String) -> Unit
 ) {
     val detent by controller.detentFlow.collectAsState()
-    if (detent == AzSheetDetent.HIDDEN) return
 
     // Collect specific log streams directly to avoid filtering on every recomposition.
     val logMessages by viewModel.filteredLog.collectAsState(initial = emptyList()) // "All"
@@ -97,7 +96,10 @@ fun IdeBottomSheet(
                 .background(MaterialTheme.colorScheme.background)
         ) {
             when (detent) {
-                AzSheetDetent.PEEK -> PeekTicker(baseMessages)
+                // HIDDEN still shows the latest single line in its touch-target
+                // strip; PEEK shows the most recent handful.
+                AzSheetDetent.HIDDEN -> LogTicker(baseMessages, maxLines = 1)
+                AzSheetDetent.PEEK -> LogTicker(baseMessages, maxLines = 5)
                 AzSheetDetent.HALF, AzSheetDetent.FULL -> ExpandedContent(
                     selectedTab = selectedTab,
                     onSelectTab = { selectedTab = it },
@@ -110,25 +112,36 @@ fun IdeBottomSheet(
                     viewModel = viewModel,
                     screenHeight = screenHeight,
                 )
-                AzSheetDetent.HIDDEN -> Unit
             }
         }
     }
 }
 
+/**
+ * Bottom-anchored ticker showing the most recent [maxLines] log lines. Used for
+ * the collapsed sheet detents: 1 line at HIDDEN, a few at PEEK. Fills the strip
+ * and clips older lines if the detent is shorter than [maxLines].
+ */
 @Composable
-private fun PeekTicker(messages: List<String>) {
-    val latest = messages.lastOrNull().orEmpty()
-    Text(
-        text = latest,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
+private fun LogTicker(messages: List<String>, maxLines: Int) {
+    val recent = messages.takeLast(maxLines)
+    Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-    )
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.Bottom
+    ) {
+        recent.forEach { line ->
+            Text(
+                text = line,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
 }
 
 @Composable
