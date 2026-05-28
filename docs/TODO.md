@@ -14,3 +14,4 @@ When Phase 0 completes, this file will point to Phase 1's plan.
 - Updated `get_version.sh` to return the full `major.minor.patch.build` version string.
 - Fixed compilation error in `AiChatTab.kt` by updating it to pass `MainViewModel` to `ContextlessChatInput`.
 - Fixed CodeQL high priority "Zip Slip" vulnerability in `BackupManager.kt` and `RemoteBuildManager.kt`.
+- Improved crash reporting by allowing explicit stack trace strings in `GithubIssueReporter`, fixing an issue where fatal crashes had their stack traces truncated or lost.

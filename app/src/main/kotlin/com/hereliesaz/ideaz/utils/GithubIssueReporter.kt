@@ -38,18 +38,22 @@ object GithubIssueReporter {
      * 1. Tries to use the GitHub API to auto-post the issue (if token provided).
      * 2. Falls back to opening a browser with pre-filled data.
      */
-    suspend fun reportError(context: Context, token: String?, error: Throwable, contextMessage: String, logContent: String? = null): String {
-        // The real crash/error is in logContent when provided (callers pass a
-        // synthetic Throwable plus the actual stack/log). Prefer it; the head of
-        // a stack trace (exception + app frames) is the useful part, so we never
-        // tail-truncate it below.
-        val sanitizedPrimary = sanitizeContent(logContent ?: error.stackTraceToString())
-        val firstLine = sanitizedPrimary.lineSequence()
-            .map { it.trim() }.firstOrNull { it.isNotBlank() } ?: "Unknown"
+    suspend fun reportError(
+        context: Context,
+        token: String?,
+        error: Throwable? = null,
+        contextMessage: String,
+        logContent: String? = null,
+        stackTraceOverride: String? = null
+    ): String {
+        val stackTrace = stackTraceOverride ?: error?.stackTraceToString() ?: "No stack trace provided"
 
-        // Deduplicate on the real error (not the synthetic Throwable, which would
-        // collapse every crash to one hash and suppress later, different crashes).
-        val errorSignature = "$contextMessage|$firstLine"
+        // Deduplication Logic
+        val errorSignature = if (stackTraceOverride != null) {
+            "$contextMessage|OVERRIDE|${stackTraceOverride.take(100)}"
+        } else {
+            "$contextMessage|${error?.javaClass?.simpleName}|${error?.message}"
+        }
         val errorHash = errorSignature.hashCode()
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val timestampKey = "$KEY_PREFIX_TIMESTAMP$errorHash"
@@ -91,8 +95,12 @@ object GithubIssueReporter {
             Please debug this, Jules. Make sure you get both a correct code review and a passing build with tests before submitting your solution.
         """.trimIndent()
 
-        val label = error.message?.takeIf { it.isNotBlank() } ?: (error::class.simpleName ?: "Error")
-        val titleContent = "IDE Error: $label — ${firstLine.take(80)}"
+        val errorTitle = when {
+            error != null -> "${error::class.simpleName} - ${error.message?.take(50) ?: "Unknown"}"
+            stackTraceOverride != null -> stackTraceOverride.lines().firstOrNull()?.take(50) ?: "Unknown Error"
+            else -> "Unknown Error"
+        }
+        val titleContent = "IDE Error: $errorTitle"
 
         // 1. Try API Reporting
         if (!token.isNullOrBlank()) {
