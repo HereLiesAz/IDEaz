@@ -1210,11 +1210,11 @@ class MainViewModel(
                 val token = settingsViewModel.getGithubToken()
                 viewModelScope.launch {
                     val result = com.hereliesaz.ideaz.utils.GithubIssueReporter.reportError(
-                        getApplication(),
-                        token,
-                        Throwable("Build Failure (Environment/Infrastructure Issue)"),
-                        "Build failed with suspected IDE/Environment error",
-                        log
+                        context = getApplication(),
+                        token = token,
+                        error = null,
+                        contextMessage = "Build failed with suspected IDE/Environment error",
+                        stackTraceOverride = log
                     )
                     logHandler.onOverlayLog("Environment/IDE Error reported: $result")
                 }
