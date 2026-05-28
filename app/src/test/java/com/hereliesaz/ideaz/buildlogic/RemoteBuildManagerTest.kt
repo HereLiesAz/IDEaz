@@ -43,6 +43,7 @@ class RemoteBuildManagerTest {
         private val artifacts: List<GitHubArtifact>
     ) : GitHubApi {
         override suspend fun createRepo(request: CreateRepoRequest) = throw NotImplementedError()
+        override suspend fun generateFromTemplate(templateOwner: String, templateRepo: String, request: GenerateFromTemplateRequest) = throw NotImplementedError()
         override suspend fun forkRepo(owner: String, repo: String, request: ForkRepoRequest) = throw NotImplementedError()
         override suspend fun getRepoPublicKey(owner: String, repo: String) = throw NotImplementedError()
         override suspend fun createSecret(owner: String, repo: String, secretName: String, request: CreateSecretRequest) = Response.success(Unit)

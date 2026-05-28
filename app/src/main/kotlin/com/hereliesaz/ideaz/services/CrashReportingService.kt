@@ -113,11 +113,11 @@ class CrashReportingService : Service() {
                 if (reportToGithub && !githubToken.isNullOrBlank()) {
                     // Option A: Report as GitHub Issue
                     com.hereliesaz.ideaz.utils.GithubIssueReporter.reportError(
-                        applicationContext,
-                        githubToken,
-                        Throwable(type),
-                        "Fatal Crash or System Error from $githubUser",
-                        errorData
+                        context = applicationContext,
+                        token = githubToken,
+                        error = null,
+                        contextMessage = "Fatal Crash or System Error from $githubUser",
+                        stackTraceOverride = errorData
                     )
                     Log.d(TAG, "Report submitted via GitHub Issues.")
                 } else {
