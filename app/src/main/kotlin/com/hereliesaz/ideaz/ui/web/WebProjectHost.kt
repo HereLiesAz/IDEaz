@@ -155,6 +155,22 @@ fun WebProjectHost(
                     bridgeJs?.let { js -> view?.evaluateJavascript(js, null) }
                 }
 
+                // Surface HTTP errors (e.g. 404 for a missing asset/module served
+                // by WebProjectPathHandler). These don't trigger onReceivedError,
+                // so without this a missing file fails silently.
+                override fun onReceivedHttpError(
+                    view: WebView?,
+                    request: WebResourceRequest?,
+                    errorResponse: WebResourceResponse?
+                ) {
+                    val msg = "[WEB] HTTP ${errorResponse?.statusCode} for ${request?.url}"
+                    val intent = Intent(ACTION_AI_LOG).apply {
+                        putExtra(EXTRA_MESSAGE, msg)
+                        setPackage(context.packageName)
+                    }
+                    context.sendBroadcast(intent)
+                }
+
                 override fun onReceivedError(
                     view: WebView?,
                     request: WebResourceRequest?,

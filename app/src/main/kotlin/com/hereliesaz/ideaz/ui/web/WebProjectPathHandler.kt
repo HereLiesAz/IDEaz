@@ -40,12 +40,16 @@ class WebProjectPathHandler(
 ) : WebViewAssetLoader.PathHandler {
 
     override fun handle(path: String): WebResourceResponse? {
-        if (path.startsWith(RUNTIME_PREFIX)) {
-            return serveRuntimeAsset(path.removePrefix(RUNTIME_PREFIX))
+        // WebViewAssetLoader strips the registered "/" prefix before calling us,
+        // so paths arrive WITHOUT a leading slash ("index.html", "src/main.jsx",
+        // "__ideaz__/babel.min.js"). Tolerate an optional leading slash too.
+        val rel = path.removePrefix("/")
+        if (rel.startsWith(RUNTIME_DIR)) {
+            return serveRuntimeAsset(rel.removePrefix(RUNTIME_DIR))
         }
 
         val projectDir = projectDirProvider() ?: return null
-        val relative = path.trimStart('/').ifEmpty { "index.html" }
+        val relative = rel.ifEmpty { "index.html" }
 
         val root = projectDir.canonicalFile
         val target = File(root, relative).canonicalFile
@@ -54,7 +58,11 @@ class WebProjectPathHandler(
         }
 
         val file = if (target.isDirectory) File(target, "index.html") else target
-        if (!file.isFile) return notFound()
+        if (!file.isFile) {
+            // A missing entry document otherwise renders as a blank white page
+            // with no explanation; serve a diagnostic instead.
+            return if (relative == "index.html") diagnosticIndexPage(projectDir) else notFound()
+        }
 
         val ext = file.extension.lowercase()
         if (ext == "html" || ext == "htm") {
@@ -72,6 +80,24 @@ class WebProjectPathHandler(
         val html = file.readText()
         val body = if (needsRuntime(html)) injectRuntime(html) else html
         return response("text/html", ByteArrayInputStream(body.toByteArray(Charsets.UTF_8)))
+    }
+
+    private fun diagnosticIndexPage(projectDir: File): WebResourceResponse {
+        fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        val contents = projectDir.listFiles()?.joinToString(", ") { esc(it.name) }
+            ?.ifEmpty { "(empty)" } ?: "(unreadable)"
+        val html = """
+            <!doctype html><html><head><meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>body{font-family:system-ui,sans-serif;padding:1.25rem;line-height:1.5;color:#222}code{background:#0001;padding:.1em .3em;border-radius:3px}</style>
+            </head><body>
+            <h2>No <code>index.html</code> in this project</h2>
+            <p>IDEaz served <code>${esc(projectDir.name)}</code> but found no <code>index.html</code> at its root, so there is nothing to display.</p>
+            <p>If this project was generated from a template repository, that repo may be empty or not yet populated (or not marked as a template).</p>
+            <p><strong>Project root contains:</strong> $contents</p>
+            </body></html>
+        """.trimIndent()
+        return response("text/html", ByteArrayInputStream(html.toByteArray(Charsets.UTF_8)))
     }
 
     private fun serveRuntimeAsset(name: String): WebResourceResponse {
@@ -97,7 +123,10 @@ class WebProjectPathHandler(
     )
 
     companion object {
+        /** URL prefix for runtime assets (used in injected HTML). */
         const val RUNTIME_PREFIX = "/__ideaz__/"
+        /** Same prefix as seen by [handle] after WebViewAssetLoader strips "/". */
+        private const val RUNTIME_DIR = "__ideaz__/"
         private const val RUNTIME_ASSET_DIR = "ideaz-runtime"
 
         /**
@@ -112,7 +141,7 @@ class WebProjectPathHandler(
 
         /** The runtime + import map injected into the `<head>` of module-based HTML. */
         private val INJECTION = """
-            |<script type="importmap">{"imports":{"react":"/__ideaz__/react.js","react-dom":"/__ideaz__/react-dom.js","react-dom/client":"/__ideaz__/react-dom-client.js","react/jsx-runtime":"/__ideaz__/jsx-runtime.js","react/jsx-dev-runtime":"/__ideaz__/jsx-runtime.js","react-router":"/__ideaz__/react-router.js","react-router-dom":"/__ideaz__/react-router-dom.js","zustand":"/__ideaz__/zustand.js","zustand/middleware":"/__ideaz__/zustand-middleware.js","zustand/shallow":"/__ideaz__/zustand-shallow.js","@reduxjs/toolkit":"/__ideaz__/reduxjs-toolkit.js","react-redux":"/__ideaz__/react-redux.js","axios":"/__ideaz__/axios.js","@tanstack/react-query":"/__ideaz__/tanstack-react-query.js","styled-components":"/__ideaz__/styled-components.js","@emotion/react":"/__ideaz__/emotion-react.js","@emotion/styled":"/__ideaz__/emotion-styled.js"}}</script>
+            |<script type="importmap">{"imports":{"react":"/__ideaz__/react.js","react-dom":"/__ideaz__/react-dom.js","react-dom/client":"/__ideaz__/react-dom-client.js","react/jsx-runtime":"/__ideaz__/jsx-runtime.js","react/jsx-dev-runtime":"/__ideaz__/jsx-runtime.js","react-router":"/__ideaz__/react-router.js","react-router/dom":"/__ideaz__/react-router-dom.js","react-router-dom":"/__ideaz__/react-router-dom.js","zustand":"/__ideaz__/zustand.js","zustand/middleware":"/__ideaz__/zustand-middleware.js","zustand/shallow":"/__ideaz__/zustand-shallow.js","@reduxjs/toolkit":"/__ideaz__/reduxjs-toolkit.js","react-redux":"/__ideaz__/react-redux.js","axios":"/__ideaz__/axios.js","@tanstack/react-query":"/__ideaz__/tanstack-react-query.js","styled-components":"/__ideaz__/styled-components.js","@emotion/react":"/__ideaz__/emotion-react.js","@emotion/styled":"/__ideaz__/emotion-styled.js"}}</script>
             |<script src="/__ideaz__/react.umd.js"></script>
             |<script src="/__ideaz__/react-dom.umd.js"></script>
             |<script src="/__ideaz__/babel.min.js"></script>
