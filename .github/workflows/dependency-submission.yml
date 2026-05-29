@@ -1,0 +1,39 @@
+name: Dependency Submission
+
+# Submits the FULLY RESOLVED Gradle dependency graph (all configurations, incl. the
+# test/lint-tooling classpaths) to GitHub so Dependabot evaluates the versions we
+# actually resolve. Without this, GitHub keeps re-using a stale, one-off snapshot and
+# never sees the patched versions pinned in app/build.gradle.kts — which is why the
+# Netty/BouncyCastle/Jackson/Commons-Lang alerts stayed open after the fixes landed.
+#
+# On push to the default branch, GitHub auto-dismisses alerts whose vulnerable version
+# is no longer present in the submitted graph.
+
+on:
+  push:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dependency-submission-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-submission:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # foojay-resolver was removed, so the jvmToolchain(21) request must be satisfied
+      # by an installed JDK rather than auto-downloaded.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Generate and submit dependency graph
+        uses: gradle/actions/dependency-submission@v6

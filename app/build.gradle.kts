@@ -128,6 +128,40 @@ configurations.all {
     resolutionStrategy {
         force("androidx.concurrent:concurrent-futures:1.3.0")
         force("androidx.concurrent:concurrent-futures-ktx:1.3.0")
+
+        // Security: pin transitive libraries flagged by Dependabot to patched versions.
+        // Only Jackson actually ships in the APK (pulled by google-genai into
+        // releaseRuntimeClasspath); the rest live solely in test / lint-tooling
+        // classpaths — BouncyCastle via Robolectric, commons-lang3 (and BouncyCastle)
+        // via AGP's androidLintTool, Netty via grpc-netty on the unit-test classpath.
+        // They never reach a device, but they stay in the dependency graph, so pin
+        // them everywhere to clear the alerts. (The earlier foojay-resolver removal in
+        // settings.gradle.kts did NOT address these — that plugin was misattributed as
+        // the source; these come from real app dependencies.)
+        force(
+            "org.bouncycastle:bcprov-jdk18on:1.84",
+            "org.bouncycastle:bcpkix-jdk18on:1.84",
+            "org.bouncycastle:bcutil-jdk18on:1.84",
+            "org.apache.commons:commons-lang3:3.18.0",
+        )
+        eachDependency {
+            when {
+                // Jackson arrives as core/databind/annotations + datatype modules and a
+                // BOM; pin the whole family to a patched 2.18.x. Use 2.18.7 — the java8
+                // datatype modules (jackson-datatype-jdk8/jsr310) stop there, while
+                // core/databind go to 2.18.8, so 2.18.7 is the latest version every
+                // module publishes (and still > the 2.18.6 fix).
+                requested.group.startsWith("com.fasterxml.jackson") ->
+                    useVersion("2.18.7")
+                // Netty arrives as ~11 modules via grpc-netty (unit-test only). Pin the
+                // io.netty group to the latest patched 4.1.x — staying off 4.2.x, which
+                // grpc-netty does not support. (netty-tcnative tracks a separate scheme.)
+                requested.group == "io.netty" &&
+                    requested.name.startsWith("netty-") &&
+                    !requested.name.startsWith("netty-tcnative") ->
+                    useVersion("4.1.134.Final")
+            }
+        }
     }
 }
 

@@ -11,10 +11,13 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
-// foojay-resolver-convention was removed: its transitive Netty/BouncyCastle/
-// Jackson/Commons-Lang/HttpClient surface accounted for all 16 build-time
-// dependency CVEs flagged on this project, and upstream is already at the
-// latest 1.0.0 release with no fixed-in version to bump to.
+// foojay-resolver-convention was removed. (An earlier changelog claimed this cleared
+// the Netty/BouncyCastle/Jackson/Commons-Lang/HttpClient dependency CVEs — that was a
+// misdiagnosis. Those libraries are NOT transitive deps of this settings-classpath
+// plugin; they come from real app dependencies — google-genai (Jackson at runtime;
+// Netty via grpc-netty on the unit-test classpath), Robolectric (BouncyCastle), and
+// AGP's androidLintTool (commons-lang3 + BouncyCastle) — and are now pinned to patched
+// versions via resolutionStrategy in app/build.gradle.kts.)
 //
 // Gradle still resolves the jvmToolchain(21) request in app/build.gradle.kts,
 // just from locally-installed JDKs (CI installs one via actions/setup-java).
