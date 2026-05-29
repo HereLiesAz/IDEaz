@@ -142,7 +142,7 @@ configurations.all {
             "org.bouncycastle:bcprov-jdk18on:1.84",
             "org.bouncycastle:bcpkix-jdk18on:1.84",
             "org.bouncycastle:bcutil-jdk18on:1.84",
-            "org.apache.commons:commons-lang3:3.18.0",
+            "org.apache.commons:commons-lang3:3.20.0",
         )
         eachDependency {
             when {
