@@ -1,6 +1,6 @@
 [versions]
 agp = "9.2.1"
-aznavrail = "9.4"
+aznavrail = "9.5"
 coreKtx = "1.18.0"
 googleGenai = "1.55.0"
 kotlinxCoroutinesCore = "1.11.0"
