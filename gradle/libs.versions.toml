@@ -38,7 +38,7 @@ aicore = "0.0.1-exp02"
 
 # Security-bumped versions for JGit's vulnerable transitive deps (Dependabot #26,
 # #27, #29 Bouncy Castle; #30 Apache HttpClient XSS; #31 commons-lang3 recursion).
-bouncycastle = "1.80"
+bouncycastle = "1.84"
 commonsLang3 = "3.18.0"
 apacheHttpclient = "4.5.14"
 
