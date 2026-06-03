@@ -166,6 +166,25 @@ configurations.all {
 }
 
 dependencies {
+    // Force secure versions on JGit's vulnerable transitive deps (Dependabot
+    // alerts #26/#27/#29 Bouncy Castle, #30 Apache HttpClient, #31 commons-lang3).
+    // Constraints set the version without adding the dep; Gradle applies them
+    // only when the transitive resolution actually pulls the artifact.
+    constraints {
+        implementation(libs.bouncycastle.bcprov) {
+            because("CVE timing channel + LDAP injection (Dependabot #29, #27)")
+        }
+        implementation(libs.bouncycastle.bcpkix) {
+            because("Broken/risky cryptographic algorithm (Dependabot #26)")
+        }
+        implementation(libs.commons.lang3) {
+            because("Uncontrolled recursion CVE (Dependabot #31)")
+        }
+        implementation(libs.apache.httpclient) {
+            because("XSS in Apache HttpClient (Dependabot #30)")
+        }
+    }
+
     implementation(libs.sora.editor)
     implementation(libs.sora.language.textmate)
     implementation(libs.org.eclipse.jgit)
