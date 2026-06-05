@@ -184,25 +184,27 @@ class UpdateDelegate(
      */
     private suspend fun downloadFile(urlStr: String, fileName: String): File? {
         return withContext(Dispatchers.IO) {
+            var connection: HttpURLConnection? = null
             try {
                 val url = URL(urlStr)
-                val connection = url.openConnection() as HttpURLConnection
-                connection.connect()
+                connection = (url.openConnection() as HttpURLConnection).also { it.connect() }
 
                 if (connection.responseCode != HttpURLConnection.HTTP_OK) {
                     return@withContext null
                 }
 
                 val file = File(application.filesDir, fileName)
-                val input = connection.inputStream
-                val output = FileOutputStream(file)
-                input.copyTo(output)
-                output.close()
-                input.close()
+                connection.inputStream.use { input ->
+                    FileOutputStream(file).use { output ->
+                        input.copyTo(output)
+                    }
+                }
                 file
             } catch (e: Exception) {
                 android.util.Log.w("UpdateDelegate", "Update operation failed", e)
                 null
+            } finally {
+                connection?.disconnect()
             }
         }
     }

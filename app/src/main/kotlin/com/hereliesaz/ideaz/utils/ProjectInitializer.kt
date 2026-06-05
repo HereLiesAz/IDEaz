@@ -55,9 +55,18 @@ object ProjectInitializer {
             val repoName = settingsViewModel.getAppName() ?: "Unknown"
             val source = "sources/github/$user/$repoName"
 
-            secretsContent = secretsContent.replace("const val API_KEY = \"\"", "const val API_KEY = \"$apiKey\"")
-            secretsContent = secretsContent.replace("const val GITHUB_USER = \"Unknown\"", "const val GITHUB_USER = \"$user\"")
-            secretsContent = secretsContent.replace("const val REPO_SOURCE = \"sources/github/Unknown/Unknown\"", "const val REPO_SOURCE = \"$source\"")
+            // Replace placeholders, warning loudly if the template text has drifted
+            // (a silent no-op would ship a project with empty/default secrets).
+            fun replaceOrWarn(content: String, target: String, replacement: String): String {
+                if (!content.contains(target)) {
+                    Log.w(TAG, "Secrets.kt template drift — placeholder not found: \"$target\"")
+                    return content
+                }
+                return content.replace(target, replacement)
+            }
+            secretsContent = replaceOrWarn(secretsContent, "const val API_KEY = \"\"", "const val API_KEY = \"$apiKey\"")
+            secretsContent = replaceOrWarn(secretsContent, "const val GITHUB_USER = \"Unknown\"", "const val GITHUB_USER = \"$user\"")
+            secretsContent = replaceOrWarn(secretsContent, "const val REPO_SOURCE = \"sources/github/Unknown/Unknown\"", "const val REPO_SOURCE = \"$source\"")
 
             val secretsFile = File(targetUtilsDir, "Secrets.kt")
             secretsFile.writeText(secretsContent)

@@ -187,7 +187,11 @@ class RemoteBuildManager(
             val failed = jobs.find { it.conclusion == "failure" } ?: return
             val resp = api.getJobLogs(user, repo, failed.id)
             if (resp.isSuccessful) {
-                onLog("Remote Build Log:\n${resp.body()?.string().orEmpty()}\n")
+                // ResponseBody.string() consumes and closes the body; use{} makes the
+                // close explicit and also covers the error/empty paths.
+                resp.body()?.use { body ->
+                    onLog("Remote Build Log:\n${body.string()}\n")
+                }
             }
         } catch (e: Exception) {
             onLog("Could not retrieve remote logs: ${e.message}\n")

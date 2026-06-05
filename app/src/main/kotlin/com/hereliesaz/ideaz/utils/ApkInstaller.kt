@@ -13,66 +13,48 @@ import android.net.Uri
 object ApkInstaller {
 
     fun installApk(context: Context, apkPath: String) {
+        val file = File(apkPath)
+        if (!file.exists()) return
+
         val packageInstaller = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
         val sessionId = packageInstaller.createSession(params)
-        val session = packageInstaller.openSession(sessionId)
-
-        val file = File(apkPath)
-        if (!file.exists()) {
-            session.close()
-            return
+        packageInstaller.openSession(sessionId).use { session ->
+            file.inputStream().use { inputStream ->
+                session.openWrite("IDEazIDE", 0, file.length()).use { outputStream ->
+                    inputStream.copyTo(outputStream)
+                    session.fsync(outputStream)
+                }
+            }
+            session.commit(buildInstallIntentSender(context, sessionId))
         }
-
-        val inputStream = file.inputStream()
-        val outputStream = session.openWrite("IDEazIDE", 0, file.length())
-
-        inputStream.copyTo(outputStream)
-        session.fsync(outputStream)
-        outputStream.close()
-        inputStream.close()
-
-        val intent = Intent(context, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            PendingIntent.FLAG_MUTABLE
-        } else {
-            0
-        }
-
-        val pendingIntent = PendingIntent.getActivity(context, sessionId, intent, flags)
-        session.commit(pendingIntent.intentSender)
-        session.close()
     }
 
     fun installApk(context: Context, uri: android.net.Uri) {
         val packageInstaller = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
         val sessionId = packageInstaller.createSession(params)
-        val session = packageInstaller.openSession(sessionId)
+        packageInstaller.openSession(sessionId).use { session ->
+            val input = context.contentResolver.openInputStream(uri) ?: return
+            input.use { inputStream ->
+                session.openWrite("IDEazIDE_uri", 0, -1).use { outputStream -> // size -1 if unknown
+                    inputStream.copyTo(outputStream)
+                    session.fsync(outputStream)
+                }
+            }
+            session.commit(buildInstallIntentSender(context, sessionId))
+        }
+    }
 
-        val inputStream = context.contentResolver.openInputStream(uri) ?: return
-        val outputStream = session.openWrite("IDEazIDE_uri", 0, -1) // size -1 if unknown
-
-        inputStream.copyTo(outputStream)
-        session.fsync(outputStream)
-        outputStream.close()
-        inputStream.close()
-
+    private fun buildInstallIntentSender(context: Context, sessionId: Int): android.content.IntentSender {
         val intent = Intent(context, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             PendingIntent.FLAG_MUTABLE
         } else {
             0
         }
-
-        val pendingIntent = PendingIntent.getActivity(context, sessionId, intent, flags)
-        session.commit(pendingIntent.intentSender)
-        session.close()
+        return PendingIntent.getActivity(context, sessionId, intent, flags).intentSender
     }
 }

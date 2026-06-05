@@ -27,7 +27,6 @@ object GeminiApiClient {
     suspend fun generateContent(prompt: String, apiKey: String): String =
         withContext(Dispatchers.IO) {
             try {
-                val client = Client.builder().apiKey(apiKey).build()
                 val parts = mutableListOf<Part>()
 
                 if (prompt.contains(IMAGE_TAG)) {
@@ -57,8 +56,12 @@ object GeminiApiClient {
                 }
 
                 val content = Content.builder().role("user").parts(parts).build()
-                val response = client.models.generateContent(MODEL, listOf(content), null)
-                response.text() ?: "Error: Received an empty response from the API."
+                // Client is AutoCloseable and holds an HTTP client; close it after the
+                // one-shot call so repeated overlay calls don't leak connections/threads.
+                Client.builder().apiKey(apiKey).build().use { client ->
+                    val response = client.models.generateContent(MODEL, listOf(content), null)
+                    response.text() ?: "Error: Received an empty response from the API."
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Gemini API call failed", e)
                 "Error: ${e.message}"

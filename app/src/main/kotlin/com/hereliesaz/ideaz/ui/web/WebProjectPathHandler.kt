@@ -84,6 +84,7 @@ class WebProjectPathHandler(
 
     private fun diagnosticIndexPage(projectDir: File): WebResourceResponse {
         fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            .replace("\"", "&quot;").replace("'", "&#39;")
         val contents = projectDir.listFiles()?.joinToString(", ") { esc(it.name) }
             ?.ifEmpty { "(empty)" } ?: "(unreadable)"
         val html = """

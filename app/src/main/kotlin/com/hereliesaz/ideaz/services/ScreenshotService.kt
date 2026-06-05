@@ -161,6 +161,7 @@ class ScreenshotService : Service() {
                 // Crop and draw (Draw skipped as UIInspectionService handles highlight)
                 // val finalBitmap = processBitmap(bitmap, rect)
                 val base64String = bitmapToBase64(bitmap)
+                bitmap.recycle()
 
                 // Send broadcast back to MainViewModel
                 val resultIntent = Intent("com.hereliesaz.ideaz.SCREENSHOT_TAKEN").apply {

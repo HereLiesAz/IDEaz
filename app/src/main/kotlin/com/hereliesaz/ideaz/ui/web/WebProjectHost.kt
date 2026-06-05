@@ -122,6 +122,11 @@ fun WebProjectHost(
                 safeBrowsingEnabled = true
             }
 
+            // Trust boundary: these interfaces are only safe because this WebView
+            // exclusively loads app-served content from the WebViewAssetLoader origin
+            // (https://appassets.androidplatform.net). Never load remote/untrusted URLs
+            // here. resourceId from onInspectResult is path-validated downstream in
+            // SourceContextHelper before any file access.
             addJavascriptInterface(IdeazJsInterface(context), "Ideaz")
             addJavascriptInterface(
                 WebViewBridge { json -> scope.launch { currentOnElementContext(json) } },

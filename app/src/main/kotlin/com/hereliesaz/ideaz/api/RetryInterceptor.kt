@@ -4,6 +4,8 @@ import android.util.Log
 import okhttp3.Interceptor
 import okhttp3.Response
 import java.io.IOException
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
 class RetryInterceptor(
@@ -28,8 +30,14 @@ class RetryInterceptor(
                     return response
                 }
 
-                Log.w(TAG, "Request failed with code ${response.code}. Closing and retrying...")
-                response.close() // Close previous response before retrying
+                // Retryable status. Only close (and discard) this response if we are
+                // going to retry. On the final attempt we must fall through and return
+                // it OPEN — closing it here would hand the caller a closed body that
+                // throws IllegalStateException when read.
+                if (attempt < maxRetries) {
+                    Log.w(TAG, "Request failed with code ${response.code}. Closing and retrying...")
+                    response.close()
+                }
 
             } catch (e: IOException) {
                 Log.w(TAG, "Request failed with exception: ${e.message}. Retrying...", e)
@@ -65,9 +73,17 @@ class RetryInterceptor(
             try {
                 // Try seconds
                 val seconds = retryAfter.toLong()
-                return seconds * 1000
+                return (seconds * 1000).coerceAtMost(maxDelayMs)
             } catch (e: NumberFormatException) {
-                // Ignore date format for now
+                // Not numeric seconds — try the RFC 7231 HTTP-date form
+                // (e.g. "Wed, 21 Oct 2025 07:28:00 GMT").
+                val untilMs = runCatching {
+                    ZonedDateTime.parse(retryAfter, DateTimeFormatter.RFC_1123_DATE_TIME)
+                        .toInstant().toEpochMilli() - System.currentTimeMillis()
+                }.getOrNull()
+                if (untilMs != null && untilMs > 0) {
+                    return untilMs.coerceAtMost(maxDelayMs)
+                }
             }
         }
 

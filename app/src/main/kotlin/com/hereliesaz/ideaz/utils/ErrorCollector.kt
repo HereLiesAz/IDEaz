@@ -46,18 +46,19 @@ object ErrorCollector {
     }
 
     fun getAndClear(): String? {
-        if (pendingErrors.isEmpty()) return null
+        // Snapshot, then remove exactly the drained items rather than clear()ing the
+        // whole list. An error reported concurrently (after the snapshot) then survives
+        // to the next drain instead of being silently dropped.
+        val drained = pendingErrors.toList()
+        if (drained.isEmpty()) return null
+        pendingErrors.removeAll(drained)
 
-        val allErrors = StringBuilder()
-        // Drain the list
-        val iterator = pendingErrors.iterator()
-        while (iterator.hasNext()) {
-            allErrors.appendLine(iterator.next())
-            allErrors.appendLine("---")
+        return buildString {
+            drained.forEach {
+                appendLine(it)
+                appendLine("---")
+            }
         }
-        pendingErrors.clear()
-
-        return allErrors.toString()
     }
 
     private fun isIgnored(message: String): Boolean {

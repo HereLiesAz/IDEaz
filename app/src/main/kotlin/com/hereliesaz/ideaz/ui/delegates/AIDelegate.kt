@@ -424,7 +424,10 @@ class AIDelegate(
             activities.forEach { activity ->
                 // Only process each activity once
                 if (activity.id !in processedActivityIds) {
-                    var activityProcessed = false
+                    // Mark processed up-front. An activity record is immutable, so
+                    // re-fetching it next poll and re-applying a patch that already
+                    // failed only spams the user and wastes work — attempt each once.
+                    processedActivityIds.add(activity.id)
 
                     activity.artifacts?.forEach { artifact ->
                         val patch = artifact.changeSet?.gitPatch?.unidiffPatch
@@ -436,14 +439,10 @@ class AIDelegate(
 
                             if (success) {
                                 onOverlayLog("Patch applied.")
-                                activityProcessed = true
                             } else {
                                 onOverlayLog("Patch failed to apply.")
                             }
                         }
-                    }
-                    if (activityProcessed) {
-                        processedActivityIds.add(activity.id)
                     }
                 }
             }

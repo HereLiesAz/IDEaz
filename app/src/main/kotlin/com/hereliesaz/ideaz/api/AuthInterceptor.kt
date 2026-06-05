@@ -12,7 +12,9 @@ object AuthInterceptor : Interceptor {
         val originalRequest = chain.request()
         val builder = originalRequest.newBuilder()
 
-        apiKey?.let {
+        // Only attach the header when we actually have a key. A blank key would
+        // produce "X-Goog-Api-Key: " and a confusing 400 instead of a clear 401.
+        apiKey?.takeIf { it.isNotBlank() }?.let {
             builder.header("X-Goog-Api-Key", it)
         }
 

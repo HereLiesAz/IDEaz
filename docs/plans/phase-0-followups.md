@@ -45,6 +45,14 @@ test repo's secret store, which a hand-pushed workflow successfully reads back.
 
 ## 2. Phase 1 — `WebViewAssetLoader` migration (security + deprecation)
 
+> **STATUS: RESOLVED.** The migration landed: `WebProjectHost` serves content via
+> `WebViewAssetLoader` at `https://appassets.androidplatform.net/`, sets
+> `allowFileAccess = false` / `allowContentAccess = false`, and no longer references
+> `allowFileAccessFromFileURLs` / `allowUniversalAccessFromFileURLs` (the
+> `@Suppress("DEPRECATION")` is gone). `SourceContextHelper` enforces project-directory
+> containment on the `__source:` JS-bridge tag. Item 6 below (source-map regeneration)
+> remains future work. The original write-up is kept for history.
+
 **Where:** `app/src/main/kotlin/com/hereliesaz/ideaz/ui/web/WebProjectHost.kt:55-63`,
 plus `IdeazAccessibilityService.kt:150-154`.
 

@@ -48,6 +48,23 @@ class SourceContextHelperTest {
     }
 
     @Test
+    fun resolveContext_pathTraversal_isRejected() {
+        // The __source: tag originates from the in-WebView inspect bridge, so a
+        // crafted "../" path must not be allowed to read outside the project dir.
+        val parent = tempFolder.newFolder("workspace")
+        val projectDir = File(parent, "project").apply { mkdirs() }
+        // A file that exists OUTSIDE the project (a sibling under the workspace).
+        File(parent, "secret.txt").writeText("top secret")
+
+        val resourceId = "__source:../secret.txt:1__"
+        val result = SourceContextHelper.resolveContext(resourceId, projectDir)
+
+        assertEquals(true, result.isError)
+        assertTrue(result.errorMessage?.contains("escapes project directory") == true)
+        assertEquals("", result.snippet)
+    }
+
+    @Test
     fun resolveContext_androidId_degradesGracefully() {
         // The on-device source-map generator was removed in Phase 0 (Task 6),
         // so any non-__source__ id (e.g., a plain Android resource id) now
