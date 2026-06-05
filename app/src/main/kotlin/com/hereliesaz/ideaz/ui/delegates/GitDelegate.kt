@@ -164,20 +164,22 @@ class GitDelegate(
     /**
      * Pushes local changes to the remote repository.
      */
-    suspend fun push() = withContext(Dispatchers.IO) {
+    suspend fun push(): Boolean = withContext(Dispatchers.IO) {
         try {
-            val git = getGitManager() ?: return@withContext
+            val git = getGitManager() ?: return@withContext false
             val token = settingsViewModel.getGithubToken()
             val user = settingsViewModel.getGithubUser()
-            if (token != null) {
-                git.push(user, token) { p, t -> reportProgress(p, t) }
-                onLog("[GIT] Push successful.\n")
-            } else {
+            if (token == null) {
                 onLog("[GIT] Error: Missing Auth.\n")
+                return@withContext false
             }
+            git.push(user, token) { p, t -> reportProgress(p, t) }
+            onLog("[GIT] Push successful.\n")
             refreshGitData()
+            true
         } catch (e: Exception) {
             onLog("[GIT] Push Error: ${e.message}\n")
+            false
         }
     }
 

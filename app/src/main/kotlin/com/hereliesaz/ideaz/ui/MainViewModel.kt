@@ -845,7 +845,7 @@ class MainViewModel(
         }
     }
 
-    fun loadProject(name: String, onSuccess: () -> Unit) {
+    fun loadProject(name: String, context: Context, onSuccess: () -> Unit) {
         viewModelScope.launch {
             aiDelegate.clearSession()
             settingsViewModel.setAppName(name)
@@ -856,8 +856,28 @@ class MainViewModel(
             gitDelegate.getCurrentBranch()?.let { actualBranch ->
                 settingsViewModel.saveBranchName(actualBranch)
             }
+
+            // Project type & target package are GLOBAL settings, so re-derive them
+            // from the project on disk. Without this, a loaded project inherits the
+            // previously-open project's type and gets routed down the wrong
+            // build/preview path (and a loaded web project never shows a preview).
+            val projectDir = settingsViewModel.getProjectPath(name)
+            val detectedType = withContext(Dispatchers.IO) {
+                ProjectAnalyzer.detectProjectType(projectDir)
+            }
+            settingsViewModel.setProjectType(detectedType.name)
+            if (!detectedType.isWebLike()) {
+                withContext(Dispatchers.IO) { ProjectAnalyzer.detectPackageName(projectDir) }
+                    ?.let { settingsViewModel.saveTargetPackageName(it) }
+            }
+
             val user = settingsViewModel.getGithubUser()
             if (!user.isNullOrBlank()) repoDelegate.uploadProjectSecrets(user, name)
+
+            // Re-mount: clear any prior preview so launchTargetApp mounts THIS
+            // project, then actually show it (web → live preview, Android → host).
+            stateDelegate.setCurrentWebUrl(null)
+            launchTargetApp(context)
             onSuccess()
         }
     }
