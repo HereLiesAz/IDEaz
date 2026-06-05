@@ -581,10 +581,18 @@ class MainViewModel(
             }
             aiDelegate.startContextualAITask(julesPrompt)
         } else {
-            // Phase 1: Gemini conversational. Image attachment is dropped here —
-            // ChatMessage/GeminiAdapter accept text only. Re-add multimodal when
-            // the chat-message model is extended.
-            sendChatMessage(richPrompt)
+            // Conversational/bridge path. Carry the highlighted screenshot too —
+            // ChatMessage supports image parts, and the bridge forwards them.
+            val base64 = overlayDelegate.pendingBase64Screenshot
+            val parts = if (!base64.isNullOrBlank()) {
+                runCatching {
+                    val bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
+                    listOf<com.hereliesaz.ideaz.ai.ChatPart>(
+                        com.hereliesaz.ideaz.ai.ChatPart.Image(bytes, "image/png")
+                    )
+                }.getOrDefault(emptyList())
+            } else emptyList()
+            sendChatMessage(richPrompt, parts)
         }
     }
 
@@ -1273,8 +1281,16 @@ class MainViewModel(
                 logHandler.onOverlayLog("Environment/IDE Error detected. Reporting disabled.")
             }
         } else {
-            // Project Error -> Ask Jules to fix it
-            aiDelegate.startContextualAITask("Build Failed. Fix this:\n$log")
+            // Project Error -> route the failing log to the assigned fixer:
+            // Jules if it's assigned, otherwise the selected conversational
+            // provider (e.g. the Gemini app bridge) so it gets the log and can
+            // fix the build automatically.
+            val prompt = "Build failed. Fix this:\n$log"
+            if (isJulesAssigned(SettingsViewModel.KEY_AI_ASSIGNMENT_DEFAULT)) {
+                aiDelegate.startContextualAITask(prompt)
+            } else {
+                sendChatMessage(prompt)
+            }
         }
     }
 }

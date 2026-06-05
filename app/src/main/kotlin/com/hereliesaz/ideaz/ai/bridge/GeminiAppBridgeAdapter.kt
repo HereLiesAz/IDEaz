@@ -16,7 +16,6 @@ import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
-import java.util.UUID
 
 /**
  * Routes prompts through the user's installed Gemini app, giving a backend that
@@ -69,61 +68,53 @@ class GeminiAppBridgeAdapter(
             append("\n\nUser request:\n").append(userText)
         }
 
-        // Prefer attaching project.txt; fall back to inlining a capped copy.
-        var stagedFile: File? = null
-        val attachUri: Uri? = snapshot?.let { snap ->
-            runCatching {
-                val dir = File(context.cacheDir, "gemini-bridge").apply { mkdirs() }
-                val f = File(dir, "project.txt")
-                f.writeText(snap.text)
-                stagedFile = f
-                FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f)
-            }.getOrNull()
-        }
+        // Stage attachments to the cache and share both via ACTION_SEND_MULTIPLE:
+        // the project as project.txt, and the user's screenshot (with their
+        // highlighted selection). Either may be absent.
+        val stagedFiles = mutableListOf<File>()
+        fun stage(name: String, bytes: ByteArray): Uri? = runCatching {
+            val dir = File(context.cacheDir, "gemini-bridge").apply { mkdirs() }
+            val f = File(dir, name)
+            f.writeBytes(bytes)
+            stagedFiles.add(f)
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f)
+        }.getOrNull()
 
-        // If we couldn't attach but have a snapshot, inline a truncated copy so
-        // the model still sees the repo (capped under the Binder limit).
-        val outboundText = if (attachUri == null && snapshot != null) {
+        val projectUri = snapshot?.let { stage("project.txt", it.text.toByteArray()) }
+        val firstImage = lastUser.parts.filterIsInstance<ChatPart.Image>().firstOrNull()
+        val imageUri = firstImage?.let { stage("selection.${mimeToExt(it.mimeType)}", it.bytes) }
+
+        // If the project couldn't be attached, inline a capped copy so the model
+        // still sees the repo.
+        val outboundText = if (projectUri == null && snapshot != null) {
             promptText + "\n\n===== PROJECT (project.txt) =====\n" + snapshot.text.take(INLINE_CAP)
         } else {
             promptText
-        }
-
-        // When there's no project to send, preserve the legacy image-forwarding
-        // path (single image via the share stream).
-        val firstImage = if (snapshot == null) lastUser.parts.filterIsInstance<ChatPart.Image>().firstOrNull() else null
-        val imageUri: Uri? = firstImage?.let { img ->
-            runCatching {
-                val dir = File(context.cacheDir, "gemini-bridge").apply { mkdirs() }
-                val f = File(dir, "${UUID.randomUUID()}.${mimeToExt(img.mimeType)}")
-                f.writeBytes(img.bytes)
-                stagedFile = f
-                FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f)
-            }.getOrNull()
         }
 
         GeminiAppBridge.reset()
         GeminiAppBridge.pendingPrompt = outboundText
         GeminiAppBridge.isWaiting = true
 
-        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-            when {
-                attachUri != null -> {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_STREAM, attachUri)
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-                imageUri != null && firstImage != null -> {
-                    type = firstImage.mimeType
-                    putExtra(Intent.EXTRA_STREAM, imageUri)
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-                else -> type = "text/plain"
+        val streams = ArrayList(listOfNotNull(projectUri, imageUri))
+        val sendIntent = when {
+            streams.size > 1 -> Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                type = "*/*"
+                putParcelableArrayListExtra(Intent.EXTRA_STREAM, streams)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
+            streams.size == 1 -> Intent(Intent.ACTION_SEND).apply {
+                type = if (streams[0] == imageUri && firstImage != null) firstImage.mimeType else "text/plain"
+                putExtra(Intent.EXTRA_STREAM, streams[0])
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            else -> Intent(Intent.ACTION_SEND).apply { type = "text/plain" }
+        }.apply {
             putExtra(Intent.EXTRA_TEXT, outboundText)
             setPackage(geminiPackage)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
+
         setUserBlock("wait")
         context.startActivity(sendIntent)
 
@@ -131,13 +122,19 @@ class GeminiAppBridgeAdapter(
             awaitResponse()
         } finally {
             setUserBlock("off")
-            stagedFile?.delete()
+            stagedFiles.forEach { it.delete() }
         }
 
-        // Turn the code-only reply into real file writes.
+        // Turn the code-only reply into real file writes — but checkpoint first
+        // so a bad apply is one `git reset` away.
         val applier = tools
         if (applier != null) {
-            val outcomes = withContext(Dispatchers.IO) { AiEditApplier.apply(response, applier) }
+            val outcomes = withContext(Dispatchers.IO) {
+                if (AiEditApplier.parse(response).isNotEmpty()) {
+                    applier.checkpoint("IDEaz: checkpoint before AI edit")
+                }
+                AiEditApplier.apply(response, applier)
+            }
             if (outcomes.isNotEmpty()) {
                 val applied = outcomes.count { it.ok }
                 val summary = outcomes.joinToString("\n") {

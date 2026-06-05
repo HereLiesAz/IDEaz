@@ -132,4 +132,27 @@ class IdeTools(private val projectDir: File) {
     } catch (e: Exception) {
         "Error: ${e.message}"
     }
+
+    /**
+     * Commit the current project state so a subsequent AI edit can be undone with
+     * a single `git reset`. Initialises a repo if none exists. Allows empty
+     * commits so there's always a HEAD to reset to. Returns "OK" or "Error: ...";
+     * never throws (a failed checkpoint must not block the edit).
+     */
+    fun checkpoint(message: String): String = try {
+        val gitDir = File(projectDir, ".git")
+        val git = if (gitDir.exists()) Git.open(projectDir) else Git.init().setDirectory(projectDir).call()
+        git.use {
+            it.add().addFilepattern(".").call()
+            it.commit()
+                .setMessage(message)
+                .setAllowEmpty(true)
+                .setAuthor("IDEaz", "ideaz@local")
+                .setSign(false)
+                .call()
+        }
+        "OK"
+    } catch (e: Exception) {
+        "Error: ${e.message}"
+    }
 }
