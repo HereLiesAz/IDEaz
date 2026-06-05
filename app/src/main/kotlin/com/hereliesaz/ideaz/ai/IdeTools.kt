@@ -56,6 +56,38 @@ class IdeTools(private val projectDir: File) {
     }
 
     /**
+     * A compact recursive map of the project's files, for orienting the AI before
+     * it digs in with [readFile]/[listFiles]. Skips dependency/build/VCS noise and
+     * caps the entry count so the listing stays small enough to put in a prompt.
+     */
+    fun repoMap(maxEntries: Int = 300): String {
+        val base = projectDir.canonicalFile
+        if (!base.isDirectory) return "(no project files yet)"
+        val skip = setOf(
+            ".git", "node_modules", "build", ".gradle", ".idea",
+            "dist", ".next", "out", ".cache", "__ideaz__"
+        )
+        val sb = StringBuilder()
+        var count = 0
+        fun walk(dir: File, prefix: String) {
+            val children = dir.listFiles()
+                ?.sortedWith(compareBy({ it.isFile }, { it.name })) ?: return
+            for (c in children) {
+                if (count >= maxEntries) {
+                    sb.append(prefix).append("…(truncated)\n")
+                    return
+                }
+                if (c.isDirectory && c.name in skip) continue
+                count++
+                sb.append(prefix).append(c.name).append(if (c.isDirectory) "/" else "").append('\n')
+                if (c.isDirectory) walk(c, "$prefix  ")
+            }
+        }
+        walk(base, "")
+        return sb.toString().ifBlank { "(no project files yet)" }
+    }
+
+    /**
      * Apply a unified diff [patchText] to the working tree using JGit's ApplyCommand.
      * Initialises a temporary git repository in [projectDir] if one does not already
      * exist, so that JGit's ApplyCommand has a valid work-tree context.
