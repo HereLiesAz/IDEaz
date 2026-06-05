@@ -42,7 +42,6 @@ mediapipeGenai = "0.10.35"
 bouncycastle = "1.84"
 commonsLang3 = "3.20.0"
 apacheHttpclient = "4.5.14"
-coreKtxVersion = "1.19.0"
 
 [libraries]
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
@@ -96,7 +95,6 @@ bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref 
 bouncycastle-bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
 commons-lang3 = { module = "org.apache.commons:commons-lang3", version.ref = "commonsLang3" }
 apache-httpclient = { module = "org.apache.httpcomponents:httpclient", version.ref = "apacheHttpclient" }
-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtxVersion" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

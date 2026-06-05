@@ -5,7 +5,6 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.kotlin.android)
 }
 
 val versionProps = Properties()
@@ -174,7 +173,6 @@ configurations.all {
 }
 
 dependencies {
-    implementation(libs.core.ktx)
     // Force secure versions on JGit's vulnerable transitive deps (Dependabot
     // alerts #26/#27/#29 Bouncy Castle, #30 Apache HttpClient, #31 commons-lang3).
     // Constraints set the version without adding the dep; Gradle applies them
@@ -263,11 +261,6 @@ tasks.register("incrementBuildNumber") {
         val currentBuild = props.getProperty("build", "0").toInt()
         props.setProperty("build", (currentBuild + 1).toString())
         versionFile.outputStream().use { props.store(it, null) }
-    }
-}
-android {
-    kotlinOptions {
-        jvmTarget = "21"
     }
 }
 

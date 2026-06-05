@@ -401,6 +401,22 @@ class MainViewModel(
     fun unbindBuildService(c: Context) = buildDelegate.unbindService(c)
     fun startBuild(c: Context, p: File? = null) = buildDelegate.startBuild(p)
 
+    /**
+     * Rail "Build" action: (re)build the current project and switch to its
+     * preview. Web-like projects verify `index.html` and the build-success
+     * callback flips to the WebView preview; Android kicks the remote build,
+     * whose success callback launches the app view (`launchTargetApp`). No-ops
+     * with a log line when no project is loaded, so the button never silently
+     * does nothing.
+     */
+    fun startBuild() {
+        if (settingsViewModel.getAppName().isNullOrBlank()) {
+            logHandler.onBuildLog("[IDE] Build skipped: no project loaded. Open or create a project first.\n")
+            return
+        }
+        buildDelegate.startBuild()
+    }
+
     // GIT Operations
     fun refreshGitData() { viewModelScope.launch { gitDelegate.refreshGitData() } }
     fun gitFetch() { viewModelScope.launch { gitDelegate.fetch() } }
