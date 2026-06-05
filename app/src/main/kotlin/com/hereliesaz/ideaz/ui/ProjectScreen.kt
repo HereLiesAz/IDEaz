@@ -347,7 +347,14 @@ fun ProjectScreen(
                         }
                     },
                     onForkRepo = { url ->
-                        if (checkKeys()) {
+                        val parts = url.removePrefix("https://github.com/")
+                            .removeSuffix(".git")
+                            .split("/")
+                            .filter { it.isNotBlank() }
+                        if (parts.size < 2) {
+                            android.widget.Toast.makeText(context, "Invalid repository format. Use 'owner/repo'.", android.widget.Toast.LENGTH_SHORT).show()
+                        } else if (checkKeys()) {
+                            android.widget.Toast.makeText(context, "Forking...", android.widget.Toast.LENGTH_SHORT).show()
                             viewModel.forkRepository(url) {
                                 isCreateMode = false
                                 tabIndex = tabs.indexOf("Setup")
