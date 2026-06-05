@@ -10,6 +10,8 @@ import android.os.Build
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
+import androidx.preference.PreferenceManager
 
 /**
  * An Accessibility Service that inspects the view hierarchy.
@@ -22,12 +24,17 @@ class IdeazAccessibilityService : AccessibilityService() {
 
     private val tapReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == "com.hereliesaz.ideaz.INTERNAL_TAP_DETECTED") {
-                val x = intent.getIntExtra("X", -1)
-                val y = intent.getIntExtra("Y", -1)
-                if (x != -1 && y != -1) {
-                    inspectAt(x, y)
+            when (intent?.action) {
+                "com.hereliesaz.ideaz.INTERNAL_TAP_DETECTED" -> {
+                    val x = intent.getIntExtra("X", -1)
+                    val y = intent.getIntExtra("Y", -1)
+                    if (x != -1 && y != -1) {
+                        inspectAt(x, y)
+                    }
                 }
+                // IdeazOverlayService is about to intercept touches and needs to
+                // know the worked-on app's window bounds so it can constrain itself.
+                "com.hereliesaz.ideaz.REQUEST_TARGET_BOUNDS" -> reportTargetWindowBounds()
             }
         }
     }
@@ -36,7 +43,10 @@ class IdeazAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         Log.d(TAG, "Accessibility Service Connected")
 
-        val filter = IntentFilter("com.hereliesaz.ideaz.INTERNAL_TAP_DETECTED")
+        val filter = IntentFilter().apply {
+            addAction("com.hereliesaz.ideaz.INTERNAL_TAP_DETECTED")
+            addAction("com.hereliesaz.ideaz.REQUEST_TARGET_BOUNDS")
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(tapReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
@@ -54,11 +64,54 @@ class IdeazAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // We only care about explicit inspection via tap
+        // Inspection itself is driven by explicit taps. We do watch window changes
+        // so the overlay's interception region keeps tracking the target app as it
+        // opens, moves, or resizes.
+        when (event?.eventType) {
+            AccessibilityEvent.TYPE_WINDOWS_CHANGED,
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> reportTargetWindowBounds()
+        }
     }
 
     override fun onInterrupt() {
         Log.d(TAG, "onInterrupt")
+    }
+
+    /** The package name of the app currently being worked on, if configured. */
+    private fun targetPackage(): String? =
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .getString("target_package_name", null)
+            ?.takeIf { it.isNotBlank() }
+
+    /**
+     * Broadcasts the screen bounds of the target app's window (or no BOUNDS extra
+     * if it isn't on screen) so [IdeazOverlayService] can constrain its
+     * touch-intercepting overlay to exactly that region.
+     */
+    private fun reportTargetWindowBounds() {
+        val pkg = targetPackage()
+        val rect = if (pkg == null) null else findWindowBounds(pkg)
+        val intent = Intent("com.hereliesaz.ideaz.TARGET_WINDOW_BOUNDS").apply {
+            if (rect != null) putExtra("BOUNDS", rect)
+            setPackage(packageName)
+        }
+        sendBroadcast(intent)
+    }
+
+    private fun findWindowBounds(pkg: String): Rect? {
+        return try {
+            windows?.firstOrNull { w ->
+                w.type == AccessibilityWindowInfo.TYPE_APPLICATION &&
+                    w.root?.packageName?.toString() == pkg
+            }?.let { w ->
+                val r = Rect()
+                w.getBoundsInScreen(r)
+                r.takeIf { !it.isEmpty }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "findWindowBounds failed", e)
+            null
+        }
     }
 
     private fun inspectAt(x: Int, y: Int) {

@@ -17,6 +17,7 @@ import android.graphics.Rect
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
+import android.view.Gravity
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import com.hereliesaz.ideaz.MainActivity
@@ -44,6 +45,19 @@ class IdeazOverlayService : Service() {
     private var overlayView: OverlayView? = null
     private var isOverlayAdded = false
 
+    /** Whether selection mode is currently active (touch interception requested). */
+    private var selectMode = false
+
+    /**
+     * Screen bounds of the app currently being worked on, as reported by
+     * [IdeazAccessibilityService]. When set, the touch-intercepting overlay is
+     * constrained to exactly this region so it never blocks IDEaz, other apps, or
+     * the system bars. Null means "no target window on screen" — the overlay then
+     * stays fully pass-through (e.g. web/PWA projects, whose selection is handled
+     * by the in-app SelectionOverlay).
+     */
+    private var targetBounds: Rect? = null
+
     /**
      * Receiver for commands from the main app process.
      */
@@ -54,6 +68,15 @@ class IdeazOverlayService : Service() {
                 "com.hereliesaz.ideaz.TOGGLE_SELECT_MODE" -> {
                     val enable = intent.getBooleanExtra("ENABLE", false)
                     handleSelectionMode(enable)
+                }
+                // Target-app window bounds, reported by IdeazAccessibilityService.
+                "com.hereliesaz.ideaz.TARGET_WINDOW_BOUNDS" -> {
+                    targetBounds = if (Build.VERSION.SDK_INT >= 33) {
+                        intent.getParcelableExtra("BOUNDS", Rect::class.java)
+                    } else {
+                        @Suppress("DEPRECATION") intent.getParcelableExtra("BOUNDS")
+                    }
+                    if (isOverlayAdded) applyOverlayGeometry()
                 }
                 // Command to draw a highlight rectangle (e.g., after selecting an element)
                 "com.hereliesaz.ideaz.HIGHLIGHT_RECT" -> {
@@ -128,6 +151,7 @@ class IdeazOverlayService : Service() {
             addAction("com.hereliesaz.ideaz.TOGGLE_SELECT_MODE")
             addAction("com.hereliesaz.ideaz.HIGHLIGHT_RECT")
             addAction("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP")
+            addAction("com.hereliesaz.ideaz.TARGET_WINDOW_BOUNDS")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
@@ -153,11 +177,21 @@ class IdeazOverlayService : Service() {
     }
 
     private fun handleSelectionMode(enable: Boolean) {
+        selectMode = enable
         if (overlayView == null && Settings.canDrawOverlays(this)) {
             setupOverlay()
         }
         overlayView?.setSelectionMode(enable)
-        updateOverlayParams(enable)
+        if (enable) {
+            // Ask the accessibility service for the current target-app window
+            // bounds so we can constrain interception to it before the user drags.
+            sendBroadcast(
+                Intent("com.hereliesaz.ideaz.REQUEST_TARGET_BOUNDS").apply {
+                    setPackage(packageName)
+                }
+            )
+        }
+        applyOverlayGeometry()
     }
 
     /**
@@ -186,29 +220,44 @@ class IdeazOverlayService : Service() {
     }
 
     /**
-     * Updates the Window LayoutParams to toggle touch interception.
+     * Positions and sizes the overlay window, and toggles touch interception.
+     *
+     * The overlay only ever intercepts touches when **both** selection mode is on
+     * **and** a target-app window is known — and then only over that window's
+     * exact bounds. In every other case it is a full-screen, pass-through layer
+     * (visual highlights draw, but touches reach whatever is underneath). This is
+     * what keeps drag-to-select from blocking taps over IDEaz, other apps, or the
+     * system bars.
      */
-    private fun updateOverlayParams(isSelectMode: Boolean) {
+    private fun applyOverlayGeometry() {
         if (!isOverlayAdded || overlayView == null) {
-            if (isSelectMode && Settings.canDrawOverlays(this)) {
-                setupOverlay()
-            } else {
-                return
-            }
+            if (selectMode && Settings.canDrawOverlays(this)) setupOverlay() else return
         }
-
         val params = overlayView?.layoutParams as? WindowManager.LayoutParams ?: return
-        if (isSelectMode) {
-            // Remove NOT_TOUCHABLE -> Intercept touches
-            params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+        val bounds = targetBounds
+
+        params.gravity = Gravity.TOP or Gravity.START
+        if (selectMode && bounds != null && !bounds.isEmpty) {
+            // Constrain the touchable window to the target app's window only.
+            params.x = bounds.left
+            params.y = bounds.top
+            params.width = bounds.width()
+            params.height = bounds.height()
+            params.flags = params.flags and
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv() and
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS.inv()
         } else {
-            // Add NOT_TOUCHABLE -> Pass touches through
+            // Full-screen but pass-through: never intercept globally.
+            params.x = 0
+            params.y = 0
+            params.width = WindowManager.LayoutParams.MATCH_PARENT
+            params.height = WindowManager.LayoutParams.MATCH_PARENT
             params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         }
         try {
             windowManager.updateViewLayout(overlayView, params)
         } catch (e: Exception) {
-            android.util.Log.w("IdeazOverlay", "Overlay service operation failed", e)
+            android.util.Log.w("IdeazOverlay", "Overlay geometry update failed", e)
         }
     }
 
