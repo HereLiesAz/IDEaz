@@ -8,6 +8,7 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.view.MotionEvent
 import android.view.View
+import androidx.core.graphics.withTranslation
 import kotlin.math.abs
 
 /**
@@ -48,6 +49,7 @@ class OverlayView(context: Context) : View(context) {
 
     // Update Splash State
     private var isUpdateSplashVisible = false
+    private val loc = IntArray(2)
     private val textPaint = Paint().apply {
         color = Color.WHITE
         textSize = 60f
@@ -102,25 +104,21 @@ class OverlayView(context: Context) : View(context) {
         // When the overlay window is constrained to the target app's bounds the
         // view's origin is offset from the screen origin, so translate by the
         // window's on-screen location before drawing them. (Full-screen → (0,0).)
-        val loc = IntArray(2)
         getLocationOnScreen(loc)
-        canvas.save()
-        canvas.translate(-loc[0].toFloat(), -loc[1].toFloat())
+        canvas.withTranslation(-loc[0].toFloat(), -loc[1].toFloat()) {
+            highlightRect?.let {
+                drawRect(it, fillPaint)
+                drawRect(it, paint)
+            }
 
-        highlightRect?.let {
-            canvas.drawRect(it, fillPaint)
-            canvas.drawRect(it, paint)
+            if (isDragging) {
+                val left = kotlin.math.min(startX, currentX)
+                val top = kotlin.math.min(startY, currentY)
+                val right = kotlin.math.max(startX, currentX)
+                val bottom = kotlin.math.max(startY, currentY)
+                drawRect(left, top, right, bottom, selectionPaint)
+            }
         }
-
-        if (isDragging) {
-            val left = kotlin.math.min(startX, currentX)
-            val top = kotlin.math.min(startY, currentY)
-            val right = kotlin.math.max(startX, currentX)
-            val bottom = kotlin.math.max(startY, currentY)
-            canvas.drawRect(left, top, right, bottom, selectionPaint)
-        }
-
-        canvas.restore()
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {

@@ -63,6 +63,7 @@ class IdeazAccessibilityService : AccessibilityService() {
         }
     }
 
+    @android.annotation.SuppressLint("SwitchIntDef")
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         // Inspection itself is driven by explicit taps. We do watch window changes
         // so the overlay's interception region keeps tracking the target app as it

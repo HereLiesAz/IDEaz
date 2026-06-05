@@ -167,7 +167,7 @@ name: Jules Issue Handler
 #   2. Issue title/body delivered as ENV VARS, never interpolated into prompt.
 #   3. MCP write tools removed. Read + comment only.
 #   4. Permissions: contents:read + issues:write only.
-#   5. TODO: pin run-gemini-cli to a commit SHA before relying on this in CI.
+#   5. run-gemini-cli is pinned to a commit SHA to protect against supply-chain attacks.
 
 on:
   issues:
@@ -194,7 +194,7 @@ jobs:
           persist-credentials: false
 
       - name: 'Run Gemini CLI (read-only triage mode)'
-        uses: 'google-github-actions/run-gemini-cli@v0'
+        uses: 'google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489'
         env:
           ISSUE_TITLE: ${'$'}{{ github.event.issue.title }}
           ISSUE_BODY: ${'$'}{{ github.event.issue.body }}
@@ -305,7 +305,7 @@ jobs:
           fetch-depth: 0
 
       - name: 'Run Gemini CLI'
-        uses: 'google-github-actions/run-gemini-cli@v0'
+        uses: 'google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489'
         env:
           BRANCH: ${'$'}{{ github.ref_name }}
           REPOSITORY: ${'$'}{{ github.repository }}

@@ -18,3 +18,6 @@ When Phase 0 completes, this file will point to Phase 1's plan.
 - Fixed MediaPipe LLM Inference build failure: resolved duplicate Protobuf classes by excluding `protobuf-javalite` from the MediaPipe dependency.
 - Implemented full MediaPipe LLM Inference on-device runtime, including model loading and one-shot generation.
 - Added "On-device Models" settings section for browsing, downloading, and selecting local LLMs (Gemma, Phi, Qwen).
+- Added Gemma 3 Nano E2B and E4B models to the on-device catalog.
+- Pinned `run-gemini-cli` to a specific SHA in CI workflows to mitigate supply chain vulnerabilities.
+- Performed full User Flow & Navigation audit, mapping PWA loops, Editor flows, and Phase 1 transitions.

@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -48,18 +49,17 @@ private fun humanSize(bytes: Long): String = when {
  * as a no-download, system-managed entry.
  */
 @Composable
-fun OnDeviceModelsSection() {
+fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val store = remember { LocalModelStore(context) }
     val downloads = remember { ModelDownloadManager(context) }
 
     var activeId by remember { mutableStateOf(store.activeModelId) }
-    var token by remember { mutableStateOf(store.downloadToken ?: "") }
     val progress = remember { mutableStateMapOf<String, Float>() }   // 0..1, or -1 = indeterminate
     val downloading = remember { mutableStateMapOf<String, Boolean>() }
     val errors = remember { mutableStateMapOf<String, String>() }
-    var refresh by remember { mutableStateOf(0) }
+    var refresh by remember { mutableIntStateOf(0) }
 
     Text(
         "On-device Models",
@@ -76,19 +76,7 @@ fun OnDeviceModelsSection() {
     )
     Spacer(Modifier.height(8.dp))
 
-    if (LocalModelCatalog.models.any { it.requiresAuth }) {
-        OutlinedTextField(
-            value = token,
-            onValueChange = {
-                token = it
-                store.downloadToken = it.ifBlank { null }
-            },
-            label = { Text("Hugging Face token (for gated models)") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(8.dp))
-    }
+    val hfToken = settingsViewModel.getApiKey(SettingsViewModel.KEY_HF_API_KEY).orEmpty()
 
     LocalModelCatalog.models.forEach { model ->
         val runtime = LocalModelRuntimes.byId(model.runtimeId)
@@ -179,7 +167,7 @@ fun OnDeviceModelsSection() {
                                     progress[model.id] = -1f
                                     scope.launch {
                                         try {
-                                            downloads.download(model, token.ifBlank { null }) { d, t ->
+                                            downloads.download(model, hfToken.ifBlank { null }) { d, t ->
                                                 progress[model.id] = if (t > 0) d.toFloat() / t else -1f
                                             }
                                         } catch (e: Exception) {
@@ -192,7 +180,7 @@ fun OnDeviceModelsSection() {
                                 },
                                 text = "Download",
                                 shape = AzButtonShape.RECTANGLE,
-                                enabled = !model.requiresAuth || token.isNotBlank(),
+                                enabled = !model.requiresAuth || hfToken.isNotBlank(),
                             )
                         }
                     }

@@ -532,7 +532,7 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                OnDeviceModelsSection()
+                OnDeviceModelsSection(settingsViewModel = settingsViewModel)
 
                 Text("Permissions", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
                 Spacer(modifier = Modifier.height(16.dp))

@@ -197,7 +197,7 @@ class GitManager(private val projectDir: File) {
             val cmd = git.checkout().setName(branch)
             // If the branch doesn't exist locally but exists on remote, JGit might handle it if we set start point.
             // But simple checkout usually requires local branch.
-            // For now, let's just try to checkout.
+            // For now, let's just try to check out.
             cmd.call()
         }
     }
