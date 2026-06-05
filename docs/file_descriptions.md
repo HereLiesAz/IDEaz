@@ -113,6 +113,7 @@
 *   `ProjectInitializer.kt`: Project setup + crash reporter injection.
 *   `ProcessExecutor.kt`: Helper to run shell commands.
 *   `SourceContextHelper.kt`: Resolves source locations from `__source__` DOM tags emitted by Web inspect-on-tap.
+*   `GithubSecretBox.kt`: Pure-JVM libsodium-compatible `crypto_box_seal` (BouncyCastle) used to encrypt GitHub Actions secrets in `RepoDelegate.uploadProjectSecrets`.
 *   `ApkInstaller.kt`: Helper to install APKs (Phase 2 path).
 *   `CrashHandler.kt`: JVM uncaught exception handler.
 *   `GithubIssueReporter.kt`: Posts GitHub issues for IDE-internal errors.

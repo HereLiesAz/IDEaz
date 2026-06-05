@@ -71,10 +71,12 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
             } else {
                 signingConfigs.getByName("debug")
             }
-            isMinifyEnabled = false
+            // R8 strips unused library code (notably most of bcprov, of which only
+            // the X25519/Salsa20/Poly1305/Blake2b primitives are reached). Keep
+            // rules live in proguard-rules.pro.
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-
                 "proguard-rules.pro"
             )
         }
@@ -195,6 +197,9 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging.interceptor)
     implementation(libs.kotlinx.serialization.json)
+    // Used for libsodium-compatible crypto_box_seal (GithubSecretBox) to encrypt
+    // GitHub Actions secrets. R8 strips the unused remainder of bcprov in release.
+    implementation(libs.bouncycastle.bcprov)
     implementation(libs.google.genai)
     implementation(libs.google.ai.edge.aicore)
     implementation(libs.androidx.localbroadcastmanager)

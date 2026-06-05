@@ -1,21 +1,66 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
+# IDEaz R8 / ProGuard rules.
 #
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Strategy: keep the (small) app code intact so reflection-driven machinery
+# (Compose, kotlinx.serialization, Retrofit interfaces, AIDL) keeps working, and
+# keep the libraries that resolve types reflectively. R8 then strips the large
+# unused remainder of pulled-in libraries — most importantly bcprov, of which
+# only the X25519 / Salsa20 / Poly1305 / Blake2b primitives are reached.
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Preserve metadata reflection relies on.
+-keepattributes Signature,InnerClasses,EnclosingMethod,Exceptions
+-keepattributes *Annotation*,RuntimeVisibleAnnotations,RuntimeVisibleParameterAnnotations,AnnotationDefault
+-keepattributes SourceFile,LineNumberTable
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# ---- App code -------------------------------------------------------------
+# The app is small; keep it whole rather than risk shrinking/obfuscating a
+# class that is only referenced reflectively (serializers, ViewModels via
+# Compose, Retrofit service interfaces, Parcelables, AIDL stubs).
+-keep class com.hereliesaz.ideaz.** { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# ---- kotlinx.serialization ------------------------------------------------
+-keepclassmembers class kotlinx.serialization.json.** { *** Companion; }
+-keepclasseswithmembers class kotlinx.serialization.json.** { kotlinx.serialization.KSerializer serializer(...); }
+-keep,includedescriptorclasses class **$$serializer { *; }
+-keepclassmembers class * { *** Companion; }
+-keepclasseswithmembers class * { kotlinx.serialization.KSerializer serializer(...); }
+-dontwarn kotlinx.serialization.**
+
+# ---- Retrofit / OkHttp / Okio ---------------------------------------------
+-keep,allowobfuscation,allowshrinking interface retrofit2.Call
+-keep,allowobfuscation,allowshrinking class retrofit2.Response
+-keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
+-dontwarn retrofit2.**
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-dontwarn org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement
+-keepnames class okhttp3.internal.publicsuffix.PublicSuffixDatabase
+
+# ---- google-genai + Jackson (reflective serialization of genai models) ----
+-keep class com.google.genai.** { *; }
+-dontwarn com.google.genai.**
+-keep class com.fasterxml.jackson.** { *; }
+-keepclassmembers class com.fasterxml.jackson.** { *; }
+-dontwarn com.fasterxml.jackson.**
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn javax.annotation.**
+
+# ---- BouncyCastle (let R8 keep only what GithubSecretBox reaches) ----------
+# The lightweight crypto API classes we use are referenced directly, so R8
+# retains them automatically; everything else is dead and gets stripped.
+-dontwarn org.bouncycastle.**
+-dontwarn javax.naming.**
+
+# ---- JGit -----------------------------------------------------------------
+-keep class org.eclipse.jgit.** { *; }
+-dontwarn org.eclipse.jgit.**
+-dontwarn org.slf4j.**
+
+# ---- Android / WebView JS bridge ------------------------------------------
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+-keep class * implements android.os.Parcelable { *; }
+-keepclassmembers enum * {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+}

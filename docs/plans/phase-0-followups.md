@@ -8,6 +8,19 @@ exercised. Recorded here so they don't get lost.
 
 ## 1. Phase 2 — `RepoDelegate.uploadProjectSecrets` regression
 
+> **STATUS: RESOLVED.** Resolution option 2 (pure-JVM NaCl) was taken:
+> `utils/GithubSecretBox` implements libsodium-compatible `crypto_box_seal` with
+> BouncyCastle primitives (X25519 + HSalsa20 + XSalsa20-Poly1305 + Blake2b nonce)
+> — no native binding, no `.so`. `uploadProjectSecrets` again fetches the repo
+> Actions public key, seals each secret, and PUTs it via `createSecret`. bcprov
+> is now an explicit `implementation` dependency; release enables R8
+> (`isMinifyEnabled = true`) to strip its unused remainder (debug ~91 MB →
+> release ~19 MB). Correctness is pinned by `GithubSecretBoxTest` (HSalsa20 known
+> answer vs NaCl `core1.c`, secretbox tamper rejection, full seal→open round
+> trip). Acceptance note: the JVM round trip passes; an end-to-end push to a real
+> repo's secret store still warrants one on-device smoke test. The original
+> write-up is kept for history.
+
 **Where:** `app/src/main/kotlin/com/hereliesaz/ideaz/ui/delegates/RepoDelegate.kt:344-348`
 
 **What happened:** Task 5 of Phase 0 deleted the `lazysodium-android` dependency
