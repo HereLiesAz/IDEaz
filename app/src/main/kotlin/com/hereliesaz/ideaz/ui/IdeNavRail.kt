@@ -50,6 +50,9 @@ fun AzNavHostScope.ideNavRail(
     azTheme(
         defaultShape = AzButtonShape.RECTANGLE,
         headerIconShape = AzHeaderIconShape.NONE,
+        // The app palette is monochrome, so the active rail item is otherwise
+        // indistinguishable; give it a distinct accent.
+        activeColor = Color(0xFFFFC107),
         translucentBackground = Color.Black.copy(alpha = 0.5f),
     )
 
