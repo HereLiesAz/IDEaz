@@ -35,6 +35,11 @@ object AiAdapterFactory {
         settings: SettingsViewModel,
     ): ConversationalAiClient? {
         val base = createRaw(model, context, tools, settings) ?: return null
+        // The app-bridge path delivers the repo itself (snapshot/attachment) and
+        // already repo-wraps its API fallback, so don't double-wrap it with the
+        // tool-calling RepoAwareClient (whose "use read_file/list_files" preamble
+        // is meaningless to the tool-less bridge).
+        if (model.id == AiModels.GEMINI_APP_BRIDGE) return base
         val appName = settings.getAppName()?.takeIf { it.isNotBlank() } ?: "this project"
         val projectType = settings.getProjectType()
         return RepoAwareClient(base, tools, appName, projectType)
@@ -50,14 +55,30 @@ object AiAdapterFactory {
             AiModels.GEMINI_NANO -> GeminiNanoAdapter(context.applicationContext, tools)
 
             AiModels.GEMINI_APP_BRIDGE -> {
-                val primary = GeminiAppBridgeAdapter(context.applicationContext)
+                val appName = settings.getAppName()?.takeIf { it.isNotBlank() } ?: "this project"
+                val projectType = settings.getProjectType()
+                val projectDir = settings.getAppName()
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { settings.getProjectPath(it) }
+                val primary = GeminiAppBridgeAdapter(
+                    context = context.applicationContext,
+                    tools = tools,
+                    projectDir = projectDir,
+                    appName = appName,
+                    projectType = projectType,
+                )
                 // Silent fall-through: if the bridge can't operate (service
                 // not granted, Gemini app missing, timeout) AND a Gemini API
-                // key is set, use that path instead. Without a key, the
-                // primary error surfaces.
+                // key is set, use that path instead. The bridge handles its own
+                // repo delivery; the API fallback is tool-capable, so give *that*
+                // the standard repo-aware wrapper. Without a key, the primary
+                // error surfaces.
                 val googleKey = settings.getGoogleApiKey().orEmpty()
                 if (googleKey.isNotBlank()) {
-                    FallbackAdapter(primary = primary, fallback = GeminiAdapter(googleKey, tools))
+                    FallbackAdapter(
+                        primary = primary,
+                        fallback = RepoAwareClient(GeminiAdapter(googleKey, tools), tools, appName, projectType),
+                    )
                 } else {
                     primary
                 }
