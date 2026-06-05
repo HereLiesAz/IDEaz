@@ -281,6 +281,18 @@ class RepoDelegate(
                 val generatedPackage = "com.$sanitizedUser.$sanitizedApp"
                 settingsViewModel.saveTargetPackageName(generatedPackage)
 
+                // Clone the fork locally so there is an on-device project to edit
+                // and preview. Without this the fork existed only on GitHub and the
+                // flow dead-ended (no local files, nothing to initialise/preview).
+                val projectDir = settingsViewModel.getProjectPath(response.name)
+                if (!GitManager(projectDir).isRepo()) {
+                    onOverlayLog("Cloning $newOwner/${response.name}...")
+                    cloneWithRetry(projectDir, newOwner, response.name, token)
+                    if (!GitManager(projectDir).isRepo()) {
+                        throw Exception("Failed to clone the forked repository locally.")
+                    }
+                }
+
                 onSuccess(newOwner, response.name, newBranch)
 
             } catch (e: Exception) {
