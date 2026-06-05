@@ -323,7 +323,6 @@ class MainViewModel(
     val isLoadingJulesResponse = aiDelegate.isLoadingJulesResponse
     val julesError = aiDelegate.julesError
     val currentJulesSessionId = aiDelegate.currentJulesSessionId
-    val showCancelDialog = MutableStateFlow(false).asStateFlow()
 
     // --- Artifact Check State ---
 
@@ -1146,35 +1145,36 @@ class MainViewModel(
 
     private suspend fun downloadFile(urlStr: String, destination: File, onProgress: (Int) -> Unit): Boolean {
         return withContext(Dispatchers.IO) {
+            var connection: HttpURLConnection? = null
             try {
                 val url = URL(urlStr)
-                val connection = url.openConnection() as HttpURLConnection
-                connection.connect()
+                connection = (url.openConnection() as HttpURLConnection).also { it.connect() }
 
                 if (connection.responseCode != HttpURLConnection.HTTP_OK) {
                     return@withContext false
                 }
 
                 val fileLength = connection.contentLength
-                val input = connection.inputStream
-                val output = FileOutputStream(destination)
-
-                val data = ByteArray(4096)
-                var total: Long = 0
-                var count: Int
-                while (input.read(data).also { count = it } != -1) {
-                    total += count
-                    if (fileLength > 0) {
-                        onProgress((total * 100 / fileLength).toInt())
+                connection.inputStream.use { input ->
+                    FileOutputStream(destination).use { output ->
+                        val data = ByteArray(4096)
+                        var total: Long = 0
+                        var count: Int
+                        while (input.read(data).also { count = it } != -1) {
+                            total += count
+                            if (fileLength > 0) {
+                                onProgress((total * 100 / fileLength).toInt())
+                            }
+                            output.write(data, 0, count)
+                        }
                     }
-                    output.write(data, 0, count)
                 }
-                output.close()
-                input.close()
                 true
             } catch (e: Exception) {
                 android.util.Log.w("MainViewModel", "Operation failed", e)
                 false
+            } finally {
+                connection?.disconnect()
             }
         }
     }

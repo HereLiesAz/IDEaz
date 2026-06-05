@@ -7,8 +7,9 @@ data class ProcessResult(val exitCode: Int, val output: String)
 
 object ProcessExecutor {
     fun execute(command: List<String>): ProcessResult {
+        var process: Process? = null
         return try {
-            val process = ProcessBuilder(command)
+            process = ProcessBuilder(command)
                 .redirectErrorStream(true)
                 .start()
 
@@ -23,6 +24,8 @@ object ProcessExecutor {
         } catch (e: Exception) {
             android.util.Log.w("ProcessExecutor", "Process invocation failed", e)
             ProcessResult(-1, e.message ?: "Unknown error")
+        } finally {
+            process?.destroy()
         }
     }
 
@@ -31,8 +34,9 @@ object ProcessExecutor {
         onOutputLine: (String) -> Unit,
         onCompletion: (Int) -> Unit
     ) {
+        var process: Process? = null
         try {
-            val process = ProcessBuilder(command)
+            process = ProcessBuilder(command)
                 .redirectErrorStream(true)
                 .start()
 
@@ -45,6 +49,8 @@ object ProcessExecutor {
             android.util.Log.w("ProcessExecutor", "Process invocation failed", e)
             onOutputLine("Error: ${e.message ?: "Unknown error"}")
             onCompletion(-1)
+        } finally {
+            process?.destroy()
         }
     }
 
@@ -52,8 +58,9 @@ object ProcessExecutor {
         command: List<String>,
         onOutputLine: (String) -> Unit
     ): ProcessResult {
+        var process: Process? = null
         return try {
-            val process = ProcessBuilder(command)
+            process = ProcessBuilder(command)
                 .redirectErrorStream(true)
                 .start()
 
@@ -73,6 +80,8 @@ object ProcessExecutor {
             val msg = e.message ?: "Unknown error"
             onOutputLine("Error: $msg")
             ProcessResult(-1, msg)
+        } finally {
+            process?.destroy()
         }
     }
 }

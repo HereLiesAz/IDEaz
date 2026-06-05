@@ -259,29 +259,31 @@ class GitManager(private val projectDir: File) {
 
                 if (branchId == null || baseId == null) return@use false
 
-                val walk = org.eclipse.jgit.revwalk.RevWalk(repository)
-                val branchCommit = walk.parseCommit(branchId)
-                val baseCommit = walk.parseCommit(baseId)
+                org.eclipse.jgit.revwalk.RevWalk(repository).use { walk ->
+                    val branchCommit = walk.parseCommit(branchId)
+                    val baseCommit = walk.parseCommit(baseId)
 
-                // Check if branch has commits not in base
-                // count(base..branch) > 0
-                walk.setRevFilter(org.eclipse.jgit.revwalk.filter.RevFilter.MERGE_BASE)
-                walk.markStart(branchCommit)
-                walk.markStart(baseCommit)
-                val mergeBase = walk.next()
+                    // Check if branch has commits not in base
+                    // count(base..branch) > 0
+                    walk.setRevFilter(org.eclipse.jgit.revwalk.filter.RevFilter.MERGE_BASE)
+                    walk.markStart(branchCommit)
+                    walk.markStart(baseCommit)
+                    val mergeBase = walk.next()
 
-                // Reset walk for counting
-                walk.reset()
-                walk.setRevFilter(org.eclipse.jgit.revwalk.filter.RevFilter.ALL)
-                walk.markStart(branchCommit)
-                if (mergeBase != null) {
-                    walk.markUninteresting(mergeBase)
+                    // Reset walk for counting
+                    walk.reset()
+                    walk.setRevFilter(org.eclipse.jgit.revwalk.filter.RevFilter.ALL)
+                    walk.markStart(branchCommit)
+                    if (mergeBase != null) {
+                        walk.markUninteresting(mergeBase)
+                    }
+
+                    // Simple check: does the walk return anything?
+                    walk.iterator().hasNext()
                 }
-
-                // Simple check: does the walk return anything?
-                walk.iterator().hasNext()
             }
         } catch (e: Exception) {
+            android.util.Log.w("GitManager", "isAhead($branch, $base) failed", e)
             false
         }
     }

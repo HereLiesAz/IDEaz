@@ -40,9 +40,16 @@ object SourceContextHelper {
             val lineStr = content.substring(lastColonIndex + 1)
             val lineNumber = lineStr.toIntOrNull() ?: 0
 
-            // Resolve relative path against projectDir
-            val filePath = File(projectDir, fileName).absolutePath
-            val file = File(filePath)
+            // Resolve relative path against projectDir, then enforce containment.
+            // The tag originates from the in-WebView inspect bridge, so a crafted
+            // value (e.g. "../../secret") must not be allowed to read outside the
+            // project directory.
+            val projectRoot = projectDir.canonicalFile
+            val file = File(projectDir, fileName).canonicalFile
+            if (!file.toPath().startsWith(projectRoot.toPath())) {
+                return ContextResult("", lineNumber, "", true, "Source path escapes project directory")
+            }
+            val filePath = file.absolutePath
             if (!file.exists()) {
                 return ContextResult(filePath, lineNumber, "", true, "Source file not found: $filePath")
             }

@@ -120,11 +120,11 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
     - name: Build Release APK
-      run: ./gradlew assembleDebug # Should be assembleRelease in real scenario
+      run: ./gradlew assembleRelease
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
-        files: app/build/outputs/apk/debug/app-debug.apk
+        files: app/build/outputs/apk/release/*.apk
 """.trimIndent()
 
     private val WEB_CI_PAGES_YML = """
@@ -505,7 +505,7 @@ jobs:
 val versionProps = Properties()
 val versionPropsFile = rootProject.file("version.properties")
 if (versionPropsFile.exists()) {
-    versionProps.load(FileInputStream(versionPropsFile))
+    FileInputStream(versionPropsFile).use { versionProps.load(it) }
 }
 
 val major = versionProps.getProperty("major", "1").toInt()
@@ -560,7 +560,7 @@ val buildNumber = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
 def versionProps = new Properties()
 def versionPropsFile = rootProject.file("version.properties")
 if (versionPropsFile.exists()) {
-    versionProps.load(new FileInputStream(versionPropsFile))
+    versionPropsFile.withInputStream { stream -> versionProps.load(stream) }
 }
 
 def major = versionProps.getProperty("major", "1").toInteger()

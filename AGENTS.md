@@ -34,7 +34,7 @@ If a doc and the design doc disagree, the design doc wins.
 ## Critical Known Issues / Discrepancies
 
 *   **`RepoDelegate.uploadProjectSecrets` is a no-op stub.** Lazysodium was removed in Phase 0; the sealed-box encryption needed to push GitHub Actions secrets has no replacement yet. Phase 2 must restore this before Actions-based workflows can consume device-side credentials. See `docs/plans/phase-0-followups.md`.
-*   **WebView `file://` URI exposure.** Phase 0 / Task 10 left `WebSettings.allowFileAccessFromFileURLs` and `allowUniversalAccessFromFileURLs` set with `@Suppress("DEPRECATION")`. They are real cross-origin file-read / universal-XSS hazards. Phase 1's `WebViewAssetLoader` migration (to `https://appassets.androidplatform.net`) must delete both flags. See `docs/plans/phase-0-followups.md`.
+*   **WebView `file://` URI exposure — RESOLVED (Phase 1).** The `WebViewAssetLoader` migration to `https://appassets.androidplatform.net` is complete. `WebProjectHost` now sets `allowFileAccess = false` / `allowContentAccess = false`, and the deprecated `allowFileAccessFromFileURLs` / `allowUniversalAccessFromFileURLs` flags have been removed (see `WebProjectHost.kt`). `SourceContextHelper` additionally enforces project-directory containment on the JS-bridge `__source:` tag.
 
 ## Documentation Index
 

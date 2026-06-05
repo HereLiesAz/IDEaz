@@ -132,7 +132,14 @@ class SystemEventDelegate(
      * Must be called when the ViewModel is cleared.
      */
     fun cleanup() {
-        try { application.unregisterReceiver(promptReceiver) } catch (e: Exception) {}
-        try { application.unregisterReceiver(visibilityReceiver) } catch (e: Exception) {}
+        // A receiver that was never registered (or already unregistered) throws
+        // IllegalArgumentException; that's expected here, so log at debug rather
+        // than swallowing silently.
+        try { application.unregisterReceiver(promptReceiver) } catch (e: Exception) {
+            android.util.Log.d("SystemEventDelegate", "promptReceiver not registered", e)
+        }
+        try { application.unregisterReceiver(visibilityReceiver) } catch (e: Exception) {
+            android.util.Log.d("SystemEventDelegate", "visibilityReceiver not registered", e)
+        }
     }
 }

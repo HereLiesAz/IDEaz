@@ -213,7 +213,9 @@ private fun AiToolSpec.toOpenAiTool(): JsonElement = buildJsonObject {
  */
 private fun parseToolArgs(raw: String): Map<String, String?> {
     if (raw.isBlank()) return emptyMap()
-    val element = runCatching { OpenAiCompatibleAdapter.JSON.parseToJsonElement(raw) }.getOrNull()
+    val element = runCatching { OpenAiCompatibleAdapter.JSON.parseToJsonElement(raw) }
+        .onFailure { android.util.Log.w("OpenAiCompatibleAdapter", "Malformed tool-call arguments JSON; dispatching with no args", it) }
+        .getOrNull()
         ?: return emptyMap()
     val obj = element as? JsonObject ?: return emptyMap()
     return obj.entries.associate { (k, v) ->
