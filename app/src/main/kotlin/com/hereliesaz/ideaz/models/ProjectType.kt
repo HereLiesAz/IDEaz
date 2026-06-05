@@ -17,6 +17,13 @@ enum class ProjectType(val displayName: String) {
     fun isWebLike(): Boolean = this == WEB || this == PWA || this == REACT
 
     companion object {
+        /**
+         * The project types a user can actually create or select. OTHER and
+         * UNKNOWN are internal-only sentinels (an unsupported or not-yet-detected
+         * folder) and are never offered as a choice in the UI.
+         */
+        val selectable: List<ProjectType> = listOf(ANDROID, WEB, PWA, REACT)
+
         fun fromString(value: String?): ProjectType {
             return values().find { it.name == value } ?: UNKNOWN
         }

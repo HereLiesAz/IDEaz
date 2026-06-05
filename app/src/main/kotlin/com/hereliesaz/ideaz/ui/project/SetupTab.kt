@@ -80,7 +80,10 @@ fun ProjectSetupTab(
             githubUser = settingsViewModel.getGithubUser() ?: ""
             branchName = settingsViewModel.getBranchName()
             packageName = settingsViewModel.getTargetPackageName() ?: "com.example"
+            // Never surface OTHER/UNKNOWN in the picker — fall back to a real,
+            // selectable type if the stored value isn't one the user can pick.
             selectedType = ProjectType.fromString(settingsViewModel.getProjectType())
+                .takeIf { it in ProjectType.selectable } ?: ProjectType.ANDROID
             if (appName.isNotBlank()) viewModel.fetchSessionsForRepo(appName)
         } else {
             if (appName == "IDEazProject") appName = ""
@@ -229,7 +232,7 @@ fun ProjectSetupTab(
                     expanded = expanded,
                     onDismissRequest = { expanded = false }
                 ) {
-                    ProjectType.values().forEach { type ->
+                    ProjectType.selectable.forEach { type ->
                         DropdownMenuItem(
                             text = { Text(type.displayName) },
                             onClick = {
