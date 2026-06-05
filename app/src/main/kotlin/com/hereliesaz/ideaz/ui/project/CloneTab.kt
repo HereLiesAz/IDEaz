@@ -31,6 +31,7 @@ fun ProjectCloneTab(
     settingsViewModel: SettingsViewModel,
     context: Context,
     onRepoSelected: (GitHubRepoResponse) -> Unit,
+    onForkRepo: (String) -> Unit,
     onCreateNewSelected: () -> Unit,
     onNavigateToSettings: () -> Unit
 ) {
@@ -54,7 +55,7 @@ fun ProjectCloneTab(
                 modifier = Modifier.fillMaxWidth(),
                 leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
                 onSubmit = {
-                    viewModel.forkRepository(cloneUrl)
+                    onForkRepo(cloneUrl)
                     Toast.makeText(context, "Forking...", Toast.LENGTH_SHORT).show()
                 },
                 submitButtonContent = { Text("Fork") },

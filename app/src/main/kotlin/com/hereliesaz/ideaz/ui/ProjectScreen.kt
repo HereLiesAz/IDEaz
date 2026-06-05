@@ -346,6 +346,14 @@ fun ProjectScreen(
                             }
                         }
                     },
+                    onForkRepo = { url ->
+                        if (checkKeys()) {
+                            viewModel.forkRepository(url) {
+                                isCreateMode = false
+                                tabIndex = tabs.indexOf("Setup")
+                            }
+                        }
+                    },
                     onCreateNewSelected = {
                         if (checkKeys()) {
                             isCreateMode = true // Enable Create mode
