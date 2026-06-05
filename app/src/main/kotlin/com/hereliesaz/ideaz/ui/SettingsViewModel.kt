@@ -51,6 +51,7 @@ object AiModels {
     const val CEREBRAS_LLAMA = "CEREBRAS_LLAMA"
     const val HF_INFERENCE = "HF_INFERENCE"
     const val MISTRAL_SMALL = "MISTRAL_SMALL"
+    const val LOCAL_MODEL = "LOCAL_MODEL"
 
     val JULES = AiModel(JULES_DEFAULT, "Jules", SettingsViewModel.KEY_API_KEY)
     // Display name tracks the actual model id used in GeminiAdapter (currently
@@ -77,7 +78,11 @@ object AiModels {
     val HF        = AiModel(HF_INFERENCE,    "Hugging Face Inference",     SettingsViewModel.KEY_HF_API_KEY)
     val MISTRAL   = AiModel(MISTRAL_SMALL,   "Mistral Small (free)",       SettingsViewModel.KEY_MISTRAL_API_KEY)
 
-    val availableModels = listOf(NANO, BRIDGE, GEMINI, GROQ, CEREBRAS, HF, MISTRAL, JULES, CLI)
+    // User-downloaded / system-managed on-device model. No API key; the active
+    // model + runtime are chosen under Settings → On-device models.
+    val LOCAL     = AiModel(LOCAL_MODEL,     "On-device model",            "")
+
+    val availableModels = listOf(NANO, BRIDGE, LOCAL, GEMINI, GROQ, CEREBRAS, HF, MISTRAL, JULES, CLI)
 
     fun findById(id: String?): AiModel? = availableModels.find { it.id == id }
 }
