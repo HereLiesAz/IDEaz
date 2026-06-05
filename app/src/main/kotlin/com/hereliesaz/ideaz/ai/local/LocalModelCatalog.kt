@@ -7,6 +7,9 @@ package com.hereliesaz.ideaz.ai.local
  * before the download will succeed. URLs are direct download links; the download
  * manager is URL-generic, so this catalog can grow without code changes.
  */
+/** One extra file that belongs to a multi-file model (e.g. an ONNX model dir). */
+data class LocalModelFile(val url: String, val fileName: String)
+
 data class LocalModel(
     val id: String,
     val name: String,
@@ -17,6 +20,13 @@ data class LocalModel(
     val requiresAuth: Boolean = false,
     /** True for runtimes that manage their own model (e.g. AICore): no file download. */
     val systemManaged: Boolean = false,
+    /**
+     * Extra files for multi-file models. ONNX GenAI ships a *directory* (model +
+     * genai_config.json + tokenizer files); all files download into the model's
+     * own directory, which the runtime is pointed at. Empty for single-file
+     * models (MediaPipe `.task`, llama.cpp `.gguf`).
+     */
+    val additionalFiles: List<LocalModelFile> = emptyList(),
     val notes: String = "",
 )
 
@@ -56,15 +66,26 @@ object LocalModelCatalog {
             fileName = "gemma-2-2b-it.Q4_K_M.gguf",
             notes = "Stronger; wants ~3 GB free RAM.",
         ),
-        LocalModel(
-            id = "phi3_5-mini-onnx",
-            name = "Phi-3.5 Mini Instruct (ONNX GenAI)",
-            runtimeId = "onnx",
-            url = "https://huggingface.co/microsoft/Phi-3.5-mini-instruct-onnx/resolve/main/cpu_and_mobile/cpu-int4-rtn-block-32-acc-level-4/model.onnx.data",
-            approxSizeBytes = 2_200_000_000,
-            fileName = "phi3.5-mini.onnx.data",
-            notes = "ONNX Runtime GenAI; CPU int4.",
-        ),
+        run {
+            val base = "https://huggingface.co/microsoft/Phi-3.5-mini-instruct-onnx/resolve/main/" +
+                "cpu_and_mobile/cpu-int4-rtn-block-32-acc-level-4/"
+            LocalModel(
+                id = "phi3_5-mini-onnx",
+                name = "Phi-3.5 Mini Instruct (ONNX GenAI · CPU int4)",
+                runtimeId = "onnx",
+                url = base + "model.onnx",
+                approxSizeBytes = 2_200_000_000,
+                fileName = "model.onnx",
+                additionalFiles = listOf(
+                    LocalModelFile(base + "model.onnx.data", "model.onnx.data"),
+                    LocalModelFile(base + "genai_config.json", "genai_config.json"),
+                    LocalModelFile(base + "tokenizer.json", "tokenizer.json"),
+                    LocalModelFile(base + "tokenizer_config.json", "tokenizer_config.json"),
+                    LocalModelFile(base + "special_tokens_map.json", "special_tokens_map.json"),
+                ),
+                notes = "ONNX Runtime GenAI; multi-file model directory. Verify file list before use.",
+            )
+        },
         LocalModel(
             id = "gemma2-2b-it-mediapipe",
             name = "Gemma 2 2B Instruct (MediaPipe .task)",

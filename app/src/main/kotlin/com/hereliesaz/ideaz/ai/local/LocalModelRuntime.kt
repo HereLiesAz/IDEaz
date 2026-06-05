@@ -57,7 +57,12 @@ object MediaPipeRuntime : LocalModelRuntime {
         }
 }
 
-/** llama.cpp — any GGUF model. Wired in a follow-up. */
+/**
+ * llama.cpp — any GGUF model. Pending its native backend: llama.cpp has no
+ * published Android Maven artifact, so enabling it means adding an NDK module
+ * (CMake build of libllama + the `android.llama.cpp.LLamaAndroid` JNI class).
+ * Until that's present [isAvailable] is false and [generate] reports it.
+ */
 object LlamaCppRuntime : LocalModelRuntime {
     override val id = "llamacpp"
     override val displayName = "llama.cpp (GGUF)"
@@ -67,7 +72,13 @@ object LlamaCppRuntime : LocalModelRuntime {
         throw LocalRuntimeUnavailableException(displayName)
 }
 
-/** ONNX Runtime GenAI — Phi-3/3.5, Qwen. Wired in a follow-up. */
+/**
+ * ONNX Runtime GenAI — Phi-3/3.5, Qwen (multi-file model directory). Pending its
+ * backend: add the `com.microsoft.onnxruntime:onnxruntime-genai-android` AAR
+ * (confirm the published version/coordinates), then drive `ai.onnxruntime.genai`
+ * (SimpleGenAI/Model) over the downloaded model directory ([modelFile]'s parent).
+ * Until the dependency is present [isAvailable] is false and [generate] reports it.
+ */
 object OnnxGenAiRuntime : LocalModelRuntime {
     override val id = "onnx"
     override val displayName = "ONNX Runtime GenAI"
