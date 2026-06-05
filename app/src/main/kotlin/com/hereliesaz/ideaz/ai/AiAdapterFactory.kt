@@ -6,6 +6,8 @@ import com.hereliesaz.ideaz.ai.bridge.GeminiAppBridgeAdapter
 import com.hereliesaz.ideaz.ui.AiModel
 import com.hereliesaz.ideaz.ui.AiModels
 import com.hereliesaz.ideaz.ui.SettingsViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Centralised factory that maps a registered [AiModel] to a concrete
@@ -20,7 +22,25 @@ import com.hereliesaz.ideaz.ui.SettingsViewModel
  */
 object AiAdapterFactory {
 
+    /**
+     * Build a [ConversationalAiClient] for [model], wrapped so that — regardless of
+     * provider — the AI is handed the project and told to study it before helping.
+     * Returns null only when the provider can't be built (missing key, or Jules,
+     * which the caller handles separately).
+     */
     fun create(
+        model: AiModel,
+        context: Context,
+        tools: IdeTools,
+        settings: SettingsViewModel,
+    ): ConversationalAiClient? {
+        val base = createRaw(model, context, tools, settings) ?: return null
+        val appName = settings.getAppName()?.takeIf { it.isNotBlank() } ?: "this project"
+        val projectType = settings.getProjectType()
+        return RepoAwareClient(base, tools, appName, projectType)
+    }
+
+    private fun createRaw(
         model: AiModel,
         context: Context,
         tools: IdeTools,
@@ -77,6 +97,14 @@ object AiAdapterFactory {
                 tools = tools,
             )
 
+            // On-device model the user downloaded (or AICore, system-managed).
+            // The active model + its runtime are resolved at call time.
+            AiModels.LOCAL_MODEL -> com.hereliesaz.ideaz.ai.local.LocalLlmAdapter(
+                context = context.applicationContext,
+                store = com.hereliesaz.ideaz.ai.local.LocalModelStore(context),
+                downloads = com.hereliesaz.ideaz.ai.local.ModelDownloadManager(context),
+            )
+
             // Jules has its own session/poll lifecycle outside the
             // ConversationalAiClient contract; callers handle it directly.
             AiModels.JULES_DEFAULT -> null
@@ -96,4 +124,62 @@ object AiAdapterFactory {
         if (key.isBlank()) return null
         return OpenAiCompatibleAdapter(baseUrl = baseUrl, apiKey = key, model = model, tools = tools)
     }
+}
+
+/**
+ * Wraps any [ConversationalAiClient] so the model is always given the project and
+ * told to study it before helping — independent of provider. The instruction and
+ * a compact file tree are merged into the first user message each request (no
+ * extra turn, so role alternation stays valid for every backend, including the
+ * tool-less on-device / app-bridge paths). Tool-capable backends additionally use
+ * read_file / list_files to dig in; tool-less ones at least see the structure.
+ */
+private class RepoAwareClient(
+    private val delegate: ConversationalAiClient,
+    private val tools: IdeTools,
+    private val appName: String,
+    private val projectType: String,
+) : ConversationalAiClient {
+    override suspend fun chat(messages: List<ChatMessage>): String {
+        val preamble = withContext(Dispatchers.IO) {
+            AiRepoContext.systemPreamble(appName, projectType, tools.repoMap())
+        }
+        val enriched = if (messages.isEmpty()) {
+            listOf(ChatMessage("user", preamble))
+        } else {
+            val firstUser = messages.indexOfFirst { it.role == "user" }
+            if (firstUser == -1) {
+                listOf(ChatMessage("user", preamble)) + messages
+            } else {
+                messages.mapIndexed { i, m ->
+                    if (i == firstUser) {
+                        ChatMessage(m.role, listOf(ChatPart.Text(preamble + "\n\n")) + m.parts)
+                    } else m
+                }
+            }
+        }
+        return delegate.chat(enriched)
+    }
+}
+
+/** Builds the provider-agnostic "study the project first" system preamble. */
+object AiRepoContext {
+    fun systemPreamble(appName: String, projectType: String, repoMap: String): String = """
+        You are an expert AI pair-programmer embedded in IDEaz, a mobile IDE. You are
+        helping the user build their project "$appName" (type: $projectType). The full
+        project source is available to you.
+
+        Before answering or changing anything, STUDY THE PROJECT so your help fits how
+        it is actually built:
+        - Read the relevant files — entry points, configuration, and whatever the
+          request touches — using the read_file and list_files tools. The project file
+          tree below is your starting map.
+        - Understand the language/framework, dependencies, structure, and existing
+          conventions, then follow them.
+        - Make focused, idiomatic changes that build on the existing code, and briefly
+          explain what you changed and why.
+
+        Project file tree:
+        $repoMap
+    """.trimIndent()
 }
