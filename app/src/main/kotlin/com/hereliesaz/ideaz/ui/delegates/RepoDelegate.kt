@@ -288,6 +288,9 @@ class RepoDelegate(
                 if (!GitManager(projectDir).isRepo()) {
                     onOverlayLog("Cloning $newOwner/${response.name}...")
                     cloneWithRetry(projectDir, newOwner, response.name, token)
+                    if (!GitManager(projectDir).isRepo()) {
+                        throw Exception("Failed to clone the forked repository locally.")
+                    }
                 }
 
                 onSuccess(newOwner, response.name, newBranch)
