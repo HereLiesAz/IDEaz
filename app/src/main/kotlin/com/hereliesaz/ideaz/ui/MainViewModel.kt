@@ -627,14 +627,16 @@ class MainViewModel(
     fun uploadProjectSecrets(o: String, r: String) = repoDelegate.uploadProjectSecrets(o, r)
 
     /** Creates a new repo and initializes the project. */
-    fun createGitHubRepository(name: String, desc: String, priv: Boolean, type: ProjectType, pkg: String, ctx: Context, onSuccess: () -> Unit) {
+    fun createGitHubRepository(name: String, desc: String, priv: Boolean, type: ProjectType, pkg: String, ctx: Context, initialPrompt: String? = null, onSuccess: () -> Unit) {
         repoDelegate.createGitHubRepository(name, desc, priv, type, pkg, ctx) { owner, branch ->
             // Local content is either cloned from the template repo (generate
             // flow, handled in RepoDelegate) or scaffolded from the bundled
             // template by saveAndInitialize's ensureTemplate when the directory
             // is still empty (fallback). Either way ensureTemplate is a no-op
-            // once files are present, so we don't copy here.
-            saveAndInitialize(name, owner, branch, pkg, type, ctx)
+            // once files are present, so we don't copy here. The initial prompt
+            // is dispatched by saveAndInitialize AFTER scaffolding, so the AI
+            // never runs against an empty project.
+            saveAndInitialize(name, owner, branch, pkg, type, ctx, initialPrompt)
             onSuccess()
         }
     }
@@ -688,6 +690,13 @@ class MainViewModel(
             // Check for remote artifacts if it's an Android project
             if (type == ProjectType.ANDROID) {
                 startArtifactPolling(user, appName)
+            }
+
+            // Dispatch the initial prompt only now — the project is scaffolded and
+            // the build kicked off, so the AI runs against real files (fixes the
+            // race where the prompt fired before scaffolding finished).
+            if (!initialPrompt.isNullOrBlank()) {
+                sendPrompt(initialPrompt)
             }
         }
     }

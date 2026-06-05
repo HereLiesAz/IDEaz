@@ -292,13 +292,11 @@ fun ProjectSetupTab(
                             showTokenRequiredDialog = true
                         } else if (onCheckRequirements()) {
                             viewModel.createGitHubRepository(
-                                appName, repoDescription, false, selectedType, packageName, context
+                                appName, repoDescription, false, selectedType, packageName, context,
+                                initialPrompt = initialPrompt.takeIf { it.isNotBlank() }
                             ) {
                                 viewModel.uploadProjectSecrets(githubUser, appName)
                                 onCreateModeChanged(false)
-                                if (initialPrompt.isNotBlank()) {
-                                    viewModel.sendPrompt(initialPrompt)
-                                }
                             }
                         }
                     },

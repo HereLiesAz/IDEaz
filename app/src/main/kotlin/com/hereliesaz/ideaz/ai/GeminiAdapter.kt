@@ -4,7 +4,6 @@ import com.google.genai.Client
 import com.google.genai.types.Blob
 import com.google.genai.types.Content
 import com.google.genai.types.FunctionDeclaration
-import com.google.genai.types.FunctionResponse
 import com.google.genai.types.GenerateContentConfig
 import com.google.genai.types.Part
 import com.google.genai.types.Schema
@@ -49,18 +48,15 @@ class GeminiAdapter(
                 val name = call.name().orElse("")
                 val args = call.args().orElse(emptyMap())
                 val output = dispatchTool(name, args)
-                val funcResponse = FunctionResponse.builder()
-                    .name(name)
-                    .response(mapOf("output" to output))
-                    .build()
-                // Role for function-response content in the google-genai SDK.
-                // The older generativeai SDK uses "function"; if the tool-use loop does not
-                // advance after providing results, try "tool" here instead.
+                // Build the function-response turn with the SDK's own helpers.
+                // Content.fromParts sets role "user" — which is what the google-genai
+                // SDK / Gemini API expect for function responses. The previous manual
+                // role("function") was wrong and stalled the tool-use loop until it
+                // hit MAX_TOOL_ROUNDS.
                 contents.add(
-                    Content.builder()
-                        .role("function")
-                        .parts(listOf(Part.builder().functionResponse(funcResponse).build()))
-                        .build()
+                    Content.fromParts(
+                        Part.fromFunctionResponse(name, mapOf<String, Any>("output" to output))
+                    )
                 )
             }
             rounds++
