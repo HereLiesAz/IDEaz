@@ -21,3 +21,4 @@ When Phase 0 completes, this file will point to Phase 1's plan.
 - Added Gemma 3 Nano E2B and E4B models to the on-device catalog.
 - Pinned `run-gemini-cli` to a specific SHA in CI workflows to mitigate supply chain vulnerabilities.
 - Performed full User Flow & Navigation audit, mapping PWA loops, Editor flows, and Phase 1 transitions.
+- Resolved build failure caused by duplicate `protobuf` classes by excluding `protobuf-java` from `google-genai` and standardizing on `protobuf-javalite`.
