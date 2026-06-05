@@ -35,6 +35,7 @@ json = "20260522"
 appcompat = "1.7.1"
 webkit = "1.16.0"
 aicore = "0.0.1-exp02"
+mediapipeGenai = "0.10.24"
 
 # Security-bumped versions for JGit's vulnerable transitive deps (Dependabot #26,
 # #27, #29 Bouncy Castle; #30 Apache HttpClient XSS; #31 commons-lang3 recursion).
@@ -60,6 +61,7 @@ androidx-navigation-compose = { module = "androidx.navigation:navigation-compose
 aznavrail = { module = "com.github.HereLiesAz:AzNavRail", version.ref = "aznavrail" }
 google-genai = { module = "com.google.genai:google-genai", version.ref = "googleGenai" }
 google-ai-edge-aicore = { module = "com.google.ai.edge.aicore:aicore", version.ref = "aicore" }
+mediapipe-tasks-genai = { module = "com.google.mediapipe:tasks-genai", version.ref = "mediapipeGenai" }
 mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "mockwebserver" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }

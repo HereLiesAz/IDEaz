@@ -3,6 +3,9 @@ package com.hereliesaz.ideaz.ai.local
 import android.content.Context
 import com.google.ai.edge.aicore.GenerativeModel
 import com.google.ai.edge.aicore.generationConfig
+import com.google.mediapipe.tasks.genai.llminference.LlmInference
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /** Thrown when a runtime's backend library isn't present in this build yet. */
@@ -32,14 +35,26 @@ interface LocalModelRuntime {
 internal fun classPresent(fqcn: String): Boolean =
     runCatching { Class.forName(fqcn, false, LocalModelRuntime::class.java.classLoader) }.isSuccess
 
-/** MediaPipe LLM Inference — Gemma/Phi/Falcon `.task` models. Wired in a follow-up. */
+/** MediaPipe LLM Inference — Gemma/Phi/Falcon `.task` models. */
 object MediaPipeRuntime : LocalModelRuntime {
     override val id = "mediapipe"
     override val displayName = "MediaPipe LLM Inference"
     override fun isAvailable(context: Context) =
         classPresent("com.google.mediapipe.tasks.genai.llminference.LlmInference")
+
     override suspend fun generate(context: Context, modelFile: File, prompt: String): String =
-        throw LocalRuntimeUnavailableException(displayName)
+        withContext(Dispatchers.IO) {
+            // Loads the model and runs a one-shot generation. (Per-call load is
+            // simple and correct; caching the engine across calls is a future
+            // optimization but needs careful native-resource lifecycle handling.)
+            val options = LlmInference.LlmInferenceOptions.builder()
+                .setModelPath(modelFile.absolutePath)
+                .setMaxTokens(1024)
+                .build()
+            LlmInference.createFromOptions(context.applicationContext, options).use { llm ->
+                llm.generateResponse(prompt)
+            }
+        }
 }
 
 /** llama.cpp — any GGUF model. Wired in a follow-up. */
