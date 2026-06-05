@@ -75,6 +75,7 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
             // the X25519/Salsa20/Poly1305/Blake2b primitives are reached). Keep
             // rules live in proguard-rules.pro.
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -87,9 +88,6 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
-    }
-    kotlin {
-        jvmToolchain(21)
     }
     buildFeatures {
         compose = true
@@ -200,11 +198,11 @@ dependencies {
     // Used for libsodium-compatible crypto_box_seal (GithubSecretBox) to encrypt
     // GitHub Actions secrets. R8 strips the unused remainder of bcprov in release.
     implementation(libs.bouncycastle.bcprov)
-    implementation(libs.google.genai) {
-        exclude(group = "com.google.protobuf", module = "protobuf-java")
-    }
+    implementation(libs.google.genai)
     implementation(libs.google.ai.edge.aicore)
-    implementation(libs.mediapipe.tasks.genai)
+    implementation(libs.mediapipe.tasks.genai) {
+        exclude(group = "com.google.protobuf", module = "protobuf-javalite")
+    }
     implementation(libs.androidx.localbroadcastmanager)
     implementation(libs.aznavrail)
     implementation(libs.androidx.navigation.compose)
