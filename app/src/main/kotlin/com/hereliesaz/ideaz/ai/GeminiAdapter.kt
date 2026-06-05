@@ -115,9 +115,14 @@ private fun String.toSchemaType(): Type.Known = when (this) {
 
 private fun ChatMessage.toContent(): Content {
     val sdkRole = when (role) {
-        "user"  -> "user"
-        "model" -> "model"
-        else    -> error("Unsupported ChatMessage role '$role'. Expected \"user\" or \"model\".")
+        "user", "system", "tool" -> "user"
+        "model", "assistant"     -> "model"
+        else -> {
+            // Gemini only accepts "user"/"model"; never crash the whole chat on an
+            // unexpected role — degrade to "user" and log it.
+            android.util.Log.w("GeminiAdapter", "Unexpected ChatMessage role '$role'; treating as user.")
+            "user"
+        }
     }
     val sdkParts = parts.map { part ->
         when (part) {

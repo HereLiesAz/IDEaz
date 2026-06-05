@@ -897,7 +897,13 @@ class MainViewModel(
             }
 
             val user = settingsViewModel.getGithubUser()
-            if (!user.isNullOrBlank()) repoDelegate.uploadProjectSecrets(user, name)
+            if (!user.isNullOrBlank()) {
+                repoDelegate.uploadProjectSecrets(user, name)
+                // Restore prior AI sessions for this repo. The clone/select flow
+                // (selectRepositoryForSetup) does this; loading a local project
+                // must too, or the Setup tab shows no resumable sessions.
+                aiDelegate.fetchSessionsForRepo("$user/$name")
+            }
 
             // Re-mount: clear any prior preview so launchTargetApp mounts THIS
             // project, then actually show it (web → live preview, Android → host).

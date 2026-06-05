@@ -89,7 +89,12 @@ class RemoteBuildManager(
                 api.listWorkflowRuns(user, repo, headSha = headSha, perPage = 10)
                     .workflowRuns
                     .matchHint()
-            } catch (_: Exception) { null }
+            } catch (e: Exception) {
+                // Don't poll in silence — a persistent auth/rate-limit/network
+                // error would otherwise look identical to "no run yet".
+                onLog("Remote Build: workflow lookup failed (${e.message}). Retrying...\n")
+                null
+            }
             if (match != null) {
                 onLog("Remote Build Started. Run ID: ${match.id} (${match.name})\n")
                 return match
@@ -103,7 +108,7 @@ class RemoteBuildManager(
         return try {
             val recent = api.listWorkflowRuns(user, repo, headSha = null, perPage = 10).workflowRuns
             recent.matchHint()?.also {
-                onLog("Remote Build Fallback: Using Run ID: ${it.id} (${it.name}, status=${it.status})\n")
+                onLog("Remote Build WARNING: SHA-filtered lookup timed out; falling back to the most recent run (Run ID: ${it.id}, ${it.name}, status=${it.status}). This may NOT be your latest push — verify the installed result.\n")
             }
         } catch (e: Exception) {
             onLog("Remote Build Fallback Failed: ${e.message}\n")

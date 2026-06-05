@@ -436,7 +436,9 @@ class RepoDelegate(
      * rather than failing silently.
      */
     fun uploadProjectSecrets(owner: String, repo: String) {
-        scope.launch(Dispatchers.Default) {
+        // Blocking GitHub network calls — must run on IO, not the CPU-bound
+        // Default pool (which has only ~#cores threads and would be starved).
+        scope.launch(Dispatchers.IO) {
             try {
                 onLog("Uploading project secrets to GitHub...")
                 val token = settingsViewModel.getGithubToken()
@@ -490,6 +492,14 @@ class RepoDelegate(
                 val msg = "Secrets uploaded ($uploaded/${secrets.size}) to $owner/$repo."
                 onLog(msg)
                 onOverlayLog(msg)
+                if (uploaded < secrets.size) {
+                    // Don't let a partial upload look like success — a missing
+                    // secret makes the remote Actions build fail later with an
+                    // obscure "env var not set" error.
+                    val warn = "WARNING: ${secrets.size - uploaded} secret(s) failed to upload. The remote build may fail without them."
+                    onLog(warn)
+                    onOverlayLog(warn)
+                }
             } catch (e: Throwable) {
                 onLog("Error uploading secrets: ${e.message}")
             }
