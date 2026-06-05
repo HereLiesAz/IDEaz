@@ -50,6 +50,13 @@
 -dontwarn org.bouncycastle.**
 -dontwarn javax.naming.**
 
+# ---- MediaPipe LLM Inference (on-device runtime; JNI/native) ----------------
+# MediaPipe resolves Java classes from native code by name, so keep it whole.
+-keep class com.google.mediapipe.** { *; }
+-dontwarn com.google.mediapipe.**
+-keep class com.google.protobuf.** { *; }
+-dontwarn com.google.protobuf.**
+
 # ---- JGit -----------------------------------------------------------------
 -keep class org.eclipse.jgit.** { *; }
 -dontwarn org.eclipse.jgit.**
