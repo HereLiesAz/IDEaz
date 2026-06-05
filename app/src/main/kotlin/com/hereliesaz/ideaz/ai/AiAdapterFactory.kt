@@ -97,6 +97,14 @@ object AiAdapterFactory {
                 tools = tools,
             )
 
+            // On-device model the user downloaded (or AICore, system-managed).
+            // The active model + its runtime are resolved at call time.
+            AiModels.LOCAL_MODEL -> com.hereliesaz.ideaz.ai.local.LocalLlmAdapter(
+                context = context.applicationContext,
+                store = com.hereliesaz.ideaz.ai.local.LocalModelStore(context),
+                downloads = com.hereliesaz.ideaz.ai.local.ModelDownloadManager(context),
+            )
+
             // Jules has its own session/poll lifecycle outside the
             // ConversationalAiClient contract; callers handle it directly.
             AiModels.JULES_DEFAULT -> null
