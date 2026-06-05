@@ -15,3 +15,4 @@ When Phase 0 completes, this file will point to Phase 1's plan.
 - Fixed compilation error in `AiChatTab.kt` by updating it to pass `MainViewModel` to `ContextlessChatInput`.
 - Fixed CodeQL high priority "Zip Slip" vulnerability in `BackupManager.kt` and `RemoteBuildManager.kt`.
 - Improved crash reporting by allowing explicit stack trace strings in `GithubIssueReporter`, fixing an issue where fatal crashes had their stack traces truncated or lost.
+- Fixed duplicate class build failure (`protobuf-java` vs `protobuf-javalite`) by excluding `protobuf-java` from the `google-genai` dependency in `app/build.gradle.kts`.
