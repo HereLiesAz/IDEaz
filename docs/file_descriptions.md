@@ -57,6 +57,17 @@
 *   `CrashReportingService.kt`: Service for fatal error reporting in `:crash_reporter`.
 *   `ScreenshotService.kt`: `MediaProjection` virtual display for region screenshots.
 
+#### ai/
+*   `AiAdapterFactory.kt`: Centralized factory that maps AI models to concrete adapters.
+*   `OpenAiCompatibleAdapter.kt`: Generic adapter for OpenAI-compatible `/chat/completions` endpoints.
+*   `AnthropicAdapter.kt`: Custom adapter for Anthropic's Messages API schema.
+*   `DynamicModelResolver.kt`: Resolves the absolute latest version of a model by querying provider endpoints.
+*   `GeminiAdapter.kt`: Uses the `google-genai` SDK for Gemini models.
+*   `GeminiNanoAdapter.kt`: Specialized adapter for on-device Gemini Nano.
+*   `ConversationalAiClient.kt`: Base interface for AI clients.
+*   `IdeTools.kt`: Definitions and dispatcher for IDE tools available to the AI.
+*   `ToolSchema.kt`: JSON schemas for tools.
+
 #### ai/local/
 *   `LocalModelRuntime.kt`: Interface and implementations for on-device backends (MediaPipe, AICore, etc.).
 *   `LocalModelCatalog.kt`: Curated list of downloadable on-device models.

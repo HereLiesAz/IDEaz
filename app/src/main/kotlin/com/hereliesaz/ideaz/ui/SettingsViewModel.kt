@@ -52,6 +52,9 @@ object AiModels {
     const val CEREBRAS_LLAMA = "CEREBRAS_LLAMA"
     const val HF_INFERENCE = "HF_INFERENCE"
     const val MISTRAL_SMALL = "MISTRAL_SMALL"
+    const val OPENAI_GPT4O = "OPENAI_GPT4O"
+    const val ANTHROPIC_CLAUDE = "ANTHROPIC_CLAUDE"
+    const val DEEPSEEK_CODER = "DEEPSEEK_CODER"
     const val LOCAL_MODEL = "LOCAL_MODEL"
 
     val JULES = AiModel(JULES_DEFAULT, "Jules", SettingsViewModel.KEY_API_KEY)
@@ -74,16 +77,19 @@ object AiModels {
     // Cerebras and Mistral Small (free) are NOT vision-capable; HF Inference
     // depends on the served model. Mark all conservatively as text-only.
     // Users who add a key for a vision model can override per-call later.
-    val GROQ      = AiModel(GROQ_LLAMA,      "Groq · Llama 3.3 70B",       SettingsViewModel.KEY_GROQ_API_KEY)
-    val CEREBRAS  = AiModel(CEREBRAS_LLAMA,  "Cerebras · Llama 3.1 70B",   SettingsViewModel.KEY_CEREBRAS_API_KEY)
-    val HF        = AiModel(HF_INFERENCE,    "Hugging Face Inference",     SettingsViewModel.KEY_HF_API_KEY)
-    val MISTRAL   = AiModel(MISTRAL_SMALL,   "Mistral Small (free)",       SettingsViewModel.KEY_MISTRAL_API_KEY)
+    val GROQ      = AiModel(GROQ_LLAMA,      "Groq · Llama 70B (Latest)",       SettingsViewModel.KEY_GROQ_API_KEY)
+    val CEREBRAS  = AiModel(CEREBRAS_LLAMA,  "Cerebras · Llama 70B (Latest)",   SettingsViewModel.KEY_CEREBRAS_API_KEY)
+    val HF        = AiModel(HF_INFERENCE,    "Hugging Face Llama (Latest)",     SettingsViewModel.KEY_HF_API_KEY)
+    val MISTRAL   = AiModel(MISTRAL_SMALL,   "Mistral Small (Latest)",          SettingsViewModel.KEY_MISTRAL_API_KEY)
+    val OPENAI    = AiModel(OPENAI_GPT4O,    "OpenAI · GPT-4o (Latest)",        SettingsViewModel.KEY_OPENAI_API_KEY, supportsImages = true)
+    val ANTHROPIC = AiModel(ANTHROPIC_CLAUDE,"Anthropic · Claude Sonnet (Latest)", SettingsViewModel.KEY_ANTHROPIC_API_KEY, supportsImages = true)
+    val DEEPSEEK  = AiModel(DEEPSEEK_CODER,  "DeepSeek · Coder (Latest)",       SettingsViewModel.KEY_DEEPSEEK_API_KEY)
 
     // User-downloaded / system-managed on-device model. No API key; the active
     // model + runtime are chosen under Settings → On-device models.
     val LOCAL     = AiModel(LOCAL_MODEL,     "On-device model",            "")
 
-    val availableModels = listOf(NANO, BRIDGE, LOCAL, GEMINI, GROQ, CEREBRAS, HF, MISTRAL, JULES, CLI)
+    val availableModels = listOf(NANO, BRIDGE, LOCAL, GEMINI, OPENAI, ANTHROPIC, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL, JULES, CLI)
 
     fun findById(id: String?): AiModel? = availableModels.find { it.id == id }
 }
@@ -126,6 +132,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_CEREBRAS_API_KEY = "cerebras_api_key"
         const val KEY_HF_API_KEY = "hf_api_key"
         const val KEY_MISTRAL_API_KEY = "mistral_api_key"
+
+        // Paid-tier OpenAI-compatible providers
+        const val KEY_OPENAI_API_KEY = "openai_api_key"
+        const val KEY_ANTHROPIC_API_KEY = "anthropic_api_key"
+        const val KEY_DEEPSEEK_API_KEY = "deepseek_api_key"
 
         // One-shot flag: true after the app has explained the Gemini-app
         // bridge during first-run on a device that lacks Gemini Nano.

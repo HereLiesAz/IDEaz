@@ -70,32 +70,73 @@ object AiAdapterFactory {
 
             AiModels.GROQ_LLAMA -> openAiCompat(
                 baseUrl = "https://api.groq.com/openai/v1",
-                model = "llama-3.3-70b-versatile",
+                modelResolver = {
+                    val key = settings.getApiKey(model.requiredKey).orEmpty()
+                    DynamicModelResolver.resolveLatestOpenAiCompat("https://api.groq.com/openai/v1", key, Regex("llama.*70b", RegexOption.IGNORE_CASE))
+                },
                 settings = settings,
                 spec = model,
                 tools = tools,
             )
             AiModels.CEREBRAS_LLAMA -> openAiCompat(
                 baseUrl = "https://api.cerebras.ai/v1",
-                model = "llama3.1-70b",
+                modelResolver = {
+                    val key = settings.getApiKey(model.requiredKey).orEmpty()
+                    DynamicModelResolver.resolveLatestOpenAiCompat("https://api.cerebras.ai/v1", key, Regex("llama.*70b", RegexOption.IGNORE_CASE))
+                },
                 settings = settings,
                 spec = model,
                 tools = tools,
             )
             AiModels.HF_INFERENCE -> openAiCompat(
                 baseUrl = "https://router.huggingface.co/v1",
-                model = "meta-llama/Llama-3.3-70B-Instruct",
+                modelResolver = {
+                    val key = settings.getApiKey(model.requiredKey).orEmpty()
+                    DynamicModelResolver.resolveLatestOpenAiCompat("https://router.huggingface.co/v1", key, Regex("llama.*70b", RegexOption.IGNORE_CASE))
+                },
                 settings = settings,
                 spec = model,
                 tools = tools,
             )
             AiModels.MISTRAL_SMALL -> openAiCompat(
                 baseUrl = "https://api.mistral.ai/v1",
-                model = "mistral-small-latest",
+                modelResolver = {
+                    val key = settings.getApiKey(model.requiredKey).orEmpty()
+                    DynamicModelResolver.resolveLatestOpenAiCompat("https://api.mistral.ai/v1", key, Regex("mistral-small", RegexOption.IGNORE_CASE))
+                },
                 settings = settings,
                 spec = model,
                 tools = tools,
             )
+            
+            AiModels.OPENAI_GPT4O -> openAiCompat(
+                baseUrl = "https://api.openai.com/v1",
+                modelResolver = {
+                    val key = settings.getApiKey(model.requiredKey).orEmpty()
+                    DynamicModelResolver.resolveLatestOpenAiCompat("https://api.openai.com/v1", key, Regex("gpt-4o", RegexOption.IGNORE_CASE))
+                },
+                settings = settings,
+                spec = model,
+                tools = tools,
+            )
+            
+            AiModels.DEEPSEEK_CODER -> openAiCompat(
+                baseUrl = "https://api.deepseek.com",
+                modelResolver = {
+                    val key = settings.getApiKey(model.requiredKey).orEmpty()
+                    DynamicModelResolver.resolveLatestOpenAiCompat("https://api.deepseek.com", key, Regex("deepseek-coder", RegexOption.IGNORE_CASE))
+                },
+                settings = settings,
+                spec = model,
+                tools = tools,
+            )
+            
+            AiModels.ANTHROPIC_CLAUDE -> {
+                val key = settings.getApiKey(model.requiredKey).orEmpty()
+                if (key.isBlank()) null else AnthropicAdapter(key, tools, {
+                    DynamicModelResolver.resolveLatestAnthropic(key, Regex("sonnet", RegexOption.IGNORE_CASE))
+                })
+            }
 
             // On-device model the user downloaded (or AICore, system-managed).
             // The active model + its runtime are resolved at call time.
@@ -115,14 +156,14 @@ object AiAdapterFactory {
 
     private fun openAiCompat(
         baseUrl: String,
-        model: String,
+        modelResolver: () -> String,
         settings: SettingsViewModel,
         spec: AiModel,
         tools: IdeTools,
     ): ConversationalAiClient? {
         val key = settings.getApiKey(spec.requiredKey).orEmpty()
         if (key.isBlank()) return null
-        return OpenAiCompatibleAdapter(baseUrl = baseUrl, apiKey = key, model = model, tools = tools)
+        return OpenAiCompatibleAdapter(baseUrl = baseUrl, apiKey = key, modelResolver = modelResolver, tools = tools)
     }
 }
 

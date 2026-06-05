@@ -40,26 +40,33 @@ import okhttp3.RequestBody.Companion.toRequestBody
 class OpenAiCompatibleAdapter(
     private val baseUrl: String,
     private val apiKey: String,
-    private val model: String,
+    private val modelResolver: () -> String,
     private val tools: IdeTools,
     private val httpClient: OkHttpClient = sharedClient,
 ) : ConversationalAiClient {
 
+    private var resolvedModel: String? = null
+
     override suspend fun chat(messages: List<ChatMessage>): String = withContext(Dispatchers.IO) {
+        if (resolvedModel == null) {
+            resolvedModel = modelResolver()
+        }
+        val currentModel = resolvedModel!!
+        
         val history = messages.map { it.toOpenAiMessage() }.toMutableList()
 
         var rounds = 0
         while (rounds < MAX_TOOL_ROUNDS) {
-            val response = postChatCompletion(history)
+            val response = postChatCompletion(history, currentModel)
             val choice = (response["choices"] as? JsonArray)?.firstOrNull() as? JsonObject
             val message = choice?.get("message") as? JsonObject
-                ?: return@withContext "No response from $model."
+                ?: return@withContext "No response from $currentModel."
 
             val toolCalls = (message["tool_calls"] as? JsonArray).orEmpty()
             val textContent = (message["content"] as? JsonPrimitive)?.contentOrNullSafe().orEmpty()
 
             if (toolCalls.isEmpty()) {
-                return@withContext textContent.ifBlank { "No response from $model." }
+                return@withContext textContent.ifBlank { "No response from $currentModel." }
             }
 
             // Echo the assistant turn (with its tool_calls) back so the model
@@ -86,9 +93,9 @@ class OpenAiCompatibleAdapter(
         "Error: Tool-use loop exceeded $MAX_TOOL_ROUNDS rounds."
     }
 
-    private fun postChatCompletion(history: List<JsonObject>): JsonObject {
+    private fun postChatCompletion(history: List<JsonObject>, currentModel: String): JsonObject {
         val body = buildJsonObject {
-            put("model", model)
+            put("model", currentModel)
             putJsonArray("messages") { history.forEach { add(it) } }
             putJsonArray("tools") {
                 IdeToolSchema.all.forEach { spec -> add(spec.toOpenAiTool()) }

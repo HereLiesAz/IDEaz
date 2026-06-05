@@ -470,7 +470,7 @@ fun SettingsScreen(
                 )
 
                 FreeProviderKeyRow(
-                    label = "Groq · Llama 3.3 70B",
+                    label = "Groq · Llama 70B (Latest)",
                     storedKey = settingsViewModel.getApiKey(SettingsViewModel.KEY_GROQ_API_KEY).orEmpty(),
                     signupUrl = "https://console.groq.com/keys",
                     onSave = {
@@ -479,7 +479,7 @@ fun SettingsScreen(
                     },
                 )
                 FreeProviderKeyRow(
-                    label = "Cerebras · Llama 3.1 70B",
+                    label = "Cerebras · Llama 70B (Latest)",
                     storedKey = settingsViewModel.getApiKey(SettingsViewModel.KEY_CEREBRAS_API_KEY).orEmpty(),
                     signupUrl = "https://cloud.cerebras.ai/",
                     onSave = {
@@ -488,7 +488,7 @@ fun SettingsScreen(
                     },
                 )
                 FreeProviderKeyRow(
-                    label = "Hugging Face Inference",
+                    label = "Hugging Face Llama (Latest)",
                     storedKey = settingsViewModel.getApiKey(SettingsViewModel.KEY_HF_API_KEY).orEmpty(),
                     signupUrl = "https://huggingface.co/settings/tokens",
                     onSave = {
@@ -497,12 +497,49 @@ fun SettingsScreen(
                     },
                 )
                 FreeProviderKeyRow(
-                    label = "Mistral Small (free)",
+                    label = "Mistral Small (Latest)",
                     storedKey = settingsViewModel.getApiKey(SettingsViewModel.KEY_MISTRAL_API_KEY).orEmpty(),
                     signupUrl = "https://console.mistral.ai/api-keys/",
                     onSave = {
                         settingsViewModel.saveString(SettingsViewModel.KEY_MISTRAL_API_KEY, it)
                         Toast.makeText(context, "Mistral key saved", Toast.LENGTH_SHORT).show()
+                    },
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+                Text("Paid Providers", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Paid-tier hosted models. Enter a key once per provider; pick one as your AI Assignment below.",
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+
+                FreeProviderKeyRow(
+                    label = "OpenAI · GPT-4o (Latest)",
+                    storedKey = settingsViewModel.getApiKey(SettingsViewModel.KEY_OPENAI_API_KEY).orEmpty(),
+                    signupUrl = "https://platform.openai.com/api-keys",
+                    onSave = {
+                        settingsViewModel.saveString(SettingsViewModel.KEY_OPENAI_API_KEY, it)
+                        Toast.makeText(context, "OpenAI key saved", Toast.LENGTH_SHORT).show()
+                    },
+                )
+                FreeProviderKeyRow(
+                    label = "Anthropic · Claude Sonnet (Latest)",
+                    storedKey = settingsViewModel.getApiKey(SettingsViewModel.KEY_ANTHROPIC_API_KEY).orEmpty(),
+                    signupUrl = "https://console.anthropic.com/settings/keys",
+                    onSave = {
+                        settingsViewModel.saveString(SettingsViewModel.KEY_ANTHROPIC_API_KEY, it)
+                        Toast.makeText(context, "Anthropic key saved", Toast.LENGTH_SHORT).show()
+                    },
+                )
+                FreeProviderKeyRow(
+                    label = "DeepSeek · Coder (Latest)",
+                    storedKey = settingsViewModel.getApiKey(SettingsViewModel.KEY_DEEPSEEK_API_KEY).orEmpty(),
+                    signupUrl = "https://platform.deepseek.com/api_keys",
+                    onSave = {
+                        settingsViewModel.saveString(SettingsViewModel.KEY_DEEPSEEK_API_KEY, it)
+                        Toast.makeText(context, "DeepSeek key saved", Toast.LENGTH_SHORT).show()
                     },
                 )
 
