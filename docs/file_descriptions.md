@@ -57,6 +57,12 @@
 *   `CrashReportingService.kt`: Service for fatal error reporting in `:crash_reporter`.
 *   `ScreenshotService.kt`: `MediaProjection` virtual display for region screenshots.
 
+#### ai/local/
+*   `LocalModelRuntime.kt`: Interface and implementations for on-device backends (MediaPipe, AICore, etc.).
+*   `LocalModelCatalog.kt`: Curated list of downloadable on-device models.
+*   `LocalModelStore.kt`: Manages locally stored model files and metadata.
+*   `ModelDownloadManager.kt`: Handles background downloading of model files with auth support.
+
 #### ui/
 *   `MainViewModel.kt`: Coordinator. Logic delegated to `ui/delegates/`.
 *   `SettingsViewModel.kt`: Manages user preferences.
@@ -72,6 +78,7 @@
 *   `LibrariesScreen.kt`: Dependency management UI.
 *   `CodeEditor.kt`: Compose component for code display.
 *   `PromptPopup.kt`: Simple dialog for text input.
+*   `OnDeviceModelsSection.kt`: Settings UI for managing on-device LLMs.
 *   `SheetDetents.kt`: Bottom sheet expansion states.
 *   `ContextlessChatInput.kt`: Prompt input outside element-tap context.
 *   `DragIndication.kt`: Visual handle for draggable UI elements.

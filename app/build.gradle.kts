@@ -202,6 +202,9 @@ dependencies {
     implementation(libs.bouncycastle.bcprov)
     implementation(libs.google.genai)
     implementation(libs.google.ai.edge.aicore)
+    implementation(libs.mediapipe.tasks.genai) {
+        exclude(group = "com.google.protobuf", module = "protobuf-javalite")
+    }
     implementation(libs.androidx.localbroadcastmanager)
     implementation(libs.aznavrail)
     implementation(libs.androidx.navigation.compose)
