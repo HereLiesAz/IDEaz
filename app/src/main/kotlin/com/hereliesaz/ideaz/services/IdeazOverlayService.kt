@@ -45,8 +45,19 @@ class IdeazOverlayService : Service() {
     private var overlayView: OverlayView? = null
     private var isOverlayAdded = false
 
+    /** Dark, touch-absorbing "please wait" scrim shown while the bridge runs. */
+    private var blockView: android.view.View? = null
+
     /** Whether selection mode is currently active (touch interception requested). */
     private var selectMode = false
+
+    /**
+     * Whether the Gemini-bridge "block" is active. When true, a full-screen
+     * touchable overlay absorbs ALL input so the user can't disturb the Gemini
+     * app while the bridge drives and scrapes it. Cleared by the bridge when the
+     * response arrives or times out.
+     */
+    private var blockMode = false
 
     /**
      * Screen bounds of the app currently being worked on, as reported by
@@ -92,6 +103,10 @@ class IdeazOverlayService : Service() {
                         overlayView?.clearHighlight()
                     }
                 }
+                // Command to raise/drop the bridge touch-block overlay.
+                "com.hereliesaz.ideaz.BRIDGE_BLOCK" -> {
+                    handleBlockMode(intent.getBooleanExtra("ENABLE", false))
+                }
                 // Command to show the update status popup
                 "com.hereliesaz.ideaz.SHOW_UPDATE_POPUP" -> {
                     val prompt = intent.getStringExtra("PROMPT")
@@ -112,6 +127,9 @@ class IdeazOverlayService : Service() {
             if (intent.hasExtra("ENABLE")) {
                  val enable = intent.getBooleanExtra("ENABLE", false)
                  handleSelectionMode(enable)
+            }
+            if (intent.hasExtra("BRIDGE_BLOCK")) {
+                handleBlockMode(intent.getBooleanExtra("BRIDGE_BLOCK", false))
             }
         }
         return START_STICKY
@@ -152,6 +170,7 @@ class IdeazOverlayService : Service() {
             addAction("com.hereliesaz.ideaz.HIGHLIGHT_RECT")
             addAction("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP")
             addAction("com.hereliesaz.ideaz.TARGET_WINDOW_BOUNDS")
+            addAction("com.hereliesaz.ideaz.BRIDGE_BLOCK")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
@@ -162,6 +181,7 @@ class IdeazOverlayService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        removeBlockView()
         if (isOverlayAdded && overlayView != null) {
             try {
                 windowManager.removeView(overlayView)
@@ -192,6 +212,71 @@ class IdeazOverlayService : Service() {
             )
         }
         applyOverlayGeometry()
+    }
+
+    /**
+     * Raises or drops the full-screen touch-block used while the Gemini bridge
+     * runs. When dropped, if nothing else needs the overlay the service stops
+     * itself so it doesn't linger as a foreground service.
+     */
+    private fun handleBlockMode(enable: Boolean) {
+        blockMode = enable
+        if (enable) {
+            if (Settings.canDrawOverlays(this)) addBlockView()
+        } else {
+            removeBlockView()
+            if (!selectMode) stopSelf()
+        }
+    }
+
+    /**
+     * Adds a full-screen, touchable dark scrim with a "please wait" message.
+     * Touchable (no FLAG_NOT_TOUCHABLE) so it absorbs every tap; the dark
+     * background makes it obvious the screen is locked while Gemini works.
+     */
+    private fun addBlockView() {
+        if (blockView != null) return
+        val container = android.widget.FrameLayout(this).apply {
+            setBackgroundColor(0xCC000000.toInt()) // ~80% black scrim
+        }
+        val label = android.widget.TextView(this).apply {
+            text = "Please wait, don't interrupt."
+            setTextColor(0xFFFFFFFF.toInt())
+            textSize = 20f
+            gravity = Gravity.CENTER
+        }
+        container.addView(
+            label,
+            android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER,
+            )
+        )
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        )
+        try {
+            windowManager.addView(container, params)
+            blockView = container
+        } catch (e: Exception) {
+            android.util.Log.w("IdeazOverlay", "Block scrim add failed", e)
+        }
+    }
+
+    private fun removeBlockView() {
+        val v = blockView ?: return
+        try {
+            windowManager.removeView(v)
+        } catch (e: Exception) {
+            // Ignore — may already be detached.
+        }
+        blockView = null
     }
 
     /**

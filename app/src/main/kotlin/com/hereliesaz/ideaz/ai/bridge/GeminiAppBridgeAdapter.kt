@@ -124,6 +124,7 @@ class GeminiAppBridgeAdapter(
             setPackage(geminiPackage)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
+        setUserBlock(true)
         context.startActivity(sendIntent)
 
         val response = try {
@@ -132,6 +133,7 @@ class GeminiAppBridgeAdapter(
             GeminiAppBridge.isWaiting = false
             error("Gemini app bridge: no response within ${TIMEOUT_MS / 1000}s.")
         } finally {
+            setUserBlock(false)
             stagedFile?.delete()
         }
 
@@ -148,6 +150,30 @@ class GeminiAppBridgeAdapter(
             }
         }
         response
+    }
+
+    /**
+     * Raise (enable=true) or drop (enable=false) the full-screen dark "please
+     * wait" scrim via [com.hereliesaz.ideaz.services.IdeazOverlayService], so the
+     * user can't disturb the Gemini app mid-interaction. Best-effort: silently
+     * no-ops without the draw-overlay permission.
+     */
+    private fun setUserBlock(enable: Boolean) {
+        runCatching {
+            if (enable) {
+                if (!Settings.canDrawOverlays(context)) return
+                val i = Intent(context, com.hereliesaz.ideaz.services.IdeazOverlayService::class.java)
+                    .putExtra("BRIDGE_BLOCK", true)
+                context.startForegroundService(i)
+            } else {
+                context.sendBroadcast(
+                    Intent("com.hereliesaz.ideaz.BRIDGE_BLOCK").apply {
+                        setPackage(context.packageName)
+                        putExtra("ENABLE", false)
+                    }
+                )
+            }
+        }
     }
 
     private fun mimeToExt(mime: String): String = when (mime.lowercase()) {
