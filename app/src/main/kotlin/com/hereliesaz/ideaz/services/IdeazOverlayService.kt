@@ -103,9 +103,9 @@ class IdeazOverlayService : Service() {
                         overlayView?.clearHighlight()
                     }
                 }
-                // Command to raise/drop the bridge touch-block overlay.
+                // Command to set the bridge touch-block state (wait/ask/off).
                 "com.hereliesaz.ideaz.BRIDGE_BLOCK" -> {
-                    handleBlockMode(intent.getBooleanExtra("ENABLE", false))
+                    handleBlockState(intent.getStringExtra("STATE") ?: "off")
                 }
                 // Command to show the update status popup
                 "com.hereliesaz.ideaz.SHOW_UPDATE_POPUP" -> {
@@ -128,8 +128,8 @@ class IdeazOverlayService : Service() {
                  val enable = intent.getBooleanExtra("ENABLE", false)
                  handleSelectionMode(enable)
             }
-            if (intent.hasExtra("BRIDGE_BLOCK")) {
-                handleBlockMode(intent.getBooleanExtra("BRIDGE_BLOCK", false))
+            if (intent.hasExtra("STATE")) {
+                handleBlockState(intent.getStringExtra("STATE") ?: "off")
             }
         }
         return START_STICKY
@@ -219,46 +219,76 @@ class IdeazOverlayService : Service() {
      * runs. When dropped, if nothing else needs the overlay the service stops
      * itself so it doesn't linger as a foreground service.
      */
-    private fun handleBlockMode(enable: Boolean) {
-        blockMode = enable
-        if (enable) {
-            if (Settings.canDrawOverlays(this)) addBlockView()
-        } else {
-            removeBlockView()
-            if (!selectMode) stopSelf()
+    private fun handleBlockState(state: String) {
+        when (state) {
+            "wait" -> { blockMode = true; if (Settings.canDrawOverlays(this)) showBlock(ask = false) }
+            "ask" -> { blockMode = true; if (Settings.canDrawOverlays(this)) showBlock(ask = true) }
+            else -> { // "off"
+                blockMode = false
+                removeBlockView()
+                if (!selectMode) stopSelf()
+            }
         }
     }
 
     /**
-     * Adds a full-screen, touchable dark scrim with a "please wait" message.
-     * Touchable (no FLAG_NOT_TOUCHABLE) so it absorbs every tap; the dark
-     * background makes it obvious the screen is locked while Gemini works.
+     * Shows the full-screen, touchable dark scrim. When [ask] is true it also
+     * renders "Keep waiting" / "Cancel" buttons (used once a wait window elapses
+     * and the user must decide); their taps are delivered to the bridge via
+     * [com.hereliesaz.ideaz.ai.bridge.GeminiAppBridge.decisionChannel].
      */
-    private fun addBlockView() {
-        if (blockView != null) return
+    private fun showBlock(ask: Boolean) {
+        removeBlockView() // rebuild to reflect the current state
+
         val container = android.widget.FrameLayout(this).apply {
             setBackgroundColor(0xCC000000.toInt()) // ~80% black scrim
         }
-        val label = android.widget.TextView(this).apply {
-            text = "Please wait, don't interrupt."
+        val column = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            val pad = (24 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad, pad, pad)
+        }
+        column.addView(android.widget.TextView(this).apply {
+            text = if (ask) "Gemini is still responding." else "Please wait, don't interrupt."
             setTextColor(0xFFFFFFFF.toInt())
             textSize = 20f
             gravity = Gravity.CENTER
+        })
+        if (ask) {
+            val row = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+            }
+            row.addView(android.widget.Button(this).apply {
+                text = "Wait"
+                setOnClickListener {
+                    com.hereliesaz.ideaz.ai.bridge.GeminiAppBridge.decisionChannel.trySend(true)
+                }
+            })
+            row.addView(android.widget.Button(this).apply {
+                text = "Cancel"
+                setOnClickListener {
+                    com.hereliesaz.ideaz.ai.bridge.GeminiAppBridge.decisionChannel.trySend(false)
+                }
+            })
+            column.addView(row)
         }
         container.addView(
-            label,
+            column,
             android.widget.FrameLayout.LayoutParams(
                 android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
                 android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
                 Gravity.CENTER,
             )
         )
+
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            // Focusable so the buttons take taps reliably.
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         )
         try {

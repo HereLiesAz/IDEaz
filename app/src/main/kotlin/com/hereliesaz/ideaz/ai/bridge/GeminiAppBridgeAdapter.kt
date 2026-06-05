@@ -12,9 +12,9 @@ import com.hereliesaz.ideaz.ai.ConversationalAiClient
 import com.hereliesaz.ideaz.ai.IdeTools
 import com.hereliesaz.ideaz.utils.RepoSnapshot
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.util.UUID
 
@@ -124,16 +124,13 @@ class GeminiAppBridgeAdapter(
             setPackage(geminiPackage)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        setUserBlock(true)
+        setUserBlock("wait")
         context.startActivity(sendIntent)
 
         val response = try {
-            withTimeout(TIMEOUT_MS) { GeminiAppBridge.channel.receive() }
-        } catch (e: TimeoutCancellationException) {
-            GeminiAppBridge.isWaiting = false
-            error("Gemini app bridge: no response within ${TIMEOUT_MS / 1000}s.")
+            awaitResponse()
         } finally {
-            setUserBlock(false)
+            setUserBlock("off")
             stagedFile?.delete()
         }
 
@@ -153,23 +150,51 @@ class GeminiAppBridgeAdapter(
     }
 
     /**
-     * Raise (enable=true) or drop (enable=false) the full-screen dark "please
-     * wait" scrim via [com.hereliesaz.ideaz.services.IdeazOverlayService], so the
-     * user can't disturb the Gemini app mid-interaction. Best-effort: silently
-     * no-ops without the draw-overlay permission.
+     * Wait for the scraped response, but instead of hard-cancelling at a timeout,
+     * show the scrim's Wait/Cancel prompt once a window elapses and let the user
+     * decide. Returns the response text, or a "cancelled" notice if they cancel.
      */
-    private fun setUserBlock(enable: Boolean) {
+    private suspend fun awaitResponse(): String {
+        while (true) {
+            val quick = withTimeoutOrNull(WINDOW_MS) { GeminiAppBridge.channel.receive() }
+            if (quick != null) return quick
+
+            setUserBlock("ask")
+            val decision = select<Decision> {
+                GeminiAppBridge.channel.onReceive { Decision.Got(it) }
+                GeminiAppBridge.decisionChannel.onReceive { if (it) Decision.Wait else Decision.Cancel }
+            }
+            when (decision) {
+                is Decision.Got -> return decision.text
+                Decision.Wait -> setUserBlock("wait")
+                Decision.Cancel -> {
+                    GeminiAppBridge.isWaiting = false
+                    return "Cancelled."
+                }
+            }
+        }
+    }
+
+    private sealed interface Decision {
+        data class Got(val text: String) : Decision
+        object Wait : Decision
+        object Cancel : Decision
+    }
+
+    /** Set the touch-block scrim state: "wait", "ask", or "off". Best-effort. */
+    private fun setUserBlock(state: String) {
         runCatching {
-            if (enable) {
+            if (state == "wait") {
                 if (!Settings.canDrawOverlays(context)) return
-                val i = Intent(context, com.hereliesaz.ideaz.services.IdeazOverlayService::class.java)
-                    .putExtra("BRIDGE_BLOCK", true)
-                context.startForegroundService(i)
+                context.startForegroundService(
+                    Intent(context, com.hereliesaz.ideaz.services.IdeazOverlayService::class.java)
+                        .putExtra("STATE", "wait")
+                )
             } else {
                 context.sendBroadcast(
                     Intent("com.hereliesaz.ideaz.BRIDGE_BLOCK").apply {
                         setPackage(context.packageName)
-                        putExtra("ENABLE", false)
+                        putExtra("STATE", state)
                     }
                 )
             }
@@ -186,7 +211,8 @@ class GeminiAppBridgeAdapter(
     }
 
     companion object {
-        private const val TIMEOUT_MS = 120_000L
+        /** How long to wait before showing the Wait/Cancel prompt. */
+        private const val WINDOW_MS = 60_000L
 
         /** Max chars of project text inlined when attachment isn't possible. */
         private const val INLINE_CAP = 120_000

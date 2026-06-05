@@ -1,26 +1,26 @@
 package com.hereliesaz.ideaz.ai.bridge
 
 import android.accessibilityservice.AccessibilityService
+import android.content.ClipboardManager
+import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
- * Reads the rendered response text out of the Gemini app's window, pipes it
- * back to [GeminiAppBridgeAdapter] via [GeminiAppBridge.channel]. Only active
- * while [GeminiAppBridge.isWaiting] is true; otherwise events are ignored so
- * the service does nothing in the background.
+ * Captures the Gemini app's response and pipes it back to
+ * [GeminiAppBridgeAdapter] via [GeminiAppBridge.channel]. Only active while
+ * [GeminiAppBridge.isWaiting] is true.
  *
- * Capture strategy: after each `TYPE_WINDOW_CONTENT_CHANGED` event from the
- * Gemini app, the service walks the active window's node tree and joins all
- * non-empty text into a single string. If the snapshot doesn't change for
- * [STABLE_MS] milliseconds, the service treats the response as complete:
- * it removes the user's pending prompt from the snapshot and ships whatever
- * remains to the bridge channel.
- *
- * The scraper is intentionally liberal — it does not depend on view ids or
- * specific class names that could shift between Gemini app versions.
+ * Capture strategy, in order of preference:
+ *  1. **Copy button.** The Gemini app always renders a "Copy" affordance for a
+ *     response. Once the content stabilises we click the latest one and read the
+ *     clipboard — that yields the FULL response verbatim, regardless of scroll
+ *     position or formatting. (Background clipboard reads are restricted on
+ *     Android 10+, so this can come back empty; if so we fall back.)
+ *  2. **Text scrape.** Walk the window's node tree, join visible text, and strip
+ *     the prompt. Liberal and version-tolerant, but only sees on-screen text.
  */
 class GeminiAppBridgeAccessibilityService : AccessibilityService() {
 
@@ -42,46 +42,77 @@ class GeminiAppBridgeAccessibilityService : AccessibilityService() {
         val root = rootInActiveWindow ?: return
         val snapshot = collectText(root).trim()
         if (snapshot.isEmpty()) return
-
-        if (snapshot == lastSnapshot) {
-            // Snapshot unchanged; let the stable-timer continue running.
-            return
-        }
+        if (snapshot == lastSnapshot) return
         lastSnapshot = snapshot
 
-        // Reset the debounce timer.
+        // Debounce: act once the content has stopped changing (response done).
         stableJob?.let { handler.removeCallbacks(it) }
-        val job = Runnable { deliverResponse(snapshot) }
+        val job = Runnable { onStable(snapshot) }
         stableJob = job
         handler.postDelayed(job, STABLE_MS)
     }
 
-    private fun deliverResponse(snapshot: String) {
+    private fun onStable(snapshot: String) {
         if (!GeminiAppBridge.isWaiting) return
-        val prompt = GeminiAppBridge.pendingPrompt.orEmpty()
-        val response = extractResponse(snapshot, prompt)
+        val root = rootInActiveWindow
+        val copyNode = root?.let { findLatestCopyNode(it) }
+        if (copyNode != null && copyNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+            // Give the app a beat to populate the clipboard, then read it.
+            handler.postDelayed({ deliverFromClipboard(snapshot) }, CLIP_DELAY_MS)
+        } else {
+            deliverScraped(snapshot)
+        }
+    }
+
+    private fun deliverFromClipboard(fallbackSnapshot: String) {
+        if (!GeminiAppBridge.isWaiting) return
+        val clip = try {
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()
+        } catch (e: Exception) {
+            null
+        }
+        val text = clip?.trim()
+        if (!text.isNullOrBlank()) {
+            GeminiAppBridge.isWaiting = false
+            GeminiAppBridge.channel.trySend(text)
+        } else {
+            // Clipboard empty/unreadable (background-read restriction) — scrape.
+            deliverScraped(fallbackSnapshot)
+        }
+    }
+
+    private fun deliverScraped(snapshot: String) {
+        if (!GeminiAppBridge.isWaiting) return
+        val response = extractResponse(snapshot, GeminiAppBridge.pendingPrompt.orEmpty())
         if (response.isBlank()) return
         GeminiAppBridge.isWaiting = false
         GeminiAppBridge.channel.trySend(response)
-        // Don't reset lastSnapshot here — let onInterrupt or the next chat()
-        // do it so a flapping content-change event right after delivery
-        // doesn't immediately re-emit.
     }
 
     /**
-     * Strip the prompt and other ambient UI text (greetings, suggestion
-     * chips, etc.) by simple substring removal. The Gemini app shows the
-     * user's prompt and the response in the same scrollable view, so what
-     * we want is "everything not previously there and not the prompt
-     * itself." A perfect implementation would diff against a pre-send
-     * baseline; for now, take the snapshot and remove the prompt text.
+     * Find the last clickable node that looks like a "copy response" affordance.
+     * Last-in-tree-order ≈ the most recent response's button.
      */
+    private fun findLatestCopyNode(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        var match: AccessibilityNodeInfo? = null
+        fun walk(n: AccessibilityNodeInfo?) {
+            if (n == null) return
+            val hint = (n.contentDescription?.toString() ?: n.text?.toString())?.lowercase()
+            if (hint != null && n.isClickable && COPY_HINTS.any { hint.contains(it) }) {
+                match = n
+            }
+            for (i in 0 until n.childCount) walk(n.getChild(i))
+        }
+        walk(root)
+        return match
+    }
+
     private fun extractResponse(snapshot: String, prompt: String): String {
         var text = snapshot
         if (prompt.isNotBlank()) {
             text = text.replace(prompt, "").trim()
         }
-        // Drop common chrome strings the Gemini app shows persistently.
         for (junk in CHROME_STRINGS) {
             text = text.replace(junk, "", ignoreCase = true)
         }
@@ -95,9 +126,6 @@ class GeminiAppBridgeAccessibilityService : AccessibilityService() {
             out.append(it)
         }
         node.contentDescription?.toString()?.takeIf { it.isNotBlank() }?.let {
-            // Only add content-description if it differs from the text node we
-            // already captured (icons often have content descriptions but no
-            // text; bubble text won't be content-description'd).
             if (node.text == null || node.text.toString() != it) {
                 if (out.isNotEmpty()) out.append('\n')
                 out.append(it)
@@ -121,19 +149,17 @@ class GeminiAppBridgeAccessibilityService : AccessibilityService() {
     }
 
     companion object {
-        private const val STABLE_MS = 2_000L
+        private const val STABLE_MS = 2_500L
+        private const val CLIP_DELAY_MS = 350L
 
-        // Packages the service monitors. The standalone Gemini app and
-        // Google's Assistant share Gemini answering — covering both
-        // increases the chance the bridge works on different devices.
         private val MONITORED_PACKAGES = setOf(
             "com.google.android.apps.bard",
             "com.google.android.googlequicksearchbox",
         )
 
-        // Common ambient strings that aren't part of the response. Kept
-        // conservative — false-positive removal here is worse than leaving
-        // a little chrome in the answer.
+        // Substrings that mark a "copy response/code" button (case-insensitive).
+        private val COPY_HINTS = listOf("copy")
+
         private val CHROME_STRINGS = listOf(
             "Enter a prompt here",
             "Listening",

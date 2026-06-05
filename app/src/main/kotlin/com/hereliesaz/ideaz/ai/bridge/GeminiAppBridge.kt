@@ -29,13 +29,23 @@ object GeminiAppBridge {
     )
 
     /**
-     * Drain any pending response before starting a new wait. Called by the
-     * adapter immediately before firing an intent.
+     * User's answer to the "Gemini is still responding — keep waiting or cancel?"
+     * prompt shown on the block scrim once a wait window elapses. `true` = keep
+     * waiting, `false` = cancel. Delivered by the overlay service's buttons (same
+     * process) and consumed by the adapter.
+     */
+    val decisionChannel: Channel<Boolean> = Channel(
+        capacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    /**
+     * Drain any pending response/decision before starting a new wait. Called by
+     * the adapter immediately before firing an intent.
      */
     fun reset() {
         // Non-blocking drain.
-        while (channel.tryReceive().getOrNull() != null) {
-            // discard
-        }
+        while (channel.tryReceive().getOrNull() != null) { /* discard */ }
+        while (decisionChannel.tryReceive().getOrNull() != null) { /* discard */ }
     }
 }
