@@ -143,7 +143,14 @@ configurations.all {
             "org.bouncycastle:bcpkix-jdk18on:1.84",
             "org.bouncycastle:bcutil-jdk18on:1.84",
             "org.apache.commons:commons-lang3:3.20.0",
+            "com.google.protobuf:protobuf-java:3.25.5",
+            "com.google.protobuf:protobuf-kotlin:3.25.5",
         )
+        dependencySubstitution {
+            substitute(module("com.google.protobuf:protobuf-javalite"))
+                .using(module("com.google.protobuf:protobuf-java:3.25.5"))
+                .because("Android cannot have both javalite and full protobuf-java on the same classpath")
+        }
         eachDependency {
             when {
                 // Jackson arrives as core/databind/annotations + datatype modules and a
