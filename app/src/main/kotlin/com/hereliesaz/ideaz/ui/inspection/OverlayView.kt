@@ -93,10 +93,19 @@ class OverlayView(context: Context) : View(context) {
             canvas.drawText("Updating, gimme a sec...", width / 2f, height / 2f, textPaint)
         }
 
-        // Visual cue that we are in "Select Mode" (dim the screen slightly)
+        // Visual cue that we are in "Select Mode" (dim the region slightly)
         if (isSelectionMode) {
             canvas.drawColor(Color.argb(30, 0, 0, 0))
         }
+
+        // highlightRect and the drag points are in screen coordinates (rawX/rawY).
+        // When the overlay window is constrained to the target app's bounds the
+        // view's origin is offset from the screen origin, so translate by the
+        // window's on-screen location before drawing them. (Full-screen → (0,0).)
+        val loc = IntArray(2)
+        getLocationOnScreen(loc)
+        canvas.save()
+        canvas.translate(-loc[0].toFloat(), -loc[1].toFloat())
 
         highlightRect?.let {
             canvas.drawRect(it, fillPaint)
@@ -110,6 +119,8 @@ class OverlayView(context: Context) : View(context) {
             val bottom = kotlin.math.max(startY, currentY)
             canvas.drawRect(left, top, right, bottom, selectionPaint)
         }
+
+        canvas.restore()
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
