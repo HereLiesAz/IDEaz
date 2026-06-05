@@ -2,7 +2,6 @@
 // settings.gradle.kts by default — see README.md to activate.
 plugins {
     id("com.android.library")
-    id("org.jetbrains.kotlin.android")
 }
 
 android {

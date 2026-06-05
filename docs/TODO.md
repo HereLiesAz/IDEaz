@@ -22,3 +22,4 @@ When Phase 0 completes, this file will point to Phase 1's plan.
 - Pinned `run-gemini-cli` to a specific SHA in CI workflows to mitigate supply chain vulnerabilities.
 - Performed full User Flow & Navigation audit, mapping PWA loops, Editor flows, and Phase 1 transitions.
 - Resolved build failure caused by duplicate `protobuf` classes by excluding `protobuf-java` from `google-genai` and standardizing on `protobuf-javalite`.
+- Fixed build failure caused by the redundant `org.jetbrains.kotlin.android` plugin which is now integrated into AGP 9.0+.
