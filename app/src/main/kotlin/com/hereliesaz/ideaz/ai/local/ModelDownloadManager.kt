@@ -11,9 +11,11 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
- * Downloads on-device model files into `<filesDir>/local-models/`, with progress
- * reporting, HTTP-Range resume of a partial download, and an optional bearer token
- * for gated models. URL-generic, so it works for any [LocalModel].
+ * Downloads on-device model files into a per-model directory
+ * `<filesDir>/local-models/<id>/`, with progress, HTTP-Range resume, and an
+ * optional bearer token for gated models. Handles both single-file models
+ * (MediaPipe `.task`, llama.cpp `.gguf`) and multi-file models (ONNX GenAI's
+ * model + config + tokenizer directory).
  */
 class ModelDownloadManager(
     context: Context,
@@ -22,42 +24,70 @@ class ModelDownloadManager(
         .readTimeout(60, TimeUnit.SECONDS)
         .build(),
 ) {
-    private val dir = File(context.filesDir, "local-models").apply { mkdirs() }
+    private val root = File(context.filesDir, "local-models").apply { mkdirs() }
 
-    fun fileFor(model: LocalModel): File = File(dir, model.fileName)
-    fun isDownloaded(model: LocalModel): Boolean =
-        model.systemManaged || fileFor(model).let { it.isFile && it.length() > 0 }
-    fun delete(model: LocalModel): Boolean = !model.systemManaged && fileFor(model).delete()
+    /** The directory all of [model]'s files live in. */
+    fun modelDir(model: LocalModel): File = File(root, model.id)
+
+    /** The model's primary file (runtimes that need a directory use its parent). */
+    fun fileFor(model: LocalModel): File = File(modelDir(model), model.fileName)
+
+    private fun filesOf(model: LocalModel): List<LocalModelFile> =
+        listOf(LocalModelFile(model.url, model.fileName)) + model.additionalFiles
+
+    fun isDownloaded(model: LocalModel): Boolean = model.systemManaged ||
+        filesOf(model).all { File(modelDir(model), it.fileName).let { f -> f.isFile && f.length() > 0 } }
+
+    fun delete(model: LocalModel): Boolean = !model.systemManaged && modelDir(model).deleteRecursively()
 
     /**
-     * Download [model], resuming a `.part` file if one exists. [onProgress] gets
-     * (bytesDownloaded, totalBytes); total is -1 when the server doesn't report it.
-     * Returns the finalized model file.
+     * Download every file of [model] into its directory, resuming partial files.
+     * [onProgress] reports cumulative bytes and the catalog's size estimate
+     * (`approxSizeBytes`, or -1 if unknown) for an overall progress bar.
+     * Returns the model's primary file.
      */
     suspend fun download(
         model: LocalModel,
         authToken: String? = null,
         onProgress: (downloaded: Long, total: Long) -> Unit = { _, _ -> },
     ): File = withContext(Dispatchers.IO) {
-        val target = fileFor(model)
-        if (target.isFile && target.length() > 0) return@withContext target
+        val mdir = modelDir(model).apply { mkdirs() }
+        val approxTotal = if (model.approxSizeBytes > 0) model.approxSizeBytes else -1L
+        var cumulative = 0L
 
-        val part = File(dir, model.fileName + ".part")
+        for (f in filesOf(model)) {
+            val target = File(mdir, f.fileName)
+            if (target.isFile && target.length() > 0) {
+                cumulative += target.length()
+                onProgress(cumulative, approxTotal)
+                continue
+            }
+            val base = cumulative
+            downloadOne(f, mdir, authToken) { soFar -> onProgress(base + soFar, approxTotal) }
+            cumulative += target.length()
+        }
+        fileFor(model)
+    }
+
+    private fun downloadOne(
+        f: LocalModelFile,
+        mdir: File,
+        authToken: String?,
+        onBytes: (Long) -> Unit,
+    ) {
+        val target = File(mdir, f.fileName)
+        val part = File(mdir, f.fileName + ".part")
         val existing = if (part.isFile) part.length() else 0L
 
-        val request = Request.Builder().url(model.url).apply {
+        val request = Request.Builder().url(f.url).apply {
             if (existing > 0) header("Range", "bytes=$existing-")
             if (!authToken.isNullOrBlank()) header("Authorization", "Bearer $authToken")
         }.build()
 
         client.newCall(request).execute().use { resp ->
-            if (!resp.isSuccessful) throw IOException("Download failed: HTTP ${resp.code}")
+            if (!resp.isSuccessful) throw IOException("Download failed for ${f.fileName}: HTTP ${resp.code}")
             val body = resp.body
             val resuming = resp.code == 206
-            val total = body.contentLength().let { len ->
-                if (len < 0) -1L else len + (if (resuming) existing else 0L)
-            }
-
             val append = resuming && existing > 0
             if (!append) part.delete()
             var downloaded = if (append) existing else 0L
@@ -70,7 +100,7 @@ class ModelDownloadManager(
                         if (n == -1) break
                         output.write(buf, 0, n)
                         downloaded += n
-                        onProgress(downloaded, total)
+                        onBytes(downloaded)
                     }
                     output.fd.sync()
                 }
@@ -78,7 +108,6 @@ class ModelDownloadManager(
         }
 
         if (target.exists()) target.delete()
-        if (!part.renameTo(target)) throw IOException("Could not finalize downloaded model")
-        target
+        if (!part.renameTo(target)) throw IOException("Could not finalize ${f.fileName}")
     }
 }
