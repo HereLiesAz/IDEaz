@@ -50,19 +50,15 @@ fun AzNavHostScope.ideNavRail(
     azTheme(
         defaultShape = AzButtonShape.RECTANGLE,
         headerIconShape = AzHeaderIconShape.NONE,
-        // The app palette is monochrome, so the selected/active rail item was
-        // indistinguishable from the rest. Give it a distinct accent.
-        activeColor = Color(0xFFFFC107),
         translucentBackground = Color.Black.copy(alpha = 0.5f),
     )
 
     azAdvanced(
-        // Default to docked. Per the AzNavRail guide, enableRailDragging = true
-        // puts the rail in "FAB Mode (detach rail)" — keeping that on by default
-        // forced the rail into overlay/floating mode in layouts where docking
-        // would have been fine. Call sites that want a draggable FAB can opt in
-        // via enableRailDraggingOverride.
-        enableRailDragging = enableRailDraggingOverride ?: false,
+        // In-app FAB mode is the intended default: with IdeazOverlayService gone,
+        // the rail itself is the floating in-app control that sits over the live
+        // preview and can be dragged out of the way — not a fixed docked strip.
+        // Callers can still force docking via enableRailDraggingOverride = false.
+        enableRailDragging = enableRailDraggingOverride ?: true,
         onUndock = onUndock,
         onOverlayDrag = onOverlayDrag,
         // Help overlay: azHelpRailItem (below) is the dedicated tap trigger.
