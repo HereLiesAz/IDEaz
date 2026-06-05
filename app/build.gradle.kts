@@ -200,7 +200,9 @@ dependencies {
     // Used for libsodium-compatible crypto_box_seal (GithubSecretBox) to encrypt
     // GitHub Actions secrets. R8 strips the unused remainder of bcprov in release.
     implementation(libs.bouncycastle.bcprov)
-    implementation(libs.google.genai)
+    implementation(libs.google.genai) {
+        exclude(group = "com.google.protobuf", module = "protobuf-java")
+    }
     implementation(libs.google.ai.edge.aicore)
     implementation(libs.mediapipe.tasks.genai)
     implementation(libs.androidx.localbroadcastmanager)
