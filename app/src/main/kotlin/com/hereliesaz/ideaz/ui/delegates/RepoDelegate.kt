@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.util.Log
 import com.hereliesaz.ideaz.api.CreateRepoRequest
+import com.hereliesaz.ideaz.api.CreateSecretRequest
 import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.api.GitHubRepoResponse
 import com.hereliesaz.ideaz.api.GitHubPermissions
@@ -11,8 +12,10 @@ import com.hereliesaz.ideaz.api.Source
 import com.hereliesaz.ideaz.jules.JulesApiClient
 import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.models.ProjectType
+import com.hereliesaz.ideaz.ui.AiModels
 import com.hereliesaz.ideaz.ui.ProjectMetadata
 import com.hereliesaz.ideaz.ui.SettingsViewModel
+import com.hereliesaz.ideaz.utils.GithubSecretBox
 import com.hereliesaz.ideaz.utils.ProjectConfigManager
 import com.hereliesaz.ideaz.utils.ProjectInitializer
 import com.hereliesaz.ideaz.utils.RepoMapper
@@ -412,24 +415,72 @@ class RepoDelegate(
     }
 
     /**
-     * Encrypts and uploads project secrets (API Keys, Keystore) to GitHub Actions.
+     * Encrypts and uploads project secrets (API keys, keystore) to the repo's
+     * GitHub Actions secrets.
      *
-     * Currently a no-op: the libsodium sealed-box encryption was removed during Phase 0
-     * triage. Re-enable by reintroducing a sodium binding (or a pure-JVM NaCl
-     * implementation) and the matching GitHub Actions secrets workflow.
-     *
-     * Notifies both the build log and the overlay/AI log so the user actually sees
-     * this — without it, every Save & Initialize / Create flow silently appeared
-     * to upload secrets that were never uploaded.
+     * Each value is sealed for the repository's Actions public key using
+     * [GithubSecretBox] (libsodium-compatible `crypto_box_seal`) and PUT via the
+     * Actions secrets API. Failures are surfaced per-secret to the build log
+     * rather than failing silently.
      */
     fun uploadProjectSecrets(owner: String, repo: String) {
         scope.launch(Dispatchers.Default) {
-            val msg = "GitHub Actions secrets upload is disabled in this build " +
-                "(Phase 2 debt: libsodium binding removed). Configure required " +
-                "secrets manually under $owner/$repo → Settings → Secrets and " +
-                "variables for now."
-            onLog(msg)
-            onOverlayLog(msg)
+            try {
+                onLog("Uploading project secrets to GitHub...")
+                val token = settingsViewModel.getGithubToken()
+                if (token.isNullOrBlank()) {
+                    onLog("Error: GitHub Token not found. Cannot upload secrets.")
+                    return@launch
+                }
+
+                val service = GitHubApiClient.createService(token)
+
+                // 1. Fetch the repository's Actions public key.
+                val publicKey = try {
+                    service.getRepoPublicKey(owner, repo)
+                } catch (e: Exception) {
+                    onLog("Error fetching public key: ${e.message}")
+                    return@launch
+                }
+                val publicKeyBytes = android.util.Base64.decode(publicKey.key, android.util.Base64.NO_WRAP)
+
+                // 2. Collect the secrets to publish.
+                val secrets = mutableMapOf<String, String>()
+                settingsViewModel.getApiKey()?.let { secrets["JULES_API_KEY"] = it }
+                settingsViewModel.getApiKey(AiModels.GEMINI.requiredKey)?.let { secrets["GEMINI_API_KEY"] = it }
+                settingsViewModel.getApiKey("GOOGLE_API_KEY")?.let { secrets["GOOGLE_API_KEY"] = it }
+                settingsViewModel.getJulesProjectId()?.let { secrets["JULES_PROJECT_ID"] = it }
+
+                val keystorePath = settingsViewModel.getKeystorePath()
+                if (keystorePath != null && File(keystorePath).exists()) {
+                    val ksBytes = File(keystorePath).readBytes()
+                    secrets["IDEAZ_DEBUG_KEYSTORE_BASE64"] =
+                        android.util.Base64.encodeToString(ksBytes, android.util.Base64.NO_WRAP)
+                }
+                secrets["IDEAZ_DEBUG_KEYSTORE_PASSWORD"] = settingsViewModel.getKeystorePass()
+                secrets["IDEAZ_DEBUG_KEY_ALIAS"] = settingsViewModel.getKeyAlias()
+                secrets["IDEAZ_DEBUG_KEY_PASSWORD"] = settingsViewModel.getKeyPass()
+
+                // 3. Seal each value for the public key and upload it.
+                var uploaded = 0
+                secrets.forEach { (name, value) ->
+                    try {
+                        val sealed = GithubSecretBox.seal(value.toByteArray(Charsets.UTF_8), publicKeyBytes)
+                        val encryptedBase64 = android.util.Base64.encodeToString(sealed, android.util.Base64.NO_WRAP)
+                        val resp = service.createSecret(
+                            owner, repo, name, CreateSecretRequest(encryptedBase64, publicKey.keyId)
+                        )
+                        if (resp.isSuccessful) uploaded++ else onLog("Failed to upload $name: HTTP ${resp.code()}")
+                    } catch (e: Exception) {
+                        onLog("Error encrypting/uploading $name: ${e.message}")
+                    }
+                }
+                val msg = "Secrets uploaded ($uploaded/${secrets.size}) to $owner/$repo."
+                onLog(msg)
+                onOverlayLog(msg)
+            } catch (e: Throwable) {
+                onLog("Error uploading secrets: ${e.message}")
+            }
         }
     }
 

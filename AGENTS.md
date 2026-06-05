@@ -33,7 +33,7 @@ If a doc and the design doc disagree, the design doc wins.
 
 ## Critical Known Issues / Discrepancies
 
-*   **`RepoDelegate.uploadProjectSecrets` is a no-op stub.** Lazysodium was removed in Phase 0; the sealed-box encryption needed to push GitHub Actions secrets has no replacement yet. Phase 2 must restore this before Actions-based workflows can consume device-side credentials. See `docs/plans/phase-0-followups.md`.
+*   **`RepoDelegate.uploadProjectSecrets` — RESTORED (Phase 2).** The sealed-box encryption is reimplemented in pure JVM as `utils/GithubSecretBox` (libsodium-compatible `crypto_box_seal` via BouncyCastle: X25519 + HSalsa20 + XSalsa20-Poly1305 + Blake2b), so no native libsodium binding returns. `uploadProjectSecrets` again fetches the repo Actions public key, seals each secret, and PUTs it. Release builds now run R8 (`isMinifyEnabled = true`) to strip the unused remainder of bcprov. See `docs/plans/phase-0-followups.md`.
 *   **WebView `file://` URI exposure — RESOLVED (Phase 1).** The `WebViewAssetLoader` migration to `https://appassets.androidplatform.net` is complete. `WebProjectHost` now sets `allowFileAccess = false` / `allowContentAccess = false`, and the deprecated `allowFileAccessFromFileURLs` / `allowUniversalAccessFromFileURLs` flags have been removed (see `WebProjectHost.kt`). `SourceContextHelper` additionally enforces project-directory containment on the JS-bridge `__source:` tag.
 
 ## Documentation Index
