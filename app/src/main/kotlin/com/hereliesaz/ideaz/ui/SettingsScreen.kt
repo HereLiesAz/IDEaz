@@ -546,7 +546,7 @@ fun SettingsScreen(
                 }
                 val hasScreenshot by remember(viewModel.hasScreenCapturePermission()) { mutableStateOf(viewModel.hasScreenCapturePermission()) }
                 val hasAccessibility by remember(refreshTrigger) {
-                    mutableStateOf(isAccessibilityServiceEnabled(context, ".services.UIInspectionService"))
+                    mutableStateOf(isAccessibilityServiceEnabled(context, ".services.IdeazAccessibilityService"))
                 }
                 val hasStorage by remember(refreshTrigger) {
                     mutableStateOf(

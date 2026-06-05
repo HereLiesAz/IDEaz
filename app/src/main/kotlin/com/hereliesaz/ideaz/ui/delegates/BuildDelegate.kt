@@ -217,7 +217,11 @@ class BuildDelegate(
         }
 
         onLog("[IDE] Pushing to remote...\n")
-        gitDelegate.push()
+        if (!gitDelegate.push()) {
+            onLog("Error: Push failed. Aborting remote build.\n")
+            handleFailure("Push failed. Aborting remote build.")
+            return
+        }
 
         val headSha = gitDelegate.getHeadSha()
         if (headSha == null) {
