@@ -287,8 +287,12 @@ class IdeazOverlayService : Service() {
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            // Focusable so the buttons take taps reliably.
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            // Touchable (absorbs the user's taps; the Wait/Cancel buttons still
+            // fire) but NOT focusable: a focusable overlay would become the active
+            // window and make the bridge's AccessibilityService see the scrim
+            // instead of Gemini, breaking prompt-typing and response-scraping.
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         )
         try {
