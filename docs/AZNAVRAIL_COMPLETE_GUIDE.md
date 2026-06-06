@@ -116,9 +116,14 @@ azAdvanced(
     enableRailDragging = true,           // Boolean: Enable FAB Mode (detach rail)
     helpEnabled = showHelp,              // Boolean: Show Help Overlay
     helpList = mapOf("home" to "Home screen"), // Map<String, Any>: Extra help texts
-    onDismissHelp = { showHelp = false }
+    onDismissHelp = { showHelp = false },
+    onInteraction = { itemId, item ->    // Called on every item interaction
+        Log.d("Rail", "Interacted: $itemId (${item.text})")
+    }
 )
 ```
+
+`onInteraction` fires whenever any rail item is interacted with — click, toggle, cycler advance, nested rail open, or reloc drag. It receives the item's `id` and the full `AzNavItem`, enabling analytics integration without per-item callbacks.
 
 **React Implementation:**
 ```tsx
@@ -130,6 +135,8 @@ const settings: AzNavRailSettings = {
     onDismissInfoScreen: () => setShowHelp(false),
 };
 // Pass this object to the settings prop on AzNavRail
+// onInteraction is passed as a prop on AzNavRail:
+// <AzNavRail onInteraction={(action, details, item) => console.log(action, item)} ...>
 ```
 
 
@@ -786,10 +793,12 @@ sheetController.isEnabled = false                  // forces HIDDEN, blocks step
 
 ### 10.4 Gestures
 
-- Vertical drag on the sheet card or the hidden swipe strip accumulates per-frame delta and steps the detent exactly once when `config.dragThresholdDp` is crossed. This mirrors LogKitty's drag accumulator verbatim, including the per-gesture single-fire latch.
-- Scrim tap in `HALF` / `FULL` calls `stepDown()`.
-- System back press calls `stepDown()` while the sheet is non-HIDDEN when `config.collapseOnBack = true`.
-- Horizontal swipe is opt-in via `config.horizontalSwipeEnabled` and the `onSwipeLeft` / `onSwipeRight` callbacks — LogKitty uses these for tab navigation.
+- **Swipe up** on the sheet card or hidden strip accumulates per-frame delta and calls `stepUp()` exactly once when `config.dragThresholdDp` is crossed.
+- **Swipe down** calls `snapTo(HIDDEN)`, dismissing the sheet entirely in one gesture rather than stepping down one detent at a time.
+- **Scrim tap** in `HALF` / `FULL` calls `stepDown()` (dim overlay visible).
+- **Transparent tap overlay** at `PEEK` — a non-dimmed, full-screen tap catcher that calls `stepDown()`, transitioning to HIDDEN. Makes the dismiss gesture discoverable for users who tap rather than swipe.
+- System **back press** calls `stepDown()` while the sheet is non-HIDDEN when `config.collapseOnBack = true`.
+- **Horizontal swipe** is opt-in via `config.horizontalSwipeEnabled` and the `onSwipeLeft` / `onSwipeRight` callbacks — LogKitty uses these for tab navigation.
 
 ### 10.5 Theming
 
