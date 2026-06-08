@@ -30,7 +30,9 @@ object BridgeHeuristics {
     fun extractResponse(snapshot: String, prompt: String): String {
         var text = snapshot
         if (prompt.isNotBlank()) {
-            text = text.replace(prompt, "").trim()
+            // Case-insensitive: Gemini sometimes echoes the prompt with altered
+            // casing (e.g. a capitalized first letter), which a literal replace misses.
+            text = text.replace(prompt, "", ignoreCase = true).trim()
         }
         for (junk in CHROME_STRINGS) {
             text = text.replace(junk, "", ignoreCase = true)

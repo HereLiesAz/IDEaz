@@ -53,6 +53,13 @@ class BridgeHeuristicsTest {
     }
 
     @Test
+    fun `extractResponse strips the prompt despite altered casing`() {
+        val prompt = "Edit the project"
+        val snapshot = "edit the PROJECT\nHere is the reply"
+        assertEquals("Here is the reply", BridgeHeuristics.extractResponse(snapshot, prompt))
+    }
+
+    @Test
     fun `extractResponse tolerates a blank prompt`() {
         assertEquals("only text", BridgeHeuristics.extractResponse("only text", ""))
     }

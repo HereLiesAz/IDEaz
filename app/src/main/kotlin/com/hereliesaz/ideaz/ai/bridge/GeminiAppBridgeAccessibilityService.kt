@@ -58,10 +58,19 @@ class GeminiAppBridgeAccessibilityService : AccessibilityService() {
 
         when (GeminiAppBridge.phase) {
             GeminiAppBridge.BridgePhase.INPUT -> {
-                inputJob?.let { handler.removeCallbacks(it) }
-                val job = Runnable { onInputStable() }
-                inputJob = job
-                handler.postDelayed(job, INPUT_STABLE_MS)
+                // Throttle, don't debounce: Gemini fires a continuous stream of
+                // events while ingesting the file (cursor blink, animations), so
+                // resetting the timer each time could starve onInputStable. Only
+                // schedule when nothing is pending — it then fires after the delay
+                // regardless of how many more events arrive.
+                if (inputJob == null) {
+                    val job = Runnable {
+                        inputJob = null
+                        onInputStable()
+                    }
+                    inputJob = job
+                    handler.postDelayed(job, INPUT_STABLE_MS)
+                }
             }
 
             GeminiAppBridge.BridgePhase.AWAIT_RESPONSE -> {
@@ -235,10 +244,15 @@ class GeminiAppBridgeAccessibilityService : AccessibilityService() {
             ?.takeIf { it.packageName?.toString() in MONITORED_PACKAGES }
             ?.let { return it }
         return try {
-            windows
-                .filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
-                .mapNotNull { it.root }
-                .firstOrNull { it.packageName?.toString() in MONITORED_PACKAGES }
+            // Each window.root is a fresh AccessibilityNodeInfo — recycle the
+            // ones we don't keep so we don't exhaust the node pool on older OSes.
+            for (window in windows) {
+                if (window.type != AccessibilityWindowInfo.TYPE_APPLICATION) continue
+                val root = window.root ?: continue
+                if (root.packageName?.toString() in MONITORED_PACKAGES) return root
+                root.recycle()
+            }
+            null
         } catch (e: Exception) {
             null
         }
