@@ -74,6 +74,12 @@
 *   `LocalModelStore.kt`: Manages locally stored model files and metadata.
 *   `ModelDownloadManager.kt`: Handles background downloading of model files with auth support.
 
+#### ai/bridge/
+*   `GeminiAppBridgeAdapter.kt`: `ConversationalAiClient` that routes prompts through the user's installed Gemini app — attaches the project as `project.txt` and raises the touch-block scrim, then waits for the scraped reply.
+*   `GeminiAppBridge.kt`: Process singleton mailbox between the adapter and the accessibility service (`pendingPrompt`, `isWaiting`, `phase`, `promptSubmitted`, response/decision channels).
+*   `GeminiAppBridgeAccessibilityService.kt`: Drives the Gemini app — INPUT phase types the prompt into the compose field and taps Send; AWAIT_RESPONSE phase scrapes the reply (Copy button → clipboard, else text scrape).
+*   `BridgeHeuristics.kt`: Pure, unit-tested predicates for matching the Gemini app's input/send/copy nodes and stripping the prompt from a scrape.
+
 #### ui/
 *   `MainViewModel.kt`: Coordinator. Logic delegated to `ui/delegates/`.
 *   `SettingsViewModel.kt`: Manages user preferences.

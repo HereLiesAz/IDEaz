@@ -1,32 +1,46 @@
 package com.hereliesaz.ideaz.ai.bridge
 
 import android.accessibilityservice.AccessibilityService
+import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
+import com.hereliesaz.ideaz.services.IdeazOverlayService
 
 /**
- * Captures the Gemini app's response and pipes it back to
- * [GeminiAppBridgeAdapter] via [GeminiAppBridge.channel]. Only active while
- * [GeminiAppBridge.isWaiting] is true.
+ * Drives the Gemini app for [GeminiAppBridgeAdapter] over [GeminiAppBridge]. Two
+ * phases, both gated on [GeminiAppBridge.isWaiting]:
  *
- * Capture strategy, in order of preference:
- *  1. **Copy button.** The Gemini app always renders a "Copy" affordance for a
- *     response. Once the content stabilises we click the latest one and read the
- *     clipboard — that yields the FULL response verbatim, regardless of scroll
- *     position or formatting. (Background clipboard reads are restricted on
- *     Android 10+, so this can come back empty; if so we fall back.)
- *  2. **Text scrape.** Walk the window's node tree, join visible text, and strip
- *     the prompt. Liberal and version-tolerant, but only sees on-screen text.
+ *  1. **INPUT** ([GeminiAppBridge.BridgePhase.INPUT]) — the share intent has
+ *     opened Gemini's compose screen with `project.txt` attached, but Gemini
+ *     drops the intent's `EXTRA_TEXT`, so the prompt field is empty. We find the
+ *     editable field, type [GeminiAppBridge.pendingPrompt] into it, then tap Send.
+ *  2. **AWAIT_RESPONSE** ([GeminiAppBridge.BridgePhase.AWAIT_RESPONSE]) — capture
+ *     the reply, in order of preference:
+ *       a. **Copy button.** Click the latest "Copy" affordance and read the
+ *          clipboard — the FULL response verbatim. (Background clipboard reads are
+ *          restricted on Android 10+, so this can come back empty; if so we fall back.)
+ *       b. **Text scrape.** Walk the node tree, join visible text, strip the prompt.
+ *
+ * On the first Gemini event of a run we also re-assert the touch-block scrim, in
+ * case [GeminiAppBridgeAdapter] raced it up before Gemini came to the foreground.
  */
 class GeminiAppBridgeAccessibilityService : AccessibilityService() {
 
     private val handler = Handler(Looper.getMainLooper())
     private var lastSnapshot: String = ""
     private var stableJob: Runnable? = null
+    private var inputJob: Runnable? = null
+
+    /** Re-assert the block scrim only once per run (reset when the run ends). */
+    private var blockReasserted = false
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (!GeminiAppBridge.isWaiting) return
@@ -39,22 +53,133 @@ class GeminiAppBridgeAccessibilityService : AccessibilityService() {
             type != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
         ) return
 
-        val root = rootInActiveWindow ?: return
-        val snapshot = collectText(root).trim()
-        if (snapshot.isEmpty()) return
-        if (snapshot == lastSnapshot) return
-        lastSnapshot = snapshot
+        // Gemini is now foreground — make sure the scrim is on top of it.
+        reassertBlock()
 
-        // Debounce: act once the content has stopped changing (response done).
-        stableJob?.let { handler.removeCallbacks(it) }
-        val job = Runnable { onStable(snapshot) }
-        stableJob = job
-        handler.postDelayed(job, STABLE_MS)
+        when (GeminiAppBridge.phase) {
+            GeminiAppBridge.BridgePhase.INPUT -> {
+                // Throttle, don't debounce: Gemini fires a continuous stream of
+                // events while ingesting the file (cursor blink, animations), so
+                // resetting the timer each time could starve onInputStable. Only
+                // schedule when nothing is pending — it then fires after the delay
+                // regardless of how many more events arrive.
+                if (inputJob == null) {
+                    val job = Runnable {
+                        inputJob = null
+                        onInputStable()
+                    }
+                    inputJob = job
+                    handler.postDelayed(job, INPUT_STABLE_MS)
+                }
+            }
+
+            GeminiAppBridge.BridgePhase.AWAIT_RESPONSE -> {
+                val root = geminiRoot() ?: return
+                val snapshot = collectText(root).trim()
+                if (snapshot.isEmpty()) return
+                if (snapshot == lastSnapshot) return
+                lastSnapshot = snapshot
+
+                // Debounce: act once the content has stopped changing (response done).
+                stableJob?.let { handler.removeCallbacks(it) }
+                val job = Runnable { onStable(snapshot) }
+                stableJob = job
+                handler.postDelayed(job, STABLE_MS)
+            }
+
+            GeminiAppBridge.BridgePhase.IDLE -> { /* nothing to do */ }
+        }
     }
+
+    // ---- INPUT phase ---------------------------------------------------------
+
+    /**
+     * Type the prompt and submit, idempotently across the storm of content
+     * changes Gemini fires while it ingests the attached file. We fill on one
+     * pass and click Send on a later pass: setting the text re-fires a content
+     * change, by which point Send has enabled itself.
+     */
+    private fun onInputStable() {
+        if (!GeminiAppBridge.isWaiting) return
+        if (GeminiAppBridge.phase != GeminiAppBridge.BridgePhase.INPUT) return
+        if (GeminiAppBridge.promptSubmitted) return
+
+        val root = geminiRoot() ?: return
+        val field = findInputField(root) ?: return // not laid out yet — retry next event
+        val prompt = GeminiAppBridge.pendingPrompt.orEmpty()
+        if (prompt.isBlank()) return
+
+        // Fill first; only once the field holds our prompt do we try Send.
+        if (field.text?.toString() != prompt) {
+            setInputText(field, prompt) // failure just means we retry next event
+            return
+        }
+
+        val send = findSendButton(root) ?: return
+        if (!send.isEnabled) return // present but disabled — wait for it to enable
+        if (send.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+            GeminiAppBridge.promptSubmitted = true
+            GeminiAppBridge.phase = GeminiAppBridge.BridgePhase.AWAIT_RESPONSE
+            lastSnapshot = "" // fresh baseline so the reply isn't mistaken for stale chrome
+        }
+    }
+
+    /** Last editable node, preferring one whose hint marks it as the prompt field. */
+    private fun findInputField(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        var hinted: AccessibilityNodeInfo? = null
+        var anyEditable: AccessibilityNodeInfo? = null
+        fun walk(n: AccessibilityNodeInfo?) {
+            if (n == null) return
+            val editable = n.isEditable || (n.className?.toString()?.contains("EditText") == true)
+            if (editable) {
+                anyEditable = n
+                val hint = n.text?.toString()
+                    ?: n.contentDescription?.toString()
+                    ?: n.hintText?.toString()
+                if (BridgeHeuristics.isInputHint(hint)) hinted = n
+            }
+            for (i in 0 until n.childCount) walk(n.getChild(i))
+        }
+        walk(root)
+        return hinted ?: anyEditable
+    }
+
+    /** Set the field's text via ACTION_SET_TEXT, falling back to clipboard paste. */
+    private fun setInputText(field: AccessibilityNodeInfo, text: String): Boolean {
+        val args = Bundle().apply {
+            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+        }
+        if (field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) return true
+
+        // Some Compose editors reject ACTION_SET_TEXT — focus + paste instead.
+        field.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+        return try {
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            cm.setPrimaryClip(ClipData.newPlainText("ideaz-prompt", text))
+            field.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /** Last enabled, clickable node that looks like a Send/Submit affordance. */
+    private fun findSendButton(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        var match: AccessibilityNodeInfo? = null
+        fun walk(n: AccessibilityNodeInfo?) {
+            if (n == null) return
+            val hint = n.contentDescription?.toString() ?: n.text?.toString()
+            if (n.isClickable && BridgeHeuristics.isSendHint(hint)) match = n
+            for (i in 0 until n.childCount) walk(n.getChild(i))
+        }
+        walk(root)
+        return match
+    }
+
+    // ---- AWAIT_RESPONSE phase ------------------------------------------------
 
     private fun onStable(snapshot: String) {
         if (!GeminiAppBridge.isWaiting) return
-        val root = rootInActiveWindow
+        val root = geminiRoot()
         val copyNode = root?.let { findLatestCopyNode(it) }
         if (copyNode != null && copyNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
             // Give the app a beat to populate the clipboard, then read it.
@@ -74,7 +199,7 @@ class GeminiAppBridgeAccessibilityService : AccessibilityService() {
         }
         val text = clip?.trim()
         if (!text.isNullOrBlank()) {
-            GeminiAppBridge.isWaiting = false
+            finishRun()
             GeminiAppBridge.channel.trySend(text)
         } else {
             // Clipboard empty/unreadable (background-read restriction) — scrape.
@@ -84,9 +209,10 @@ class GeminiAppBridgeAccessibilityService : AccessibilityService() {
 
     private fun deliverScraped(snapshot: String) {
         if (!GeminiAppBridge.isWaiting) return
-        val response = extractResponse(snapshot, GeminiAppBridge.pendingPrompt.orEmpty())
+        val response =
+            BridgeHeuristics.extractResponse(snapshot, GeminiAppBridge.pendingPrompt.orEmpty())
         if (response.isBlank()) return
-        GeminiAppBridge.isWaiting = false
+        finishRun()
         GeminiAppBridge.channel.trySend(response)
     }
 
@@ -98,25 +224,59 @@ class GeminiAppBridgeAccessibilityService : AccessibilityService() {
         var match: AccessibilityNodeInfo? = null
         fun walk(n: AccessibilityNodeInfo?) {
             if (n == null) return
-            val hint = (n.contentDescription?.toString() ?: n.text?.toString())?.lowercase()
-            if (hint != null && n.isClickable && COPY_HINTS.any { hint.contains(it) }) {
-                match = n
-            }
+            val hint = n.contentDescription?.toString() ?: n.text?.toString()
+            if (n.isClickable && BridgeHeuristics.isCopyHint(hint)) match = n
             for (i in 0 until n.childCount) walk(n.getChild(i))
         }
         walk(root)
         return match
     }
 
-    private fun extractResponse(snapshot: String, prompt: String): String {
-        var text = snapshot
-        if (prompt.isNotBlank()) {
-            text = text.replace(prompt, "").trim()
+    // ---- shared --------------------------------------------------------------
+
+    /**
+     * The Gemini window's root. Prefers [rootInActiveWindow] when it actually
+     * belongs to Gemini, but the block scrim (even non-focusable) can leave the
+     * active window ambiguous, so fall back to scanning [getWindows] by package.
+     */
+    private fun geminiRoot(): AccessibilityNodeInfo? {
+        rootInActiveWindow
+            ?.takeIf { it.packageName?.toString() in MONITORED_PACKAGES }
+            ?.let { return it }
+        return try {
+            // Each window.root is a fresh AccessibilityNodeInfo — recycle the
+            // ones we don't keep so we don't exhaust the node pool on older OSes.
+            for (window in windows) {
+                if (window.type != AccessibilityWindowInfo.TYPE_APPLICATION) continue
+                val root = window.root ?: continue
+                if (root.packageName?.toString() in MONITORED_PACKAGES) return root
+                root.recycle()
+            }
+            null
+        } catch (e: Exception) {
+            null
         }
-        for (junk in CHROME_STRINGS) {
-            text = text.replace(junk, "", ignoreCase = true)
+    }
+
+    /** Lift the touch-block scrim onto the now-foreground Gemini window, once. */
+    private fun reassertBlock() {
+        if (blockReasserted) return
+        blockReasserted = true
+        if (!Settings.canDrawOverlays(this)) return
+        try {
+            startForegroundService(
+                Intent(this, IdeazOverlayService::class.java).putExtra("STATE", "wait")
+            )
+        } catch (e: Exception) {
+            // Best-effort — the adapter already requested the scrim.
         }
-        return text.trim()
+    }
+
+    /** End-of-run bookkeeping so the next run starts clean. */
+    private fun finishRun() {
+        GeminiAppBridge.isWaiting = false
+        GeminiAppBridge.phase = GeminiAppBridge.BridgePhase.IDLE
+        blockReasserted = false
     }
 
     private fun collectText(node: AccessibilityNodeInfo?, out: StringBuilder = StringBuilder()): String {
@@ -139,31 +299,26 @@ class GeminiAppBridgeAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {
         stableJob?.let { handler.removeCallbacks(it) }
+        inputJob?.let { handler.removeCallbacks(it) }
         stableJob = null
+        inputJob = null
         lastSnapshot = ""
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         lastSnapshot = ""
+        blockReasserted = false
     }
 
     companion object {
         private const val STABLE_MS = 2_500L
+        private const val INPUT_STABLE_MS = 600L
         private const val CLIP_DELAY_MS = 350L
 
         private val MONITORED_PACKAGES = setOf(
             "com.google.android.apps.bard",
             "com.google.android.googlequicksearchbox",
-        )
-
-        // Substrings that mark a "copy response/code" button (case-insensitive).
-        private val COPY_HINTS = listOf("copy")
-
-        private val CHROME_STRINGS = listOf(
-            "Enter a prompt here",
-            "Listening",
-            "Tap to talk",
         )
     }
 }

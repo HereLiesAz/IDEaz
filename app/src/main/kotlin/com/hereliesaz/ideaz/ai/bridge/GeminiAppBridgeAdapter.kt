@@ -94,6 +94,10 @@ class GeminiAppBridgeAdapter(
 
         GeminiAppBridge.reset()
         GeminiAppBridge.pendingPrompt = outboundText
+        // The accessibility service types the prompt + taps Send (Gemini drops
+        // EXTRA_TEXT when a file is attached), then flips to AWAIT_RESPONSE itself.
+        GeminiAppBridge.phase = GeminiAppBridge.BridgePhase.INPUT
+        GeminiAppBridge.promptSubmitted = false
         GeminiAppBridge.isWaiting = true
 
         val streams = ArrayList(listOfNotNull(projectUri, imageUri))
