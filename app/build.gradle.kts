@@ -143,12 +143,12 @@ configurations.all {
             "org.bouncycastle:bcpkix-jdk18on:1.84",
             "org.bouncycastle:bcutil-jdk18on:1.84",
             "org.apache.commons:commons-lang3:3.20.0",
-            "com.google.protobuf:protobuf-java:3.25.5",
-            "com.google.protobuf:protobuf-kotlin:3.25.5",
+            "com.google.protobuf:protobuf-java:4.35.1",
+            "com.google.protobuf:protobuf-kotlin:4.35.1",
         )
         dependencySubstitution {
             substitute(module("com.google.protobuf:protobuf-javalite"))
-                .using(module("com.google.protobuf:protobuf-java:3.25.5"))
+                .using(module("com.google.protobuf:protobuf-java:4.35.1"))
                 .because("Android cannot have both javalite and full protobuf-java on the same classpath")
         }
         eachDependency {
