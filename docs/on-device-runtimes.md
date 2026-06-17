@@ -4,13 +4,18 @@ IDEaz ships a pluggable on-device model framework (`ai/local/`): a
 `LocalModelRuntime` registry, a multi-file `ModelDownloadManager`, a catalog, the
 `LocalLlmAdapter`, and the **On-device Models** Settings section.
 
-Working today:
+Working today (dependency in the build):
 - **AICore (Gemini Nano)** — `AiCoreRuntime`, system-managed, no download.
 - **MediaPipe LLM Inference** — `MediaPipeRuntime`, wired (`com.google.mediapipe:tasks-genai`).
 
-Pending their native backends (this guide): **ONNX Runtime GenAI** and **llama.cpp**.
-Both are registered runtimes that report "backend not in this build" until wired,
-so the picker degrades cleanly.
+**ONNX Runtime GenAI** (`OnnxGenAiRuntime`) and **llama.cpp** (`LlamaCppRuntime`)
+now have their `generate()` **implemented** (against `ai.onnxruntime.genai` and
+`android.llama.cpp.LLamaAndroid` respectively, via reflection so the app compiles
+without the heavy native deps). They stay dormant until their library is on the
+classpath: `isAvailable()` is false, and the **On-device Models** picker hides any
+model whose backend isn't actually usable on the device (it also filters by RAM,
+CPU ABI, and required tokens — see `LocalModelAvailability`). Add the library
+(below) and the matching models appear automatically.
 
 ---
 
@@ -31,9 +36,13 @@ implementation(files("libs/onnxruntime-genai-android-<ver>.aar"))
 implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
 ```
 
-### 2. Implement `OnnxGenAiRuntime.generate()` (in `ai/local/LocalModelRuntime.kt`)
-The model is a **directory** — our `ModelDownloadManager` already downloads all
-files into one (`additionalFiles`), so point the runtime at the parent dir:
+### 2. `OnnxGenAiRuntime.generate()` is already implemented
+It's in `ai/local/LocalModelRuntime.kt`, driving `ai.onnxruntime.genai`
+(Model/Tokenizer/GeneratorParams/Generator) **by reflection** over the model
+directory (`modelFile.parentFile`). Once the AAR is on the classpath it activates
+automatically. If the vendored version's API differs from the reflected calls
+(method names/signatures drift across releases), adjust them there. For reference,
+the equivalent typed code is:
 ```kotlin
 override suspend fun generate(context: Context, modelFile: File, prompt: String): String =
     withContext(Dispatchers.IO) {
@@ -63,6 +72,8 @@ override suspend fun generate(context: Context, modelFile: File, prompt: String)
 > names against the AAR you vendored (`javap` the bundled `classes.jar`).
 
 ### 3. R8 (`proguard-rules.pro`)
+Keep rules for `ai.onnxruntime.genai.**` (and `android.llama.cpp.**`) are already
+in `proguard-rules.pro`. If you vendor the broader `ai.onnxruntime.**` runtime, add:
 ```
 -keep class ai.onnxruntime.** { *; }
 -dontwarn ai.onnxruntime.**
@@ -82,22 +93,15 @@ is provided in `/llama-cpp-module/` — see its `README.md`. Summary:
 
 1. Add llama.cpp as a submodule inside the module:
    `git submodule add https://github.com/ggml-org/llama.cpp llama-cpp-module/llama.cpp`
-2. Include the module: in `settings.gradle.kts` add `include(":llama-cpp-module")`.
-3. Depend on it: in `app/build.gradle.kts` add
-   `implementation(project(":llama-cpp-module"))`.
-4. Replace `LlamaCppRuntime.generate()` with a direct call to
-   `android.llama.cpp.LLamaAndroid` (the scaffold's binding), e.g.:
-```kotlin
-override suspend fun generate(context: Context, modelFile: File, prompt: String): String {
-    val llm = android.llama.cpp.LLamaAndroid.instance()
-    llm.load(modelFile.absolutePath)
-    return try { llm.complete(prompt, maxTokens = 512) } finally { llm.unload() }
-}
-```
-5. R8 (`proguard-rules.pro`):
-```
--keep class android.llama.cpp.** { *; }
-```
 
-`isAvailable()` already detects `android.llama.cpp.LLamaAndroid`, so the runtime
-activates automatically once the module is on the classpath.
+That's the only manual step. `settings.gradle.kts` and `app/build.gradle.kts` now
+**conditionally** include/depend on `:llama-cpp-module` when that submodule
+directory exists, so a plain checkout still builds without the NDK and the module
+activates automatically once the submodule is present. `LlamaCppRuntime.generate()`
+is already implemented (it calls `android.llama.cpp.LLamaAndroid` by reflection),
+`isAvailable()` already detects the binding, and the R8 keep rule
+(`-keep class android.llama.cpp.** { *; }`) is in `proguard-rules.pro`.
+
+> The C API in `llama-android.cpp` targets a recent llama.cpp release; pin a
+> known-good tag and adjust if the API drifted. None of this can be compile- or
+> run-verified without the submodule + NDK toolchain.

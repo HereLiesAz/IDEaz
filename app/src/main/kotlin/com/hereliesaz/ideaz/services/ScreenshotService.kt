@@ -62,19 +62,8 @@ class ScreenshotService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val notification: Notification = Notification.Builder(this, "screenshot_service")
-            .setContentTitle("IDEaz")
-            .setContentText("Selection service is active.")
-            .setSmallIcon(R.mipmap.ic_launcher) // Make sure you have this
-            .build()
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(SERVICE_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
-        } else {
-            startForeground(SERVICE_ID, notification)
-        }
-
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
+            ?: Activity.RESULT_CANCELED
 
         val data: Intent? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent?.getParcelableExtra(EXTRA_DATA, Intent::class.java)
@@ -89,13 +78,45 @@ class ScreenshotService : Service() {
             intent?.getParcelableExtra(EXTRA_RECT)
         }
 
-        if (resultCode == Activity.RESULT_OK && data != null && rect != null) {
+        // A mediaProjection foreground service may only be started while the app
+        // holds a fresh MediaProjection consent (the project_media app-op). Starting
+        // it without one throws SecurityException on Android 14+, so bail BEFORE
+        // calling startForeground if the consent token is missing/invalid.
+        if (resultCode != Activity.RESULT_OK || data == null || rect == null) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        val notification: Notification = Notification.Builder(this, "screenshot_service")
+            .setContentTitle("IDEaz")
+            .setContentText("Selection service is active.")
+            .setSmallIcon(R.mipmap.ic_launcher) // Make sure you have this
+            .build()
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(SERVICE_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+            } else {
+                startForeground(SERVICE_ID, notification)
+            }
             startCapture(resultCode, data, rect)
-        } else {
-            stopSelf() // Invalid start
+        } catch (e: Exception) {
+            // e.g. SecurityException if the consent isn't actually held, or the
+            // projection token was already consumed. Fail cleanly, don't crash.
+            reportError("Screen capture unavailable: ${e.message}")
+            stopCapture()
         }
 
         return START_NOT_STICKY
+    }
+
+    /** Tell the UI a capture failed so it isn't left waiting silently. */
+    private fun reportError(message: String) {
+        val intent = Intent("com.hereliesaz.ideaz.SCREENSHOT_FAILED").apply {
+            setPackage(packageName)
+            putExtra("MESSAGE", message)
+        }
+        sendBroadcast(intent)
     }
 
     private fun startCapture(resultCode: Int, data: Intent, rect: Rect) {

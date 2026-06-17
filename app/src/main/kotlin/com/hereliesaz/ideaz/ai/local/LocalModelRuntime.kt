@@ -58,34 +58,99 @@ object MediaPipeRuntime : LocalModelRuntime {
 }
 
 /**
- * llama.cpp — any GGUF model. Pending its native backend: llama.cpp has no
- * published Android Maven artifact, so enabling it means adding an NDK module
- * (CMake build of libllama + the `android.llama.cpp.LLamaAndroid` JNI class).
- * Until that's present [isAvailable] is false and [generate] reports it.
+ * llama.cpp — any GGUF model, via the `android.llama.cpp.LLamaAndroid` JNI binding
+ * in the `:llama-cpp-module` NDK module. llama.cpp has no published Android Maven
+ * artifact, so the module is included only when its `llama.cpp` submodule is
+ * present (see its README). [generate] talks to the binding by reflection so the
+ * app compiles whether or not the module is on the classpath; when it's absent
+ * [isAvailable] is false and the model is hidden.
  */
 object LlamaCppRuntime : LocalModelRuntime {
     override val id = "llamacpp"
     override val displayName = "llama.cpp (GGUF)"
     override fun isAvailable(context: Context) =
-        classPresent("android.llama.cpp.LLamaAndroid") || classPresent("de.kherud.llama.LlamaModel")
+        classPresent("android.llama.cpp.LLamaAndroid")
+
     override suspend fun generate(context: Context, modelFile: File, prompt: String): String =
-        throw LocalRuntimeUnavailableException(displayName)
+        withContext(Dispatchers.IO) {
+            val cls = runCatching { Class.forName("android.llama.cpp.LLamaAndroid") }.getOrNull()
+                ?: throw LocalRuntimeUnavailableException(displayName)
+            // LLamaAndroid is a process-global singleton: instance() → load(path) →
+            // complete(prompt, maxTokens) → unload(). Synchronous; we're on IO.
+            val instance = cls.getMethod("instance").invoke(null)
+            cls.getMethod("load", String::class.java).invoke(instance, modelFile.absolutePath)
+            try {
+                cls.getMethod("complete", String::class.java, Int::class.javaPrimitiveType)
+                    .invoke(instance, prompt, 512) as String
+            } finally {
+                runCatching { cls.getMethod("unload").invoke(instance) }
+            }
+        }
 }
 
 /**
- * ONNX Runtime GenAI — Phi-3/3.5, Qwen (multi-file model directory). Pending its
- * backend: add the `com.microsoft.onnxruntime:onnxruntime-genai-android` AAR
- * (confirm the published version/coordinates), then drive `ai.onnxruntime.genai`
- * (SimpleGenAI/Model) over the downloaded model directory ([modelFile]'s parent).
- * Until the dependency is present [isAvailable] is false and [generate] reports it.
+ * ONNX Runtime GenAI — Phi-3/3.5, Qwen (a multi-file model *directory*). Enable by
+ * adding the `com.microsoft.onnxruntime:onnxruntime-genai-android` AAR (see
+ * `docs/on-device-runtimes.md`). [generate] drives `ai.onnxruntime.genai`
+ * (Model/Tokenizer/Generator) over the downloaded model directory ([modelFile]'s
+ * parent) by reflection, so the app compiles without the AAR; when it's absent
+ * [isAvailable] is false and the model is hidden.
  */
 object OnnxGenAiRuntime : LocalModelRuntime {
     override val id = "onnx"
     override val displayName = "ONNX Runtime GenAI"
     override fun isAvailable(context: Context) =
         classPresent("ai.onnxruntime.genai.Model")
+
     override suspend fun generate(context: Context, modelFile: File, prompt: String): String =
-        throw LocalRuntimeUnavailableException(displayName)
+        withContext(Dispatchers.IO) {
+            val pkg = "ai.onnxruntime.genai"
+            val modelCls = runCatching { Class.forName("$pkg.Model") }.getOrNull()
+                ?: throw LocalRuntimeUnavailableException(displayName)
+            val tokenizerCls = Class.forName("$pkg.Tokenizer")
+            val paramsCls = Class.forName("$pkg.GeneratorParams")
+            val generatorCls = Class.forName("$pkg.Generator")
+            val sequencesCls = Class.forName("$pkg.Sequences")
+
+            // GenAI loads a directory (model + genai_config.json + tokenizer files).
+            val dir = (modelFile.parentFile ?: modelFile).absolutePath
+            val model = modelCls.getConstructor(String::class.java).newInstance(dir)
+            try {
+                val tokenizer = tokenizerCls.getConstructor(modelCls).newInstance(model)
+                val encoded = tokenizerCls.getMethod("encode", String::class.java).invoke(tokenizer, prompt)
+                val params = paramsCls.getConstructor(modelCls).newInstance(model)
+                paramsCls.getMethod("setSearchOption", String::class.java, Double::class.javaPrimitiveType)
+                    .invoke(params, "max_length", 1024.0)
+                val generator = generatorCls.getConstructor(modelCls, paramsCls).newInstance(model, params)
+                try {
+                    // Feed prompt tokens. Newer API: Generator.appendTokenSequences(Sequences);
+                    // older API: GeneratorParams.setInput(Sequences) before generation.
+                    runCatching {
+                        generatorCls.getMethod("appendTokenSequences", sequencesCls).invoke(generator, encoded)
+                    }.onFailure {
+                        runCatching {
+                            paramsCls.getMethod("setInput", sequencesCls).invoke(params, encoded)
+                        }
+                    }
+                    val isDone = generatorCls.getMethod("isDone")
+                    val computeLogits = runCatching { generatorCls.getMethod("computeLogits") }.getOrNull()
+                    val generateNextToken = generatorCls.getMethod("generateNextToken")
+                    val getSequence = generatorCls.getMethod("getSequence", Long::class.javaPrimitiveType)
+                    var guard = 0
+                    while (isDone.invoke(generator) == false && guard < 4096) {
+                        computeLogits?.invoke(generator)
+                        generateNextToken.invoke(generator)
+                        guard++
+                    }
+                    val outIds = getSequence.invoke(generator, 0L) as IntArray
+                    tokenizerCls.getMethod("decode", IntArray::class.java).invoke(tokenizer, outIds) as String
+                } finally {
+                    runCatching { (generator as? AutoCloseable)?.close() }
+                }
+            } finally {
+                runCatching { (model as? AutoCloseable)?.close() }
+            }
+        }
 }
 
 /**
