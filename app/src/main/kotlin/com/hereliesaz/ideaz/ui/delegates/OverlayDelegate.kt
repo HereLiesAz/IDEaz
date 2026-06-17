@@ -136,9 +136,12 @@ class OverlayDelegate(
 
         setInternalSelectMode(enable)
 
-        // Pre-emptively request screen capture permission if missing
+        // Pre-emptively request screen capture permission if missing. Routed through
+        // requestScreenCapturePermission() so it respects the screenCaptureEnabled
+        // gate — otherwise enabling select mode would still raise the MediaProjection
+        // consent dialog in the PWA-only product.
         if (enable && !hasScreenCapturePermission()) {
-            _requestScreenCapture.value = true
+            requestScreenCapturePermission()
         }
     }
 
@@ -217,7 +220,9 @@ class OverlayDelegate(
                 } else {
                     // Screen capture is a Phase-2 (Android target) feature; in the
                     // PWA product just show the contextual chat with the context we
-                    // have — no screenshot, no MediaProjection prompt.
+                    // have — no screenshot, no MediaProjection prompt. Clear any prior
+                    // screenshot so stale image data can't ride along with new context.
+                    pendingBase64Screenshot = null
                     _isContextualChatVisible.value = true
                 }
             }
