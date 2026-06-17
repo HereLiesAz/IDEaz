@@ -109,27 +109,34 @@ fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
     val hfToken = settingsViewModel.getApiKey(SettingsViewModel.KEY_HF_API_KEY).orEmpty()
     val hasToken = hfToken.isNotBlank()
 
-    @Suppress("UNUSED_EXPRESSION") refresh // re-evaluate download state when bumped
-    val entries = LocalModelCatalog.models.map { model ->
-        val runtime = LocalModelRuntimes.byId(model.runtimeId)
-        // AICore's true availability is the hardware probe; others use class presence.
-        val backendOk = if (model.runtimeId == "aicore") {
-            aicoreSupported == true
-        } else {
-            runtime?.isAvailable(context) == true
+    @Suppress("UNUSED_EXPRESSION") refresh // re-read per-card download state when bumped
+
+    // Cache the mapping: it runs reflective isAvailable() lookups, so recomputing it
+    // on every recomposition (e.g. download progress ticks) would stutter the UI.
+    // Only the dynamic inputs (AICore probe result, token presence) are keys; RAM/ABI
+    // are read once above. Download state is handled per-card via `refresh`, not here.
+    val entries = remember(aicoreSupported, hasToken) {
+        LocalModelCatalog.models.map { model ->
+            val runtime = LocalModelRuntimes.byId(model.runtimeId)
+            // AICore's true availability is the hardware probe; others use class presence.
+            val backendOk = if (model.runtimeId == "aicore") {
+                aicoreSupported == true
+            } else {
+                runtime?.isAvailable(context) == true
+            }
+            val status = LocalModelAvailability.evaluate(
+                model = model,
+                backendAvailable = backendOk,
+                backendName = runtime?.displayName ?: model.runtimeId,
+                totalRamBytes = totalRam,
+                abis = abis,
+                hasAuthToken = hasToken,
+            )
+            ModelEntry(model, runtime, status)
         }
-        val status = LocalModelAvailability.evaluate(
-            model = model,
-            backendAvailable = backendOk,
-            backendName = runtime?.displayName ?: model.runtimeId,
-            totalRamBytes = totalRam,
-            abis = abis,
-            hasAuthToken = hasToken,
-        )
-        ModelEntry(model, runtime, status)
     }
-    val usable = entries.filter { it.status is LocalModelAvailability.Status.Usable }
-    val unavailable = entries.filter { it.status is LocalModelAvailability.Status.Unsupported }
+    val usable = remember(entries) { entries.filter { it.status is LocalModelAvailability.Status.Usable } }
+    val unavailable = remember(entries) { entries.filter { it.status is LocalModelAvailability.Status.Unsupported } }
 
     if (usable.isEmpty()) {
         Text(
