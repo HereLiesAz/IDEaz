@@ -92,6 +92,16 @@ class OverlayDelegate(
      */
     private var deferredCaptureRect: Rect? = null
 
+    /**
+     * Phase gate for MediaProjection screen capture. The product is **PWA-only**
+     * right now: web inspection uses DOM/source context (no screen capture), so the
+     * MediaProjection consent dialog and [ScreenshotService] are kept fully dormant
+     * to avoid prompting or crashing users. The capture path (and its
+     * `ScreenshotService` + manifest `mediaProjection` declarations) is preserved for
+     * Phase 2 (the Android target app) — flip this to re-enable it.
+     */
+    private val screenCaptureEnabled = false
+
     // --- Public Operations ---
 
     /**
@@ -202,7 +212,14 @@ class OverlayDelegate(
             // (e.g., a Web inspection where we only have a CSS / DOM id and
             // no on-screen bounds). The pendingContextInfo is still set above.
             if (!rect.isEmpty) {
-                takeScreenshot(rect)
+                if (screenCaptureEnabled) {
+                    takeScreenshot(rect)
+                } else {
+                    // Screen capture is a Phase-2 (Android target) feature; in the
+                    // PWA product just show the contextual chat with the context we
+                    // have — no screenshot, no MediaProjection prompt.
+                    _isContextualChatVisible.value = true
+                }
             }
         }
     }
@@ -278,7 +295,12 @@ class OverlayDelegate(
     // --- Permission Management ---
 
     fun hasScreenCapturePermission() = screenCaptureData != null
-    fun requestScreenCapturePermission() { _requestScreenCapture.value = true }
+    fun requestScreenCapturePermission() {
+        // Dormant in the PWA-only product — see [screenCaptureEnabled]. Never raise
+        // the MediaProjection consent dialog so it can't prompt or crash users.
+        if (!screenCaptureEnabled) return
+        _requestScreenCapture.value = true
+    }
     fun screenCaptureRequestHandled() { _requestScreenCapture.value = false }
 
     /**

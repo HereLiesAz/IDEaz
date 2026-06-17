@@ -55,7 +55,7 @@
 *   `IdeazAccessibilityService.kt`: Accessibility Service for Phase 2 element capture (wired but inert until Phase 2).
 *   `IdeazOverlayService.kt`: System Alert Window overlay for Phase 2 (wired but inert until Phase 2).
 *   `CrashReportingService.kt`: Service for fatal error reporting in `:crash_reporter`.
-*   `ScreenshotService.kt`: `MediaProjection` virtual display for region screenshots.
+*   `ScreenshotService.kt`: `MediaProjection` virtual display for region screenshots. **Dormant in the PWA-only product** (Phase 2 / Android target) — not declared in the manifest and never started; gated by `OverlayDelegate.screenCaptureEnabled`.
 
 #### ai/
 *   `AiAdapterFactory.kt`: Centralized factory that maps AI models to concrete adapters.

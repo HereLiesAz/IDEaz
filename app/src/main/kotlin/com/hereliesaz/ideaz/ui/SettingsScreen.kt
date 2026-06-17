@@ -583,7 +583,6 @@ fun SettingsScreen(
                 val hasInstall by remember(refreshTrigger) {
                     mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.packageManager.canRequestPackageInstalls() else true)
                 }
-                val hasScreenshot by remember(viewModel.hasScreenCapturePermission()) { mutableStateOf(viewModel.hasScreenCapturePermission()) }
                 val hasAccessibility by remember(refreshTrigger) {
                     mutableStateOf(isAccessibilityServiceEnabled(context, ".services.IdeazAccessibilityService"))
                 }
@@ -642,17 +641,9 @@ fun SettingsScreen(
                     }
                 )
 
-                PermissionCheckRow(
-                    name = "Screen Capture",
-                    granted = hasScreenshot,
-                    onClick = {
-                        if (!hasScreenshot) {
-                            viewModel.requestScreenCapturePermission()
-                        } else {
-                            Toast.makeText(context, "Permission already granted", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                )
+                // "Screen Capture" (MediaProjection) is a Phase-2 (Android target)
+                // feature and is intentionally not exposed in the PWA-only product —
+                // see OverlayDelegate.screenCaptureEnabled.
 
                 PermissionCheckRow(
                     name = "Manage All Files (Storage)",
