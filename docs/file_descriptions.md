@@ -69,8 +69,10 @@
 *   `ToolSchema.kt`: JSON schemas for tools.
 
 #### ai/local/
-*   `LocalModelRuntime.kt`: Interface and implementations for on-device backends (MediaPipe, AICore, etc.).
-*   `LocalModelCatalog.kt`: Curated list of downloadable on-device models.
+*   `LocalModelRuntime.kt`: Interface and implementations for on-device backends — AICore + MediaPipe (wired) and llama.cpp/GGUF + ONNX GenAI (reflection-driven `generate()`, active once their library is on the classpath).
+*   `LocalModelCatalog.kt`: Curated list of downloadable on-device models, with per-model RAM/ABI/auth requirements used for filtering.
+*   `DeviceCapabilities.kt`: Reads device RAM (`ActivityManager.MemoryInfo`) and supported CPU ABIs (`Build.SUPPORTED_ABIS`).
+*   `LocalModelAvailability.kt`: Pure, unit-tested logic deciding whether a model is usable on this device/build (backend present, RAM, ABI, token) — drives the Settings list filtering.
 *   `LocalModelStore.kt`: Manages locally stored model files and metadata.
 *   `ModelDownloadManager.kt`: Handles background downloading of model files with auth support.
 

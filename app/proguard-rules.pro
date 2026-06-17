@@ -62,6 +62,12 @@
 -dontwarn org.eclipse.jgit.**
 -dontwarn org.slf4j.**
 
+# ---- On-device runtimes (reflection-detected; keep their public API) -------
+-keep class android.llama.cpp.** { *; }
+-keep class ai.onnxruntime.genai.** { *; }
+-dontwarn android.llama.cpp.**
+-dontwarn ai.onnxruntime.genai.**
+
 # ---- Android / WebView JS bridge ------------------------------------------
 -keepclassmembers class * {
     @android.webkit.JavascriptInterface <methods>;

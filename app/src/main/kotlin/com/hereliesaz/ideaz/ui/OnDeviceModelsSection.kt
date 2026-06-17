@@ -11,10 +11,10 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -22,6 +22,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -30,7 +31,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.hereliesaz.aznavrail.AzButton
 import com.hereliesaz.aznavrail.model.AzButtonShape
+import com.hereliesaz.ideaz.ai.GeminiNanoAdapter
+import com.hereliesaz.ideaz.ai.local.DeviceCapabilities
+import com.hereliesaz.ideaz.ai.local.LocalModel
+import com.hereliesaz.ideaz.ai.local.LocalModelAvailability
 import com.hereliesaz.ideaz.ai.local.LocalModelCatalog
+import com.hereliesaz.ideaz.ai.local.LocalModelRuntime
 import com.hereliesaz.ideaz.ai.local.LocalModelRuntimes
 import com.hereliesaz.ideaz.ai.local.LocalModelStore
 import com.hereliesaz.ideaz.ai.local.ModelDownloadManager
@@ -43,10 +49,21 @@ private fun humanSize(bytes: Long): String = when {
     else -> "%.0f KB".format(bytes / 1e3)
 }
 
+private class ModelEntry(
+    val model: LocalModel,
+    val runtime: LocalModelRuntime?,
+    val status: LocalModelAvailability.Status,
+)
+
 /**
  * Settings section that lets the user download an on-device model (per runtime)
- * and select which one the "On-device model" AI provider uses. AICore is offered
- * as a no-download, system-managed entry.
+ * and select which one the "On-device model" AI provider uses.
+ *
+ * Only models this device can actually use *right now* are listed — the runtime
+ * backend must be in the build (and, for AICore, supported by the hardware), the
+ * device must meet the model's RAM/ABI needs, and any required token must be
+ * present. Everything else is summarized under a collapsible "unavailable" note
+ * so the list isn't a wall of disabled, un-runnable entries.
  */
 @Composable
 fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
@@ -60,6 +77,18 @@ fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
     val downloading = remember { mutableStateMapOf<String, Boolean>() }
     val errors = remember { mutableStateMapOf<String, String>() }
     var refresh by remember { mutableIntStateOf(0) }
+    var showUnavailable by remember { mutableStateOf(false) }
+
+    // Static device signals (read once).
+    val totalRam = remember { DeviceCapabilities.totalRamBytes(context) }
+    val abis = remember { DeviceCapabilities.supportedAbis() }
+
+    // AICore support needs the real engine probe (not just class presence); run it
+    // once. null = still checking → treat as unsupported until it resolves.
+    var aicoreSupported by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(Unit) {
+        aicoreSupported = runCatching { GeminiNanoAdapter.isAvailable(context) }.getOrDefault(false)
+    }
 
     Text(
         "On-device Models",
@@ -70,18 +99,57 @@ fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
     Spacer(Modifier.height(8.dp))
     Text(
         "Run the AI fully on-device. Download a model (or use the system AICore model), " +
-            "select it below, then choose \"On-device model\" as an AI Assignment above.",
+            "select it below, then choose \"On-device model\" as an AI Assignment above. " +
+            "Only models this device can run are shown.",
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         style = MaterialTheme.typography.bodySmall,
     )
     Spacer(Modifier.height(8.dp))
 
     val hfToken = settingsViewModel.getApiKey(SettingsViewModel.KEY_HF_API_KEY).orEmpty()
+    val hasToken = hfToken.isNotBlank()
 
-    LocalModelCatalog.models.forEach { model ->
-        val runtime = LocalModelRuntimes.byId(model.runtimeId)
-        val backendOk = runtime?.isAvailable(context) == true
-        @Suppress("UNUSED_EXPRESSION") refresh // re-read download state when bumped
+    @Suppress("UNUSED_EXPRESSION") refresh // re-read per-card download state when bumped
+
+    // Cache the mapping: it runs reflective isAvailable() lookups, so recomputing it
+    // on every recomposition (e.g. download progress ticks) would stutter the UI.
+    // Only the dynamic inputs (AICore probe result, token presence) are keys; RAM/ABI
+    // are read once above. Download state is handled per-card via `refresh`, not here.
+    val entries = remember(aicoreSupported, hasToken) {
+        LocalModelCatalog.models.map { model ->
+            val runtime = LocalModelRuntimes.byId(model.runtimeId)
+            // AICore's true availability is the hardware probe; others use class presence.
+            val backendOk = if (model.runtimeId == "aicore") {
+                aicoreSupported == true
+            } else {
+                runtime?.isAvailable(context) == true
+            }
+            val status = LocalModelAvailability.evaluate(
+                model = model,
+                backendAvailable = backendOk,
+                backendName = runtime?.displayName ?: model.runtimeId,
+                totalRamBytes = totalRam,
+                abis = abis,
+                hasAuthToken = hasToken,
+            )
+            ModelEntry(model, runtime, status)
+        }
+    }
+    val usable = remember(entries) { entries.filter { it.status is LocalModelAvailability.Status.Usable } }
+    val unavailable = remember(entries) { entries.filter { it.status is LocalModelAvailability.Status.Unsupported } }
+
+    if (usable.isEmpty()) {
+        Text(
+            "No on-device models are usable on this device or build yet.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Spacer(Modifier.height(8.dp))
+    }
+
+    usable.forEach { entry ->
+        val model = entry.model
+        val runtime = entry.runtime
         val downloaded = downloads.isDownloaded(model)
 
         Card(
@@ -95,7 +163,7 @@ fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(
                         selected = activeId == model.id,
-                        enabled = downloaded && backendOk,
+                        enabled = downloaded,
                         onClick = {
                             activeId = model.id
                             store.activeModelId = model.id
@@ -115,14 +183,6 @@ fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
                             Text(
                                 model.notes,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                        if (!backendOk) {
-                            Text(
-                                if (model.systemManaged) "Not available on this device."
-                                else "Runtime backend not included in this build yet.",
-                                color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
@@ -180,7 +240,6 @@ fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
                                 },
                                 text = "Download",
                                 shape = AzButtonShape.RECTANGLE,
-                                enabled = !model.requiresAuth || hfToken.isNotBlank(),
                             )
                         }
                     }
@@ -188,5 +247,30 @@ fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
             }
         }
     }
+
+    if (unavailable.isNotEmpty()) {
+        Text(
+            text = (if (showUnavailable) "▾ " else "▸ ") +
+                "${unavailable.size} model(s) unavailable on this device",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { showUnavailable = !showUnavailable }
+                .padding(vertical = 4.dp),
+        )
+        if (showUnavailable) {
+            unavailable.forEach { entry ->
+                val reason = (entry.status as LocalModelAvailability.Status.Unsupported).reason
+                Text(
+                    "• ${entry.model.name} — $reason",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(start = 8.dp, bottom = 2.dp),
+                )
+            }
+        }
+    }
+
     Spacer(Modifier.height(24.dp))
 }

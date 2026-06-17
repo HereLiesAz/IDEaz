@@ -34,3 +34,11 @@ dependencyResolutionManagement {
 
 rootProject.name = "IDEaz"
 include(":app")
+
+// llama.cpp GGUF backend (LlamaCppRuntime). An NDK module that builds libllama
+// from a git submodule at llama-cpp-module/llama.cpp. Included only when that
+// submodule is present so a plain checkout still builds without the NDK/submodule;
+// see llama-cpp-module/README.md to activate.
+if (file("llama-cpp-module/llama.cpp").exists()) {
+    include(":llama-cpp-module")
+}

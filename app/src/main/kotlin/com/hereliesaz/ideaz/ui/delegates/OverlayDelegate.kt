@@ -84,6 +84,14 @@ class OverlayDelegate(
 
     private var pendingRect: Rect? = null
 
+    /**
+     * A capture rect that is waiting for a fresh MediaProjection consent. Set when
+     * [takeScreenshot] runs without a valid token; replayed once the user grants
+     * consent in [setScreenCapturePermission]. Distinct from [pendingRect], which
+     * is kept for restoring the highlight after the capture completes.
+     */
+    private var deferredCaptureRect: Rect? = null
+
     // --- Public Operations ---
 
     /**
@@ -220,10 +228,18 @@ class OverlayDelegate(
      * Uses [ScreenshotService] (foreground service) because MediaProjection requires a foreground service context on newer Android versions.
      */
     private fun takeScreenshot(rect: Rect) {
-        if (!hasScreenCapturePermission()) {
-            onOverlayLog("Error: Missing screen capture permission.")
+        val code = screenCaptureResultCode
+        val data = screenCaptureData
+        if (code == null || data == null) {
+            // No (or already-consumed) consent. MediaProjection tokens are single-use
+            // on Android 14+, so request a fresh one and replay this capture on grant.
+            deferredCaptureRect = rect
+            requestScreenCapturePermission()
             return
         }
+        // Consume the token now — it can't be reused for a second capture.
+        screenCaptureResultCode = null
+        screenCaptureData = null
 
         scope.launch {
             // Temporarily hide the highlight to get a clean screenshot
@@ -235,8 +251,8 @@ class OverlayDelegate(
             delay(250) // Wait for UI to update
 
             val serviceIntent = Intent(application, ScreenshotService::class.java).apply {
-                putExtra(ScreenshotService.EXTRA_RESULT_CODE, screenCaptureResultCode)
-                putExtra(ScreenshotService.EXTRA_DATA, screenCaptureData)
+                putExtra(ScreenshotService.EXTRA_RESULT_CODE, code)
+                putExtra(ScreenshotService.EXTRA_DATA, data)
                 putExtra(ScreenshotService.EXTRA_RECT, rect)
             }
             application.startForegroundService(serviceIntent)
@@ -269,9 +285,17 @@ class OverlayDelegate(
      * Stores the MediaProjection permission result for later use by the ScreenshotService.
      */
     fun setScreenCapturePermission(code: Int, data: Intent?) {
-        if (code == Activity.RESULT_OK) {
+        if (code == Activity.RESULT_OK && data != null) {
             screenCaptureResultCode = code
             screenCaptureData = data
+            // Replay a capture that was waiting on this consent.
+            deferredCaptureRect?.let { rect ->
+                deferredCaptureRect = null
+                takeScreenshot(rect)
+            }
+        } else {
+            deferredCaptureRect = null
+            onOverlayLog("Screen capture permission denied.")
         }
     }
 }
