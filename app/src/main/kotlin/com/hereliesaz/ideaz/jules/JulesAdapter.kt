@@ -6,6 +6,7 @@ import com.hereliesaz.ideaz.api.Activity
 import com.hereliesaz.ideaz.api.CreateSessionRequest
 import com.hereliesaz.ideaz.api.SendMessageRequest
 import com.hereliesaz.ideaz.api.SourceContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -29,6 +30,11 @@ class JulesAdapter(
         sourceContext: SourceContext,
         existingSessionId: String?,
     ): Flow<TaskEvent> = flow {
+        // Each activity is emitted at most once. For a resumed session we seed this
+        // with the session's existing history first, so we don't re-emit (and
+        // re-apply) past turns' messages and patches.
+        val processed = mutableSetOf<String>()
+
         val sessionId = if (existingSessionId == null) {
             val session = client.createSession(
                 CreateSessionRequest(
@@ -40,26 +46,33 @@ class JulesAdapter(
             emit(TaskEvent.SessionStarted(session))
             session.id
         } else {
+            runCatching { getAllActivities(existingSessionId) }
+                .getOrDefault(emptyList())
+                .forEach { processed.add(it.id) }
             client.sendMessage(existingSessionId, SendMessageRequest(prompt = prompt))
             existingSessionId
         }
 
-        // Mark each activity processed once: records are immutable, so re-applying a
-        // patch that already failed only spams the user. Dedup messages by content.
-        val processed = mutableSetOf<String>()
-        var lastMessage: String? = null
         var attempts = 0
         while (attempts < maxPollAttempts) {
             delay(pollDelayMs)
-            val activities = getAllActivities(sessionId)
+            // Tolerate a transient poll failure: skip this round, keep waiting,
+            // rather than killing the whole session on one network hiccup.
+            val activities = try {
+                getAllActivities(sessionId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                attempts++
+                continue
+            }
 
-            activities.firstOrNull { it.agentMessaged != null }
-                ?.agentMessaged?.agentMessage
-                ?.takeIf { it.isNotBlank() && it != lastMessage }
-                ?.let { lastMessage = it; emit(TaskEvent.Message(it)) }
-
-            for (activity in activities) {
+            // Process in chronological order so patches apply oldest-first.
+            for (activity in activities.sortedBy { it.createTime }) {
                 if (!processed.add(activity.id)) continue
+                activity.agentMessaged?.agentMessage
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { emit(TaskEvent.Message(it)) }
                 activity.artifacts?.forEach { artifact ->
                     artifact.changeSet?.gitPatch?.unidiffPatch
                         ?.takeIf { it.isNotBlank() }

@@ -92,4 +92,18 @@ class JulesAdapterTest {
         assertTrue(events.none { it is TaskEvent.SessionStarted })
         assertEquals(TaskEvent.TimedOut, events.last())
     }
+
+    @Test
+    fun `resuming a session does not re-emit or re-apply existing history`() = runTest {
+        // The session already has a prior turn (message + patch). Resuming with a
+        // new prompt must not replay it.
+        val client = FakeClient(listOf(activity("old", message = "earlier turn", patch = "old diff")))
+        val adapter = JulesAdapter(client, pollDelayMs = 1, maxPollAttempts = 2)
+
+        val events = adapter.dispatchTask("again", sourceContext, existingSessionId = "s9").toList()
+
+        assertTrue(events.none { it is TaskEvent.Patch })
+        assertTrue(events.none { it is TaskEvent.Message })
+        assertEquals(TaskEvent.TimedOut, events.last())
+    }
 }
