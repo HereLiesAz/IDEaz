@@ -24,7 +24,23 @@ Owned by `AIDelegate`:
 *   Create new sessions for prompts captured from element-tap context.
 *   Poll for "Patch" activities and auto-merge resulting PRs.
 
-`AgenticAiClient.dispatchTask(prompt, context): Flow<TaskEvent>` is the Phase 2 abstraction; `JulesAdapter` will implement it on top of `JulesApiClient`. The chat UI is target-agnostic — the same `Flow<TaskEvent>` shape works for both PWA-loop (Gemini) and Android-loop (Jules) targets.
+`AgenticAiClient.dispatchTask(prompt, sourceContext, existingSessionId): Flow<TaskEvent>`
+is the Phase 2 abstraction (`ai/AgenticAiClient.kt`); **`JulesAdapter` (`jules/JulesAdapter.kt`)
+implements it** on top of `JulesApiClient`, owning the create/resume-session +
+activity-poll loop and emitting `TaskEvent`s (`SessionStarted`/`Message`/`Patch`/`TimedOut`).
+`AIDelegate.runJulesTask` just collects the flow — wiring events to the overlay log and
+the patch-apply callback. The chat UI is target-agnostic — the same event shape works
+for both the PWA-loop (Gemini) and Android-loop (Jules) targets.
+
+**Provider default is project-type-aware** (`AIDelegate.defaultOverlayModel`): an
+explicit Settings → AI Assignments choice always wins; otherwise **Android targets
+default to Jules**, web-like projects default to Gemini.
+
+**Output model:** the current loop applies Jules' returned unidiff patches to the
+working tree. The Phase-2 target (per the design) is **PR-based** — Jules opens a PR,
+IDEaz auto-merges, GitHub Actions rebuilds the APK, and `ApkInstaller` re-sideloads.
+That PR/auto-merge/build loop is the next increment (adding a `PullRequest` `TaskEvent`
+and consuming `Session.outputs[].pullRequest`).
 
 ## Jules CLI — REMOVED
 

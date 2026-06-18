@@ -4,6 +4,8 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.hereliesaz.ideaz.api.*
 import com.hereliesaz.ideaz.jules.IJulesApiClient
+import com.hereliesaz.ideaz.models.ProjectType
+import com.hereliesaz.ideaz.ui.AiModels
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -91,5 +93,24 @@ class AIDelegateTest {
         val sessions = aiDelegate.sessions.value
         assertEquals(1, sessions.size)
         assertEquals("s1", sessions[0].id)
+    }
+
+    @Test
+    fun androidProjectsDefaultToJules() {
+        assertEquals(AiModels.JULES, AIDelegate.defaultOverlayModel(null, ProjectType.ANDROID))
+    }
+
+    @Test
+    fun webLikeProjectsDefaultToGemini() {
+        assertEquals(AiModels.GEMINI, AIDelegate.defaultOverlayModel(null, ProjectType.PWA))
+        assertEquals(AiModels.GEMINI, AIDelegate.defaultOverlayModel(null, ProjectType.WEB))
+    }
+
+    @Test
+    fun explicitAssignmentOverridesTheTypeDefault() {
+        // User explicitly picked Gemini on an Android project — respect it.
+        assertEquals(AiModels.GEMINI, AIDelegate.defaultOverlayModel(AiModels.GEMINI_FLASH, ProjectType.ANDROID))
+        // And explicitly picked Jules on a web project (the run loop later downgrades it).
+        assertEquals(AiModels.JULES, AIDelegate.defaultOverlayModel(AiModels.JULES_DEFAULT, ProjectType.PWA))
     }
 }
