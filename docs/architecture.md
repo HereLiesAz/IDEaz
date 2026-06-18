@@ -41,7 +41,7 @@ Git is the source of truth. There is no offline build path — builds are always
 * **`IdeazOverlayService`**: `TYPE_APPLICATION_OVERLAY` window for Phase 2 element-tap on the sideloaded target app. Wired but inert until Phase 2.
 * **`IdeazAccessibilityService`**: `AccessibilityNodeInfo` walk for Phase 2 element capture. Wired but inert until Phase 2.
 * **`CrashReportingService`** (`:crash_reporter`): isolated process so crashes still report.
-* **`ScreenshotService`**: `MediaProjection` virtual display for region screenshots — kept (its proper use of `VirtualDisplay`).
+* **`ScreenshotService`**: `MediaProjection` virtual display for region screenshots — kept for Phase 2 (Android target) but **dormant in the PWA-only product**: undeclared in the manifest and gated off by `OverlayDelegate.screenCaptureEnabled`, so no consent prompt or foreground service runs today.
 
 ## 5. File System
 
