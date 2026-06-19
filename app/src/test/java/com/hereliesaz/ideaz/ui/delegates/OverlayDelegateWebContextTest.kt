@@ -73,6 +73,16 @@ class OverlayDelegateWebContextTest {
         val webVm: SettingsViewModel = mock()
         whenever(webVm.getProjectType()).thenReturn("WEB")
         assertFalse(OverlayDelegate(app, webVm, this, {}).isScreenCaptureEnabled())
+
+        // Null (no project loaded) and unrecognized strings are safe — ProjectType
+        // .fromString maps both to UNKNOWN (never throws), so capture stays off.
+        val nullVm: SettingsViewModel = mock()
+        whenever(nullVm.getProjectType()).thenReturn(null)
+        assertFalse(OverlayDelegate(app, nullVm, this, {}).isScreenCaptureEnabled())
+
+        val invalidVm: SettingsViewModel = mock()
+        whenever(invalidVm.getProjectType()).thenReturn("INVALID")
+        assertFalse(OverlayDelegate(app, invalidVm, this, {}).isScreenCaptureEnabled())
     }
 
     @Test
