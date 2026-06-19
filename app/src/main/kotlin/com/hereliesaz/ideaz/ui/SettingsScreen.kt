@@ -641,9 +641,10 @@ fun SettingsScreen(
                     }
                 )
 
-                // "Screen Capture" (MediaProjection) is a Phase-2 (Android target)
-                // feature and is intentionally not exposed in the PWA-only product —
-                // see OverlayDelegate.screenCaptureEnabled.
+                // "Screen Capture" (MediaProjection) consent is requested on demand for
+                // Android target projects when entering select mode — see
+                // OverlayDelegate.isScreenCaptureEnabled(). No standing permission row is
+                // shown here because the grant is a per-session MediaProjection token.
 
                 PermissionCheckRow(
                     name = "Manage All Files (Storage)",

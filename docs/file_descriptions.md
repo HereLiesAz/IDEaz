@@ -53,10 +53,10 @@
 
 #### services/
 *   `BuildService.kt`: Foreground service in `:build_process`. Post-Phase-0 it is a thin shell around `RemoteBuildManager`.
-*   `IdeazAccessibilityService.kt`: Accessibility Service for Phase 2 element capture (wired but inert until Phase 2).
+*   `IdeazAccessibilityService.kt`: Accessibility Service that captures tapped elements in the sideloaded target app — resolves the tapped node's `viewIdResourceName` + screen bounds (→ source file/line context) and reports the target app's window bounds to the overlay.
 *   `IdeazOverlayService.kt`: System Alert Window overlay for Phase 2 (wired but inert until Phase 2).
 *   `CrashReportingService.kt`: Service for fatal error reporting in `:crash_reporter`.
-*   `ScreenshotService.kt`: `MediaProjection` virtual display for region screenshots. **Dormant in the PWA-only product** (Phase 2 / Android target) — not declared in the manifest and never started; gated by `OverlayDelegate.screenCaptureEnabled`.
+*   `ScreenshotService.kt`: `MediaProjection` virtual display for region screenshots. Declared in the manifest (`mediaProjection` FGS) and started **only for Android target projects**, gated at runtime by `OverlayDelegate.isScreenCaptureEnabled()`; web/PWA projects never raise the consent dialog. The captured PNG is attached to the contextual prompt for image-capable models (and embedded for Jules).
 
 #### ai/
 *   `AiAdapterFactory.kt`: Centralized factory that maps AI models to concrete adapters.
@@ -112,7 +112,7 @@
 *   `AIDelegate.kt`: AI sessions (Phase 1 Gemini conversational; Phase 2 Jules agentic).
 *   `BuildDelegate.kt`: BuildService binding; remote build dispatch + poll + install.
 *   `GitDelegate.kt`: Git operations and state.
-*   `OverlayDelegate.kt`: Visual overlay and selection mode (Phase 2).
+*   `OverlayDelegate.kt`: Visual overlay and selection mode. `isScreenCaptureEnabled()` gates MediaProjection capture to Android target projects (web/PWA never prompt).
 *   `RepoDelegate.kt`: GitHub repo fetch / create. `uploadProjectSecrets` is currently a no-op stub — see `docs/plans/phase-0-followups.md`.
 *   `StateDelegate.kt`: Centralized shared UI state.
 *   `SystemEventDelegate.kt`: BroadcastReceivers for system events.

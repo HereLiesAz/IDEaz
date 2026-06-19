@@ -5,6 +5,7 @@ import android.app.Application
 import android.content.Intent
 import android.graphics.Rect
 import android.net.Uri
+import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.services.ScreenshotService
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.utils.SourceContextHelper
@@ -93,14 +94,16 @@ class OverlayDelegate(
     private var deferredCaptureRect: Rect? = null
 
     /**
-     * Phase gate for MediaProjection screen capture. The product is **PWA-only**
-     * right now: web inspection uses DOM/source context (no screen capture), so the
-     * MediaProjection consent dialog and [ScreenshotService] are kept fully dormant
-     * to avoid prompting or crashing users. The capture path (and its
-     * `ScreenshotService` + manifest `mediaProjection` declarations) is preserved for
-     * Phase 2 (the Android target app) — flip this to re-enable it.
+     * Whether MediaProjection screen capture is active for the current project.
+     * Enabled only for **Android target** projects, where tapping the sideloaded
+     * app's real UI benefits from a screenshot attached to the prompt (for
+     * image-capable models). Web/PWA projects inspect via DOM/source context and
+     * must never raise the MediaProjection consent dialog, so capture stays dormant
+     * there (and its `ScreenshotService` + manifest `mediaProjection` declarations
+     * go unused). Re-evaluated per call so switching projects takes effect live.
      */
-    private val screenCaptureEnabled = false
+    internal fun isScreenCaptureEnabled(): Boolean =
+        ProjectType.fromString(settingsViewModel.getProjectType()) == ProjectType.ANDROID
 
     // --- Public Operations ---
 
@@ -137,7 +140,7 @@ class OverlayDelegate(
         setInternalSelectMode(enable)
 
         // Pre-emptively request screen capture permission if missing. Routed through
-        // requestScreenCapturePermission() so it respects the screenCaptureEnabled
+        // requestScreenCapturePermission() so it respects the isScreenCaptureEnabled()
         // gate — otherwise enabling select mode would still raise the MediaProjection
         // consent dialog in the PWA-only product.
         if (enable && !hasScreenCapturePermission()) {
@@ -215,13 +218,13 @@ class OverlayDelegate(
             // (e.g., a Web inspection where we only have a CSS / DOM id and
             // no on-screen bounds). The pendingContextInfo is still set above.
             if (!rect.isEmpty) {
-                if (screenCaptureEnabled) {
+                if (isScreenCaptureEnabled()) {
                     takeScreenshot(rect)
                 } else {
-                    // Screen capture is a Phase-2 (Android target) feature; in the
-                    // PWA product just show the contextual chat with the context we
-                    // have — no screenshot, no MediaProjection prompt. Clear any prior
-                    // screenshot so stale image data can't ride along with new context.
+                    // Web/PWA inspection: just show the contextual chat with the
+                    // context we have — no screenshot, no MediaProjection prompt.
+                    // Clear any prior screenshot so stale image data can't ride
+                    // along with new context.
                     pendingBase64Screenshot = null
                     _isContextualChatVisible.value = true
                 }
@@ -301,9 +304,9 @@ class OverlayDelegate(
 
     fun hasScreenCapturePermission() = screenCaptureData != null
     fun requestScreenCapturePermission() {
-        // Dormant in the PWA-only product — see [screenCaptureEnabled]. Never raise
-        // the MediaProjection consent dialog so it can't prompt or crash users.
-        if (!screenCaptureEnabled) return
+        // Dormant for non-Android projects — see [isScreenCaptureEnabled]. Never raise
+        // the MediaProjection consent dialog there so it can't prompt or crash users.
+        if (!isScreenCaptureEnabled()) return
         _requestScreenCapture.value = true
     }
     fun screenCaptureRequestHandled() { _requestScreenCapture.value = false }
