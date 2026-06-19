@@ -2,6 +2,7 @@ package com.hereliesaz.ideaz.buildlogic
 
 import com.hereliesaz.ideaz.api.GitHubApi
 import com.hereliesaz.ideaz.api.MergePullRequestRequest
+import kotlinx.coroutines.CancellationException
 
 /**
  * Auto-merges a pull request opened by the agent (Jules) and resolves the merge
@@ -20,15 +21,27 @@ class PullRequestCoordinator(private val api: GitHubApi) {
         val ref = parsePullRequestUrl(prUrl) ?: return null
 
         // Already merged (retry / duplicate event): reuse the existing commit.
-        val existing = runCatching { api.getPullRequest(ref.owner, ref.repo, ref.number) }.getOrNull()
+        // Catch Exception (not runCatching) so cancellation propagates — otherwise a
+        // cancelled rebuild would return null and surface a misleading "Build failed".
+        val existing = try {
+            api.getPullRequest(ref.owner, ref.repo, ref.number)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
         if (existing?.merged == true) return existing.mergeCommitSha
 
-        val response = runCatching {
+        val response = try {
             api.mergePullRequest(
                 ref.owner, ref.repo, ref.number,
                 MergePullRequestRequest(mergeMethod = mergeMethod)
             )
-        }.getOrNull() ?: return null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return null
+        }
 
         if (!response.isSuccessful) return null
         return response.body()?.takeIf { it.merged }?.sha
