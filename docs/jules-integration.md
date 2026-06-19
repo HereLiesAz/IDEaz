@@ -36,11 +36,22 @@ for both the PWA-loop (Gemini) and Android-loop (Jules) targets.
 explicit Settings → AI Assignments choice always wins; otherwise **Android targets
 default to Jules**, web-like projects default to Gemini.
 
-**Output model:** the current loop applies Jules' returned unidiff patches to the
-working tree. The Phase-2 target (per the design) is **PR-based** — Jules opens a PR,
-IDEaz auto-merges, GitHub Actions rebuilds the APK, and `ApkInstaller` re-sideloads.
-That PR/auto-merge/build loop is the next increment (adding a `PullRequest` `TaskEvent`
-and consuming `Session.outputs[].pullRequest`).
+**Output model — PR-based loop (implemented):** when Jules opens a pull request it
+surfaces in `Session.outputs[].pullRequest`. `JulesAdapter` polls `getSession` and,
+when a PR appears, emits a terminal `TaskEvent.PullRequest(url, title)`. `AIDelegate`
+forwards the URL via its `onAgentPullRequest` callback to
+`BuildDelegate.installFromMergedPr`, which:
+
+1. `PullRequestCoordinator.mergeAndGetSha(url)` — parse owner/repo/number, auto-merge
+   (squash) via `GitHubApi.mergePullRequest`, return the merge commit SHA (idempotent:
+   reuses the existing merge if the PR is already merged).
+2. `RemoteBuildManager.pollAndDownload(mergeSha)` — poll GitHub Actions for the rebuilt
+   APK on the merge commit, download it, and `ApkInstaller` sideloads it.
+
+Unidiff `Patch` events are still applied to the working tree (the non-PR path); the two
+are additive. Auto-launching the freshly installed APK is a follow-up — it needs the
+async `PackageInstaller` result callback, so for now install lands via the system
+installer prompt as before.
 
 ## Jules CLI — REMOVED
 

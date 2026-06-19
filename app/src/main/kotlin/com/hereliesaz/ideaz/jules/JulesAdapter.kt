@@ -79,6 +79,21 @@ class JulesAdapter(
                         ?.let { emit(TaskEvent.Patch(it)) }
                 }
             }
+
+            // A pull request is the terminal deliverable for the Android loop: once
+            // Jules has opened one (surfaced in the session's outputs), emit it and
+            // stop polling — the consumer takes over (auto-merge + rebuild).
+            val pr = try {
+                client.getSession(sessionId).outputs?.firstNotNullOfOrNull { it.pullRequest }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null // transient — fall through and keep polling
+            }
+            if (pr != null) {
+                emit(TaskEvent.PullRequest(pr.url, pr.title))
+                return@flow
+            }
             attempts++
         }
         emit(TaskEvent.TimedOut)

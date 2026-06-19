@@ -37,10 +37,11 @@
 *   `JulesApiClient.kt`: Client for Jules API. Stubbed in Phase 0; restored in Phase 2.
 *   `JulesApi.kt`: Retrofit interface for Jules.
 *   `IJulesApiClient.kt`: Interface definition.
-*   `JulesAdapter.kt`: `AgenticAiClient` over `JulesApiClient` — owns the create/resume-session + activity-poll lifecycle and emits `TaskEvent`s (the single source of truth `AIDelegate` collects).
+*   `JulesAdapter.kt`: `AgenticAiClient` over `JulesApiClient` — owns the create/resume-session + activity-poll lifecycle and emits `TaskEvent`s (the single source of truth `AIDelegate` collects). Polls `getSession` for `outputs[].pullRequest` and emits a terminal `TaskEvent.PullRequest`.
 
 #### buildlogic/
 *   `RemoteBuildManager.kt`: Dispatches and polls remote GitHub Actions builds. The only build path that survived Phase 0.
+*   `PullRequestCoordinator.kt`: Auto-merges an agent-opened PR (parse URL → `GitHubApi.mergePullRequest`) and returns the merge commit SHA for `RemoteBuildManager` to rebuild against. The "auto-merge" half of the PR-based Android loop.
 
 #### git/
 *   `GitManager.kt`: Wrapper around JGit for version control operations.

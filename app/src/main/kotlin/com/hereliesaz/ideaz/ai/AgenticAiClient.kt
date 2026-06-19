@@ -19,9 +19,14 @@ sealed interface TaskEvent {
     /** A unidiff patch the agent produced, to apply to the working tree. */
     data class Patch(val unidiff: String) : TaskEvent
 
+    /**
+     * The agent opened a pull request — the terminal deliverable for the PR-based
+     * Android loop. The consumer auto-merges it and rebuilds/re-sideloads the APK.
+     */
+    data class PullRequest(val url: String, val title: String) : TaskEvent
+
     /** The agent didn't reach a terminal state within the poll window. */
     object TimedOut : TaskEvent
-    // PullRequest(url) is added with the PR-based loop increment (auto-merge + rebuild).
 }
 
 /**

@@ -86,6 +86,13 @@ class AIDelegate(
      * over the same [julesApiClient], so production and tests share one Jules path.
      */
     private val julesAdapter: AgenticAiClient = JulesAdapter(julesApiClient),
+    /**
+     * Called with a pull-request URL when the agent opens one (the terminal event
+     * of the PR-based Android loop). Production wires this to
+     * BuildDelegate.installFromMergedPr (auto-merge → rebuild → re-sideload).
+     * Default is a no-op for tests / the conversational paths.
+     */
+    private val onAgentPullRequest: (url: String) -> Unit = {},
 ) {
 
     // --- StateFlows ---
@@ -364,22 +371,34 @@ class AIDelegate(
         )
 
         julesAdapter.dispatchTask(promptText, sourceContext, _currentJulesSessionId.value)
-            .collect { event ->
-                when (event) {
-                    is TaskEvent.SessionStarted -> {
-                        _currentJulesSessionId.value = event.session.id
-                        _julesResponse.value = event.session
-                    }
-                    is TaskEvent.Message -> onOverlayLog("Jules: ${event.text}")
-                    is TaskEvent.Patch -> {
-                        onOverlayLog("Patch received. Applying...")
-                        val success = onUnidiffPatchReceived(event.unidiff)
-                        onOverlayLog(if (success) "Patch applied." else "Patch failed to apply.")
-                    }
-                    TaskEvent.TimedOut ->
-                        onOverlayLog("Jules: no response yet. Try resending or switching to Gemini.")
-                }
+            .collect { event -> handleJulesEvent(event) }
+    }
+
+    /**
+     * Reacts to a single [TaskEvent] from the Jules loop. Extracted from the
+     * collector so it can be unit-tested directly without standing up the whole
+     * session/branch-resolution path. `suspend` because applying a patch
+     * ([onUnidiffPatchReceived]) is a suspend call.
+     */
+    internal suspend fun handleJulesEvent(event: TaskEvent) {
+        when (event) {
+            is TaskEvent.SessionStarted -> {
+                _currentJulesSessionId.value = event.session.id
+                _julesResponse.value = event.session
             }
+            is TaskEvent.Message -> onOverlayLog("Jules: ${event.text}")
+            is TaskEvent.Patch -> {
+                onOverlayLog("Patch received. Applying...")
+                val success = onUnidiffPatchReceived(event.unidiff)
+                onOverlayLog(if (success) "Patch applied." else "Patch failed to apply.")
+            }
+            is TaskEvent.PullRequest -> {
+                onOverlayLog("Jules opened a PR (${event.title}). Merging and rebuilding...")
+                onAgentPullRequest(event.url)
+            }
+            TaskEvent.TimedOut ->
+                onOverlayLog("Jules: no response yet. Try resending or switching to Gemini.")
+        }
     }
 
     companion object {

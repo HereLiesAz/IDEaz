@@ -10,8 +10,10 @@ import com.hereliesaz.ideaz.api.GitPatch
 import com.hereliesaz.ideaz.api.ListActivitiesResponse
 import com.hereliesaz.ideaz.api.ListSessionsResponse
 import com.hereliesaz.ideaz.api.ListSourcesResponse
+import com.hereliesaz.ideaz.api.PullRequest
 import com.hereliesaz.ideaz.api.SendMessageRequest
 import com.hereliesaz.ideaz.api.Session
+import com.hereliesaz.ideaz.api.SessionOutput
 import com.hereliesaz.ideaz.api.SourceContext
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -36,6 +38,7 @@ class JulesAdapterTest {
     /** Fake that returns the same activity page on every poll (exercises dedup). */
     private class FakeClient(
         private val activities: List<Activity>,
+        private val sessionOutputs: List<SessionOutput>? = null,
     ) : IJulesApiClient {
         var created: CreateSessionRequest? = null
         var sentTo: String? = null
@@ -48,6 +51,9 @@ class JulesAdapterTest {
             created = request
             return Session(name = "sessions/s1", id = "s1", prompt = request.prompt, sourceContext = request.sourceContext)
         }
+
+        override suspend fun getSession(sessionId: String): Session =
+            Session(name = "sessions/$sessionId", id = sessionId, prompt = "", sourceContext = SourceContext(source = "s"), outputs = sessionOutputs)
 
         override suspend fun sendMessage(sessionId: String, request: SendMessageRequest) {
             sentTo = sessionId
@@ -105,5 +111,20 @@ class JulesAdapterTest {
         assertTrue(events.none { it is TaskEvent.Patch })
         assertTrue(events.none { it is TaskEvent.Message })
         assertEquals(TaskEvent.TimedOut, events.last())
+    }
+
+    @Test
+    fun `emits PullRequest and stops polling once a PR appears in session outputs`() = runTest {
+        val pr = PullRequest(url = "https://github.com/o/r/pull/7", title = "Add feature", description = "body")
+        val client = FakeClient(emptyList(), sessionOutputs = listOf(SessionOutput(pullRequest = pr)))
+        val adapter = JulesAdapter(client, pollDelayMs = 1, maxPollAttempts = 5)
+
+        val events = adapter.dispatchTask("do the thing", sourceContext, existingSessionId = null).toList()
+
+        val prEvent = events.filterIsInstance<TaskEvent.PullRequest>().single()
+        assertEquals("https://github.com/o/r/pull/7", prEvent.url)
+        assertEquals("Add feature", prEvent.title)
+        // The PR is terminal — the loop returns without ever timing out.
+        assertTrue(events.none { it is TaskEvent.TimedOut })
     }
 }

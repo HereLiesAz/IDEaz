@@ -183,6 +183,39 @@ data class GitHubPagesResponse(
 )
 // --- END NEW ---
 
+// --- Pull Request Data Classes (PR-based Android loop) ---
+@Serializable
+data class GitHubPullRequest(
+    val number: Int,
+    val state: String, // "open" or "closed"
+    val merged: Boolean? = null,
+    @SerialName("merge_commit_sha") val mergeCommitSha: String? = null,
+    val head: GitHubPullRequestRef,
+    @SerialName("html_url") val htmlUrl: String
+)
+
+@Serializable
+data class GitHubPullRequestRef(
+    val ref: String,
+    val sha: String
+)
+
+@Serializable
+data class MergePullRequestRequest(
+    @SerialName("commit_title") val commitTitle: String? = null,
+    // "merge", "squash", or "rebase". Squash keeps the default branch history
+    // linear, which is what the rebuild loop polls against.
+    @SerialName("merge_method") val mergeMethod: String = "squash"
+)
+
+@Serializable
+data class GitHubMergeResult(
+    val sha: String? = null,
+    val merged: Boolean = false,
+    val message: String? = null
+)
+// --- END Pull Request Data Classes ---
+
 interface GitHubApi {
     @POST("user/repos")
     suspend fun createRepo(@Body request: CreateRepoRequest): GitHubRepoResponse
@@ -300,6 +333,26 @@ interface GitHubApi {
         @Path("repo") repo: String,
         @Path("job_id") jobId: Long
     ): retrofit2.Response<ResponseBody>
+
+    @retrofit2.http.GET("repos/{owner}/{repo}/pulls/{pull_number}")
+    suspend fun getPullRequest(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("pull_number") pullNumber: Int
+    ): GitHubPullRequest
+
+    /**
+     * Merge a pull request. Returns a [retrofit2.Response] (not the bare body) so
+     * callers can distinguish a clean merge (200) from "not mergeable" (405) or a
+     * merge conflict (409) without an exception.
+     */
+    @retrofit2.http.PUT("repos/{owner}/{repo}/pulls/{pull_number}/merge")
+    suspend fun mergePullRequest(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("pull_number") pullNumber: Int,
+        @Body request: MergePullRequestRequest
+    ): retrofit2.Response<GitHubMergeResult>
 
     @retrofit2.http.GET("user/repos?sort=updated&per_page=100")
     suspend fun listRepos(): List<GitHubRepoResponse>
