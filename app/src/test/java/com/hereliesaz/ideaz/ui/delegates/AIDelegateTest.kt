@@ -115,7 +115,7 @@ class AIDelegateTest {
     }
 
     @Test
-    fun pullRequestEventForwardsUrlToCallback() {
+    fun pullRequestEventForwardsUrlToCallback() = runBlocking {
         var capturedUrl: String? = null
         val scope = CoroutineScope(Dispatchers.Unconfined)
         val delegate = AIDelegate(

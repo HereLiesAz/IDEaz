@@ -377,9 +377,10 @@ class AIDelegate(
     /**
      * Reacts to a single [TaskEvent] from the Jules loop. Extracted from the
      * collector so it can be unit-tested directly without standing up the whole
-     * session/branch-resolution path.
+     * session/branch-resolution path. `suspend` because applying a patch
+     * ([onUnidiffPatchReceived]) is a suspend call.
      */
-    internal fun handleJulesEvent(event: TaskEvent) {
+    internal suspend fun handleJulesEvent(event: TaskEvent) {
         when (event) {
             is TaskEvent.SessionStarted -> {
                 _currentJulesSessionId.value = event.session.id
