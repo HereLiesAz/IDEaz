@@ -19,11 +19,10 @@
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <!-- Phase 2 (Android target screen capture). Disabled in the PWA-only product so
-         we don't carry the mediaProjection FGS permission (Play policy surface) while
-         it's unused. Re-add with OverlayDelegate.screenCaptureEnabled = true.
+    <!-- Android target screen capture (Phase 2). Gated at runtime to Android target
+         projects via OverlayDelegate.isScreenCaptureEnabled(); web/PWA projects never
+         start the mediaProjection service or raise the consent dialog. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
-    -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
@@ -104,16 +103,13 @@
                 android:resource="@xml/gemini_bridge_accessibility_config" />
         </service>
 
-        <!-- Phase 2 (Android target screen capture). Kept out of the manifest in the
-             PWA-only product so the mediaProjection foreground service can't be started
-             (or crash). ScreenshotService.kt is retained; re-declare this and the
-             FOREGROUND_SERVICE_MEDIA_PROJECTION permission, and set
-             OverlayDelegate.screenCaptureEnabled = true, to re-enable.
+        <!-- Android target screen capture (Phase 2). Started only for Android target
+             projects (OverlayDelegate.isScreenCaptureEnabled()); never reached on
+             web/PWA, so the mediaProjection FGS can't be started there. -->
         <service
             android:name=".services.ScreenshotService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
-        -->
 
         <service
             android:name=".services.IdeazOverlayService"

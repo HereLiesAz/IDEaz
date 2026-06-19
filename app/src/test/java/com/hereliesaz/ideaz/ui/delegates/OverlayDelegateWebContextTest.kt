@@ -9,6 +9,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 
 class OverlayDelegateWebContextTest {
 
@@ -61,5 +62,48 @@ class OverlayDelegateWebContextTest {
         delegate.clearSelection()
 
         assertFalse(delegate.isContextualChatVisible.first())
+    }
+
+    @Test
+    fun `screen capture is enabled only for android target projects`() = runTest {
+        val androidVm: SettingsViewModel = mock()
+        whenever(androidVm.getProjectType()).thenReturn("ANDROID")
+        assertTrue(OverlayDelegate(app, androidVm, this, {}).isScreenCaptureEnabled())
+
+        val webVm: SettingsViewModel = mock()
+        whenever(webVm.getProjectType()).thenReturn("WEB")
+        assertFalse(OverlayDelegate(app, webVm, this, {}).isScreenCaptureEnabled())
+
+        // Null (no project loaded) and unrecognized strings are safe — ProjectType
+        // .fromString maps both to UNKNOWN (never throws), so capture stays off.
+        val nullVm: SettingsViewModel = mock()
+        whenever(nullVm.getProjectType()).thenReturn(null)
+        assertFalse(OverlayDelegate(app, nullVm, this, {}).isScreenCaptureEnabled())
+
+        val invalidVm: SettingsViewModel = mock()
+        whenever(invalidVm.getProjectType()).thenReturn("INVALID")
+        assertFalse(OverlayDelegate(app, invalidVm, this, {}).isScreenCaptureEnabled())
+    }
+
+    @Test
+    fun `requestScreenCapturePermission stays dormant for web projects`() = runTest {
+        val webVm: SettingsViewModel = mock()
+        whenever(webVm.getProjectType()).thenReturn("WEB")
+        val delegate = OverlayDelegate(app, webVm, this, {})
+
+        delegate.requestScreenCapturePermission()
+
+        assertFalse(delegate.requestScreenCapture.first())
+    }
+
+    @Test
+    fun `requestScreenCapturePermission fires for android target projects`() = runTest {
+        val androidVm: SettingsViewModel = mock()
+        whenever(androidVm.getProjectType()).thenReturn("ANDROID")
+        val delegate = OverlayDelegate(app, androidVm, this, {})
+
+        delegate.requestScreenCapturePermission()
+
+        assertTrue(delegate.requestScreenCapture.first())
     }
 }
