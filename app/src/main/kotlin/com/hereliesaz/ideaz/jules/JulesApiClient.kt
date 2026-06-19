@@ -80,6 +80,9 @@ object JulesApiClient : IJulesApiClient {
     override suspend fun createSession(request: CreateSessionRequest): Session =
         client.createSession(request)
 
+    override suspend fun getSession(sessionId: String): Session =
+        client.getSession(sessionId)
+
     override suspend fun sendMessage(sessionId: String, request: SendMessageRequest) =
         client.sendMessage(sessionId, request)
 

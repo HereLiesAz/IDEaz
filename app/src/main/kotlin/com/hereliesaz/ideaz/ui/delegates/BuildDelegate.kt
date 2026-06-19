@@ -8,6 +8,7 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import com.hereliesaz.ideaz.IBuildService
 import com.hereliesaz.ideaz.api.GitHubApiClient
+import com.hereliesaz.ideaz.buildlogic.PullRequestCoordinator
 import com.hereliesaz.ideaz.buildlogic.RemoteBuildManager
 import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.services.BuildService
@@ -240,6 +241,48 @@ class BuildDelegate(
             handleSuccess(apkPath)
         } else {
             handleFailure("Remote Build Failed.")
+        }
+    }
+
+    /**
+     * The agent (Jules) opened a pull request. Auto-merge it, then poll Actions for
+     * the rebuilt APK and install it — the "merge → rebuild → re-sideload" half of
+     * the PR-based Android loop. Reuses [RemoteBuildManager] against the merge SHA
+     * (the merge already pushed to the default branch, so there's no commit/push to
+     * do here, unlike [startRemoteBuild]).
+     */
+    fun installFromMergedPr(prUrl: String) {
+        // Cancel any in-flight build so the merge-driven rebuild is authoritative.
+        buildJob?.cancel()
+        buildJob = scope.launch {
+            val token = settingsViewModel.getGithubToken()
+            val user = settingsViewModel.getGithubUser()
+            val repo = settingsViewModel.getAppName()
+            if (token.isNullOrBlank() || user.isNullOrBlank() || repo.isNullOrBlank()) {
+                handleFailure("Auto-merge requires GitHub token, user, and an open project.")
+                return@launch
+            }
+
+            val api = GitHubApiClient.createService(token)
+            onOverlayLog("Merging pull request...")
+            val mergeSha = PullRequestCoordinator(api).mergeAndGetSha(prUrl)
+            if (mergeSha == null) {
+                onLog("[IDE] Could not merge PR: $prUrl\n")
+                handleFailure("Failed to merge pull request. Check for conflicts or required reviews.")
+                return@launch
+            }
+
+            onLog("[IDE] PR merged. Rebuilding from ${mergeSha.take(7)}...\n")
+            val manager = RemoteBuildManager(
+                application, api, token, user, repo,
+                onLog = { msg -> pushLog(msg) }
+            )
+            val apkPath = manager.pollAndDownload(mergeSha)
+            if (apkPath != null) {
+                handleSuccess(apkPath)
+            } else {
+                handleFailure("Remote build after merge failed.")
+            }
         }
     }
 

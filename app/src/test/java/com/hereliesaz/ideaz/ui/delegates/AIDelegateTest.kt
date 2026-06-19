@@ -2,6 +2,7 @@ package com.hereliesaz.ideaz.ui.delegates
 
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.hereliesaz.ideaz.ai.TaskEvent
 import com.hereliesaz.ideaz.api.*
 import com.hereliesaz.ideaz.jules.IJulesApiClient
 import com.hereliesaz.ideaz.models.ProjectType
@@ -43,6 +44,13 @@ class AIDelegateTest {
             )
             return createdSession!!
         }
+
+        override suspend fun getSession(sessionId: String): Session = Session(
+            id = sessionId,
+            name = "sessions/$sessionId",
+            prompt = "",
+            sourceContext = SourceContext(source = "sources/github/user/repo")
+        )
 
         override suspend fun sendMessage(sessionId: String, request: SendMessageRequest) {
             lastMessage = request
@@ -104,6 +112,22 @@ class AIDelegateTest {
     fun webLikeProjectsDefaultToGemini() {
         assertEquals(AiModels.GEMINI, AIDelegate.defaultOverlayModel(null, ProjectType.PWA))
         assertEquals(AiModels.GEMINI, AIDelegate.defaultOverlayModel(null, ProjectType.WEB))
+    }
+
+    @Test
+    fun pullRequestEventForwardsUrlToCallback() {
+        var capturedUrl: String? = null
+        val scope = CoroutineScope(Dispatchers.Unconfined)
+        val delegate = AIDelegate(
+            settingsViewModel, scope, {}, { true }, mockApiClient,
+            onAgentPullRequest = { capturedUrl = it }
+        )
+
+        delegate.handleJulesEvent(
+            TaskEvent.PullRequest(url = "https://github.com/o/r/pull/9", title = "Add feature")
+        )
+
+        assertEquals("https://github.com/o/r/pull/9", capturedUrl)
     }
 
     @Test
