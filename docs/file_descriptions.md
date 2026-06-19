@@ -37,6 +37,7 @@
 *   `JulesApiClient.kt`: Client for Jules API. Stubbed in Phase 0; restored in Phase 2.
 *   `JulesApi.kt`: Retrofit interface for Jules.
 *   `IJulesApiClient.kt`: Interface definition.
+*   `JulesAdapter.kt`: `AgenticAiClient` over `JulesApiClient` — owns the create/resume-session + activity-poll lifecycle and emits `TaskEvent`s (the single source of truth `AIDelegate` collects).
 
 #### buildlogic/
 *   `RemoteBuildManager.kt`: Dispatches and polls remote GitHub Actions builds. The only build path that survived Phase 0.
@@ -64,7 +65,8 @@
 *   `DynamicModelResolver.kt`: Resolves the absolute latest version of a model by querying provider endpoints.
 *   `GeminiAdapter.kt`: Uses the `google-genai` SDK for Gemini models.
 *   `GeminiNanoAdapter.kt`: Specialized adapter for on-device Gemini Nano.
-*   `ConversationalAiClient.kt`: Base interface for AI clients.
+*   `ConversationalAiClient.kt`: Base interface for AI clients (Phase 1, conversational).
+*   `AgenticAiClient.kt`: Phase-2 agentic provider interface — `dispatchTask(prompt, sourceContext): Flow<TaskEvent>`. Target-agnostic event stream (`SessionStarted`/`Message`/`Patch`/`TimedOut`) so the overlay renders Jules and Gemini the same way. Implemented by `jules/JulesAdapter`.
 *   `IdeTools.kt`: Definitions and dispatcher for IDE tools available to the AI.
 *   `ToolSchema.kt`: JSON schemas for tools.
 
