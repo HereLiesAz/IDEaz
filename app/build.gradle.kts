@@ -18,12 +18,15 @@ val minor = versionProps.getProperty("minor", "0").toInt()
 val patch = versionProps.getProperty("patch", "0").toInt()
 
 // versionCode override for CI: pass `-PversionBuild=<n>` (CI passes
-// `git rev-list --count HEAD`, a value that only ever grows). When supplied it
-// becomes BOTH the build component of versionName AND the raw versionCode, which
-// guarantees Play's "strictly increasing versionCode" rule per commit. When NOT
+// `git rev-list --count HEAD`, a value that only ever grows). It feeds the `build`
+// term of the SAME packed formula used locally, so the versionCode stays monotonic
+// AND well above existing file-driven builds — no INSTALL_FAILED_VERSION_DOWNGRADE
+// when switching between local and CI artifacts, and no Play rejection. When NOT
 // supplied (local builds), fall back to the historic file-driven build number so
 // `./gradlew assembleDebug` / `bundleRelease` keep working out of the box.
-val versionBuildOverride = (project.findProperty("versionBuild") as String?)?.toIntOrNull()
+// (findProperty returns Any?; `?.toString()` avoids a ClassCastException if a plugin
+// ever sets the property as a non-String type.)
+val versionBuildOverride = project.findProperty("versionBuild")?.toString()?.toIntOrNull()
 val buildNumber = versionBuildOverride ?: (versionProps.getProperty("build", "0").toInt() + 1)
 
 extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
@@ -160,12 +163,12 @@ configurations.all {
             "org.bouncycastle:bcpkix-jdk18on:1.84",
             "org.bouncycastle:bcutil-jdk18on:1.84",
             "org.apache.commons:commons-lang3:3.20.0",
-            "com.google.protobuf:protobuf-java:3.25.5",
-            "com.google.protobuf:protobuf-kotlin:3.25.5",
+            "com.google.protobuf:protobuf-java:4.35.1",
+            "com.google.protobuf:protobuf-kotlin:4.35.1",
         )
         dependencySubstitution {
             substitute(module("com.google.protobuf:protobuf-javalite"))
-                .using(module("com.google.protobuf:protobuf-java:3.25.5"))
+                .using(module("com.google.protobuf:protobuf-java:4.35.1"))
                 .because("Android cannot have both javalite and full protobuf-java on the same classpath")
         }
         eachDependency {
@@ -280,6 +283,13 @@ dependencies {
     //   implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
 }
 
+abstract class IncrementBuildNumberTask : DefaultTask() {
+    @get:Internal
+    abstract val versionFile: RegularFileProperty
+
+    @TaskAction
+    fun increment() {
+        val file = versionFile.get().asFile
 tasks.register("incrementBuildNumber") {
     val versionFile = layout.projectDirectory.file("../version.properties").asFile
     val buildOverride = versionBuildOverride
@@ -289,13 +299,18 @@ tasks.register("incrementBuildNumber") {
         // version.properties untouched in that case so the checkout stays clean.
         if (buildOverride != null) return@doFirst
         val props = Properties()
-        if (versionFile.exists()) {
-            versionFile.inputStream().use { props.load(it) }
+        if (file.exists()) {
+            file.inputStream().use { props.load(it) }
         }
         val currentBuild = props.getProperty("build", "0").toInt()
         props.setProperty("build", (currentBuild + 1).toString())
-        versionFile.outputStream().use { props.store(it, null) }
+        file.outputStream().use { props.store(it, null) }
     }
+}
+
+tasks.register<IncrementBuildNumberTask>("incrementBuildNumber") {
+    versionFile.set(rootProject.file("version.properties"))
+    outputs.upToDateWhen { false }
 }
 
 tasks.configureEach {

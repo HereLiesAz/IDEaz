@@ -7,8 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.NoteAdd
 import androidx.compose.material.icons.filled.CreateNewFolder
-import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -293,7 +293,7 @@ fun FileExplorerScreen(
                 errorMessage = null
                 activeDialog = FileExplorerDialog.NewFile
             }) {
-                Icon(Icons.Default.NoteAdd, contentDescription = "New file")
+                Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = "New file")
             }
             IconButton(onClick = {
                 dialogInput = ""
