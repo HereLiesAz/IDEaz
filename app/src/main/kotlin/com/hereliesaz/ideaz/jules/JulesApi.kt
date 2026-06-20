@@ -15,6 +15,11 @@ interface JulesApi {
         @Body request: CreateSessionRequest
     ): Session
 
+    @GET("sessions/{id}")
+    suspend fun getSession(
+        @Path("id") id: String
+    ): Session
+
     @POST("sessions/{id}:sendMessage")
     suspend fun sendMessage(
         @Path("id") id: String,

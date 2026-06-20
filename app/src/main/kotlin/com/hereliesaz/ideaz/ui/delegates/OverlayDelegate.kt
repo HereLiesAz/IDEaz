@@ -5,6 +5,7 @@ import android.app.Application
 import android.content.Intent
 import android.graphics.Rect
 import android.net.Uri
+import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.services.ScreenshotService
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.utils.SourceContextHelper
@@ -84,6 +85,26 @@ class OverlayDelegate(
 
     private var pendingRect: Rect? = null
 
+    /**
+     * A capture rect that is waiting for a fresh MediaProjection consent. Set when
+     * [takeScreenshot] runs without a valid token; replayed once the user grants
+     * consent in [setScreenCapturePermission]. Distinct from [pendingRect], which
+     * is kept for restoring the highlight after the capture completes.
+     */
+    private var deferredCaptureRect: Rect? = null
+
+    /**
+     * Whether MediaProjection screen capture is active for the current project.
+     * Enabled only for **Android target** projects, where tapping the sideloaded
+     * app's real UI benefits from a screenshot attached to the prompt (for
+     * image-capable models). Web/PWA projects inspect via DOM/source context and
+     * must never raise the MediaProjection consent dialog, so capture stays dormant
+     * there (and its `ScreenshotService` + manifest `mediaProjection` declarations
+     * go unused). Re-evaluated per call so switching projects takes effect live.
+     */
+    internal fun isScreenCaptureEnabled(): Boolean =
+        ProjectType.fromString(settingsViewModel.getProjectType()) == ProjectType.ANDROID
+
     // --- Public Operations ---
 
     /**
@@ -118,9 +139,12 @@ class OverlayDelegate(
 
         setInternalSelectMode(enable)
 
-        // Pre-emptively request screen capture permission if missing
+        // Pre-emptively request screen capture permission if missing. Routed through
+        // requestScreenCapturePermission() so it respects the isScreenCaptureEnabled()
+        // gate — otherwise enabling select mode would still raise the MediaProjection
+        // consent dialog in the PWA-only product.
         if (enable && !hasScreenCapturePermission()) {
-            _requestScreenCapture.value = true
+            requestScreenCapturePermission()
         }
     }
 
@@ -194,7 +218,16 @@ class OverlayDelegate(
             // (e.g., a Web inspection where we only have a CSS / DOM id and
             // no on-screen bounds). The pendingContextInfo is still set above.
             if (!rect.isEmpty) {
-                takeScreenshot(rect)
+                if (isScreenCaptureEnabled()) {
+                    takeScreenshot(rect)
+                } else {
+                    // Web/PWA inspection: just show the contextual chat with the
+                    // context we have — no screenshot, no MediaProjection prompt.
+                    // Clear any prior screenshot so stale image data can't ride
+                    // along with new context.
+                    pendingBase64Screenshot = null
+                    _isContextualChatVisible.value = true
+                }
             }
         }
     }
@@ -220,10 +253,18 @@ class OverlayDelegate(
      * Uses [ScreenshotService] (foreground service) because MediaProjection requires a foreground service context on newer Android versions.
      */
     private fun takeScreenshot(rect: Rect) {
-        if (!hasScreenCapturePermission()) {
-            onOverlayLog("Error: Missing screen capture permission.")
+        val code = screenCaptureResultCode
+        val data = screenCaptureData
+        if (code == null || data == null) {
+            // No (or already-consumed) consent. MediaProjection tokens are single-use
+            // on Android 14+, so request a fresh one and replay this capture on grant.
+            deferredCaptureRect = rect
+            requestScreenCapturePermission()
             return
         }
+        // Consume the token now — it can't be reused for a second capture.
+        screenCaptureResultCode = null
+        screenCaptureData = null
 
         scope.launch {
             // Temporarily hide the highlight to get a clean screenshot
@@ -235,8 +276,8 @@ class OverlayDelegate(
             delay(250) // Wait for UI to update
 
             val serviceIntent = Intent(application, ScreenshotService::class.java).apply {
-                putExtra(ScreenshotService.EXTRA_RESULT_CODE, screenCaptureResultCode)
-                putExtra(ScreenshotService.EXTRA_DATA, screenCaptureData)
+                putExtra(ScreenshotService.EXTRA_RESULT_CODE, code)
+                putExtra(ScreenshotService.EXTRA_DATA, data)
                 putExtra(ScreenshotService.EXTRA_RECT, rect)
             }
             application.startForegroundService(serviceIntent)
@@ -262,16 +303,29 @@ class OverlayDelegate(
     // --- Permission Management ---
 
     fun hasScreenCapturePermission() = screenCaptureData != null
-    fun requestScreenCapturePermission() { _requestScreenCapture.value = true }
+    fun requestScreenCapturePermission() {
+        // Dormant for non-Android projects — see [isScreenCaptureEnabled]. Never raise
+        // the MediaProjection consent dialog there so it can't prompt or crash users.
+        if (!isScreenCaptureEnabled()) return
+        _requestScreenCapture.value = true
+    }
     fun screenCaptureRequestHandled() { _requestScreenCapture.value = false }
 
     /**
      * Stores the MediaProjection permission result for later use by the ScreenshotService.
      */
     fun setScreenCapturePermission(code: Int, data: Intent?) {
-        if (code == Activity.RESULT_OK) {
+        if (code == Activity.RESULT_OK && data != null) {
             screenCaptureResultCode = code
             screenCaptureData = data
+            // Replay a capture that was waiting on this consent.
+            deferredCaptureRect?.let { rect ->
+                deferredCaptureRect = null
+                takeScreenshot(rect)
+            }
+        } else {
+            deferredCaptureRect = null
+            onOverlayLog("Screen capture permission denied.")
         }
     }
 }
