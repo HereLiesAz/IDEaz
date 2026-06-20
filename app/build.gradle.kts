@@ -287,17 +287,17 @@ abstract class IncrementBuildNumberTask : DefaultTask() {
     @get:Internal
     abstract val versionFile: RegularFileProperty
 
+    @get:Input
+    @get:Optional
+    abstract val versionBuildOverride: Property<Int>
+
     @TaskAction
     fun increment() {
-        val file = versionFile.get().asFile
-tasks.register("incrementBuildNumber") {
-    val versionFile = layout.projectDirectory.file("../version.properties").asFile
-    val buildOverride = versionBuildOverride
-    outputs.upToDateWhen { false }
-    doFirst {
         // CI supplies the build component via -PversionBuild (commit count); leave
         // version.properties untouched in that case so the checkout stays clean.
-        if (buildOverride != null) return@doFirst
+        if (versionBuildOverride.isPresent) return
+
+        val file = versionFile.get().asFile
         val props = Properties()
         if (file.exists()) {
             file.inputStream().use { props.load(it) }
@@ -310,6 +310,9 @@ tasks.register("incrementBuildNumber") {
 
 tasks.register<IncrementBuildNumberTask>("incrementBuildNumber") {
     versionFile.set(rootProject.file("version.properties"))
+    versionBuildOverride.set(project.provider {
+        project.findProperty("versionBuild")?.toString()?.toIntOrNull()
+    })
     outputs.upToDateWhen { false }
 }
 
