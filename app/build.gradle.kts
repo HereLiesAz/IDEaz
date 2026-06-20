@@ -16,17 +16,37 @@ if (versionPropsFile.exists()) {
 val major = versionProps.getProperty("major", "1").toInt()
 val minor = versionProps.getProperty("minor", "0").toInt()
 val patch = versionProps.getProperty("patch", "0").toInt()
-val buildNumber = versionProps.getProperty("build", "0").toInt() + 1
+
+// versionCode override for CI: pass `-PversionBuild=<n>` (CI passes
+// `git rev-list --count HEAD`, a value that only ever grows). It feeds the `build`
+// term of the SAME packed formula used locally, so the versionCode stays monotonic
+// AND well above existing file-driven builds — no INSTALL_FAILED_VERSION_DOWNGRADE
+// when switching between local and CI artifacts, and no Play rejection. When NOT
+// supplied (local builds), fall back to the historic file-driven build number so
+// `./gradlew assembleDebug` / `bundleRelease` keep working out of the box.
+// (findProperty returns Any?; `?.toString()` avoids a ClassCastException if a plugin
+// ever sets the property as a non-String type.)
+val versionBuildOverride = project.findProperty("versionBuild")?.toString()?.toIntOrNull()
+val buildNumber = versionBuildOverride ?: (versionProps.getProperty("build", "0").toInt() + 1)
 
 extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
     namespace = "com.hereliesaz.ideaz"
     compileSdk = 37
+
+    // Dynamic feature modules delivered with this base app. :webruntime is
+    // install-time + fused, so its assets remain present in a plain assembleRelease
+    // APK (the GitHub-release distribution channel) and are reachable via the base
+    // AssetManager with no SplitInstall call. See docs/build_pipeline.md.
+    dynamicFeatures += setOf(":webruntime")
 
     defaultConfig {
         applicationId = "com.hereliesaz.ideaz"
         minSdk = 30
 
         targetSdk = 37
+        // One packed formula for both local and CI builds. `buildNumber` is the CI
+        // commit count when -PversionBuild is passed, else the file build number;
+        // either way the code is monotonic and stays >= existing released codes.
         versionCode = major * 1000000 + minor * 10000 + patch * 100 + buildNumber
         versionName = "$major.$minor.$patch.$buildNumber"
 
@@ -143,12 +163,12 @@ configurations.all {
             "org.bouncycastle:bcpkix-jdk18on:1.84",
             "org.bouncycastle:bcutil-jdk18on:1.84",
             "org.apache.commons:commons-lang3:3.20.0",
-            "com.google.protobuf:protobuf-java:3.25.5",
-            "com.google.protobuf:protobuf-kotlin:3.25.5",
+            "com.google.protobuf:protobuf-java:4.35.1",
+            "com.google.protobuf:protobuf-kotlin:4.35.1",
         )
         dependencySubstitution {
             substitute(module("com.google.protobuf:protobuf-javalite"))
-                .using(module("com.google.protobuf:protobuf-java:3.25.5"))
+                .using(module("com.google.protobuf:protobuf-java:4.35.1"))
                 .because("Android cannot have both javalite and full protobuf-java on the same classpath")
         }
         eachDependency {
@@ -270,6 +290,17 @@ abstract class IncrementBuildNumberTask : DefaultTask() {
     @TaskAction
     fun increment() {
         val file = versionFile.get().asFile
+tasks.register("incrementBuildNumber") {
+    val versionFile = rootProject.file("version.properties")
+    // Capture as a local Boolean at configuration time. Referencing the script-level
+    // `versionBuildOverride` directly inside doFirst would capture the script object,
+    // which the configuration cache cannot serialize.
+    val overrideProvided = versionBuildOverride != null
+    outputs.upToDateWhen { false }
+    doFirst {
+        // CI supplies the build component via -PversionBuild (commit count); leave
+        // version.properties untouched in that case so the checkout stays clean.
+        if (overrideProvided) return@doFirst
         val props = Properties()
         if (file.exists()) {
             file.inputStream().use { props.load(it) }
