@@ -2,8 +2,11 @@ package com.hereliesaz.ideaz.ui.delegates
 
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.hereliesaz.ideaz.ai.TaskEvent
 import com.hereliesaz.ideaz.api.*
 import com.hereliesaz.ideaz.jules.IJulesApiClient
+import com.hereliesaz.ideaz.models.ProjectType
+import com.hereliesaz.ideaz.ui.AiModels
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +44,13 @@ class AIDelegateTest {
             )
             return createdSession!!
         }
+
+        override suspend fun getSession(sessionId: String): Session = Session(
+            id = sessionId,
+            name = "sessions/$sessionId",
+            prompt = "",
+            sourceContext = SourceContext(source = "sources/github/user/repo")
+        )
 
         override suspend fun sendMessage(sessionId: String, request: SendMessageRequest) {
             lastMessage = request
@@ -91,5 +101,40 @@ class AIDelegateTest {
         val sessions = aiDelegate.sessions.value
         assertEquals(1, sessions.size)
         assertEquals("s1", sessions[0].id)
+    }
+
+    @Test
+    fun androidProjectsDefaultToJules() {
+        assertEquals(AiModels.JULES, AIDelegate.defaultOverlayModel(null, ProjectType.ANDROID))
+    }
+
+    @Test
+    fun webLikeProjectsDefaultToGemini() {
+        assertEquals(AiModels.GEMINI, AIDelegate.defaultOverlayModel(null, ProjectType.PWA))
+        assertEquals(AiModels.GEMINI, AIDelegate.defaultOverlayModel(null, ProjectType.WEB))
+    }
+
+    @Test
+    fun pullRequestEventForwardsUrlToCallback() = runBlocking {
+        var capturedUrl: String? = null
+        val scope = CoroutineScope(Dispatchers.Unconfined)
+        val delegate = AIDelegate(
+            settingsViewModel, scope, {}, { true }, mockApiClient,
+            onAgentPullRequest = { capturedUrl = it }
+        )
+
+        delegate.handleJulesEvent(
+            TaskEvent.PullRequest(url = "https://github.com/o/r/pull/9", title = "Add feature")
+        )
+
+        assertEquals("https://github.com/o/r/pull/9", capturedUrl)
+    }
+
+    @Test
+    fun explicitAssignmentOverridesTheTypeDefault() {
+        // User explicitly picked Gemini on an Android project — respect it.
+        assertEquals(AiModels.GEMINI, AIDelegate.defaultOverlayModel(AiModels.GEMINI_FLASH, ProjectType.ANDROID))
+        // And explicitly picked Jules on a web project (the run loop later downgrades it).
+        assertEquals(AiModels.JULES, AIDelegate.defaultOverlayModel(AiModels.JULES_DEFAULT, ProjectType.PWA))
     }
 }

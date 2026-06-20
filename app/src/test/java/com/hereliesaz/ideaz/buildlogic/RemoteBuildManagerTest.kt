@@ -69,6 +69,8 @@ class RemoteBuildManagerTest {
 
         override suspend fun getRunJobs(owner: String, repo: String, runId: Long) = GitHubJobsResponse(emptyList())
         override suspend fun getJobLogs(owner: String, repo: String, jobId: Long) = Response.success("".toResponseBody(null))
+        override suspend fun getPullRequest(owner: String, repo: String, pullNumber: Int) = throw NotImplementedError()
+        override suspend fun mergePullRequest(owner: String, repo: String, pullNumber: Int, request: MergePullRequestRequest) = throw NotImplementedError()
         override suspend fun listRepos() = emptyList<GitHubRepoResponse>()
     }
 

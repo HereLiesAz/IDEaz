@@ -1,12 +1,15 @@
 package com.hereliesaz.ideaz.ui.delegates
 
 import com.hereliesaz.ideaz.ai.ChatMessage
+import com.hereliesaz.ideaz.ai.AgenticAiClient
 import com.hereliesaz.ideaz.ai.ConversationalAiClient
 import com.hereliesaz.ideaz.ai.GeminiAdapter
 import com.hereliesaz.ideaz.ai.IdeTools
+import com.hereliesaz.ideaz.ai.TaskEvent
 import com.hereliesaz.ideaz.ui.AiModel
 import com.hereliesaz.ideaz.api.*
 import com.hereliesaz.ideaz.jules.IJulesApiClient
+import com.hereliesaz.ideaz.jules.JulesAdapter
 import com.hereliesaz.ideaz.jules.JulesApiClient
 import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.AiModels
@@ -14,9 +17,9 @@ import com.hereliesaz.ideaz.ui.SettingsViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
@@ -77,7 +80,19 @@ class AIDelegate(
      * to [runJulesTask] when the provider is null and the requested model
      * is Jules.
      */
-    private val aiClientProvider: (model: AiModel) -> ConversationalAiClient? = { null }
+    private val aiClientProvider: (model: AiModel) -> ConversationalAiClient? = { null },
+    /**
+     * Agentic provider for the Android target loop. Defaults to a [JulesAdapter]
+     * over the same [julesApiClient], so production and tests share one Jules path.
+     */
+    private val julesAdapter: AgenticAiClient = JulesAdapter(julesApiClient),
+    /**
+     * Called with a pull-request URL when the agent opens one (the terminal event
+     * of the PR-based Android loop). Production wires this to
+     * BuildDelegate.installFromMergedPr (auto-merge → rebuild → re-sideload).
+     * Default is a no-op for tests / the conversational paths.
+     */
+    private val onAgentPullRequest: (url: String) -> Unit = {},
 ) {
 
     // --- StateFlows ---
@@ -121,12 +136,6 @@ class AIDelegate(
     /** The Job for the currently running contextual task. Allows cancellation. */
     private var contextualTaskJob: Job? = null
 
-    /**
-     * Set of Activity IDs that have already been processed in the current session.
-     * Prevents re-applying the same patch or showing the same message multiple times during polling.
-     */
-    private val processedActivityIds = mutableSetOf<String>()
-
     // --- Public Methods ---
 
     /**
@@ -148,7 +157,6 @@ class AIDelegate(
         _julesHistory.value = emptyList()
         _julesError.value = null
         _geminiHistory.value = emptyList()
-        processedActivityIds.clear()
     }
 
     /**
@@ -201,15 +209,16 @@ class AIDelegate(
         _isLoadingJulesResponse.value = true
         _julesError.value = null
 
-        // Resolve Model. Phase 1 default is Gemini; Jules requires explicit
-        // assignment via Settings → AI Assignments.
+        // Resolve Model. An explicit Settings → AI Assignments choice always wins;
+        // otherwise the default is project-type-aware — Android targets use Jules
+        // (agentic, PR-based), Web/PWA use Gemini (conversational, local tool-use).
         val modelId = settingsViewModel.getAiAssignment(SettingsViewModel.KEY_AI_ASSIGNMENT_OVERLAY)
-        var model = AiModels.findById(modelId) ?: AiModels.GEMINI
+        val projectType = ProjectType.fromString(settingsViewModel.getProjectType())
+        var model = defaultOverlayModel(modelId, projectType)
 
         // Jules is GitHub-anchored and pointless for Web/PWA projects (it needs a
         // sourceContext and produces unidiff patches — Web/PWA edits run locally
         // through the Gemini tool-use loop and ProjectFileObserver-driven reload).
-        val projectType = ProjectType.fromString(settingsViewModel.getProjectType())
         val isWebOrPwa = projectType.isWebLike()
         if (isWebOrPwa && model.id == AiModels.JULES_DEFAULT) {
             onOverlayLog("Jules is not used for Web/PWA projects. Routing through Gemini.")
@@ -338,132 +347,68 @@ class AIDelegate(
     }
 
     /**
-     * Handles the interaction with the Jules API.
+     * Hands the prompt to Jules via [julesAdapter] and reacts to its [TaskEvent]s:
+     * tracks the session, logs agent messages, and applies returned patches. The
+     * session/poll lifecycle lives in [JulesAdapter] now; this just wires events to
+     * the UI and the patch-apply callback.
      *
-     * **Logic:**
-     * - If no session is active, creates a new one ([CreateSessionRequest]).
-     * - If a session exists, sends a message to it ([SendMessageRequest]).
-     * - Initiates [pollForResponse] to wait for the agent's reply and actions.
+     * (PR-based loop — auto-merge + Actions rebuild — is the next Phase-2 increment;
+     * for now patches are applied to the working tree as before.)
      */
     private suspend fun runJulesTask(promptText: String) {
         val appName = settingsViewModel.getAppName() ?: "project"
         val user = settingsViewModel.getGithubUser() ?: "user"
 
-        // Refresh the branch from GitHub before handing off to Jules. The
-        // stored value defaults to "main" but real repos may use "master"
-        // or anything else; if we send the wrong name Jules' clone fails
-        // with "Remote branch <X> not found in upstream origin" and the
-        // session never starts. Fall back to whatever we have locally on
-        // any API failure (offline, missing token, rate-limited).
+        // Refresh the branch from GitHub before handing off to Jules. The stored
+        // value defaults to "main" but real repos may use "master" or anything else;
+        // if we send the wrong name Jules' clone fails with "Remote branch <X> not
+        // found in upstream origin" and the session never starts. Fall back to
+        // whatever we have locally on any API failure (offline, missing token, etc.).
         val branch = resolveDefaultBranch(user, appName)
-
-        // Construct SourceContext for the API
-        val currentSourceContext = SourceContext(
+        val sourceContext = SourceContext(
             source = "sources/github/$user/$appName",
             githubRepoContext = GitHubRepoContext(branch)
         )
 
-        val sessionId = _currentJulesSessionId.value
-
-        try {
-            val activeSessionId: String
-            if (sessionId == null) {
-                // CREATE new session
-                val request = CreateSessionRequest(
-                    prompt = promptText,
-                    sourceContext = currentSourceContext,
-                    title = "Session ${System.currentTimeMillis()}"
-                )
-                val session = julesApiClient.createSession(request = request)
-                _currentJulesSessionId.value = session.id
-                _julesResponse.value = session
-                activeSessionId = session.id
-            } else {
-                // SEND to existing session
-                val request = SendMessageRequest(prompt = promptText)
-                julesApiClient.sendMessage(sessionId, request)
-                activeSessionId = sessionId
-            }
-
-            pollForResponse(activeSessionId)
-
-        } catch (e: Exception) {
-            throw e
-        }
+        julesAdapter.dispatchTask(promptText, sourceContext, _currentJulesSessionId.value)
+            .collect { event -> handleJulesEvent(event) }
     }
 
     /**
-     * Polls the Jules API for activities (responses) associated with the session.
-     *
-     * **Strategy:**
-     * - Polls every 3 seconds, up to 15 times (45 seconds timeout).
-     * - Fetches *all* activities via pagination ([getAllActivities]).
-     * - Checks for `agentMessage` to update the UI chat.
-     * - Checks for `artifacts` containing `gitPatch` to apply code changes.
+     * Reacts to a single [TaskEvent] from the Jules loop. Extracted from the
+     * collector so it can be unit-tested directly without standing up the whole
+     * session/branch-resolution path. `suspend` because applying a patch
+     * ([onUnidiffPatchReceived]) is a suspend call.
      */
-    private suspend fun pollForResponse(sessionId: String) {
-        val maxAttempts = 15
-        var attempts = 0
-        while (attempts < maxAttempts) { // 45 seconds max wait
-            delay(3000)
-
-            // Retrieve full activity history
-            val activities = getAllActivities(sessionId)
-
-            // 1. Update Chat UI
-            // Find the most recent agent message to display
-            val latestAgentMessage = activities.firstOrNull { it.agentMessaged != null }
-            if (latestAgentMessage != null) {
-                val msg = latestAgentMessage.agentMessaged?.agentMessage
-                if (!msg.isNullOrBlank()) {
-                     onOverlayLog("Jules: $msg")
-                }
+    internal suspend fun handleJulesEvent(event: TaskEvent) {
+        when (event) {
+            is TaskEvent.SessionStarted -> {
+                _currentJulesSessionId.value = event.session.id
+                _julesResponse.value = event.session
             }
-
-            // 2. Process Artifacts (Patches)
-            activities.forEach { activity ->
-                // Only process each activity once
-                if (activity.id !in processedActivityIds) {
-                    // Mark processed up-front. An activity record is immutable, so
-                    // re-fetching it next poll and re-applying a patch that already
-                    // failed only spams the user and wastes work — attempt each once.
-                    processedActivityIds.add(activity.id)
-
-                    activity.artifacts?.forEach { artifact ->
-                        val patch = artifact.changeSet?.gitPatch?.unidiffPatch
-                        if (!patch.isNullOrBlank()) {
-                            onOverlayLog("Patch received via Activity ${activity.id}. Applying...")
-
-                            // Apply Patch
-                            val success = onUnidiffPatchReceived(patch)
-
-                            if (success) {
-                                onOverlayLog("Patch applied.")
-                            } else {
-                                onOverlayLog("Patch failed to apply.")
-                            }
-                        }
-                    }
-                }
+            is TaskEvent.Message -> onOverlayLog("Jules: ${event.text}")
+            is TaskEvent.Patch -> {
+                onOverlayLog("Patch received. Applying...")
+                val success = onUnidiffPatchReceived(event.unidiff)
+                onOverlayLog(if (success) "Patch applied." else "Patch failed to apply.")
             }
-            attempts++
+            is TaskEvent.PullRequest -> {
+                onOverlayLog("Jules opened a PR (${event.title}). Merging and rebuilding...")
+                onAgentPullRequest(event.url)
+            }
+            TaskEvent.TimedOut ->
+                onOverlayLog("Jules: no response yet. Try resending or switching to Gemini.")
         }
-        // Loop exited without finding a final agent message. Surface this to the
-        // user instead of leaving them with a silent stuck spinner.
-        onOverlayLog("Jules: no response after ${maxAttempts * 3}s. Try resending or switching to Gemini.")
     }
 
-    /**
-     * Helper to fetch all pages of activities for a session.
-     */
-    private suspend fun getAllActivities(sessionId: String): List<Activity> {
-        val allActivities = mutableListOf<Activity>()
-        var pageToken: String? = null
-        do {
-            val response = julesApiClient.listActivities(sessionId, pageToken = pageToken)
-            response.activities?.let { allActivities.addAll(it) }
-            pageToken = response.nextPageToken
-        } while (pageToken != null)
-        return allActivities
+    companion object {
+        /**
+         * The overlay model to use given the stored [assignmentId] and [projectType].
+         * An explicit assignment always wins; otherwise the default is type-aware —
+         * Android targets get Jules (agentic/PR-based), web-like projects get Gemini.
+         */
+        fun defaultOverlayModel(assignmentId: String?, projectType: ProjectType): AiModel =
+            AiModels.findById(assignmentId)
+                ?: if (projectType.isWebLike()) AiModels.GEMINI else AiModels.JULES
     }
 }

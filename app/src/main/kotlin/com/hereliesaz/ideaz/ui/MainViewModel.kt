@@ -143,6 +143,10 @@ class MainViewModel(
                 settings = settingsViewModel,
             )
         },
+        // PR-based Android loop: when Jules opens a PR, auto-merge it and rebuild +
+        // re-sideload the APK. buildDelegate is declared below; the lambda reads the
+        // property at call time, so the forward reference is fine.
+        onAgentPullRequest = { url -> buildDelegate.installFromMergedPr(url) },
     )
 
     /**
