@@ -1,5 +1,5 @@
 plugins {
-    alias(libs.plugins.android.dynamicFeature)
+    alias(libs.plugins.android.dynamic.feature)
 }
 
 // Assets-only dynamic feature module: it carries the bundled in-browser web
