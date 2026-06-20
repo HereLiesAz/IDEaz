@@ -128,6 +128,10 @@ class WebProjectPathHandler(
         const val RUNTIME_PREFIX = "/__ideaz__/"
         /** Same prefix as seen by [handle] after WebViewAssetLoader strips "/". */
         private const val RUNTIME_DIR = "__ideaz__/"
+        // These assets physically live in the :webruntime install-time dynamic
+        // feature module (settings.gradle.kts). Because that module is install-time
+        // and fused, its assets stay reachable through the base AssetManager, so
+        // this lookup is unchanged from when they were bundled directly in :app.
         private const val RUNTIME_ASSET_DIR = "ideaz-runtime"
 
         /**

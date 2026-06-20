@@ -39,7 +39,9 @@
     * **GitHub Personal Access Token**: Input for the GitHub PAT used for repo management and automated issue reporting.
     * **Jules / AI Studio Keys**: Inputs for other AI providers.
 * **Permissions Section**
-    * ... (Overlay, Accessibility, Notification, Install, Screen Capture checks)
+    * ... (Overlay, Accessibility, Notification, Install checks). The Screen Capture
+      (MediaProjection) row was removed — that's a Phase-2 (Android target) feature,
+      dormant in the PWA-only product.
 * **Preferences Section**
     * **Show Cancel Warning Checkbox**: Toggles cancellation dialog.
     * **Auto-report IDE internal errors Checkbox**: Toggles the automated GitHub issue reporting feature (`GithubIssueReporter`).

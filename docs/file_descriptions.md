@@ -37,9 +37,11 @@
 *   `JulesApiClient.kt`: Client for Jules API. Stubbed in Phase 0; restored in Phase 2.
 *   `JulesApi.kt`: Retrofit interface for Jules.
 *   `IJulesApiClient.kt`: Interface definition.
+*   `JulesAdapter.kt`: `AgenticAiClient` over `JulesApiClient` — owns the create/resume-session + activity-poll lifecycle and emits `TaskEvent`s (the single source of truth `AIDelegate` collects). Polls `getSession` for `outputs[].pullRequest` and emits a terminal `TaskEvent.PullRequest`.
 
 #### buildlogic/
 *   `RemoteBuildManager.kt`: Dispatches and polls remote GitHub Actions builds. The only build path that survived Phase 0.
+*   `PullRequestCoordinator.kt`: Auto-merges an agent-opened PR (parse URL → `GitHubApi.mergePullRequest`) and returns the merge commit SHA for `RemoteBuildManager` to rebuild against. The "auto-merge" half of the PR-based Android loop.
 
 #### git/
 *   `GitManager.kt`: Wrapper around JGit for version control operations.
@@ -52,10 +54,10 @@
 
 #### services/
 *   `BuildService.kt`: Foreground service in `:build_process`. Post-Phase-0 it is a thin shell around `RemoteBuildManager`.
-*   `IdeazAccessibilityService.kt`: Accessibility Service for Phase 2 element capture (wired but inert until Phase 2).
+*   `IdeazAccessibilityService.kt`: Accessibility Service that captures tapped elements in the sideloaded target app — resolves the tapped node's `viewIdResourceName` + screen bounds (→ source file/line context) and reports the target app's window bounds to the overlay.
 *   `IdeazOverlayService.kt`: System Alert Window overlay for Phase 2 (wired but inert until Phase 2).
 *   `CrashReportingService.kt`: Service for fatal error reporting in `:crash_reporter`.
-*   `ScreenshotService.kt`: `MediaProjection` virtual display for region screenshots.
+*   `ScreenshotService.kt`: `MediaProjection` virtual display for region screenshots. Declared in the manifest (`mediaProjection` FGS) and started **only for Android target projects**, gated at runtime by `OverlayDelegate.isScreenCaptureEnabled()`; web/PWA projects never raise the consent dialog. The captured PNG is attached to the contextual prompt for image-capable models (and embedded for Jules).
 
 #### ai/
 *   `AiAdapterFactory.kt`: Centralized factory that maps AI models to concrete adapters.
@@ -64,13 +66,16 @@
 *   `DynamicModelResolver.kt`: Resolves the absolute latest version of a model by querying provider endpoints.
 *   `GeminiAdapter.kt`: Uses the `google-genai` SDK for Gemini models.
 *   `GeminiNanoAdapter.kt`: Specialized adapter for on-device Gemini Nano.
-*   `ConversationalAiClient.kt`: Base interface for AI clients.
+*   `ConversationalAiClient.kt`: Base interface for AI clients (Phase 1, conversational).
+*   `AgenticAiClient.kt`: Phase-2 agentic provider interface — `dispatchTask(prompt, sourceContext): Flow<TaskEvent>`. Target-agnostic event stream (`SessionStarted`/`Message`/`Patch`/`TimedOut`) so the overlay renders Jules and Gemini the same way. Implemented by `jules/JulesAdapter`.
 *   `IdeTools.kt`: Definitions and dispatcher for IDE tools available to the AI.
 *   `ToolSchema.kt`: JSON schemas for tools.
 
 #### ai/local/
-*   `LocalModelRuntime.kt`: Interface and implementations for on-device backends (MediaPipe, AICore, etc.).
-*   `LocalModelCatalog.kt`: Curated list of downloadable on-device models.
+*   `LocalModelRuntime.kt`: Interface and implementations for on-device backends — AICore + MediaPipe (wired) and llama.cpp/GGUF + ONNX GenAI (reflection-driven `generate()`, active once their library is on the classpath).
+*   `LocalModelCatalog.kt`: Curated list of downloadable on-device models, with per-model RAM/ABI/auth requirements used for filtering.
+*   `DeviceCapabilities.kt`: Reads device RAM (`ActivityManager.MemoryInfo`) and supported CPU ABIs (`Build.SUPPORTED_ABIS`).
+*   `LocalModelAvailability.kt`: Pure, unit-tested logic deciding whether a model is usable on this device/build (backend present, RAM, ABI, token) — drives the Settings list filtering.
 *   `LocalModelStore.kt`: Manages locally stored model files and metadata.
 *   `ModelDownloadManager.kt`: Handles background downloading of model files with auth support.
 
@@ -108,7 +113,7 @@
 *   `AIDelegate.kt`: AI sessions (Phase 1 Gemini conversational; Phase 2 Jules agentic).
 *   `BuildDelegate.kt`: BuildService binding; remote build dispatch + poll + install.
 *   `GitDelegate.kt`: Git operations and state.
-*   `OverlayDelegate.kt`: Visual overlay and selection mode (Phase 2).
+*   `OverlayDelegate.kt`: Visual overlay and selection mode. `isScreenCaptureEnabled()` gates MediaProjection capture to Android target projects (web/PWA never prompt).
 *   `RepoDelegate.kt`: GitHub repo fetch / create. `uploadProjectSecrets` is currently a no-op stub — see `docs/plans/phase-0-followups.md`.
 *   `StateDelegate.kt`: Centralized shared UI state.
 *   `SystemEventDelegate.kt`: BroadcastReceivers for system events.

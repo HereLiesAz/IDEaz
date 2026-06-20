@@ -27,6 +27,18 @@ data class LocalModel(
      * models (MediaPipe `.task`, llama.cpp `.gguf`).
      */
     val additionalFiles: List<LocalModelFile> = emptyList(),
+    /**
+     * Minimum total device RAM (bytes) the model realistically needs to load and
+     * run. 0 = no requirement (e.g. system-managed AICore). Used to hide models a
+     * device can't actually run.
+     */
+    val minRamBytes: Long = 0,
+    /**
+     * CPU ABI the model's runtime needs (e.g. "arm64-v8a" for the native GGUF /
+     * ONNX backends). null = no requirement. Used to hide models whose native code
+     * can't run on this device's architecture.
+     */
+    val requiredAbi: String? = null,
     val notes: String = "",
 )
 
@@ -55,6 +67,8 @@ object LocalModelCatalog {
             url = "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf",
             approxSizeBytes = 400_000_000,
             fileName = "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+            minRamBytes = 2_000_000_000,
+            requiredAbi = "arm64-v8a",
             notes = "Tiny and fast; good for low-RAM devices.",
         ),
         LocalModel(
@@ -64,6 +78,8 @@ object LocalModelCatalog {
             url = "https://huggingface.co/lmstudio-community/gemma-3n-E2B-it-text-GGUF/resolve/main/gemma-3n-E2B-it-Q4_K_M.gguf",
             approxSizeBytes = 3_000_000_000,
             fileName = "gemma-3n-e2b-it-Q4_K_M.gguf",
+            minRamBytes = 4_000_000_000,
+            requiredAbi = "arm64-v8a",
             notes = "Gemma 3 Nano E2B (2B effective parameters). Good balance of speed and quality.",
         ),
         LocalModel(
@@ -73,6 +89,8 @@ object LocalModelCatalog {
             url = "https://huggingface.co/unsloth/gemma-3n-E4B-it-GGUF/resolve/main/gemma-3n-E4B-it-Q4_K_M.gguf",
             approxSizeBytes = 4_500_000_000,
             fileName = "gemma-3n-e4b-it-Q4_K_M.gguf",
+            minRamBytes = 6_000_000_000,
+            requiredAbi = "arm64-v8a",
             notes = "Gemma 3 Nano E4B (4B effective parameters). Needs ~5 GB RAM.",
         ),
         LocalModel(
@@ -82,6 +100,8 @@ object LocalModelCatalog {
             url = "https://huggingface.co/unsloth/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it.Q4_K_M.gguf",
             approxSizeBytes = 1_700_000_000,
             fileName = "gemma-2-2b-it.Q4_K_M.gguf",
+            minRamBytes = 4_000_000_000,
+            requiredAbi = "arm64-v8a",
             notes = "Stronger; wants ~3 GB free RAM.",
         ),
         run {
@@ -101,6 +121,8 @@ object LocalModelCatalog {
                     LocalModelFile(base + "tokenizer_config.json", "tokenizer_config.json"),
                     LocalModelFile(base + "special_tokens_map.json", "special_tokens_map.json"),
                 ),
+                minRamBytes = 4_000_000_000,
+                requiredAbi = "arm64-v8a",
                 notes = "ONNX Runtime GenAI; multi-file model directory. Verify file list before use.",
             )
         },
@@ -112,6 +134,8 @@ object LocalModelCatalog {
             approxSizeBytes = 1_300_000_000,
             fileName = "gemma-2-2b-it.task",
             requiresAuth = true,
+            minRamBytes = 4_000_000_000,
+            requiredAbi = "arm64-v8a",
             notes = "Gated by Google — requires a Hugging Face token with access granted.",
         ),
     )
