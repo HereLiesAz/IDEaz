@@ -285,11 +285,15 @@ dependencies {
 
 tasks.register("incrementBuildNumber") {
     val versionFile = rootProject.file("version.properties")
+    // Capture as a local Boolean at configuration time. Referencing the script-level
+    // `versionBuildOverride` directly inside doFirst would capture the script object,
+    // which the configuration cache cannot serialize.
+    val overrideProvided = versionBuildOverride != null
     outputs.upToDateWhen { false }
     doFirst {
         // CI supplies the build component via -PversionBuild (commit count); leave
         // version.properties untouched in that case so the checkout stays clean.
-        if (versionBuildOverride != null) return@doFirst
+        if (overrideProvided) return@doFirst
         val props = Properties()
         if (versionFile.exists()) {
             versionFile.inputStream().use { props.load(it) }
