@@ -283,6 +283,13 @@ dependencies {
     //   implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
 }
 
+abstract class IncrementBuildNumberTask : DefaultTask() {
+    @get:Internal
+    abstract val versionFile: RegularFileProperty
+
+    @TaskAction
+    fun increment() {
+        val file = versionFile.get().asFile
 tasks.register("incrementBuildNumber") {
     val versionFile = rootProject.file("version.properties")
     // Capture as a local Boolean at configuration time. Referencing the script-level
@@ -295,13 +302,18 @@ tasks.register("incrementBuildNumber") {
         // version.properties untouched in that case so the checkout stays clean.
         if (overrideProvided) return@doFirst
         val props = Properties()
-        if (versionFile.exists()) {
-            versionFile.inputStream().use { props.load(it) }
+        if (file.exists()) {
+            file.inputStream().use { props.load(it) }
         }
         val currentBuild = props.getProperty("build", "0").toInt()
         props.setProperty("build", (currentBuild + 1).toString())
-        versionFile.outputStream().use { props.store(it, null) }
+        file.outputStream().use { props.store(it, null) }
     }
+}
+
+tasks.register<IncrementBuildNumberTask>("incrementBuildNumber") {
+    versionFile.set(rootProject.file("version.properties"))
+    outputs.upToDateWhen { false }
 }
 
 tasks.configureEach {

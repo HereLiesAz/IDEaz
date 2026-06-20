@@ -181,8 +181,8 @@ class AIDelegate(
                 val targetSource = "sources/github/$fullRepo"
 
                 val filtered = allSessions.filter { session ->
-                    val source = session.sourceContext?.source
-                    source?.equals(targetSource, ignoreCase = true) == true
+                    val source = session.sourceContext.source
+                    source.equals(targetSource, ignoreCase = true)
                 }
                 _sessions.value = filtered
             } catch (e: Exception) {

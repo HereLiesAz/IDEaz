@@ -38,6 +38,7 @@ internal fun classPresent(fqcn: String): Boolean =
     runCatching { Class.forName(fqcn, false, LocalModelRuntime::class.java.classLoader) }.isSuccess
 
 /** MediaPipe LLM Inference — Gemma/Phi/Falcon `.task` models. */
+@Suppress("DEPRECATION")
 object MediaPipeRuntime : LocalModelRuntime {
     override val id = "mediapipe"
     override val displayName = "MediaPipe LLM Inference"
