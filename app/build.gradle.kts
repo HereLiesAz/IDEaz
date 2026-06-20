@@ -18,12 +18,15 @@ val minor = versionProps.getProperty("minor", "0").toInt()
 val patch = versionProps.getProperty("patch", "0").toInt()
 
 // versionCode override for CI: pass `-PversionBuild=<n>` (CI passes
-// `git rev-list --count HEAD`, a value that only ever grows). When supplied it
-// becomes BOTH the build component of versionName AND the raw versionCode, which
-// guarantees Play's "strictly increasing versionCode" rule per commit. When NOT
+// `git rev-list --count HEAD`, a value that only ever grows). It feeds the `build`
+// term of the SAME packed formula used locally, so the versionCode stays monotonic
+// AND well above existing file-driven builds — no INSTALL_FAILED_VERSION_DOWNGRADE
+// when switching between local and CI artifacts, and no Play rejection. When NOT
 // supplied (local builds), fall back to the historic file-driven build number so
 // `./gradlew assembleDebug` / `bundleRelease` keep working out of the box.
-val versionBuildOverride = (project.findProperty("versionBuild") as String?)?.toIntOrNull()
+// (findProperty returns Any?; `?.toString()` avoids a ClassCastException if a plugin
+// ever sets the property as a non-String type.)
+val versionBuildOverride = project.findProperty("versionBuild")?.toString()?.toIntOrNull()
 val buildNumber = versionBuildOverride ?: (versionProps.getProperty("build", "0").toInt() + 1)
 
 extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
@@ -41,10 +44,10 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
         minSdk = 30
 
         targetSdk = 37
-        // With an explicit override use it verbatim (monotonic commit count); the
-        // packed major/minor/patch/build formula stays for local file-driven builds.
-        versionCode = versionBuildOverride
-            ?: (major * 1000000 + minor * 10000 + patch * 100 + buildNumber)
+        // One packed formula for both local and CI builds. `buildNumber` is the CI
+        // commit count when -PversionBuild is passed, else the file build number;
+        // either way the code is monotonic and stays >= existing released codes.
+        versionCode = major * 1000000 + minor * 10000 + patch * 100 + buildNumber
         versionName = "$major.$minor.$patch.$buildNumber"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

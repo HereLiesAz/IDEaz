@@ -81,11 +81,14 @@ one. To guarantee a strictly-increasing code, CI passes the git commit count:
 -PversionBuild=$(git rev-list --count HEAD)
 ```
 
-When `-PversionBuild=<n>` is supplied it becomes **both** the `versionCode` (verbatim,
-monotonic) **and** the build component (`d`) of the `a.b.c.d` `versionName`. When it is
-absent, the historic file-driven formula
-(`major·1e6 + minor·1e4 + patch·100 + build`) is used and `version.properties` is left
-untouched. See [`app/build.gradle.kts`](../app/build.gradle.kts).
+When `-PversionBuild=<n>` is supplied it becomes the build component (`d`) of the
+`a.b.c.d` `versionName` **and** the `build` term of the **same packed formula** used
+locally — `major·1e6 + minor·1e4 + patch·100 + build`. Using one formula everywhere
+keeps the `versionCode` monotonic *and* always `>= 1_000_000`, so it never drops below
+a previously-installed local/GitHub-Release build (which would trigger
+`INSTALL_FAILED_VERSION_DOWNGRADE`) and is never lower than a code Play has already
+seen. When the override is absent, the file-driven `build` number is used and
+`version.properties` is left untouched. See [`app/build.gradle.kts`](../app/build.gradle.kts).
 
 ### 6.3 Modular delivery & size
 
