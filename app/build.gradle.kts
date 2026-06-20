@@ -16,18 +16,35 @@ if (versionPropsFile.exists()) {
 val major = versionProps.getProperty("major", "1").toInt()
 val minor = versionProps.getProperty("minor", "0").toInt()
 val patch = versionProps.getProperty("patch", "0").toInt()
-val buildNumber = versionProps.getProperty("build", "0").toInt() + 1
+
+// versionCode override for CI: pass `-PversionBuild=<n>` (CI passes
+// `git rev-list --count HEAD`, a value that only ever grows). When supplied it
+// becomes BOTH the build component of versionName AND the raw versionCode, which
+// guarantees Play's "strictly increasing versionCode" rule per commit. When NOT
+// supplied (local builds), fall back to the historic file-driven build number so
+// `./gradlew assembleDebug` / `bundleRelease` keep working out of the box.
+val versionBuildOverride = (project.findProperty("versionBuild") as String?)?.toIntOrNull()
+val buildNumber = versionBuildOverride ?: (versionProps.getProperty("build", "0").toInt() + 1)
 
 extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
     namespace = "com.hereliesaz.ideaz"
     compileSdk = 37
+
+    // Dynamic feature modules delivered with this base app. :webruntime is
+    // install-time + fused, so its assets remain present in a plain assembleRelease
+    // APK (the GitHub-release distribution channel) and are reachable via the base
+    // AssetManager with no SplitInstall call. See docs/build_pipeline.md.
+    dynamicFeatures += setOf(":webruntime")
 
     defaultConfig {
         applicationId = "com.hereliesaz.ideaz"
         minSdk = 30
 
         targetSdk = 37
-        versionCode = major * 1000000 + minor * 10000 + patch * 100 + buildNumber
+        // With an explicit override use it verbatim (monotonic commit count); the
+        // packed major/minor/patch/build formula stays for local file-driven builds.
+        versionCode = versionBuildOverride
+            ?: (major * 1000000 + minor * 10000 + patch * 100 + buildNumber)
         versionName = "$major.$minor.$patch.$buildNumber"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -264,9 +281,13 @@ dependencies {
 }
 
 tasks.register("incrementBuildNumber") {
-    val versionFile = rootProject.file("version.properties")
+    val versionFile = layout.projectDirectory.file("../version.properties").asFile
+    val buildOverride = versionBuildOverride
     outputs.upToDateWhen { false }
     doFirst {
+        // CI supplies the build component via -PversionBuild (commit count); leave
+        // version.properties untouched in that case so the checkout stays clean.
+        if (buildOverride != null) return@doFirst
         val props = Properties()
         if (versionFile.exists()) {
             versionFile.inputStream().use { props.load(it) }

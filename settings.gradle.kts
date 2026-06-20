@@ -35,6 +35,12 @@ dependencyResolutionManagement {
 rootProject.name = "IDEaz"
 include(":app")
 
+// Install-time dynamic feature module holding the ~4.5 MB bundled web runtime
+// (Babel, React UMD/shims, ideaz-loader) served by WebProjectPathHandler. Split
+// out of the base so Play can manage it as its own module; see docs/build_pipeline.md
+// ("Modular delivery") for the install-time vs on-demand trade-off.
+include(":webruntime")
+
 // llama.cpp GGUF backend (LlamaCppRuntime). An NDK module that builds libllama
 // from a git submodule at llama-cpp-module/llama.cpp. Included only when that
 // submodule is present so a plain checkout still builds without the NDK/submodule;
