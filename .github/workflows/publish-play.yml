@@ -1,0 +1,164 @@
+name: Publish AAB to Play
+
+# Manual, signed App Bundle build + (optional) upload to the Google Play Console.
+#
+# Safe by default: track=internal, status=draft, publish=false. With publish=false
+# the job only builds and uploads the .aab as a workflow artifact — nothing reaches
+# Play. Set publish=true to push it to the chosen track.
+#
+# Required repo secrets (see docs/build_pipeline.md §"Publishing to Google Play"):
+#   KEYSTORE_PRIVATE, KEYSTORE_CHAIN, KEYSTORE_PASSWORD, KEY_ALIAS  (upload signing)
+#   PLAY_SERVICE_ACCOUNT_JSON                                       (Play Publisher API)
+#   GOOGLE_SERVICES_API_KEY, PROJECT_ID, CLIENT_ID                 (google-services, optional)
+
+on:
+  workflow_dispatch:
+    inputs:
+      track:
+        description: "Play track to release on"
+        type: choice
+        default: internal
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+      status:
+        description: "Release status on the track"
+        type: choice
+        default: draft
+        options:
+          - draft
+          - completed
+      publish:
+        description: "Upload to Play? (off = build + attach .aab artifact only)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bundle-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # Full history so `git rev-list --count HEAD` yields a stable, monotonic
+          # versionCode for Play (Play rejects duplicate or lower codes).
+          fetch-depth: 0
+
+      - name: Inject Google Services
+        env:
+          GOOGLE_SERVICES_API_KEY: ${{ secrets.GOOGLE_SERVICES_API_KEY }}
+          PROJECT_ID: ${{ secrets.PROJECT_ID }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+        run: |
+          if [ -f "app/google-services.json.template" ]; then
+            echo "Template found. Injecting secrets..."
+            sed -e 's/{{\([^}]*\)}}/${\1}/g' app/google-services.json.template | envsubst > app/google-services.json
+          else
+            echo "Warning: google-services.json.template not found. Skipping injection."
+          fi
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: false
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Read package name from build config
+        id: pkg
+        run: |
+          APPLICATION_ID=$(grep -m1 'applicationId *=' app/build.gradle.kts | sed -E 's/.*"(.*)".*/\1/')
+          if [ -z "$APPLICATION_ID" ]; then
+            echo "Could not read applicationId from app/build.gradle.kts" >&2
+            exit 1
+          fi
+          echo "Resolved package name: $APPLICATION_ID"
+          echo "application_id=$APPLICATION_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare Keystore from Secrets
+        env:
+          KEYSTORE_PRIVATE: ${{ secrets.KEYSTORE_PRIVATE }}
+          KEYSTORE_CHAIN: ${{ secrets.KEYSTORE_CHAIN }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          set -e
+          if [ -z "$KEYSTORE_PRIVATE" ] || [ -z "$KEYSTORE_CHAIN" ]; then
+            echo "Error: KEYSTORE_PRIVATE / KEYSTORE_CHAIN are required to sign a release bundle." >&2
+            exit 1
+          fi
+          echo "Reconstructing Keystore from Secrets..."
+          echo "$KEYSTORE_PRIVATE" > private.key
+          echo "$KEYSTORE_CHAIN" > chain.crt
+
+          # Create PKCS12 keystore (legacy algorithms for Java KeyStore compatibility).
+          openssl pkcs12 -export -in chain.crt -inkey private.key -out release.keystore \
+            -name "$KEY_ALIAS" -passout env:KEYSTORE_PASSWORD
+
+          # Verify quietly — verbose output would leak certificate metadata into the log.
+          echo "Verifying generated keystore..."
+          keytool -list -keystore release.keystore -storepass "$KEYSTORE_PASSWORD" > /dev/null
+
+          echo "KEYSTORE_FILE=$(pwd)/release.keystore" >> "$GITHUB_ENV"
+          DELIM="DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
+          {
+            printf '%s\n' "KEY_PASSWORD<<${DELIM}"
+            printf '%s\n' "$KEYSTORE_PASSWORD"
+            printf '%s\n' "${DELIM}"
+          } >> "$GITHUB_ENV"
+
+      - name: Build signed AAB
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          # KEYSTORE_FILE / KEY_PASSWORD also exported into GITHUB_ENV above.
+        run: |
+          set -e
+          BUILD_NUMBER=$(git rev-list --count HEAD)
+          echo "Using versionCode (commit count): $BUILD_NUMBER"
+          ./gradlew :app:bundleRelease -PversionBuild=$BUILD_NUMBER --build-cache
+
+      - name: Locate AAB
+        id: aab
+        run: |
+          AAB=$(find app/build/outputs/bundle/release -name "*.aab" | head -n 1)
+          if [ -z "$AAB" ]; then
+            echo "No .aab produced!" >&2
+            exit 1
+          fi
+          echo "Found bundle: $AAB"
+          echo "path=$AAB" >> "$GITHUB_OUTPUT"
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: ${{ steps.aab.outputs.path }}
+          if-no-files-found: error
+
+      - name: Publish to Google Play
+        if: ${{ inputs.publish }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ steps.pkg.outputs.application_id }}
+          releaseFiles: ${{ steps.aab.outputs.path }}
+          track: ${{ inputs.track }}
+          status: ${{ inputs.status }}

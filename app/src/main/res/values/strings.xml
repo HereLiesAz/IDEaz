@@ -11,4 +11,6 @@
     <string name="error_app_not_installed">App not installed. Please build first.</string>
     <string name="error_launch_failed">Failed to launch app: %1$s</string>
     <string name="deploy_instruction_gh_pages">Deployed! Enable GitHub Pages in repo settings.</string>
+    <!-- Title for the :webruntime install-time dynamic feature module (shown by Play). -->
+    <string name="webruntime_title">Web preview runtime</string>
 </resources>

@@ -19,6 +19,9 @@
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Android target screen capture (Phase 2). Gated at runtime to Android target
+         projects via OverlayDelegate.isScreenCaptureEnabled(); web/PWA projects never
+         start the mediaProjection service or raise the consent dialog. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
@@ -100,6 +103,9 @@
                 android:resource="@xml/gemini_bridge_accessibility_config" />
         </service>
 
+        <!-- Android target screen capture (Phase 2). Started only for Android target
+             projects (OverlayDelegate.isScreenCaptureEnabled()); never reached on
+             web/PWA, so the mediaProjection FGS can't be started there. -->
         <service
             android:name=".services.ScreenshotService"
             android:exported="false"

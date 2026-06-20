@@ -24,7 +24,34 @@ Owned by `AIDelegate`:
 *   Create new sessions for prompts captured from element-tap context.
 *   Poll for "Patch" activities and auto-merge resulting PRs.
 
-`AgenticAiClient.dispatchTask(prompt, context): Flow<TaskEvent>` is the Phase 2 abstraction; `JulesAdapter` will implement it on top of `JulesApiClient`. The chat UI is target-agnostic — the same `Flow<TaskEvent>` shape works for both PWA-loop (Gemini) and Android-loop (Jules) targets.
+`AgenticAiClient.dispatchTask(prompt, sourceContext, existingSessionId): Flow<TaskEvent>`
+is the Phase 2 abstraction (`ai/AgenticAiClient.kt`); **`JulesAdapter` (`jules/JulesAdapter.kt`)
+implements it** on top of `JulesApiClient`, owning the create/resume-session +
+activity-poll loop and emitting `TaskEvent`s (`SessionStarted`/`Message`/`Patch`/`TimedOut`).
+`AIDelegate.runJulesTask` just collects the flow — wiring events to the overlay log and
+the patch-apply callback. The chat UI is target-agnostic — the same event shape works
+for both the PWA-loop (Gemini) and Android-loop (Jules) targets.
+
+**Provider default is project-type-aware** (`AIDelegate.defaultOverlayModel`): an
+explicit Settings → AI Assignments choice always wins; otherwise **Android targets
+default to Jules**, web-like projects default to Gemini.
+
+**Output model — PR-based loop (implemented):** when Jules opens a pull request it
+surfaces in `Session.outputs[].pullRequest`. `JulesAdapter` polls `getSession` and,
+when a PR appears, emits a terminal `TaskEvent.PullRequest(url, title)`. `AIDelegate`
+forwards the URL via its `onAgentPullRequest` callback to
+`BuildDelegate.installFromMergedPr`, which:
+
+1. `PullRequestCoordinator.mergeAndGetSha(url)` — parse owner/repo/number, auto-merge
+   (squash) via `GitHubApi.mergePullRequest`, return the merge commit SHA (idempotent:
+   reuses the existing merge if the PR is already merged).
+2. `RemoteBuildManager.pollAndDownload(mergeSha)` — poll GitHub Actions for the rebuilt
+   APK on the merge commit, download it, and `ApkInstaller` sideloads it.
+
+Unidiff `Patch` events are still applied to the working tree (the non-PR path); the two
+are additive. Auto-launching the freshly installed APK is a follow-up — it needs the
+async `PackageInstaller` result callback, so for now install lands via the system
+installer prompt as before.
 
 ## Jules CLI — REMOVED
 
