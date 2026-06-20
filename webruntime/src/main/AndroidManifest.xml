@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:dist="http://schemas.android.com/apk/distribution">
+
+    <!--
+        Web runtime split (Babel, React UMD/shims, ideaz-loader).
+
+        Delivery is INSTALL-TIME (not on-demand) on purpose:
+          * IDEaz is also distributed as a bare signed APK via GitHub Releases.
+            On-demand modules are NOT present in a standalone/assembled APK, so the
+            PWA runtime would silently disappear off Play. Install-time + fusing
+            keeps the assets in every install path.
+          * The runtime powers the Phase-1 "daily driver" PWA loop; install-time
+            means assets are reachable synchronously via the base AssetManager
+            (WebProjectPathHandler.serveRuntimeAsset) with no SplitInstall round-trip
+            and no offline failure mode.
+        See docs/build_pipeline.md for how to flip this to on-demand later.
+    -->
+    <dist:module
+        dist:instant="false"
+        dist:title="@string/webruntime_title">
+        <dist:delivery>
+            <dist:install-time />
+        </dist:delivery>
+        <dist:fusing dist:include="true" />
+    </dist:module>
+
+</manifest>
