@@ -44,10 +44,11 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
         minSdk = 30
 
         targetSdk = 37
-        // With an explicit override use it verbatim (monotonic commit count); the
-        // packed major/minor/patch/build formula stays for local file-driven builds.
-        versionCode = versionBuildOverride
-            ?: (major * 1000000 + minor * 10000 + patch * 100 + buildNumber)
+        // One packed formula for both local and CI builds. `buildNumber` is the CI
+        // commit count when -PversionBuild is passed, else the file build number;
+        // either way the code is monotonic and stays >= existing released codes, so it
+        // never downgrades an installed build or gets rejected by Play.
+        versionCode = major * 1000000 + minor * 10000 + patch * 100 + buildNumber
         versionName = "$major.$minor.$patch.$buildNumber"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -288,16 +289,13 @@ abstract class IncrementBuildNumberTask : DefaultTask() {
     abstract val versionFile: RegularFileProperty
 
     @get:Input
-    @get:Optional
-    abstract val buildOverride: Property<Int>
+    abstract val skip: Property<Boolean>
 
     @TaskAction
     fun increment() {
-        val override = buildOverride.orNull
         // CI supplies the build component via -PversionBuild (commit count); leave
         // version.properties untouched in that case so the checkout stays clean.
-        if (override != null) return
-
+        if (skip.get()) return
         val file = versionFile.get().asFile
         val props = Properties()
         if (file.exists()) {
@@ -310,8 +308,8 @@ abstract class IncrementBuildNumberTask : DefaultTask() {
 }
 
 tasks.register<IncrementBuildNumberTask>("incrementBuildNumber") {
-    versionFile.set(rootProject.file("version.properties"))
-    buildOverride.set(versionBuildOverride)
+    versionFile.set(rootProject.layout.projectDirectory.file("version.properties"))
+    skip.set(versionBuildOverride != null)
     outputs.upToDateWhen { false }
 }
 
