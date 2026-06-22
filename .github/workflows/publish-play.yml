@@ -147,7 +147,7 @@ jobs:
           echo "path=$AAB" >> "$GITHUB_OUTPUT"
 
       - name: Upload AAB artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: app-release-aab
           path: ${{ steps.aab.outputs.path }}
