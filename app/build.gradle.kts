@@ -160,9 +160,9 @@ configurations.all {
         // settings.gradle.kts did NOT address these — that plugin was misattributed as
         // the source; these come from real app dependencies.)
         force(
-            "org.bouncycastle:bcprov-jdk18on:1.84",
-            "org.bouncycastle:bcpkix-jdk18on:1.84",
-            "org.bouncycastle:bcutil-jdk18on:1.84",
+            "org.bouncycastle:bcprov-jdk18on:1.85",
+            "org.bouncycastle:bcpkix-jdk18on:1.85",
+            "org.bouncycastle:bcutil-jdk18on:1.85",
             "org.apache.commons:commons-lang3:3.20.0",
             "com.google.protobuf:protobuf-java:4.35.1",
             "com.google.protobuf:protobuf-kotlin:4.35.1",
