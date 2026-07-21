@@ -25,7 +25,7 @@ jobs:
   dependency-submission:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # foojay-resolver was removed, so the jvmToolchain(21) request must be satisfied
       # by an installed JDK rather than auto-downloaded.
