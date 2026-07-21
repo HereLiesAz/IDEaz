@@ -28,3 +28,4 @@ When Phase 0 completes, this file will point to Phase 1's plan.
     - Updated `Icons.Default.NoteAdd` to its `AutoMirrored` version in `FileExplorerScreen.kt`.
     - Removed an unnecessary safe call on `SourceContext` in `AIDelegate.kt`.
     - Suppressed `LlmInference` deprecation warning in `LocalModelRuntime.kt`.
+- Fixed build failure caused by duplicate AzNavRail multiplatform classes by correcting its version catalog coordinates to the specific submodule coordinate `com.github.HereLiesAz.AzNavRail:aznavrail`.
