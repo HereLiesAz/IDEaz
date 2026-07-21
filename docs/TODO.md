@@ -9,6 +9,7 @@ abandoned-and-now-revived project. It has been superseded.
 When Phase 0 completes, this file will point to Phase 1's plan.
 
 ## Completed (Triage Phase)
+- Fixed build failure with Kotlin 2.4.10 and AGP 9.3.0 by excluding the incompatible `aznavrail-cmp-wasm-js` variant from the `libs.aznavrail` dependency.
 - Fixed build failure in `app/build.gradle.kts` caused by missing `java.util.Properties` and `java.io.FileInputStream` imports.
 - Implemented automatic build versioning: `build` property in `version.properties` now increments automatically on `assemble`, `bundle`, or `install` tasks.
 - Updated `get_version.sh` to return the full `major.minor.patch.build` version string.
