@@ -47,7 +47,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # Full history so `git rev-list --count HEAD` yields a stable, monotonic
           # versionCode for Play (Play rejects duplicate or lower codes).
@@ -147,7 +147,7 @@ jobs:
           echo "path=$AAB" >> "$GITHUB_OUTPUT"
 
       - name: Upload AAB artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: app-release-aab
           path: ${{ steps.aab.outputs.path }}
