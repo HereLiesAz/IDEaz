@@ -234,9 +234,7 @@ dependencies {
         exclude(group = "com.google.protobuf", module = "protobuf-javalite")
     }
     implementation(libs.androidx.localbroadcastmanager)
-    implementation(libs.aznavrail) {
-        exclude(group = "com.github.HereLiesAz.AzNavRail", module = "aznavrail-cmp-wasm-js")
-    }
+    implementation(libs.aznavrail)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.compose.runtime.livedata)
