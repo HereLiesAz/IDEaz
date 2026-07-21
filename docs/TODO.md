@@ -28,3 +28,4 @@ When Phase 0 completes, this file will point to Phase 1's plan.
     - Updated `Icons.Default.NoteAdd` to its `AutoMirrored` version in `FileExplorerScreen.kt`.
     - Removed an unnecessary safe call on `SourceContext` in `AIDelegate.kt`.
     - Suppressed `LlmInference` deprecation warning in `LocalModelRuntime.kt`.
+- Resolved build failure and duplicate class issues caused by transitive Kotlin Multiplatform dependencies in `AzNavRail` by utilizing the specific Android published submodule coordinate `com.github.HereLiesAz.AzNavRail:aznavrail` instead of the root repository coordinate in the Version Catalog (`libs.versions.toml`).
