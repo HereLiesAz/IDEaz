@@ -28,4 +28,4 @@ When Phase 0 completes, this file will point to Phase 1's plan.
     - Updated `Icons.Default.NoteAdd` to its `AutoMirrored` version in `FileExplorerScreen.kt`.
     - Removed an unnecessary safe call on `SourceContext` in `AIDelegate.kt`.
     - Suppressed `LlmInference` deprecation warning in `LocalModelRuntime.kt`.
-- Fixed build failure caused by incompatible `aznavrail-cmp-wasm-js` variant in the `libs.aznavrail` dependency by transitively excluding it from the `app` module.
+- Fixed build failure caused by incompatible `aznavrail-cmp-wasm-js` variant and duplicate classes in the `libs.aznavrail` dependency by targeting the specific published submodule coordinate `com.github.HereLiesAz.AzNavRail:aznavrail`.
