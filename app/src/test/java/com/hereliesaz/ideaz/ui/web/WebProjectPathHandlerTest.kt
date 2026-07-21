@@ -41,7 +41,7 @@ class WebProjectPathHandlerTest {
         assertTrue("import map injected", out.contains("""<script type="importmap">"""))
         // Bundled libraries are exposed via the import map (regression guard).
         assertTrue("react mapped", out.contains(""""react":"/__ideaz__/react.js""""))
-        assertTrue("react-router-dom mapped", out.contains("/__ideaz__/react-router-dom.js"))
+        assertTrue("react-router-dom mapped", out.contains("/__ideaz__/react-router-dom-entry.js"))
         assertTrue("redux toolkit mapped", out.contains("/__ideaz__/reduxjs-toolkit.js"))
         assertTrue("babel injected", out.contains("/__ideaz__/babel.min.js"))
         assertTrue("loader injected", out.contains("/__ideaz__/ideaz-loader.js"))
