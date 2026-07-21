@@ -47,7 +47,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # Full history so `git rev-list --count HEAD` yields a stable, monotonic
           # versionCode for Play (Play rejects duplicate or lower codes).
