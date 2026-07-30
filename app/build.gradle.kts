@@ -116,6 +116,22 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
         aidl = true
     }
 
+    androidResources {
+        // The bundled Android template ships .github/workflows/build-apk.yml
+        // (assets/templates/android). aapt's default asset filter contains ".*",
+        // which drops every dot-prefixed entry — the workflow would never reach
+        // the APK and scaffolded projects would have no CI. This is the default
+        // list minus ".*"; .git and friends stay excluded by their own entries.
+        ignoreAssetsPatterns.clear()
+        ignoreAssetsPatterns.addAll(
+            listOf(
+                "!.svn", "!.git", "!.gitattributes", "!.gitignore", "!.gitkeep",
+                "!.ds_store", "!*.scc", "<dir>_*", "!CVS", "!thumbs.db",
+                "!picasa.ini", "!*~",
+            )
+        )
+    }
+
     packaging {
         jniLibs.useLegacyPackaging = true
         resources {
@@ -236,6 +252,8 @@ dependencies {
     implementation(libs.androidx.localbroadcastmanager)
     implementation(libs.aznavrail) {
         exclude(group = "com.github.HereLiesAz.AzNavRail", module = "aznavrail-cmp-wasm-js")
+        exclude(group = "com.github.HereLiesAz.AzNavRail", module = "aznavrail-cmp-desktop")
+        exclude(group = "com.github.HereLiesAz.AzNavRail", module = "aznavrail-cmp-android")
     }
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
