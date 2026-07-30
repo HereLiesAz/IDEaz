@@ -22,6 +22,7 @@ When Phase 0 completes, this file will point to Phase 1's plan.
 - Pinned `run-gemini-cli` to a specific SHA in CI workflows to mitigate supply chain vulnerabilities.
 - Performed full User Flow & Navigation audit, mapping PWA loops, Editor flows, and Phase 1 transitions.
 - Resolved build failure caused by duplicate `protobuf` classes by excluding `protobuf-java` from `google-genai` and standardizing on `protobuf-javalite`.
+- Fixed build failure and duplicate class packaging errors caused by incompatible transitive dependencies (`wasm-js`, `desktop`, and `cmp-android` variants) of the `AzNavRail` library by adding explicit Gradle exclusions.
 - Fixed build failure caused by the redundant `org.jetbrains.kotlin.android` plugin which is now integrated into AGP 9.0+.
 - Fixed Gradle configuration cache failure and build script syntax error by refactoring the `incrementBuildNumber` task into a proper task class.
 - Fixed build failure caused by Gradle variant selection mismatch when upgrading `aznavrail` dependency to `11.0` by using the specific published submodule coordinate `com.github.HereLiesAz.AzNavRail:aznavrail` in the Version Catalog.
@@ -29,3 +30,4 @@ When Phase 0 completes, this file will point to Phase 1's plan.
     - Updated `Icons.Default.NoteAdd` to its `AutoMirrored` version in `FileExplorerScreen.kt`.
     - Removed an unnecessary safe call on `SourceContext` in `AIDelegate.kt`.
     - Suppressed `LlmInference` deprecation warning in `LocalModelRuntime.kt`.
+- Fixed build failure caused by duplicate AzNavRail classes by specifying the correct submodule coordinate (`com.github.HereLiesAz.AzNavRail:aznavrail`) and excluding the incompatible `aznavrail-cmp-wasm-js` variant.

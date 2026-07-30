@@ -9,7 +9,7 @@ import java.io.IOException
 
 object TemplateManager {
 
-    // Must match the actual contents of app/src/main/assets/project/.
+    // Must match the actual contents of app/src/main/assets/templates/android/.
     // If you change the bundled template's package, update these too —
     // copyAssetFile substitutes them verbatim.
     private const val PLACEHOLDER_PACKAGE = "com.example.helloworld"
@@ -72,7 +72,7 @@ object TemplateManager {
             ProjectType.WEB -> "templates/web"
             ProjectType.PWA -> "templates/pwa"
             ProjectType.REACT -> "templates/react"
-            ProjectType.ANDROID -> "project"
+            ProjectType.ANDROID -> "templates/android"
             else -> return
         }
 
@@ -127,6 +127,11 @@ object TemplateManager {
         if (srcPackagePath == destPackagePath) return
 
         val possibleRoots = listOf(
+            // Kotlin Multiplatform layout (the Compose Multiplatform Android template).
+            "app/src/commonMain/kotlin",
+            "app/src/androidMain/kotlin",
+            "app/src/wasmJsMain/kotlin",
+            // Legacy single-target layouts.
             "android/app/src/main/kotlin",
             "android/app/src/main/java",
             "app/src/main/kotlin",
