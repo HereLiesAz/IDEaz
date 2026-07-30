@@ -252,6 +252,8 @@ dependencies {
     implementation(libs.androidx.localbroadcastmanager)
     implementation(libs.aznavrail) {
         exclude(group = "com.github.HereLiesAz.AzNavRail", module = "aznavrail-cmp-wasm-js")
+        exclude(group = "com.github.HereLiesAz.AzNavRail", module = "aznavrail-cmp-desktop")
+        exclude(group = "com.github.HereLiesAz.AzNavRail", module = "aznavrail-cmp-android")
     }
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
