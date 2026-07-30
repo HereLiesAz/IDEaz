@@ -12,6 +12,7 @@ import com.hereliesaz.ideaz.buildlogic.PullRequestCoordinator
 import com.hereliesaz.ideaz.buildlogic.RemoteBuildManager
 import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.services.BuildService
+import com.hereliesaz.ideaz.services.WasmCompilerService
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +39,8 @@ import java.io.File
  * @param onWebBuildSuccess Callback for Web project success (URL/Path).
  * @param onAndroidBuildSuccess Callback for Android project success (Triggers app launch).
  * @param gitDelegate Reference to GitDelegate for commit/push operations required for remote builds.
+ * @param onWasmPreviewReady Callback for a successful local Compose/Wasm compile of an
+ *        Android project, carrying the `filesDir/www` directory to mount in the preview.
  */
 class BuildDelegate(
     private val application: Application,
@@ -48,7 +51,8 @@ class BuildDelegate(
     private val onBuildFailure: (String) -> Unit,
     private val onWebBuildSuccess: (String) -> Unit,
     private val onAndroidBuildSuccess: () -> Unit,
-    private val gitDelegate: GitDelegate
+    private val gitDelegate: GitDelegate,
+    private val onWasmPreviewReady: (File) -> Unit = {}
 ) {
 
     // AIDL Interface to the remote service (used only to keep the foreground
@@ -195,13 +199,34 @@ class BuildDelegate(
                 return@launch
             }
 
-            // Android: remote build only.
+            // Android: the local preview is a Compose Multiplatform / Wasm
+            // mirage compiled on-device into filesDir/www; the native APK is
+            // assembled remotely by GitHub Actions. A failed preview compile is
+            // reported but never blocks the APK build.
+            compileWasmPreview(dir)
+
             if (token.isNullOrBlank() || user.isNullOrBlank()) {
                 pushLog("Error: Remote Build requires GitHub Token and User.\n")
                 handleFailure("Remote Build requires GitHub Token and User.")
                 return@launch
             }
             startRemoteBuild(dir, user, token)
+        }
+    }
+
+    /**
+     * Compiles the project's `commonMain` + `wasmJsMain` sources to WebAssembly
+     * for the local preview. [WasmCompilerService] broadcasts its own success
+     * event (which hot-reloads the preview WebView); this only surfaces the log
+     * and hands the output directory to the host so it becomes visible.
+     */
+    private suspend fun compileWasmPreview(dir: File) {
+        val result = WasmCompilerService(application).compile(dir)
+        pushLog(result.log)
+        if (result.success) {
+            onWasmPreviewReady(result.wwwDir)
+        } else {
+            onLog("[IDE] Wasm preview unavailable; continuing with the remote APK build.\n")
         }
     }
 
