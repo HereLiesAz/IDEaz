@@ -269,7 +269,17 @@ class MainViewModel(
             application.sendBroadcast(intent)
             launchTargetApp(application)
         },
-        gitDelegate
+        gitDelegate,
+        { wwwDir ->
+            // Wasm Preview Ready Callback. The compiled binary lives in
+            // filesDir/www and is mounted at the asset-loader root; switching to
+            // "App View" puts WebProjectHost on screen, which then hot-reloads on
+            // every subsequent compile. The editor keeps pointing at the project
+            // sources — www holds build output, not editable files.
+            stateDelegate.setCurrentWebProjectDir(wwwDir)
+            stateDelegate.setCurrentWebUrl(WebProjectUrlUtils.localProjectRootUrl())
+            stateDelegate.setTargetAppVisible(true)
+        }
     )
 
     val repoDelegate = RepoDelegate(

@@ -58,7 +58,7 @@ androidx-preference-ktx = { group = "androidx.preference", name = "preference-kt
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycleRuntimeKtx" }
 androidx-localbroadcastmanager = { module = "androidx.localbroadcastmanager:localbroadcastmanager", version.ref = "localbroadcastmanager" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
-aznavrail = { module = "com.github.HereLiesAz:AzNavRail", version.ref = "aznavrail" }
+aznavrail = { module = "com.github.HereLiesAz.AzNavRail:aznavrail", version.ref = "aznavrail" }
 google-genai = { module = "com.google.genai:google-genai", version.ref = "googleGenai" }
 google-ai-edge-aicore = { module = "com.google.ai.edge.aicore:aicore", version.ref = "aicore" }
 mediapipe-tasks-genai = { module = "com.google.mediapipe:tasks-genai", version.ref = "mediapipeGenai" }
