@@ -9,6 +9,7 @@ abandoned-and-now-revived project. It has been superseded.
 When Phase 0 completes, this file will point to Phase 1's plan.
 
 ## Completed (Triage Phase)
+- Fixed build failure with Kotlin 2.4.10 and AGP 9.3.0 by excluding the incompatible `aznavrail-cmp-wasm-js` variant from the `libs.aznavrail` dependency.
 - Fixed build failure in `app/build.gradle.kts` caused by missing `java.util.Properties` and `java.io.FileInputStream` imports.
 - Implemented automatic build versioning: `build` property in `version.properties` now increments automatically on `assemble`, `bundle`, or `install` tasks.
 - Updated `get_version.sh` to return the full `major.minor.patch.build` version string.
@@ -25,8 +26,9 @@ When Phase 0 completes, this file will point to Phase 1's plan.
 - Fixed build failure and duplicate class packaging errors caused by incompatible transitive dependencies (`wasm-js`, `desktop`, and `cmp-android` variants) of the `AzNavRail` library by adding explicit Gradle exclusions.
 - Fixed build failure caused by the redundant `org.jetbrains.kotlin.android` plugin which is now integrated into AGP 9.0+.
 - Fixed Gradle configuration cache failure and build script syntax error by refactoring the `incrementBuildNumber` task into a proper task class.
+- Fixed build failure caused by Gradle variant selection mismatch when upgrading `aznavrail` dependency to `11.0` by using the specific published submodule coordinate `com.github.HereLiesAz.AzNavRail:aznavrail` in the Version Catalog.
 - Resolved several deprecation and code health warnings:
     - Updated `Icons.Default.NoteAdd` to its `AutoMirrored` version in `FileExplorerScreen.kt`.
     - Removed an unnecessary safe call on `SourceContext` in `AIDelegate.kt`.
     - Suppressed `LlmInference` deprecation warning in `LocalModelRuntime.kt`.
-- Fixed build failure caused by duplicate AzNavRail classes by specifying the correct submodule coordinate (`com.github.HereLiesAz.AzNavRail:aznavrail`) and excluding the incompatible `aznavrail-cmp-wasm-js` variant.
+- Fixed build failure caused by incompatible `aznavrail-cmp-wasm-js` variant and duplicate classes in the `libs.aznavrail` dependency by targeting the specific published submodule coordinate `com.github.HereLiesAz.AzNavRail:aznavrail`.
