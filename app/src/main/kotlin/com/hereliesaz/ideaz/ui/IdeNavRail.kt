@@ -37,7 +37,7 @@ fun AzNavHostScope.ideNavRail(
     onUndock: (() -> Unit)? = null,
     enableRailDraggingOverride: Boolean? = null,
     onOverlayDrag: ((Float, Float) -> Unit)? = null,
-    onNavigateToMainApp: (String) -> Unit = { navController.navigate(it) }
+    onNavigateToMainApp: (String) -> Unit = { navController?.navigate(it) }
 ) {
     // v9 split configuration (azConfig + azTheme + azAdvanced) per
     // docs/AZNAVRAIL_COMPLETE_GUIDE.md §2. Replaces the legacy single
