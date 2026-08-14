@@ -289,6 +289,7 @@ dependencies {
 
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.webkit)
+    implementation(libs.androidx.work.runtime.ktx)
 
     // On-device GGUF backend: the :llama-cpp-module NDK library is only on the
     // classpath when its llama.cpp submodule is present (matched in settings.gradle.kts),

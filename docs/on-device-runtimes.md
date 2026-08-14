@@ -39,6 +39,14 @@ still required. The download proceeds only when that remainder plus a 256 MiB sa
 reserve fits in the model filesystem; failure is reported through the existing
 per-model Settings error instead of filling the device and letting Android improvise.
 
+File downloads run as unique WorkManager jobs keyed by catalog model ID. WorkManager
+persists queue/progress/failure state across navigation and process death, waits for a
+connected network, prevents duplicate active jobs, retries transient failures with
+bounded exponential backoff, and promotes active transfers to a foreground
+notification with a cancellation action. Only the model ID is persisted in work
+input; the worker resolves any gated-provider token at execution time so credentials
+do not leak into WorkManager's database or progress/output records.
+
 **ONNX Runtime GenAI** (`OnnxGenAiRuntime`) and **llama.cpp** (`LlamaCppRuntime`)
 now have their `generate()` **implemented** (against `ai.onnxruntime.genai` and
 `android.llama.cpp.LLamaAndroid` respectively, via reflection so the app compiles

@@ -2,6 +2,7 @@ package com.hereliesaz.ideaz.ai.local
 
 import com.hereliesaz.ideaz.ai.local.LocalModelAvailability.Status
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
 import org.junit.Test
@@ -147,5 +148,22 @@ class LocalModelAvailabilityTest {
 
         assertTrue(error.message.orEmpty().contains("need 1000 bytes"))
         assertTrue(error.message.orEmpty().contains("999 bytes available"))
+    }
+
+    @Test
+    fun `download worker retry policy separates transient and permanent failures`() {
+        assertTrue(isRetryableModelDownloadFailure("timeout while reading response"))
+        assertTrue(isRetryableModelDownloadFailure("Download failed for model: HTTP 503"))
+        assertFalse(isRetryableModelDownloadFailure("Download failed for model: HTTP 404"))
+        assertFalse(isRetryableModelDownloadFailure("SHA-256 mismatch for model.task"))
+        assertFalse(isRetryableModelDownloadFailure("Not enough storage for model download"))
+    }
+
+    @Test
+    fun `download worker uses stable unique name per model`() {
+        assertEquals(
+            "local-model-download:gemma-test",
+            LocalModelDownloadWorker.uniqueWorkName("gemma-test"),
+        )
     }
 }

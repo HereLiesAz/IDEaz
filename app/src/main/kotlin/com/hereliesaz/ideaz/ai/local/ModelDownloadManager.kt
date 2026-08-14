@@ -2,6 +2,8 @@ package com.hereliesaz.ideaz.ai.local
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -194,7 +196,7 @@ class ModelDownloadManager(
         )
     }
 
-    private fun downloadOne(
+    private suspend fun downloadOne(
         f: LocalModelFile,
         mdir: File,
         authToken: String?,
@@ -221,6 +223,7 @@ class ModelDownloadManager(
                 FileOutputStream(part, append).use { output ->
                     val buf = ByteArray(64 * 1024)
                     while (true) {
+                        currentCoroutineContext().ensureActive()
                         val n = input.read(buf)
                         if (n == -1) break
                         output.write(buf, 0, n)

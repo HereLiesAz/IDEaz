@@ -83,6 +83,7 @@
 *   `LocalModelAvailability.kt`: Pure, unit-tested logic deciding whether a model is usable on this device/build (backend present, RAM, ABI, token) — drives the Settings list filtering.
 *   `LocalModelStore.kt`: Manages locally stored model files and metadata.
 *   `ModelDownloadManager.kt`: Downloads model files with authentication and range resume; preflights remaining bytes plus a safety reserve, validates trusted exact sizes/SHA-256 values before atomic activation, and records manifest-bound verification markers.
+*   `LocalModelDownloadWorker.kt`: Unique WorkManager foreground job for durable model downloads with connected-network constraints, progress, cancellation, bounded retry/backoff, and token-safe input data.
 
 #### ai/bridge/
 *   `GeminiAppBridgeAdapter.kt`: `ConversationalAiClient` that routes prompts through the user's installed Gemini app — attaches the project as `project.txt` and raises the touch-block scrim, then waits for the scraped reply.
