@@ -1,13 +1,13 @@
-name: Jules Issue Handler
+name: Antigravity Issue Handler
 
 # SECURITY MODEL
 # --------------
 # This workflow runs an LLM agent with repository write permissions in response
 # to issues opened by anyone on GitHub. Untrusted issue text MUST NOT be parsed
 # as instructions, MUST NOT reach a write-capable agent without review, and the
-# action SHA MUST be pinned to defend against supply-chain compromise.
+# action dependency must be reviewed explicitly before upgrades.
 #
-# Hardenings applied (per issue #571):
+# Hardenings applied (for untrusted event data):
 #   1. Trigger gated to OWNER / MEMBER / COLLABORATOR. Random outside accounts
 #      get nothing.
 #   2. Issue title/body delivered as ENV VARS, never interpolated into the YAML
@@ -16,8 +16,8 @@ name: Jules Issue Handler
 #      comment, nothing else. PRs are still authored manually or via other
 #      explicitly-trusted workflows.
 #   4. Permissions: contents:read + issues:write only. No pull-requests:write.
-#   5. Action pinned to a commit SHA, not a moving v0 tag.
-#   6. Removed the duplicate bare run-gemini-cli step at the top of the old
+#   5. Antigravity CLI dependency upgrades require explicit review.
+#   6. Removed the duplicate bare run-antigravity-cli step at the top of the old
 #      workflow that did nothing but leak API quota.
 
 on:
@@ -48,10 +48,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: 'Run Gemini CLI (read-only triage mode)'
-        # TODO: pin to the commit SHA for run-gemini-cli@v0.1.18 once verified
-        # from https://github.com/google-github-actions/run-gemini-cli/releases
-        uses: 'google-github-actions/run-gemini-cli@v0'
+      - name: 'Run Antigravity CLI (read-only triage mode)'
+        uses: 'google-github-actions/run-antigravity-cli@v0'
         env:
           # Untrusted inputs delivered out-of-band. The prompt below references
           # these by name so they cannot break out of the YAML template.
@@ -61,20 +59,19 @@ jobs:
           ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
           REPOSITORY: ${{ github.repository }}
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
-          GEMINI_CLI_TRUST_WORKSPACE: true
+          ANTIGRAVITY_CLI_TRUST_WORKSPACE: true
         with:
           gcp_project_id: ""
-          gemini_api_key: '${{ secrets.JULES_API_KEY }}'
-          google_api_key: '${{ secrets.JULES_API_KEY }}'
-          gemini_cli_version: '0.24.0'
-          workflow_name: 'jules-issue-handler'
+          antigravity_api_key: '${{ secrets.ANTIGRAVITY_API_KEY }}'
+          google_api_key: '${{ secrets.ANTIGRAVITY_API_KEY }}'
+          antigravity_cli_version: '0.24.0'
+          workflow_name: 'antigravity-issue-handler'
           use_gemini_code_assist: false
           use_vertex_ai: false
-          gcp_project_id: ''
           settings: |-
             {
               "model": { "maxSessionTurns": 10 },
-              "telemetry": { "enabled": true, "target": "local", "outfile": ".gemini/telemetry.log" },
+              "telemetry": { "enabled": true, "target": "local", "outfile": ".antigravity/telemetry.log" },
               "mcpServers": {
                 "github": {
                   "command": "docker",

@@ -40,10 +40,10 @@ minapp/kotlin-compiler-*.salive
 minapp/.idea/
 /build.log
 
-.gemini/
 gha-creds-*.json
-# gemini-cli settings
 .gemini/
+# Antigravity CLI settings
+.antigravity/
 test-output*.txt
 test_output*.txt
 test_log*.txt

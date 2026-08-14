@@ -1,4 +1,4 @@
-name: Jules Branch Manager
+name: Antigravity Branch Manager
 
 # SECURITY MODEL
 # --------------
@@ -10,22 +10,19 @@ name: Jules Branch Manager
 #     as instructions)
 #   - workflow_dispatch (only collaborators can trigger, trusted)
 #
-# Hardenings applied (per upstream issue #571 same vulnerability class):
+# Hardenings applied (for untrusted event data same vulnerability class):
 #   1. pull_request_review trigger gated to OWNER / MEMBER / COLLABORATOR
 #      reviewers only.
-#   2. Removed the duplicate bare run-gemini-cli step that did nothing.
+#   2. Removed the duplicate bare run-antigravity-cli step that did nothing.
 #   3. PR title / body / review comments delivered as ENV VARS, not
 #      interpolated into the prompt.
 #   4. Removed the auto-merge and auto-delete-branch behaviour. The agent now
 #      proposes; humans dispose. Auto-merging on a `pull_request_review` event
 #      where the review can come from outside is too dangerous.
-#   5. TODO: pin run-gemini-cli to a commit SHA before relying on this in CI.
+#   5. TODO: pin run-antigravity-cli to a commit SHA before relying on this in CI.
 
 on:
   push:
-    branches-ignore:
-      - 'main'
-      - 'master'
   pull_request_review:
     types: [submitted]
   workflow_dispatch:
@@ -37,15 +34,12 @@ permissions:
 
 jobs:
   manage_branch:
-    # Skip if a non-trusted reviewer triggered this. Push and workflow_dispatch
-    # are inherently trusted (only collaborators can push or dispatch). For
-    # pull_request_review we check the REVIEWER's association.
     if: >-
-      github.event_name != 'pull_request_review' ||
-      github.event.review.author_association == 'OWNER' ||
-      github.event.review.author_association == 'MEMBER' ||
-      github.event.review.author_association == 'COLLABORATOR'
-
+      (github.event_name != 'push' || github.ref_name != github.event.repository.default_branch) &&
+      (github.event_name != 'pull_request_review' ||
+       github.event.review.author_association == 'OWNER' ||
+       github.event.review.author_association == 'MEMBER' ||
+       github.event.review.author_association == 'COLLABORATOR')
     runs-on: ubuntu-latest
 
     steps:
@@ -54,9 +48,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 'Run Gemini CLI'
-        # TODO: pin to commit SHA for run-gemini-cli@v0.1.18
-        uses: 'google-github-actions/run-gemini-cli@v0'
+      - name: 'Run Antigravity CLI'
+        uses: 'google-github-actions/run-antigravity-cli@v0'
         env:
           BRANCH: ${{ github.ref_name }}
           REPOSITORY: ${{ github.repository }}
@@ -67,20 +60,19 @@ jobs:
           REVIEW_BODY: ${{ github.event.review.body }}
           REVIEWER: ${{ github.event.review.user.login }}
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
-          GEMINI_CLI_TRUST_WORKSPACE: true
+          ANTIGRAVITY_CLI_TRUST_WORKSPACE: true
         with:
           gcp_project_id: ""
-          gemini_api_key: '${{ secrets.JULES_API_KEY }}'
-          google_api_key: '${{ secrets.JULES_API_KEY }}'
-          gemini_cli_version: '0.24.0'
-          workflow_name: 'jules-branch-manager'
+          antigravity_api_key: '${{ secrets.ANTIGRAVITY_API_KEY }}'
+          google_api_key: '${{ secrets.ANTIGRAVITY_API_KEY }}'
+          antigravity_cli_version: '0.24.0'
+          workflow_name: 'antigravity-branch-manager'
           use_gemini_code_assist: false
           use_vertex_ai: false
-          gcp_project_id: ''
           settings: |-
             {
               "model": { "maxSessionTurns": 15 },
-              "telemetry": { "enabled": true, "target": "local", "outfile": ".gemini/telemetry.log" },
+              "telemetry": { "enabled": true, "target": "local", "outfile": ".antigravity/telemetry.log" },
               "mcpServers": {
                 "github": {
                   "command": "docker",

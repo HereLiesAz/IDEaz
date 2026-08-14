@@ -15,7 +15,7 @@ jobs:
 
       - name: Delete all caches
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
         run: |
           echo "Fetching list of cache keys..."
           cacheIds=$(gh cache list --limit 100 --json id --jq '.[].id')

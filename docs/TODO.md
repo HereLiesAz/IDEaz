@@ -20,7 +20,7 @@ When Phase 0 completes, this file will point to Phase 1's plan.
 - Implemented full MediaPipe LLM Inference on-device runtime, including model loading and one-shot generation.
 - Added "On-device Models" settings section for browsing, downloading, and selecting local LLMs (Gemma, Phi, Qwen).
 - Added Gemma 3 Nano E2B and E4B models to the on-device catalog.
-- Pinned `run-gemini-cli` to a specific SHA in CI workflows to mitigate supply chain vulnerabilities.
+- Generalized repository and generated-project workflows, migrated automation to Antigravity CLI, and standardized four-component `version.properties` consumption.
 - Performed full User Flow & Navigation audit, mapping PWA loops, Editor flows, and Phase 1 transitions.
 - Resolved build failure caused by duplicate `protobuf` classes by excluding `protobuf-java` from `google-genai` and standardizing on `protobuf-javalite`.
 - Fixed build failure and duplicate class packaging errors caused by incompatible transitive dependencies (`wasm-js`, `desktop`, and `cmp-android` variants) of the `AzNavRail` library by adding explicit Gradle exclusions.
