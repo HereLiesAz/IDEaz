@@ -22,8 +22,8 @@ The on-device toolchain (`aapt2`, `d8`, `kotlinc`, Maven Aether) was removed in 
 *   **Trigger:** User clicks **Save & Initialize** on the Setup tab.
 *   **Actions:**
     1.  **Inject Workflows.** Force-push to `.github/workflows/`:
-        *   `android_ci.yml` — debug build on push.
-        *   `release.yml` — tagged release build, attaches signed APK to the GitHub Release.
+        *   `build.yml` — configurable build on pushes and pull requests.
+        *   `release.yml` — configurable tagged release build; artifact paths come from repository variables.
         *   `codeql.yml` — security scanning (optional).
     2.  **Inject Environment.** Force-push `setup_env.sh` and `AGENTS_SETUP.md` to repo root.
     3.  **Start Build (Android only):** Tag and push; `RemoteBuildManager` polls.
@@ -55,6 +55,12 @@ The IDEaz project's own CI (`.github/workflows/`) builds the app on every push:
 
 Release artifacts ship via tagged builds.
 
-## 6. Updates & Self-Healing
+## 6. Repository Automation
+
+Repository-neutral issue and pull-request automation runs through Antigravity CLI. The dispatcher accepts trusted `@antigravity-cli` comments and routes `/review`, `/triage`, or free-form requests to the reusable Antigravity workflows. Scheduled issue triage and contribution-guideline review use the same CLI and the `ANTIGRAVITY_API_KEY` repository secret.
+
+Every generated project receives a four-component `version.properties`. Build commands, artifact globs, module paths, and default branches are detected or supplied through repository variables; no workflow assumes a repository name or branch name.
+
+## 7. Updates & Self-Healing
 *   **Self-update:** IDEaz checks `HereLiesAz/IDEaz` for updates.
 *   **Live output:** Always show the bottom-card output indicator while a remote build / AI session is in flight.
