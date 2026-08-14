@@ -68,8 +68,8 @@ object ProjectConfigManager {
     }
 
     // --- WORKFLOW CONTENT ---
-    private val ANDROID_CI_JULES_YML = """
-name: Android CI (Jules)
+    private val ANDROID_CI_YML = """
+name: Build
 
 on:
   push:
@@ -81,22 +81,26 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: set up JDK 17
-      uses: actions/setup-java@v4
+    - uses: actions/checkout@v7
+    - name: set up JDK 21
+      uses: actions/setup-java@v5
       with:
-        java-version: '17'
+        java-version: '21'
         distribution: 'temurin'
         cache: gradle
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
-    - name: Build with Gradle
-      run: ./gradlew assembleDebug
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
+    - name: Read version
+      run: |
+        test -f version.properties
+        cat version.properties >> "${'$'}GITHUB_ENV"
+    - name: Build
+      run: ${'$'}{{ vars.BUILD_COMMAND || './gradlew assembleDebug' }}
+    - name: Upload artifact
+      uses: actions/upload-artifact@v7
       with:
-        name: app-debug
-        path: app/build/outputs/apk/debug/app-debug.apk
+        name: ${'$'}{{ github.event.repository.name }}-${'$'}{{ env.major }}.${'$'}{{ env.minor }}.${'$'}{{ env.patch }}.${'$'}{{ env.build }}
+        path: ${'$'}{{ vars.ARTIFACT_PATH || '**/build/outputs/**/*.apk' }}
 """.trimIndent()
 
     private val RELEASE_YML = """
@@ -111,20 +115,24 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: set up JDK 17
-      uses: actions/setup-java@v4
+    - uses: actions/checkout@v7
+    - name: set up JDK 21
+      uses: actions/setup-java@v5
       with:
-        java-version: '17'
+        java-version: '21'
         distribution: 'temurin'
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
-    - name: Build Release APK
-      run: ./gradlew assembleRelease
-    - name: Create Release
+    - name: Read version
+      run: |
+        test -f version.properties
+        cat version.properties >> "${'$'}GITHUB_ENV"
+    - name: Build release
+      run: ${'$'}{{ vars.RELEASE_COMMAND || './gradlew assembleRelease' }}
+    - name: Create release
       uses: softprops/action-gh-release@v2
       with:
-        files: app/build/outputs/apk/release/*.apk
+        files: ${'$'}{{ vars.RELEASE_ARTIFACT_PATH || '**/build/outputs/**/*.apk' }}
 """.trimIndent()
 
     private val WEB_CI_PAGES_YML = """
@@ -132,7 +140,6 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: ["main", "master"]
   workflow_dispatch:
 
 permissions:
@@ -144,30 +151,30 @@ jobs:
     concurrency:
       group: ${'$'}{{ github.workflow }}-${'$'}{{ github.ref }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Deploy
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${'$'}{{ secrets.GITHUB_TOKEN }}
           publish_dir: .
 """.trimIndent()
 
-    private val JULES_ISSUE_HANDLER_YML = """
-name: Jules Issue Handler
+    private val ANTIGRAVITY_ISSUE_HANDLER_YML = """
+name: Antigravity Issue Handler
 
 # SECURITY MODEL
 # --------------
 # This workflow runs an LLM agent in response to issues opened by anyone on
 # GitHub. Untrusted issue text MUST NOT be parsed as instructions, MUST NOT
-# reach a write-capable agent, and the action SHA MUST be pinned.
+# reach a write-capable agent, and the action dependency must be reviewed before upgrades.
 #
-# Hardenings applied (per upstream IDEaz issue #571):
+# Hardenings applied (for untrusted event data):
 #   1. Trigger gated to OWNER / MEMBER / COLLABORATOR.
 #   2. Issue title/body delivered as ENV VARS, never interpolated into prompt.
 #   3. MCP write tools removed. Read + comment only.
 #   4. Permissions: contents:read + issues:write only.
-#   5. run-gemini-cli is pinned to a commit SHA to protect against supply-chain attacks.
+#   5. run-antigravity-cli upgrades require explicit review to reduce supply-chain risk.
 
 on:
   issues:
@@ -188,13 +195,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: 'Run Gemini CLI (read-only triage mode)'
-        uses: 'google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489'
+      - name: 'Run Antigravity CLI (read-only triage mode)'
+        uses: 'google-github-actions/run-antigravity-cli@v0'
         env:
           ISSUE_TITLE: ${'$'}{{ github.event.issue.title }}
           ISSUE_BODY: ${'$'}{{ github.event.issue.body }}
@@ -202,20 +209,19 @@ jobs:
           ISSUE_AUTHOR: ${'$'}{{ github.event.issue.user.login }}
           REPOSITORY: ${'$'}{{ github.repository }}
           GITHUB_TOKEN: ${'$'}{{ secrets.GH_TOKEN || github.token }}
-          GEMINI_CLI_TRUST_WORKSPACE: true
+          ANTIGRAVITY_CLI_TRUST_WORKSPACE: true
         with:
-          gemini_api_key: '${'$'}{{ secrets.JULES_API_KEY }}'
-          google_api_key: '${'$'}{{ secrets.JULES_API_KEY }}'
+          antigravity_api_key: '${'$'}{{ secrets.ANTIGRAVITY_API_KEY }}'
+          google_api_key: '${'$'}{{ secrets.ANTIGRAVITY_API_KEY }}'
           gcp_project_id: ""
-          gemini_cli_version: '0.24.0'
-          workflow_name: 'jules-issue-handler'
+          antigravity_cli_version: '0.24.0'
+          workflow_name: 'antigravity-issue-handler'
           use_gemini_code_assist: false
           use_vertex_ai: false
-          gcp_project_id: ''
           settings: |-
             {
               "model": { "maxSessionTurns": 10 },
-              "telemetry": { "enabled": true, "target": "local", "outfile": ".gemini/telemetry.log" },
+              "telemetry": { "enabled": true, "target": "local", "outfile": ".antigravity/telemetry.log" },
               "mcpServers": {
                 "github": {
                   "command": "docker",
@@ -225,7 +231,7 @@ jobs:
                     "get_file_contents", "search_code", "list_commits", "get_commit",
                     "add_issue_comment"
                   ],
-                  "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${'$'}{{ GITHUB_TOKEN }}" }
+                  "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${'$'}{GITHUB_TOKEN}" }
                 }
               },
               "tools": {
@@ -265,20 +271,17 @@ jobs:
             IMPORTANT: Do not include the string 'EOF' in your output.
 """.trimIndent()
 
-    private val JULES_BRANCH_MANAGER_YML = """
-name: Jules Branch Manager
+    private val ANTIGRAVITY_BRANCH_MANAGER_YML = """
+name: Antigravity Branch Manager
 
 # SECURITY MODEL
 # --------------
-# Hardened per upstream IDEaz issue #571 (same vulnerability class).
+# Hardened for untrusted event data (same vulnerability class).
 # Untrusted text -> data-only, write-capable agent gated to trusted actors,
 # auto-merge / auto-delete removed.
 
 on:
   push:
-    branches-ignore:
-      - 'main'
-      - 'master'
   pull_request_review:
     types: [submitted]
   workflow_dispatch:
@@ -291,21 +294,22 @@ permissions:
 jobs:
   manage_branch:
     if: >-
-      github.event_name != 'pull_request_review' ||
-      github.event.review.author_association == 'OWNER' ||
-      github.event.review.author_association == 'MEMBER' ||
-      github.event.review.author_association == 'COLLABORATOR'
+      (github.event_name != 'push' || github.ref_name != github.event.repository.default_branch) &&
+      (github.event_name != 'pull_request_review' ||
+       github.event.review.author_association == 'OWNER' ||
+       github.event.review.author_association == 'MEMBER' ||
+       github.event.review.author_association == 'COLLABORATOR')
 
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: 'Run Gemini CLI'
-        uses: 'google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489'
+      - name: 'Run Antigravity CLI'
+        uses: 'google-github-actions/run-antigravity-cli@v0'
         env:
           BRANCH: ${'$'}{{ github.ref_name }}
           REPOSITORY: ${'$'}{{ github.repository }}
@@ -316,20 +320,19 @@ jobs:
           REVIEW_BODY: ${'$'}{{ github.event.review.body }}
           REVIEWER: ${'$'}{{ github.event.review.user.login }}
           GITHUB_TOKEN: ${'$'}{{ secrets.GH_TOKEN || github.token }}
-          GEMINI_CLI_TRUST_WORKSPACE: true
+          ANTIGRAVITY_CLI_TRUST_WORKSPACE: true
         with:
-          gemini_api_key: '${'$'}{{ secrets.JULES_API_KEY }}'
-          google_api_key: '${'$'}{{ secrets.JULES_API_KEY }}'
+          antigravity_api_key: '${'$'}{{ secrets.ANTIGRAVITY_API_KEY }}'
+          google_api_key: '${'$'}{{ secrets.ANTIGRAVITY_API_KEY }}'
           gcp_project_id: ""
-          gemini_cli_version: '0.24.0'
-          workflow_name: 'jules-branch-manager'
+          antigravity_cli_version: '0.24.0'
+          workflow_name: 'antigravity-branch-manager'
           use_gemini_code_assist: false
           use_vertex_ai: false
-          gcp_project_id: ''
           settings: |-
             {
               "model": { "maxSessionTurns": 15 },
-              "telemetry": { "enabled": true, "target": "local", "outfile": ".gemini/telemetry.log" },
+              "telemetry": { "enabled": true, "target": "local", "outfile": ".antigravity/telemetry.log" },
               "mcpServers": {
                 "github": {
                   "command": "docker",
@@ -341,7 +344,7 @@ jobs:
                     "get_file_contents", "list_commits", "push_files", "search_code",
                     "add_issue_comment"
                   ],
-                  "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${'$'}{{ GITHUB_TOKEN }}" }
+                  "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${'$'}{GITHUB_TOKEN}" }
                 }
               },
               "tools": {
@@ -386,15 +389,15 @@ jobs:
         // We use hardcoded strings for robustness if assets are missing
         val workflows = when (type) {
             ProjectType.ANDROID -> listOf(
-                "android_ci_jules.yml" to ANDROID_CI_JULES_YML,
+                "build.yml" to ANDROID_CI_YML,
                 "release.yml" to RELEASE_YML,
-                "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML,
-                "jules-branch-manager.yml" to JULES_BRANCH_MANAGER_YML
+                "antigravity-issue-handler.yml" to ANTIGRAVITY_ISSUE_HANDLER_YML,
+                "antigravity-branch-manager.yml" to ANTIGRAVITY_BRANCH_MANAGER_YML
             )
             ProjectType.WEB -> listOf(
                 "web_ci_pages.yml" to WEB_CI_PAGES_YML,
-                "jules-issue-handler.yml" to JULES_ISSUE_HANDLER_YML,
-                "jules-branch-manager.yml" to JULES_BRANCH_MANAGER_YML
+                "antigravity-issue-handler.yml" to ANTIGRAVITY_ISSUE_HANDLER_YML,
+                "antigravity-branch-manager.yml" to ANTIGRAVITY_BRANCH_MANAGER_YML
             )
             else -> emptyList()
         }
@@ -459,22 +462,27 @@ jobs:
 
     fun ensureVersioning(projectDir: File, type: ProjectType): Boolean {
         var modified = false
-        val androidRoot = when(type) {
-            ProjectType.ANDROID -> projectDir
-            else -> null
-        }
-
-        if (androidRoot != null && androidRoot.exists()) {
+        if (projectDir.exists()) {
             try {
-                // 1. Ensure version.properties
-                val versionFile = File(androidRoot, "version.properties")
+                val versionFile = File(projectDir, "version.properties")
                 if (!versionFile.exists()) {
-                    versionFile.writeText("major=1\nminor=0\npatch=0\n")
+                    versionFile.writeText("major=1\nminor=0\npatch=0\nbuild=1\n")
                     modified = true
+                } else {
+                    val existing = versionFile.readText()
+                    val missing = listOf("major" to "1", "minor" to "0", "patch" to "0", "build" to "1")
+                        .filterNot { (key, _) -> Regex("(?m)^${'$'}key=").containsMatchIn(existing) }
+                    if (missing.isNotEmpty()) {
+                        val separator = if (existing.endsWith('\n')) "" else "\n"
+                        versionFile.appendText(separator + missing.joinToString("\n") { (key, value) -> "${'$'}key=${'$'}value" } + "\n")
+                        modified = true
+                    }
                 }
 
-                // 2. Check build.gradle or build.gradle.kts
-                val appDir = File(androidRoot, "app")
+                if (type != ProjectType.ANDROID) return modified
+
+                // Inject Android version fields when a conventional app module exists.
+                val appDir = File(projectDir, "app")
                 val ktsFile = File(appDir, "build.gradle.kts")
                 if (ktsFile.exists()) {
                     if (injectVersioningKts(ktsFile)) modified = true
@@ -511,7 +519,7 @@ if (versionPropsFile.exists()) {
 val major = versionProps.getProperty("major", "1").toInt()
 val minor = versionProps.getProperty("minor", "0").toInt()
 val patch = versionProps.getProperty("patch", "1").toInt()
-val buildNumber = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
+val buildNumber = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: versionProps.getProperty("build", "1").toInt()
 """.trimIndent()
 
             val androidMatch = Regex("""\n\s*android\s*\{""").find(content)
@@ -566,7 +574,7 @@ if (versionPropsFile.exists()) {
 def major = versionProps.getProperty("major", "1").toInteger()
 def minor = versionProps.getProperty("minor", "0").toInteger()
 def patch = versionProps.getProperty("patch", "1").toInteger()
-def buildNumber = System.getenv("BUILD_NUMBER")?.toInteger() ?: 1
+def buildNumber = System.getenv("BUILD_NUMBER")?.toInteger() ?: versionProps.getProperty("build", "1").toInteger()
 """.trimIndent()
 
             val androidMatch = Regex("""\n\s*android\s*\{""").find(content)

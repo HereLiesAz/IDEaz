@@ -3,15 +3,13 @@ name: Dependency Submission
 # Submits the FULLY RESOLVED Gradle dependency graph (all configurations, incl. the
 # test/lint-tooling classpaths) to GitHub so Dependabot evaluates the versions we
 # actually resolve. Without this, GitHub keeps re-using a stale, one-off snapshot and
-# never sees the patched versions pinned in app/build.gradle.kts — which is why the
-# Netty/BouncyCastle/Jackson/Commons-Lang alerts stayed open after the fixes landed.
+# never sees the patched versions pinned in the project build files.
 #
 # On push to the default branch, GitHub auto-dismisses alerts whose vulnerable version
 # is no longer present in the submitted graph.
 
 on:
   push:
-    branches: [ "master" ]
   workflow_dispatch:
 
 permissions:
@@ -23,6 +21,7 @@ concurrency:
 
 jobs:
   dependency-submission:
+    if: ${{ hashFiles('**/gradlew') != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

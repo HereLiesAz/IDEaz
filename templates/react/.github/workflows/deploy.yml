@@ -2,7 +2,6 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -18,16 +17,20 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
-      - run: npm install
-      - run: npm run build
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+          node-version: 24
+      - name: Read version
+        run: |
+          test -f version.properties
+          cat version.properties >> "$GITHUB_ENV"
+      - run: ${{ vars.INSTALL_COMMAND || 'npm install' }}
+      - run: ${{ vars.BUILD_COMMAND || 'npm run build' }}
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
-          path: dist
+          path: ${{ vars.PAGES_ARTIFACT_PATH || 'dist' }}
 
   deploy:
     needs: build
@@ -37,4 +40,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

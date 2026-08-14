@@ -49,8 +49,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          # Full history so `git rev-list --count HEAD` yields a stable, monotonic
-          # versionCode for Play (Play rejects duplicate or lower codes).
           fetch-depth: 0
 
       - name: Inject Google Services
@@ -59,11 +57,9 @@ jobs:
           PROJECT_ID: ${{ secrets.PROJECT_ID }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
         run: |
-          if [ -f "app/google-services.json.template" ]; then
-            echo "Template found. Injecting secrets..."
-            sed -e 's/{{\([^}]*\)}}/${\1}/g' app/google-services.json.template | envsubst > app/google-services.json
-          else
-            echo "Warning: google-services.json.template not found. Skipping injection."
+          TEMPLATE=$(find . -name 'google-services.json.template' -print -quit)
+          if [ -n "$TEMPLATE" ]; then
+            sed -e 's/{{\([^}]*\)}}/${\1}/g' "$TEMPLATE" | envsubst > "${TEMPLATE%.template}"
           fi
 
       - name: Set up JDK 21
@@ -83,9 +79,10 @@ jobs:
       - name: Read package name from build config
         id: pkg
         run: |
-          APPLICATION_ID=$(grep -m1 'applicationId *=' app/build.gradle.kts | sed -E 's/.*"(.*)".*/\1/')
+          BUILD_FILE=${{ vars.ANDROID_BUILD_FILE || 'app/build.gradle.kts' }}
+          APPLICATION_ID=$(grep -m1 'applicationId *=' "$BUILD_FILE" | sed -E 's/.*"(.*)".*/\1/')
           if [ -z "$APPLICATION_ID" ]; then
-            echo "Could not read applicationId from app/build.gradle.kts" >&2
+            echo "Could not read applicationId from configured Android build file" >&2
             exit 1
           fi
           echo "Resolved package name: $APPLICATION_ID"
@@ -131,14 +128,17 @@ jobs:
           # KEYSTORE_FILE / KEY_PASSWORD also exported into GITHUB_ENV above.
         run: |
           set -e
-          BUILD_NUMBER=$(git rev-list --count HEAD)
-          echo "Using versionCode (commit count): $BUILD_NUMBER"
-          ./gradlew :app:bundleRelease -PversionBuild=$BUILD_NUMBER --build-cache
+          test -f version.properties || { echo "version.properties is required" >&2; exit 1; }
+          FILE_BUILD=$(sed -n 's/^build=//p' version.properties | tail -n 1)
+          BUILD_NUMBER=${{ vars.BUILD_NUMBER_OVERRIDE || '' }}
+          BUILD_NUMBER=${BUILD_NUMBER:-$FILE_BUILD}
+          [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || { echo "Invalid build component" >&2; exit 1; }
+          ${{ vars.BUNDLE_COMMAND || './gradlew bundleRelease' }} -PversionBuild=$BUILD_NUMBER --build-cache
 
       - name: Locate AAB
         id: aab
         run: |
-          AAB=$(find app/build/outputs/bundle/release -name "*.aab" | head -n 1)
+          AAB=$(find . -path '*/build/outputs/bundle/*/*.aab' -print | sort | head -n 1)
           if [ -z "$AAB" ]; then
             echo "No .aab produced!" >&2
             exit 1

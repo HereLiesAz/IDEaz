@@ -4,7 +4,6 @@ on:
   push:
     branches: [ "**" ]
   pull_request:
-    branches: [ "main" ]
   workflow_dispatch:
 
 # ⚡ Concurrency: Cancels the entire job if a new push comes in.
@@ -33,11 +32,11 @@ jobs:
           PROJECT_ID: ${{ secrets.PROJECT_ID }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
         run: |
-          if [ -f "app/google-services.json.template" ]; then
-            echo "Template found. Injecting secrets..."
-            sed -e 's/{{\([^}]*\)}}/${\1}/g' app/google-services.json.template | envsubst > app/google-services.json
-          else
-            echo "Warning: google-services.json.template not found. Skipping injection."
+          TEMPLATE=$(find . -name 'google-services.json.template' -print -quit)
+          if [ -n "$TEMPLATE" ]; then
+            TARGET=${TEMPLATE%.template}
+            echo "Injecting ${TEMPLATE} into ${TARGET}"
+            sed -e 's/{{\([^}]*\)}}/${\1}/g' "$TEMPLATE" | envsubst > "$TARGET"
           fi
 
       - name: Set up JDK 21
@@ -47,11 +46,13 @@ jobs:
           distribution: 'temurin'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6.2.0
+        if: ${{ hashFiles('**/gradlew') != '' }}
+        uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: false
 
-      - name: Grant execute permission for gradlew
+      - name: Grant execute permission for Gradle wrapper
+        if: ${{ hashFiles('**/gradlew') != '' }}
         run: chmod +x gradlew
 
       - name: Prepare Keystore from Secrets
@@ -101,16 +102,21 @@ jobs:
            # KEYSTORE_FILE is set in previous step if successful
         run: |
           set +e
-          export BUILD_NUMBER=$(git rev-list --count HEAD)
+          test -f version.properties || { echo "version.properties is required" >&2; exit 1; }
+          FILE_BUILD=$(sed -n 's/^build=//p' version.properties | tail -n 1)
+          export BUILD_NUMBER=${{ vars.BUILD_NUMBER_OVERRIDE || '' }}
+          export BUILD_NUMBER=${BUILD_NUMBER:-$FILE_BUILD}
           
-          # Build the APK (Release)
-          if [ -n "$KEYSTORE_FILE" ]; then
-              echo "Building Release APK with Signing..."
-              ./gradlew assembleRelease -PversionBuild=$BUILD_NUMBER --build-cache > build.log 2>&1
-          else
-              echo "Building Debug APK (Fallback)..."
-              ./gradlew assembleDebug -PversionBuild=$BUILD_NUMBER --build-cache > build.log 2>&1
+          BUILD_COMMAND=${BUILD_COMMAND:-${{ vars.BUILD_COMMAND }}}
+          if [ -z "$BUILD_COMMAND" ]; then
+            if [ -x ./gradlew ]; then BUILD_COMMAND="./gradlew build -PversionBuild=$BUILD_NUMBER --build-cache"
+            elif [ -f package.json ]; then BUILD_COMMAND="npm ci && npm test && npm run build"
+            elif [ -f pyproject.toml ]; then BUILD_COMMAND="python -m build"
+            else echo "Set the BUILD_COMMAND repository variable" >&2; exit 1
+            fi
           fi
+          echo "Running configured build command"
+          bash -eo pipefail -c "$BUILD_COMMAND" > build.log 2>&1
           
           EXIT_CODE=$?
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
@@ -120,98 +126,61 @@ jobs:
       # ------------------------------------------------------------------
       # FAILURE HANDLING
       # ------------------------------------------------------------------
-      - name: Report Failure to Jules
+      - name: Report build failure
         if: failure() && steps.gradle-build.outcome == 'failure'
         uses: actions/github-script@v9.0.0
         with:
-          github-token: ${{ secrets.GH_TOKEN }}
+          github-token: ${{ secrets.GH_TOKEN || github.token }}
           script: |
             const fs = require('fs');
             let logTail = 'Log file not found.';
-            try { logTail = fs.readFileSync('build.log', 'utf8').slice(-4000); } catch (e) {}
-            
-            const assignee = 'gemini-code-assist';
-            
-            try {
-              await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title: `Build Failure on ${context.eventName === 'pull_request' ? 'PR #' + context.issue.number : context.ref}`,
-                body: `@${assignee} /jules debug this build error\n\n**Log:**\n\`\`\`\n${logTail}\n\`\`\``,
-                labels: ['jules', 'bug'],
-                assignees: [assignee]
-              });
-            } catch (error) {
-              console.log("Failed to create issue with assignee. Retrying without assignee.");
-              await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title: `Build Failure on ${context.eventName === 'pull_request' ? 'PR #' + context.issue.number : context.ref}`,
-                body: `@${assignee} /jules debug this build error\n\n**Log:**\n\`\`\`\n${logTail}\n\`\`\``,
-                labels: ['jules', 'bug']
-              });
-            }
+            try { logTail = fs.readFileSync('build.log', 'utf8').slice(-4000); } catch (error) {}
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Build failure on ${context.ref}`,
+              body: `The configured build failed.\n\n**Log tail:**\n\`\`\`text\n${logTail}\n\`\`\``
+            });
 
       # ------------------------------------------------------------------
       # RELEASE STEPS (Only run on PUSH, not Pull Requests)
       # ------------------------------------------------------------------
       - name: Prepare Release Variables
-        if: success() && github.event_name == 'push'
+        if: success() && github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
         id: release_vars
+        shell: bash
         run: |
-          export BUILD_NUMBER=$(git rev-list --count HEAD)
-          
-          # Extract version info from properties file
-          MAJOR=$(grep 'major=' version.properties | cut -d'=' -f2)
-          MINOR=$(grep 'minor=' version.properties | cut -d'=' -f2)
-
-          # Calculate Patch version programmatically based on commits since Minor update
-          MINOR_COMMIT=$(git blame -L '/minor=/',+1 version.properties | awk '{print $1}' | tr -d '^')
-          if [ -n "$MINOR_COMMIT" ]; then
-            PATCH=$(git rev-list --count $MINOR_COMMIT..HEAD)
-          else
-            PATCH=$(grep 'patch=' version.properties | cut -d'=' -f2)
-          fi
-
+          set -euo pipefail
+          test -f version.properties || { echo "version.properties is required" >&2; exit 1; }
+          get_version_part() { sed -n "s/^$1=//p" version.properties | tail -n 1; }
+          MAJOR=$(get_version_part major)
+          MINOR=$(get_version_part minor)
+          PATCH=$(get_version_part patch)
+          FILE_BUILD=$(get_version_part build)
+          BUILD_NUMBER=${BUILD_NUMBER:-${FILE_BUILD}}
+          for value in "$MAJOR" "$MINOR" "$PATCH" "$BUILD_NUMBER"; do
+            [[ "$value" =~ ^[0-9]+$ ]] || { echo "Invalid version.properties" >&2; exit 1; }
+          done
           VERSION_NAME="$MAJOR.$MINOR.$PATCH.$BUILD_NUMBER"
-          
-          TAG_NAME="latest-release-v${MAJOR}.${MINOR}"
-          
-          # Dynamic App Name from settings.gradle
-          if [ -f "settings.gradle.kts" ]; then
-             APP_NAME=$(grep 'rootProject.name' settings.gradle.kts | sed -E "s/.*=.*[\"'](.*)[\"']/\1/")
-          elif [ -f "settings.gradle" ]; then
-             APP_NAME=$(grep 'rootProject.name' settings.gradle | sed -E "s/.*=.*[\"'](.*)[\"']/\1/")
+          TAG_NAME="v$VERSION_NAME"
+          REPOSITORY_NAME="${GITHUB_REPOSITORY##*/}"
+          ARTIFACT_GLOB=${{ vars.RELEASE_ARTIFACT_PATH || '' }}
+          if [ -n "$ARTIFACT_GLOB" ]; then
+            ARTIFACT=$(find . -path "$ARTIFACT_GLOB" -type f | sort | head -n 1)
           else
-             APP_NAME="App"
+            ARTIFACT=$(find . -type f \( -path '*/build/outputs/*' -o -path '*/build/libs/*' -o -path '*/dist/*' -o -path '*/target/*' \) \( -name '*.apk' -o -name '*.aab' -o -name '*.jar' -o -name '*.zip' \) | sort | head -n 1)
           fi
-          
-          # Locate built APK (Prefer Release, fallback to Debug)
-          APK_ORIGINAL=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
-          if [ -z "$APK_ORIGINAL" ]; then
-             APK_ORIGINAL=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
-             SUFFIX="-debug"
-          else
-             SUFFIX="-release"
-          fi
-          
-          if [ -z "$APK_ORIGINAL" ]; then
-             echo "Error: No APK found to release!"
-             exit 1
-          fi
-
-          TARGET_NAME="${APP_NAME}-${VERSION_NAME}${SUFFIX}.apk"
-          
-          # Rename for release
-          mv "$APK_ORIGINAL" "$TARGET_NAME"
-          
+          test -n "$ARTIFACT" || { echo "No releasable artifact found" >&2; exit 1; }
+          EXTENSION="${ARTIFACT##*.}"
+          TARGET_NAME="${REPOSITORY_NAME}-${VERSION_NAME}.${EXTENSION}"
+          cp "$ARTIFACT" "$TARGET_NAME"
           echo "TAG_NAME=$TAG_NAME" >> "$GITHUB_ENV"
-          echo "APK_FILE=$TARGET_NAME" >> "$GITHUB_ENV"
+          echo "ARTIFACT_FILE=$TARGET_NAME" >> "$GITHUB_ENV"
 
       - name: Publish Release
-        if: success() && github.event_name == 'push'
+        if: success() && github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -227,10 +196,10 @@ jobs:
                --title "Latest Release ($TAG_NAME)" \
                --notes "Auto-build from commit $GITHUB_SHA" \
                --target $GITHUB_SHA
-             gh release upload $TAG_NAME "$APK_FILE" --clobber
+             gh release upload $TAG_NAME "$ARTIFACT_FILE" --clobber
           else
              echo "Creating new release..."
-             gh release create $TAG_NAME "$APK_FILE" --prerelease \
+             gh release create $TAG_NAME "$ARTIFACT_FILE" --prerelease \
                --title "Latest Release ($TAG_NAME)" \
                --notes "Auto-build from commit $GITHUB_SHA" \
                --target $GITHUB_SHA
