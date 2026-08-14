@@ -102,23 +102,22 @@ jobs:
           fi
 
       - name: Validate PR against CONTRIBUTING.md
-        id: gemini
-        uses: google-github-actions/run-gemini-cli@v0
+        id: antigravity
+        uses: google-github-actions/run-antigravity-cli@v0
         env:
-          # gh CLI inside Gemini
+          # gh CLI inside Antigravity
           GH_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token || secrets.GH_TOKEN }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           REPOSITORY: ${{ github.repository }}
-          GEMINI_CLI_TRUST_WORKSPACE: true
+          ANTIGRAVITY_CLI_TRUST_WORKSPACE: true
         with:
-          gemini_api_key: ${{ secrets.JULES_API_KEY }}
-          google_api_key: ${{ secrets.JULES_API_KEY }}
+          antigravity_api_key: ${{ secrets.ANTIGRAVITY_API_KEY }}
+          google_api_key: ${{ secrets.ANTIGRAVITY_API_KEY }}
           gcp_project_id: ""
-          gemini_cli_version: '0.24.0'
+          antigravity_cli_version: '0.24.0'
           use_gemini_code_assist: false
           use_vertex_ai: false
-          gcp_project_id: ''
           settings: |
             {
               "coreTools": [

@@ -15,10 +15,12 @@ IDEaz does **not** build user projects on-device. The on-device toolchain (`aapt
 
 On "Save & Initialize" in the Setup tab, IDEaz force-pushes a standardized set of workflow files to the project repo:
 
-* `.github/workflows/android_ci.yml` — debug build on push.
-* `.github/workflows/release.yml` — tagged release build, attaches signed APK to the GitHub Release.
+* `.github/workflows/build.yml` — configurable build on pushes and pull requests.
+* `.github/workflows/release.yml` — tagged release build using configurable commands and artifact globs.
 
 `ProjectConfigManager` owns the YAML content (hardcoded, not asset-loaded, so a missing assets directory cannot break initialization).
+All generated repositories receive a root `version.properties` containing `major`, `minor`, `patch`, and `build`. Workflows read those four values directly. CI may override only `build`; it never reconstructs semantic versions from branch names or Git history. Repository variables such as `BUILD_COMMAND`, `ARTIFACT_PATH`, `RELEASE_COMMAND`, and `RELEASE_ARTIFACT_PATH` cover nonstandard layouts without baking one module name into the workflow.
+
 
 ## 3. Build Execution (Phase 2)
 
@@ -60,7 +62,8 @@ export KEYSTORE_PASSWORD=••••••
 export KEY_ALIAS=upload
 export KEY_PASSWORD=••••••            # OpenSSL-built PKCS12 uses the store password
 
-./gradlew :app:bundleRelease -PversionBuild=$(git rev-list --count HEAD)
+# BUILD_NUMBER may override only the fourth component.
+./gradlew :app:bundleRelease -PversionBuild="$BUILD_NUMBER"
 # → app/build/outputs/bundle/release/app-release.aab  (signed)
 ```
 
@@ -72,13 +75,13 @@ export KEY_PASSWORD=••••••            # OpenSSL-built PKCS12 uses th
 * Omit `-PversionBuild` for purely local builds; `versionCode`/`versionName` then come
   from `version.properties` as before.
 
-### 6.2 versionCode override (`-PversionBuild`)
+### 6.2 Build-component override (`-PversionBuild`)
 
 Play rejects an upload whose `versionCode` is **duplicate or lower** than a previous
-one. To guarantee a strictly-increasing code, CI passes the git commit count:
+one. CI may pass a numeric build override while preserving `major`, `minor`, and `patch` from `version.properties`:
 
 ```
--PversionBuild=$(git rev-list --count HEAD)
+-PversionBuild="$BUILD_NUMBER"
 ```
 
 When `-PversionBuild=<n>` is supplied it becomes the build component (`d`) of the
@@ -132,10 +135,8 @@ with three inputs:
 | `publish` | boolean | `false` | **off → build + attach the `.aab` artifact only; nothing reaches Play.** on → upload via `r0adkll/upload-google-play@v1` |
 
 It checks out with `fetch-depth: 0`, reconstructs the upload keystore from secrets,
-sets up JDK 21 + Gradle, runs `:app:bundleRelease` with the commit-count
-`versionCode`, uploads the `.aab` as a build artifact, and — only when `publish=true`
-— pushes it to Play. The package name is read from `app/build.gradle.kts` at runtime
-(not hardcoded). Defaults are deliberately safe: **internal track, draft status, no
+sets up JDK 21 + Gradle, runs the configurable `BUNDLE_COMMAND` with the selected build component, uploads the `.aab` as a build artifact, and — only when `publish=true`
+— pushes it to Play. The Android build file is selected through `ANDROID_BUILD_FILE`, and the package name is read from it at runtime. Defaults are deliberately safe: **internal track, draft status, no
 publish.**
 
 ### 6.5 Required repository secrets

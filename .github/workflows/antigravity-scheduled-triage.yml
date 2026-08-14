@@ -1,15 +1,18 @@
-name: '🔀 Gemini Triage'
+name: '📋 Antigravity Scheduled Issue Triage'
 
 on:
-  workflow_call:
-    inputs:
-      additional_context:
-        type: 'string'
-        description: 'Any additional context from the request'
-        required: false
+  schedule:
+    - cron: '0 * * * *' # Runs every hour
+  pull_request:
+    paths:
+      - '.github/workflows/antigravity-scheduled-triage.yml'
+  push:
+    paths:
+      - '.github/workflows/antigravity-scheduled-triage.yml'
+  workflow_dispatch:
 
 concurrency:
-  group: '${{ github.workflow }}-triage-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.issue.number }}'
+  group: '${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}'
   cancel-in-progress: true
 
 defaults:
@@ -17,6 +20,21 @@ defaults:
     shell: 'bash'
 
 jobs:
+  debugger:
+    if: |-
+     ${{ fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}
+    runs-on: 'ubuntu-latest'
+    permissions:
+      contents: 'write'
+    steps:
+      - name: 'Print context for debugging'
+        env:
+          DEBUG_event_name: '${{ github.event_name }}'
+          DEBUG_event__action: '${{ github.event.action }}'
+          DEBUG_event: '${{ toJSON(github.event) }}'
+        run: |-
+          env | grep '^DEBUG_'
+
   triage:
     runs-on: 'ubuntu-latest'
     permissions:
@@ -44,7 +62,7 @@ jobs:
         id: 'get_labels'
         uses: 'actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3' # ratchet:actions/github-script@v7
         with:
-          # NOTE: we intentionally do not use the given token. The default
+          # NOTE: we intentionally do not use the minted token. The default
           # GITHUB_TOKEN provided by the action has enough permissions to read
           # the labels.
           script: |-
@@ -59,29 +77,60 @@ jobs:
             }
             core.setOutput('available_labels', labels.join(', '));
 
-      - name: 'Run Gemini issue triage'
-        uses: 'google-github-actions/run-gemini-cli@v0' # ratchet:exclude
-        id: 'gemini_triage'
+      - name: 'Find issues to triage'
+        id: 'find_issues'
+        uses: 'actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3' # ratchet:actions/github-script@v7
+        with:
+          # NOTE: we intentionally do not use the minted token. The default
+          # GITHUB_TOKEN provided by the action has enough permissions to read
+          # the issues.
+          script: |-
+            const issues = [];
+            for await (const response of github.paginate.iterator(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'needs-triage',
+            })) {
+              for (const issue of response.data) {
+                if (issue.pull_request) {
+                  continue;
+                }
+                issues.push({
+                  number: issue.number,
+                  title: issue.title,
+                  body: issue.body,
+                });
+              }
+            }
+            core.setOutput('issues_to_triage', JSON.stringify(issues));
+
+      - name: 'Run Antigravity scheduled issue triage'
+        if: |-
+          fromJSON(steps.find_issues.outputs.issues_to_triage).length > 0
+        uses: 'google-github-actions/run-antigravity-cli@v0' # ratchet:exclude
+        id: 'antigravity_scheduled_triage'
         env:
           GITHUB_TOKEN: '${{ steps.mint_identity_token.outputs.token || secrets.GH_TOKEN || github.token }}'
-          ISSUE_TITLE: '${{ github.event.issue.title }}'
-          ISSUE_BODY: '${{ github.event.issue.body }}'
+          ISSUES_TO_TRIAGE: '${{ steps.find_issues.outputs.issues_to_triage }}'
+          REPOSITORY: '${{ github.repository }}'
           AVAILABLE_LABELS: '${{ steps.get_labels.outputs.available_labels }}'
-          GEMINI_CLI_TRUST_WORKSPACE: true
+          ANTIGRAVITY_CLI_TRUST_WORKSPACE: true
         with:
-          google_api_key: '${{ secrets.JULES_API_KEY }}'
+          google_api_key: '${{ secrets.ANTIGRAVITY_API_KEY }}'
           gcp_project_id: ""
           gcp_location: '${{ vars.GOOGLE_CLOUD_LOCATION }}'
           gcp_service_account: '${{ vars.SERVICE_ACCOUNT_EMAIL }}'
-          gemini_api_key: '${{ secrets.JULES_API_KEY }}'
-          gemini_cli_version: '0.24.0'
-          gemini_debug: '${{ fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}'
-          gemini_model: '${{ vars.GEMINI_MODEL }}'
+          gcp_workload_identity_provider: '${{ vars.GCP_WIF_PROVIDER }}'
+          antigravity_api_key: '${{ secrets.ANTIGRAVITY_API_KEY }}'
+          antigravity_cli_version: '0.24.0'
+          antigravity_debug: '${{ fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}'
+          antigravity_model: '${{ vars.ANTIGRAVITY_MODEL }}'
+          # Force AI Studio (API Key) auth when using ANTIGRAVITY_API_KEY
           use_gemini_code_assist: false
           use_vertex_ai: false
           upload_artifacts: '${{ vars.UPLOAD_ARTIFACTS }}'
-          workflow_name: 'gemini-triage'
-          gcp_project_id: ''
+          workflow_name: 'antigravity-scheduled-triage'
           settings: |-
             {
               "model": {
@@ -90,7 +139,7 @@ jobs:
               "telemetry": {
                 "enabled": true,
                 "target": "local",
-                "outfile": ".gemini/telemetry.log"
+                "outfile": ".antigravity/telemetry.log"
               },
               "mcpServers": {
                 "github": {
@@ -145,7 +194,7 @@ jobs:
               }
             }
           prompt: |
-            /gemini-triage
+            /antigravity-scheduled-triage
             IMPORTANT: Do not include the string 'EOF' in your output.
 
   label:
@@ -153,7 +202,10 @@ jobs:
     needs:
       - 'triage'
     if: |-
-      ${{ needs.triage.outputs.selected_labels != '' }}
+      needs.triage.outputs.available_labels != '' &&
+      needs.triage.outputs.available_labels != '[]' &&
+      needs.triage.outputs.triaged_issues != '' &&
+      needs.triage.outputs.triaged_issues != '[]'
     permissions:
       contents: 'read'
       issues: 'write'
@@ -173,12 +225,11 @@ jobs:
 
       - name: 'Apply labels'
         env:
-          ISSUE_NUMBER: '${{ github.event.issue.number }}'
           AVAILABLE_LABELS: '${{ needs.triage.outputs.available_labels }}'
-          SELECTED_LABELS: '${{ needs.triage.outputs.selected_labels }}'
+          TRIAGED_ISSUES: '${{ needs.triage.outputs.triaged_issues }}'
         uses: 'actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3' # ratchet:actions/github-script@v9.0.0
         with:
-          # Use the provided token so that the "gemini-cli" is the actor in the
+          # Use the provided token so that the "antigravity-cli" is the actor in the
           # log for what changed the labels.
           github-token: '${{ steps.mint_identity_token.outputs.token || secrets.GH_TOKEN || github.token }}'
           script: |-
@@ -187,23 +238,45 @@ jobs:
               .map((label) => label.trim())
               .sort()
 
-            // Parse the label as a CSV, reject invalid ones - we do this just
-            // in case someone was able to prompt inject malicious labels.
-            const selectedLabels = (process.env.SELECTED_LABELS || '').split(',')
-              .map((label) => label.trim())
-              .filter((label) => availableLabels.includes(label))
-              .sort()
+            // Parse out the triaged issues
+            const triagedIssues = (JSON.parse(process.env.TRIAGED_ISSUES || '{}'))
+              .sort((a, b) => a.issue_number - b.issue_number)
 
-            // Set the labels
-            const issueNumber = process.env.ISSUE_NUMBER;
-            if (selectedLabels && selectedLabels.length > 0) {
+            core.debug(`Triaged issues: ${JSON.stringify(triagedIssues)}`);
+
+            // Iterate over each label
+            for (const issue of triagedIssues) {
+              if (!issue) {
+                core.debug(`Skipping empty issue: ${JSON.stringify(issue)}`);
+                continue;
+              }
+
+              const issueNumber = issue.issue_number;
+              if (!issueNumber) {
+                core.debug(`Skipping issue with no data: ${JSON.stringify(issue)}`);
+                continue;
+              }
+
+              // Extract and reject invalid labels - we do this just in case
+              // someone was able to prompt inject malicious labels.
+              let labelsToSet = (issue.labels_to_set || [])
+                .map((label) => label.trim())
+                .filter((label) => availableLabels.includes(label))
+                .sort()
+
+              core.debug(`Identified labels to set: ${JSON.stringify(labelsToSet)}`);
+
+              if (labelsToSet.length === 0) {
+                core.info(`Skipping issue #${issueNumber} - no labels to set.`)
+                continue;
+              }
+
+              core.debug(`Setting labels on issue #${issueNumber} to ${labelsToSet.join(', ')} (${issue.explanation || 'no explanation'})`)
+
               await github.rest.issues.setLabels({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: issueNumber,
-                labels: selectedLabels,
+                labels: labelsToSet,
               });
-              core.info(`Successfully set labels: ${selectedLabels.join(',')}`);
-            } else {
-              core.info(`Failed to determine labels to set. There may not be enough information in the issue or pull request.`)
             }
