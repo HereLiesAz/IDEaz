@@ -6,8 +6,16 @@ import com.hereliesaz.ideaz.ai.local.LocalProviderFailure
 import com.hereliesaz.ideaz.ai.local.LocalProviderFailureKind
 import com.hereliesaz.ideaz.ai.local.LocalRecoveryAction
 import com.hereliesaz.ideaz.ai.local.LocalToolProtocol
+import com.hereliesaz.ideaz.ai.local.LocalToolRoundLimitExceeded
 import com.hereliesaz.ideaz.ai.local.boundedLocalPrompt
 import com.hereliesaz.ideaz.ai.local.localInferenceLimits
+import com.hereliesaz.ideaz.ai.local.runBoundedLocalToolLoop
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -146,5 +154,67 @@ class ConversationalAiClientTest {
             failure.copy(cloudFallbackAllowed = false)
                 .permits(LocalRecoveryAction.CLOUD_ONCE, "L0000002a", cloudConfigured = true)
         )
+    }
+
+    @Test
+    fun `local tool loop dispatches exactly six calls before limit`() = runTest {
+        var generations = 0
+        var dispatches = 0
+
+        val failure = try {
+            runBoundedLocalToolLoop(
+                transcript = StringBuilder("User: edit\n"),
+                buildPrompt = { it },
+                generate = {
+                    generations++
+                    """{"type":"tool","name":"read_file","arguments":{"path":"index.html"}}"""
+                },
+                dispatch = {
+                    dispatches++
+                    "contents"
+                },
+                onCancellation = {},
+            )
+            null
+        } catch (e: LocalToolRoundLimitExceeded) {
+            e
+        }
+
+        assertEquals(6, failure?.rounds)
+        assertEquals(6, generations)
+        assertEquals(6, dispatches)
+    }
+
+    @Test
+    fun `local tool loop propagates cancellation and invokes restoration boundary`() = runTest {
+        var restorationCalls = 0
+        val generationStarted = CompletableDeferred<Unit>()
+        var cancellationObserved = false
+        val job = launch {
+            try {
+                runBoundedLocalToolLoop(
+                    transcript = StringBuilder(),
+                    buildPrompt = { it },
+                    generate = {
+                        generationStarted.complete(Unit)
+                        awaitCancellation()
+                    },
+                    dispatch = { "unused" },
+                    onCancellation = {
+                        yield()
+                        restorationCalls++
+                    },
+                )
+            } catch (e: CancellationException) {
+                cancellationObserved = true
+                throw e
+            }
+        }
+        generationStarted.await()
+        job.cancelAndJoin()
+
+        assertTrue(job.isCancelled)
+        assertTrue(cancellationObserved)
+        assertEquals(1, restorationCalls)
     }
 }

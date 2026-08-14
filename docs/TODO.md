@@ -36,7 +36,7 @@ The on-device provider is not production-complete until every unchecked item bel
 - [x] Replace assistant-text `Error:` responses with structured local-provider failures carrying retry and consent-based fallback policy plus bounded, content-free diagnostics.
 - [x] Add one-shot cloud fallback gated by the current diagnostic, failure safety policy, configured Gemini credential, and an explicit disclosure/approval button; never transmit silently.
 - [x] Validate tool edits before reload, create an undo checkpoint, and surface changed files for user approval.
-- [ ] Add unit coverage for integrity, resume semantics, storage rejection, cancellation, catalog migration, tool-loop limits, and structured failures.
+- [x] Add unit coverage for integrity, resume semantics, storage rejection, cancellation, catalog migration, tool-loop limits, and structured failures.
 - [ ] Add physical-device tests across the supported ARM64/RAM matrix for cold start, tokens/second, peak RSS, thermal throttling, backgrounding, process death, and repeated inference.
 - [ ] Publish the supported-device/model matrix and experimental limitations in Settings and release documentation.
 - [ ] Complete privacy, model-license, and telemetry review; never collect prompts, source, model inputs, or generated output by default.

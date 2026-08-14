@@ -10,6 +10,8 @@ import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
@@ -89,6 +91,36 @@ internal fun requireDownloadStorage(
                 "only $availableBytes bytes available"
         )
     }
+}
+
+/**
+ * Copies a response into resumable staging while checking cancellation before
+ * every chunk. Returning the running byte count keeps progress arithmetic in one
+ * independently testable place.
+ */
+internal suspend fun copyDownloadBytes(
+    input: InputStream,
+    output: OutputStream,
+    initialBytes: Long,
+    expectedSizeBytes: Long?,
+    fileName: String,
+    onBytes: (Long) -> Unit,
+    ensureNotCancelled: suspend () -> Unit = { currentCoroutineContext().ensureActive() },
+): Long {
+    var downloaded = initialBytes
+    val buffer = ByteArray(64 * 1024)
+    while (true) {
+        ensureNotCancelled()
+        val count = input.read(buffer)
+        if (count == -1) break
+        output.write(buffer, 0, count)
+        downloaded += count
+        if (expectedSizeBytes?.let { downloaded > it } == true) {
+            throw IOException("Downloaded file exceeds expected size for $fileName")
+        }
+        onBytes(downloaded)
+    }
+    return downloaded
 }
 
 /**
@@ -301,22 +333,18 @@ class ModelDownloadManager(
                 metadata.delete()
             }
             metadata.writeText(partialDownloadFingerprint(f))
-            var downloaded = if (append) existing else 0L
+            val initialBytes = if (append) existing else 0L
 
             body.byteStream().use { input ->
                 FileOutputStream(part, append).use { output ->
-                    val buf = ByteArray(64 * 1024)
-                    while (true) {
-                        currentCoroutineContext().ensureActive()
-                        val n = input.read(buf)
-                        if (n == -1) break
-                        output.write(buf, 0, n)
-                        downloaded += n
-                        if (f.expectedSizeBytes?.let { downloaded > it } == true) {
-                            throw IOException("Downloaded file exceeds expected size for ${f.fileName}")
-                        }
-                        onBytes(downloaded)
-                    }
+                    copyDownloadBytes(
+                        input = input,
+                        output = output,
+                        initialBytes = initialBytes,
+                        expectedSizeBytes = f.expectedSizeBytes,
+                        fileName = f.fileName,
+                        onBytes = onBytes,
+                    )
                     output.fd.sync()
                 }
             }

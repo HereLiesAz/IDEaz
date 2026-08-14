@@ -77,12 +77,12 @@
 
 #### ai/local/
 *   `LocalModelRuntime.kt`: Interface and implementations for on-device backends — serialized, model-keyed engine caches for AICore, MediaPipe, llama.cpp/GGUF, and ONNX GenAI, with RAM-tier inference limits and coordinated release.
-*   `LocalLlmAdapter.kt`: Conversational adapter for the selected local runtime; drives a bounded JSON protocol, applies device-tier prompt limits, restores interrupted mutations, and raises validated edits for explicit approval before reload.
+*   `LocalLlmAdapter.kt`: Conversational adapter for the selected local runtime; drives a JVM-tested six-round JSON coordinator with an explicit cancellation restoration boundary, applies device-tier prompt limits, restores interrupted mutations, and raises validated edits for explicit approval before reload.
 *   `LocalModelCatalog.kt`: Curated list of downloadable on-device models, with per-model RAM/ABI/auth requirements used for filtering.
 *   `DeviceCapabilities.kt`: Reads device RAM (`ActivityManager.MemoryInfo`) and supported CPU ABIs (`Build.SUPPORTED_ABIS`).
 *   `LocalModelAvailability.kt`: Pure, unit-tested logic deciding whether a model is usable on this device/build (backend present, RAM, ABI, token) — drives the Settings list filtering.
 *   `LocalModelStore.kt`: Persists the selected on-device model and requests cached-engine release when that selection changes.
-*   `ModelDownloadManager.kt`: Downloads model files with authentication and strict range resume; reconciles interrupted partials through catalog-bound sidecars, preflights remaining bytes plus a safety reserve, validates trusted exact sizes/SHA-256 values before atomic activation, and records manifest-bound verification markers.
+*   `ModelDownloadManager.kt`: Downloads model files with authentication and strict range resume; copies cancellable chunks through a JVM-tested staging primitive, reconciles interrupted partials through catalog-bound sidecars, preflights remaining bytes plus a safety reserve, validates trusted exact sizes/SHA-256 values before atomic activation, and records manifest-bound verification markers.
 *   `LocalModelDownloadWorker.kt`: Unique WorkManager foreground job for durable model downloads with connected-network constraints, progress, cancellation, bounded retry/backoff, and token-safe input data.
 
 #### ai/bridge/

@@ -6,6 +6,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.test.runTest
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.nio.file.Files
 
@@ -128,6 +132,57 @@ class LocalModelAvailabilityTest {
     }
 
     @Test
+    fun `download verifier rejects wrong exact size`() {
+        val file = Files.createTempFile("ideaz-model-size", ".bin").toFile().apply {
+            writeBytes(byteArrayOf(1, 2, 3))
+            deleteOnExit()
+        }
+
+        val error = assertThrows(IOException::class.java) {
+            verifyDownloadedFile(
+                file,
+                LocalModelFile(
+                    url = "https://example.invalid/model",
+                    fileName = file.name,
+                    expectedSizeBytes = 4L,
+                ),
+            )
+        }
+
+        assertTrue(error.message.orEmpty().contains("expected 4 bytes, got 3"))
+    }
+
+    @Test
+    fun `download copy cancellation stops after completed chunk and preserves progress`() = runTest {
+        val payload = ByteArray(128 * 1024) { 7 }
+        val output = ByteArrayOutputStream()
+        val progress = mutableListOf<Long>()
+        var checks = 0
+
+        val cancelled = try {
+            copyDownloadBytes(
+                input = ByteArrayInputStream(payload),
+                output = output,
+                initialBytes = 0L,
+                expectedSizeBytes = payload.size.toLong(),
+                fileName = "model.bin",
+                onBytes = progress::add,
+                ensureNotCancelled = {
+                    checks++
+                    if (checks == 2) throw CancellationException("cancelled by test")
+                },
+            )
+            false
+        } catch (_: CancellationException) {
+            true
+        }
+
+        assertTrue(cancelled)
+        assertEquals(64 * 1024, output.size())
+        assertEquals(listOf(64L * 1024L), progress)
+    }
+
+    @Test
     fun `download storage preflight accepts payload plus reserve`() {
         requireDownloadStorage(
             availableBytes = 1_024L,
@@ -196,6 +251,29 @@ class LocalModelAvailabilityTest {
         metadata.writeText("731ff952ebb5253b3f0f8e92ee89840845ad3e183e3b379b9c739379e93bd2aa")
 
         assertEquals(0L, reconcilePartialDownload(part, metadata, newSpec))
+        assertFalse(part.exists())
+        assertFalse(metadata.exists())
+    }
+
+    @Test
+    fun `catalog size or digest migration deletes stale partial download`() {
+        val directory = Files.createTempDirectory("ideaz-manifest-migration").toFile().apply { deleteOnExit() }
+        val part = directory.resolve("model.gguf.part").apply { writeText("old model bytes") }
+        val metadata = directory.resolve("model.gguf.part.meta")
+        val oldSpec = LocalModelFile(
+            url = "https://models.example/model.gguf",
+            fileName = "model.gguf",
+            expectedSizeBytes = 100L,
+            sha256 = "aa".repeat(32),
+        )
+        val migratedSpec = oldSpec.copy(
+            expectedSizeBytes = 101L,
+            sha256 = "bb".repeat(32),
+        )
+        // Calculated independently with Python hashlib over the old NUL-delimited manifest fields.
+        metadata.writeText("49b14553eebbec8e3cb920956558fc34a439ceaaf7fceffced55f450b97719db")
+
+        assertEquals(0L, reconcilePartialDownload(part, metadata, migratedSpec))
         assertFalse(part.exists())
         assertFalse(metadata.exists())
     }

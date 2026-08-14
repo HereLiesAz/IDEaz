@@ -224,6 +224,45 @@ internal object LocalToolProtocol {
     }
 }
 
+/** Internal signal proving the configured generation bound was exhausted. */
+internal class LocalToolRoundLimitExceeded(val rounds: Int) : Exception()
+
+/**
+ * Android-free coordinator for the text tool protocol. Keeping the bound and
+ * cancellation boundary here makes the dangerous parts executable in JVM tests.
+ */
+internal suspend fun runBoundedLocalToolLoop(
+    transcript: StringBuilder,
+    maxRounds: Int = MAX_LOCAL_TOOL_ROUNDS,
+    buildPrompt: (String) -> String,
+    generate: suspend (String) -> String,
+    dispatch: suspend (LocalModelReply.ToolCall) -> String,
+    onCancellation: suspend () -> Unit,
+): String {
+    require(maxRounds > 0) { "Tool-round limit must be positive" }
+    try {
+        repeat(maxRounds) {
+            val raw = generate(buildPrompt(transcript.toString()))
+            when (val reply = LocalToolProtocol.parse(raw)) {
+                is LocalModelReply.Final -> return reply.content.ifBlank { "Done." }
+                is LocalModelReply.PlainText -> return reply.content
+                is LocalModelReply.ToolCall -> {
+                    val output = dispatch(reply)
+                    transcript.appendLine()
+                    transcript.appendLine("Assistant tool call: $raw")
+                    transcript.appendLine("Tool result for ${reply.name}: $output")
+                }
+            }
+        }
+    } catch (e: CancellationException) {
+        withContext(NonCancellable) {
+            runCatching { onCancellation() }
+        }
+        throw e
+    }
+    throw LocalToolRoundLimitExceeded(maxRounds)
+}
+
 /**
  * [ConversationalAiClient] backed by the user's selected on-device model. Flattens
  * conversation history into a prompt and runs a bounded JSON tool loop so local
@@ -337,126 +376,126 @@ class LocalLlmAdapter(
             throw LocalEditApprovalRequiredException(LocalEditApproval(review, response))
         }
 
-        repeat(MAX_LOCAL_TOOL_ROUNDS) {
-            val prompt = boundedLocalPrompt(
-                prefix = LocalToolProtocol.instruction + "\n\nConversation:\n",
-                transcript = transcript.toString(),
-                suffix = "Assistant JSON:",
-                maxChars = limits.maxPromptChars,
-            )
-            val raw = try {
-                runtime.generate(context, modelFile, prompt, limits)
+        suspend fun executeTool(reply: LocalModelReply.ToolCall): String {
+            hasExecutedTool = true
+            val mutating = reply.name == "write_file" || reply.name == "apply_patch"
+            if (mutating) {
+                editCheckpoint = editCheckpoint ?: try {
+                    withContext(Dispatchers.IO) {
+                        tools.createEditCheckpoint("IDEaz: checkpoint before on-device edit")
+                    }
+                } catch (e: Exception) {
+                    localFailure(
+                        LocalProviderFailureKind.TOOL_EXECUTION_FAILED,
+                        "The on-device edit could not create an undo checkpoint.",
+                        retryable = true,
+                        cloudFallbackAllowed = false,
+                        modelId = model.id,
+                        runtimeId = runtime.id,
+                        cause = e,
+                    )
+                }
+                try {
+                    expectedEditFingerprint = withContext(Dispatchers.IO) {
+                        tools.captureToolEdit(editCheckpoint!!, reply.name, reply.arguments)
+                        tools.reviewEdits(editCheckpoint!!).contentFingerprint.also { fingerprint ->
+                            tools.updateEditCheckpointFingerprint(editCheckpoint!!, fingerprint)
+                        }
+                    }
+                    withContext(Dispatchers.IO) { tools.markEditMutationStarted(editCheckpoint!!) }
+                } catch (e: Exception) {
+                    editCheckpoint?.let { checkpoint ->
+                        withContext(Dispatchers.IO) {
+                            runCatching { tools.discardEditCheckpoint(checkpoint) }
+                        }
+                    }
+                    localFailure(
+                        LocalProviderFailureKind.TOOL_EXECUTION_FAILED,
+                        "The on-device edit could not create a safe undo snapshot.",
+                        retryable = true,
+                        cloudFallbackAllowed = false,
+                        modelId = model.id,
+                        runtimeId = runtime.id,
+                        cause = e,
+                    )
+                }
+            }
+            return try {
+                if (mutating) {
+                    withContext(NonCancellable + Dispatchers.IO) {
+                        dispatchIdeTool(reply.name, reply.arguments, tools).also {
+                            expectedEditFingerprint = tools.reviewEdits(editCheckpoint!!)
+                                .contentFingerprint
+                                .also { fingerprint ->
+                                    tools.updateEditCheckpointFingerprint(editCheckpoint!!, fingerprint)
+                                    tools.markEditAwaitingReview(editCheckpoint!!)
+                                }
+                        }
+                    }
+                } else {
+                    withContext(Dispatchers.IO) {
+                        dispatchIdeTool(reply.name, reply.arguments, tools)
+                    }
+                }
             } catch (e: CancellationException) {
-                restorePendingEdit()
                 throw e
             } catch (e: Exception) {
                 restorePendingEdit()
                 localFailure(
-                    LocalProviderFailureKind.GENERATION_FAILED,
-                    "On-device generation failed.",
+                    LocalProviderFailureKind.TOOL_EXECUTION_FAILED,
+                    "The on-device model could not complete ${reply.name}.",
                     retryable = true,
-                    cloudFallbackAllowed = !hasExecutedTool,
+                    cloudFallbackAllowed = false,
                     modelId = model.id,
                     runtimeId = runtime.id,
                     cause = e,
                 )
             }
-            when (val reply = LocalToolProtocol.parse(raw)) {
-                is LocalModelReply.Final -> return complete(reply.content.ifBlank { "Done." })
-                is LocalModelReply.PlainText -> return complete(reply.content)
-                is LocalModelReply.ToolCall -> {
-                    hasExecutedTool = true
-                    if (reply.name == "write_file" || reply.name == "apply_patch") {
-                        editCheckpoint = editCheckpoint ?: try {
-                            withContext(Dispatchers.IO) {
-                                tools.createEditCheckpoint("IDEaz: checkpoint before on-device edit")
-                            }
-                        } catch (e: Exception) {
-                            localFailure(
-                                LocalProviderFailureKind.TOOL_EXECUTION_FAILED,
-                                "The on-device edit could not create an undo checkpoint.",
-                                retryable = true,
-                                cloudFallbackAllowed = false,
-                                modelId = model.id,
-                                runtimeId = runtime.id,
-                                cause = e,
-                            )
-                        }
-                        try {
-                            expectedEditFingerprint = withContext(Dispatchers.IO) {
-                                tools.captureToolEdit(editCheckpoint!!, reply.name, reply.arguments)
-                                tools.reviewEdits(editCheckpoint!!).contentFingerprint.also { fingerprint ->
-                                    tools.updateEditCheckpointFingerprint(editCheckpoint!!, fingerprint)
-                                }
-                            }
-                        } catch (e: Exception) {
-                            editCheckpoint?.let { checkpoint ->
-                                withContext(Dispatchers.IO) {
-                                    runCatching { tools.discardEditCheckpoint(checkpoint) }
-                                }
-                            }
-                            localFailure(
-                                LocalProviderFailureKind.TOOL_EXECUTION_FAILED,
-                                "The on-device edit could not create a safe undo snapshot.",
-                                retryable = true,
-                                cloudFallbackAllowed = false,
-                                modelId = model.id,
-                                runtimeId = runtime.id,
-                                cause = e,
-                            )
-                        }
-                    }
-                    if (reply.name == "write_file" || reply.name == "apply_patch") {
-                        withContext(Dispatchers.IO) {
-                            tools.markEditMutationStarted(editCheckpoint!!)
-                        }
-                    }
-                    val output = try {
-                        if (reply.name == "write_file" || reply.name == "apply_patch") {
-                            withContext(NonCancellable + Dispatchers.IO) {
-                                dispatchIdeTool(reply.name, reply.arguments, tools).also {
-                                    expectedEditFingerprint = tools.reviewEdits(editCheckpoint!!)
-                                        .contentFingerprint
-                                        .also { fingerprint ->
-                                            tools.updateEditCheckpointFingerprint(editCheckpoint!!, fingerprint)
-                                            tools.markEditAwaitingReview(editCheckpoint!!)
-                                        }
-                                }
-                            }
-                        } else {
-                            withContext(Dispatchers.IO) {
-                                dispatchIdeTool(reply.name, reply.arguments, tools)
-                            }
-                        }
+        }
+
+        val response = try {
+            runBoundedLocalToolLoop(
+                transcript = transcript,
+                buildPrompt = { currentTranscript ->
+                    boundedLocalPrompt(
+                        prefix = LocalToolProtocol.instruction + "\n\nConversation:\n",
+                        transcript = currentTranscript,
+                        suffix = "Assistant JSON:",
+                        maxChars = limits.maxPromptChars,
+                    )
+                },
+                generate = { prompt ->
+                    try {
+                        runtime.generate(context, modelFile, prompt, limits)
                     } catch (e: CancellationException) {
-                        restorePendingEdit()
                         throw e
                     } catch (e: Exception) {
                         restorePendingEdit()
                         localFailure(
-                            LocalProviderFailureKind.TOOL_EXECUTION_FAILED,
-                            "The on-device model could not complete ${reply.name}.",
+                            LocalProviderFailureKind.GENERATION_FAILED,
+                            "On-device generation failed.",
                             retryable = true,
-                            cloudFallbackAllowed = false,
+                            cloudFallbackAllowed = !hasExecutedTool,
                             modelId = model.id,
                             runtimeId = runtime.id,
                             cause = e,
                         )
                     }
-                    transcript.appendLine()
-                    transcript.appendLine("Assistant tool call: $raw")
-                    transcript.appendLine("Tool result for ${reply.name}: $output")
-                }
-            }
+                },
+                dispatch = { reply -> executeTool(reply) },
+                onCancellation = { restorePendingEdit() },
+            )
+        } catch (e: LocalToolRoundLimitExceeded) {
+            restorePendingEdit()
+            localFailure(
+                LocalProviderFailureKind.TOOL_ROUND_LIMIT,
+                "The on-device model reached the ${e.rounds}-round tool limit.",
+                retryable = false,
+                cloudFallbackAllowed = false,
+                modelId = model.id,
+                runtimeId = runtime.id,
+            )
         }
-        restorePendingEdit()
-        localFailure(
-            LocalProviderFailureKind.TOOL_ROUND_LIMIT,
-            "The on-device model reached the $MAX_LOCAL_TOOL_ROUNDS-round tool limit.",
-            retryable = false,
-            cloudFallbackAllowed = false,
-            modelId = model.id,
-            runtimeId = runtime.id,
-        )
+        return complete(response)
     }
 }

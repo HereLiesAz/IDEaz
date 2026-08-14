@@ -14,6 +14,8 @@
 * Local inference resource policy — exact RAM-tier boundaries and prompt truncation that retains protocol instructions, response suffix, and newest transcript content.
 * Structured local failures — retry/fallback metadata, safe presentation, bounded diagnostic eviction, and exclusion of cause messages from retained records.
 * Local recovery policy — current-diagnostic matching, retry eligibility, cloud safety, credential gating, and post-tool fallback denial.
+* Local tool coordinator — exact six-call exhaustion, structured round-limit signaling, cancellation propagation, and one restoration callback.
+* Model download streaming — chunk-boundary cancellation, retained resumable bytes/progress, exact-size rejection, and URL/size/digest catalog migration.
 * `AiTools` executors (`read_file`, `write_file`, `list_files`, `apply_patch`) — mock filesystem.
 * `IdeTools` edit review — changed-file inventory, malformed JSON rejection, drift refusal, patch deletion capture, process-death review recovery (including ambiguous-write rollback denial), and checkpoint restoration that preserves pre-existing work.
 * `PwaProjectDetector` — fixture projects under `src/test/resources`.
