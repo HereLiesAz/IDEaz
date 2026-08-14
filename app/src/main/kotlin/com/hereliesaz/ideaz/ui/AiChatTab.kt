@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.hereliesaz.ideaz.ai.ChatMessage
+import com.hereliesaz.ideaz.ai.local.LocalProviderFailure
 
 /**
  * Chat UI for the AI tab in [IdeBottomSheet].
@@ -20,12 +21,14 @@ import com.hereliesaz.ideaz.ai.ChatMessage
  * model bubbles left-aligned. Shows a loading spinner when [isLoading] is true.
  *
  * @param messages  Ordered conversation history (user + model turns).
+ * @param failure Structured provider failure rendered outside model history.
  * @param isLoading True while waiting for an AI response.
  * @param viewModel MainViewModel to handle message sending.
  */
 @Composable
 fun AiChatTab(
     messages: List<ChatMessage>,
+    failure: LocalProviderFailure?,
     isLoading: Boolean,
     viewModel: MainViewModel,
     modifier: Modifier = Modifier
@@ -33,8 +36,11 @@ fun AiChatTab(
     val listState = rememberLazyListState()
 
     // Auto-scroll to bottom when new messages arrive
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) listState.scrollToItem(messages.size - 1)
+    LaunchedEffect(messages.size, failure?.diagnosticId) {
+        when {
+            failure != null -> listState.scrollToItem(messages.size)
+            messages.isNotEmpty() -> listState.scrollToItem(messages.size - 1)
+        }
     }
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -50,6 +56,59 @@ fun AiChatTab(
             itemsIndexed(messages, key = { index, _ -> index }) { _, msg ->
                 ChatBubble(msg)
                 Spacer(modifier = Modifier.height(6.dp))
+            }
+
+            failure?.let { localFailure ->
+                item(key = "local-provider-failure-${localFailure.diagnosticId}") {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text("On-device provider stopped", fontWeight = FontWeight.Bold)
+                            Text(localFailure.message, style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                buildString {
+                                    append(if (localFailure.retryable) "Retry available" else "Retry unavailable")
+                                    append(" · Cloud fallback ")
+                                    append(if (localFailure.cloudFallbackAllowed) "eligible with approval" else "blocked")
+                                    append(" · ").append(localFailure.diagnosticId)
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                            if (localFailure.retryable) {
+                                Button(
+                                    onClick = { viewModel.retryLocalFailure(localFailure.diagnosticId) },
+                                ) {
+                                    Text("Retry on device")
+                                }
+                            }
+                            if (localFailure.cloudFallbackAllowed) {
+                                Text(
+                                    "Gemini fallback sends this conversation and project context to Google's cloud once. " +
+                                        "Nothing is sent unless you approve.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                                if (viewModel.hasCloudFallbackCredential()) {
+                                    Button(
+                                        onClick = { viewModel.approveCloudFallback(localFailure.diagnosticId) },
+                                    ) {
+                                        Text("Approve Gemini once")
+                                    }
+                                } else {
+                                    Text(
+                                        "Add a Gemini API key in Settings to enable fallback.",
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
             }
 
             // Loading indicator as the last list item

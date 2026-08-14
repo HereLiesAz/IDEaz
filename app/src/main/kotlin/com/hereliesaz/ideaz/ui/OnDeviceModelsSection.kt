@@ -16,11 +16,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.Alignment
@@ -29,6 +28,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import com.hereliesaz.aznavrail.AzButton
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.ideaz.ai.GeminiNanoAdapter
@@ -36,11 +37,11 @@ import com.hereliesaz.ideaz.ai.local.DeviceCapabilities
 import com.hereliesaz.ideaz.ai.local.LocalModel
 import com.hereliesaz.ideaz.ai.local.LocalModelAvailability
 import com.hereliesaz.ideaz.ai.local.LocalModelCatalog
+import com.hereliesaz.ideaz.ai.local.LocalModelDownloadWorker
 import com.hereliesaz.ideaz.ai.local.LocalModelRuntime
 import com.hereliesaz.ideaz.ai.local.LocalModelRuntimes
 import com.hereliesaz.ideaz.ai.local.LocalModelStore
 import com.hereliesaz.ideaz.ai.local.ModelDownloadManager
-import kotlinx.coroutines.launch
 
 private fun humanSize(bytes: Long): String = when {
     bytes <= 0L -> "—"
@@ -68,14 +69,11 @@ private class ModelEntry(
 @Composable
 fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val store = remember { LocalModelStore(context) }
     val downloads = remember { ModelDownloadManager(context) }
+    val workManager = remember { WorkManager.getInstance(context.applicationContext) }
 
     var activeId by remember { mutableStateOf(store.activeModelId) }
-    val progress = remember { mutableStateMapOf<String, Float>() }   // 0..1, or -1 = indeterminate
-    val downloading = remember { mutableStateMapOf<String, Boolean>() }
-    val errors = remember { mutableStateMapOf<String, String>() }
     var refresh by remember { mutableIntStateOf(0) }
     var showUnavailable by remember { mutableStateOf(false) }
 
@@ -106,8 +104,7 @@ fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
     )
     Spacer(Modifier.height(8.dp))
 
-    val hfToken = settingsViewModel.getApiKey(SettingsViewModel.KEY_HF_API_KEY).orEmpty()
-    val hasToken = hfToken.isNotBlank()
+    val hasToken = !settingsViewModel.getApiKey(SettingsViewModel.KEY_HF_API_KEY).isNullOrBlank()
 
     @Suppress("UNUSED_EXPRESSION") refresh // re-read per-card download state when bumped
 
@@ -150,7 +147,21 @@ fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
     usable.forEach { entry ->
         val model = entry.model
         val runtime = entry.runtime
+        val workInfos by remember(model.id) {
+            workManager.getWorkInfosForUniqueWorkLiveData(LocalModelDownloadWorker.uniqueWorkName(model.id))
+        }.observeAsState(emptyList())
+        val workInfo = workInfos.lastOrNull()
+        val workState = workInfo?.state
+        val downloading = workState == WorkInfo.State.RUNNING ||
+            workState == WorkInfo.State.ENQUEUED ||
+            workState == WorkInfo.State.BLOCKED
         val downloaded = downloads.isDownloaded(model)
+        val downloadedBytes = workInfo?.progress?.getLong(LocalModelDownloadWorker.KEY_DOWNLOADED_BYTES, 0L) ?: 0L
+        val totalBytes = workInfo?.progress?.getLong(LocalModelDownloadWorker.KEY_TOTAL_BYTES, -1L) ?: -1L
+        val downloadError = workInfo
+            ?.takeIf { it.state == WorkInfo.State.FAILED }
+            ?.outputData
+            ?.getString(LocalModelDownloadWorker.KEY_ERROR)
 
         Card(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -186,7 +197,7 @@ fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
-                        errors[model.id]?.let {
+                        downloadError?.let {
                             Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         }
                     }
@@ -196,18 +207,32 @@ fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
                 if (!model.systemManaged) {
                     Spacer(Modifier.height(8.dp))
                     when {
-                        downloading[model.id] == true -> {
-                            val p = progress[model.id] ?: -1f
+                        downloading -> {
+                            val p = if (totalBytes > 0L) {
+                                (downloadedBytes.toDouble() / totalBytes.toDouble()).toFloat().coerceIn(0f, 1f)
+                            } else {
+                                -1f
+                            }
                             if (p in 0f..1f) {
                                 LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
                                 Text("${(p * 100).toInt()}%", style = MaterialTheme.typography.bodySmall)
                             } else {
                                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                             }
+                            Text(
+                                if (workState == WorkInfo.State.RUNNING) "Downloading…" else "Waiting for network…",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            AzButton(
+                                onClick = { LocalModelDownloadWorker.cancel(context, model.id) },
+                                text = "Cancel",
+                                shape = AzButtonShape.RECTANGLE,
+                            )
                         }
                         downloaded -> {
                             AzButton(
                                 onClick = {
+                                    LocalModelDownloadWorker.cancel(context, model.id)
                                     downloads.delete(model)
                                     if (activeId == model.id) {
                                         activeId = null
@@ -222,23 +247,9 @@ fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
                         else -> {
                             AzButton(
                                 onClick = {
-                                    errors.remove(model.id)
-                                    downloading[model.id] = true
-                                    progress[model.id] = -1f
-                                    scope.launch {
-                                        try {
-                                            downloads.download(model, hfToken.ifBlank { null }) { d, t ->
-                                                progress[model.id] = if (t > 0) d.toFloat() / t else -1f
-                                            }
-                                        } catch (e: Exception) {
-                                            errors[model.id] = "Download failed: ${e.message}"
-                                        } finally {
-                                            downloading[model.id] = false
-                                            refresh++
-                                        }
-                                    }
+                                    LocalModelDownloadWorker.enqueue(context, model.id)
                                 },
-                                text = "Download",
+                                text = if (workState == WorkInfo.State.FAILED) "Retry" else "Download",
                                 shape = AzButtonShape.RECTANGLE,
                             )
                         }

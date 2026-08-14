@@ -21,9 +21,12 @@ import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ProjectFileObserver
 import com.hereliesaz.ideaz.utils.VersionUtils
 import com.hereliesaz.ideaz.ai.AiAdapterFactory
+import com.hereliesaz.ideaz.ai.local.LocalProviderException
+import com.hereliesaz.ideaz.ai.local.LocalRecoveryAction
 import com.hereliesaz.ideaz.ai.ChatMessage
 import com.hereliesaz.ideaz.ai.GeminiAdapter
 import com.hereliesaz.ideaz.ai.IdeTools
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Job
@@ -177,6 +180,69 @@ class MainViewModel(
 
     fun sendChatMessage(text: String) = sendChatMessage(text, emptyList())
 
+    /** True when the one-shot fallback button can construct the approved Gemini client. */
+    fun hasCloudFallbackCredential(): Boolean =
+        !settingsViewModel.getApiKey(SettingsViewModel.KEY_GOOGLE_API_KEY).isNullOrBlank()
+
+    /** Replays the existing conversation against the local provider without adding another user turn. */
+    fun retryLocalFailure(diagnosticId: String) {
+        recoverFromLocalFailure(diagnosticId, useCloud = false)
+    }
+
+    /**
+     * One-shot, user-approved Gemini fallback. Nothing is transmitted until this
+     * method is called from the explicit disclosure button in [AiChatTab].
+     */
+    fun approveCloudFallback(diagnosticId: String) {
+        recoverFromLocalFailure(diagnosticId, useCloud = true)
+    }
+
+    private fun recoverFromLocalFailure(diagnosticId: String, useCloud: Boolean) {
+        val failure = stateDelegate.chatFailure.value ?: return
+        val action = if (useCloud) LocalRecoveryAction.CLOUD_ONCE else LocalRecoveryAction.RETRY_LOCAL
+        if (!failure.permits(action, diagnosticId, hasCloudFallbackCredential())) return
+        val appName = settingsViewModel.getAppName() ?: return
+        val model = if (useCloud) AiModels.GEMINI else AiModels.LOCAL
+        val client = AiAdapterFactory.create(
+            model = model,
+            context = getApplication(),
+            tools = IdeTools(settingsViewModel.getProjectPath(appName)),
+            settings = settingsViewModel,
+        ) ?: return
+
+        stateDelegate.setChatFailure(null)
+        stateDelegate.setChatLoading(true)
+        viewModelScope.launch {
+            try {
+                val response = client.chat(stateDelegate.chatMessages.value)
+                stateDelegate.appendChatMessage(ChatMessage("model", response))
+                stateDelegate.triggerWebHardReload()
+            } catch (e: LocalProviderException) {
+                stateDelegate.setChatFailure(e.failure)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (useCloud) {
+                    val id = com.hereliesaz.ideaz.ai.local.LocalProviderDiagnostics.record(
+                        kind = com.hereliesaz.ideaz.ai.local.LocalProviderFailureKind.GENERATION_FAILED,
+                        runtimeId = "gemini-cloud",
+                        cause = e,
+                    )
+                    stateDelegate.setChatFailure(
+                        failure.copy(
+                            message = "Gemini fallback failed. ${failure.message}",
+                            diagnosticId = id,
+                        )
+                    )
+                } else {
+                    stateDelegate.setChatFailure(failure)
+                }
+            } finally {
+                stateDelegate.setChatLoading(false)
+            }
+        }
+    }
+
     fun sendChatMessage(text: String, referenceParts: List<com.hereliesaz.ideaz.ai.ChatPart>) {
         val appName = settingsViewModel.getAppName()
         if (appName == null) {
@@ -213,6 +279,7 @@ class MainViewModel(
             addAll(referenceParts)
         }
         stateDelegate.appendChatMessage(ChatMessage("user", userParts))
+        stateDelegate.setChatFailure(null)
         stateDelegate.setChatLoading(true)
 
         viewModelScope.launch {
@@ -222,6 +289,10 @@ class MainViewModel(
                 // Any file writes have already happened inside the tool-use loop;
                 // hard-reload so the WebView picks up the changes immediately.
                 stateDelegate.triggerWebHardReload()
+            } catch (e: LocalProviderException) {
+                stateDelegate.setChatFailure(e.failure)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 stateDelegate.appendChatMessage(
                     ChatMessage("model", "Error: ${e.message}")
@@ -913,6 +984,16 @@ class MainViewModel(
                 ProjectAnalyzer.detectProjectType(projectDir)
             }
             settingsViewModel.setProjectType(detectedType.name)
+            if (detectedType !in ProjectType.selectable) {
+                stateDelegate.setCurrentWebUrl(null)
+                stateDelegate.setTargetAppVisible(false)
+                logHandler.onOverlayLog(
+                    "${detectedType.displayName} projects are not available in this release. " +
+                        "The project was not modified."
+                )
+                onSuccess()
+                return@launch
+            }
             if (!detectedType.isWebLike()) {
                 withContext(Dispatchers.IO) { ProjectAnalyzer.detectPackageName(projectDir) }
                     ?.let { settingsViewModel.saveTargetPackageName(it) }
@@ -927,8 +1008,8 @@ class MainViewModel(
                 aiDelegate.fetchSessionsForRepo("$user/$name")
             }
 
-            // Re-mount: clear any prior preview so launchTargetApp mounts THIS
-            // project, then actually show it (web → live preview, Android → host).
+            // Re-mount only after the release-scope gate above has accepted the
+            // detected project type.
             stateDelegate.setCurrentWebUrl(null)
             launchTargetApp(context)
             onSuccess()

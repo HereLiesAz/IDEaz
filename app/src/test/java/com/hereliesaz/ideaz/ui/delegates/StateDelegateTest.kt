@@ -1,5 +1,7 @@
 package com.hereliesaz.ideaz.ui.delegates
 
+import com.hereliesaz.ideaz.ai.local.LocalProviderFailure
+import com.hereliesaz.ideaz.ai.local.LocalProviderFailureKind
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -120,5 +122,23 @@ class StateDelegateTest {
         assertTrue(stateDelegate.isChatLoading.value)
         stateDelegate.setChatLoading(false)
         assertFalse(stateDelegate.isChatLoading.value)
+    }
+
+    @Test
+    fun `structured failure stays outside conversation and clears with history`() {
+        val failure = LocalProviderFailure(
+            kind = LocalProviderFailureKind.RUNTIME_UNAVAILABLE,
+            message = "Runtime unavailable.",
+            retryable = false,
+            cloudFallbackAllowed = true,
+            diagnosticId = "L00000001",
+        )
+
+        stateDelegate.setChatFailure(failure)
+        assertEquals(failure, stateDelegate.chatFailure.value)
+        assertTrue(stateDelegate.chatMessages.value.isEmpty())
+
+        stateDelegate.clearChatHistory()
+        assertNull(stateDelegate.chatFailure.value)
     }
 }

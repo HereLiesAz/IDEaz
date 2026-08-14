@@ -38,6 +38,7 @@
 * **API Keys Section**
     * **GitHub Personal Access Token**: Input for the GitHub PAT used for repo management and automated issue reporting.
     * **Jules / AI Studio Keys**: Inputs for other AI providers.
+    * **Hugging Face Token**: Stored as Android-Keystore-backed AES-GCM ciphertext for gated on-device model downloads.
 * **Permissions Section**
     * ... (Overlay, Accessibility, Notification, Install checks). The Screen Capture
       (MediaProjection) row was removed — that's a Phase-2 (Android target) feature,

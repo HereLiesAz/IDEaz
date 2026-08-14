@@ -6,9 +6,11 @@ IDEaz currently operates on a **Bring Your Own Key (BYOK)** model. It does not h
 ## 2. API Key Management
 
 ### Storage Mechanism
-*   **Implementation:** Keys are stored in Android's `SharedPreferences` (specifically `PreferenceManager.getDefaultSharedPreferences(context)`).
-*   **Encryption:** Critical keys like `KEY_GITHUB_TOKEN` and API keys are protected using `SecurityUtils` (AES encryption with PBKDF2 derived keys) when exported/imported.
-*   **Best Practice:** Future improvements should migrate internal storage to `EncryptedSharedPreferences` for better security at rest.
+*   **General implementation:** Most legacy keys remain in Android's default `SharedPreferences`; completing their at-rest migration is separate security debt.
+*   **Gated model tokens:** `KEY_HF_API_KEY` is stored as AES-GCM ciphertext in the dedicated `ideaz_secure_credentials` preferences file. Its non-exportable AES key is generated and retained by Android Keystore. The preference key is hashed, so neither the token nor its provider name is stored in plaintext there.
+*   **Migration:** Reading a legacy plaintext Hugging Face token first writes it successfully to the secure store, then removes the default-preferences value. A failed secure write leaves the legacy value intact rather than converting a security migration into a credential shredder.
+*   **Backup:** Both default credential preferences and the secure ciphertext preferences are excluded from cloud backup and device transfer because restored ciphertext would not have its original Keystore key.
+*   **Explicit export:** User-requested settings export may include the token only inside the `SecurityUtils` payload protected by a password of at least eight characters. Routine logs, WorkManager data, notifications, and automatic backups do not include it.
 
 ### Supported Keys
 1.  **GitHub Personal Access Token (PAT)**
@@ -43,6 +45,7 @@ IDEaz currently operates on a **Bring Your Own Key (BYOK)** model. It does not h
 *   **Log Redaction:** Ensure logs (especially those sent to AI or GitHub) do not contain raw API keys. The `LoggingInterceptor` handles basic redaction of sensitive headers.
 *   **Permissions:** The app requests sensitive permissions (Accessibility, Overlay). Respect the user's trust and only use these for their intended purpose.
 *   **Encryption:** Use `SecurityUtils` (AES+PBKDF2) for exporting settings.
+*   **At-rest gated tokens:** Use `AndroidKeystoreCredentialStore`; never copy them back into default preferences for convenience.
 
 ## 5. Social Sign-On (Planned)
 *   **Status:** Not Implemented.

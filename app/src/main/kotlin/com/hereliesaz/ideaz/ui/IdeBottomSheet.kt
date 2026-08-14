@@ -52,6 +52,7 @@ fun IdeBottomSheet(
     val pureBuildLog by viewModel.stateDelegate.pureBuildLog.collectAsState()
     val systemLogMessages by viewModel.stateDelegate.systemLog.collectAsState()
     val chatMessages by viewModel.stateDelegate.chatMessages.collectAsState()
+    val chatFailure by viewModel.stateDelegate.chatFailure.collectAsState()
     val isChatLoading by viewModel.stateDelegate.isChatLoading.collectAsState()
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
@@ -106,6 +107,7 @@ fun IdeBottomSheet(
                     tabs = tabs,
                     baseMessages = baseMessages,
                     chatMessages = chatMessages,
+                    chatFailure = chatFailure,
                     isChatLoading = isChatLoading,
                     onClearLog = { viewModel.clearLog() },
                     onSendPrompt = onSendPrompt,
@@ -151,6 +153,7 @@ private fun ExpandedContent(
     tabs: List<String>,
     baseMessages: List<String>,
     chatMessages: List<com.hereliesaz.ideaz.ai.ChatMessage>,
+    chatFailure: com.hereliesaz.ideaz.ai.local.LocalProviderFailure?,
     isChatLoading: Boolean,
     onClearLog: () -> Unit,
     onSendPrompt: (String) -> Unit,
@@ -246,6 +249,7 @@ private fun ExpandedContent(
         if (selectedTab == 5) {
             AiChatTab(
                 messages = chatMessages,
+                failure = chatFailure,
                 isLoading = isChatLoading,
                 viewModel = viewModel,
                 modifier = Modifier.weight(1f)
@@ -429,4 +433,3 @@ private fun LogRow(
             .padding(vertical = 2.dp)
     )
 }
-

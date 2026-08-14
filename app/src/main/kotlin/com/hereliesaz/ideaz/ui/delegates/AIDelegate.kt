@@ -3,6 +3,7 @@ package com.hereliesaz.ideaz.ui.delegates
 import com.hereliesaz.ideaz.ai.ChatMessage
 import com.hereliesaz.ideaz.ai.AgenticAiClient
 import com.hereliesaz.ideaz.ai.ConversationalAiClient
+import com.hereliesaz.ideaz.ai.local.LocalProviderException
 import com.hereliesaz.ideaz.ai.GeminiAdapter
 import com.hereliesaz.ideaz.ai.IdeTools
 import com.hereliesaz.ideaz.ai.TaskEvent
@@ -252,6 +253,12 @@ class AIDelegate(
                         runGeminiTask(richPrompt, key)
                     }
                 }
+            } catch (e: LocalProviderException) {
+                val message = e.failure.displayText()
+                onOverlayLog(message)
+                _julesError.value = message
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 onOverlayLog("Error: ${e.message}")
                 _julesError.value = e.message

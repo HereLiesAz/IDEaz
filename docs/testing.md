@@ -5,6 +5,15 @@
 ## 1. Where TDD pays off (unit tests)
 
 * `ConversationalAiClient` adapters (Phase 1 `GeminiAdapter`) — mock HTTP.
+* Local-model structured-response parsing — fenced tool calls, final responses, and malformed-output fallback.
+* Local-model file integrity — independently calculated valid digest and known-invalid digest rejection.
+* Local-model storage preflight — exact boundary acceptance and one-byte-short rejection.
+* Local-model WorkManager policy — stable unique naming and transient/permanent retry classification; Android integration tests for constraints, progress, cancellation, and restoration remain on the production checklist.
+* Local-model partial reconciliation — catalog-bound identity retention/deletion and strict HTTP `Content-Range` offset/total validation.
+* Gated-model credential storage — default-preference exclusion, legacy migration after successful secure persistence, AES-GCM round trip, and tamper rejection.
+* Local inference resource policy — exact RAM-tier boundaries and prompt truncation that retains protocol instructions, response suffix, and newest transcript content.
+* Structured local failures — retry/fallback metadata, safe presentation, bounded diagnostic eviction, and exclusion of cause messages from retained records.
+* Local recovery policy — current-diagnostic matching, retry eligibility, cloud safety, credential gating, and post-tool fallback denial.
 * `AiTools` executors (`read_file`, `write_file`, `list_files`, `apply_patch`) — mock filesystem.
 * `PwaProjectDetector` — fixture projects under `src/test/resources`.
 * `WebViewBridge` message marshaling.

@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.hereliesaz.ideaz.ai.local.LocalProviderFailure
 
 /**
  * Delegate responsible for holding and managing shared UI state.
@@ -221,6 +222,10 @@ class StateDelegate(
     /** Ordered list of turns in the AI Chat tab conversation. */
     val chatMessages = _chatMessages.asStateFlow()
 
+    private val _chatFailure = MutableStateFlow<LocalProviderFailure?>(null)
+    /** Structured provider failure rendered outside conversational history. */
+    val chatFailure = _chatFailure.asStateFlow()
+
     private val _isChatLoading = MutableStateFlow(false)
     /** True while the AI is processing a chat request. Shows a spinner in AiChatTab. */
     val isChatLoading = _isChatLoading.asStateFlow()
@@ -290,9 +295,14 @@ class StateDelegate(
         _chatMessages.update { it + msg }
     }
 
+    fun setChatFailure(failure: LocalProviderFailure?) {
+        _chatFailure.value = failure
+    }
+
     /** Clear all chat history (call when switching projects to avoid context leakage). */
     fun clearChatHistory() {
         _chatMessages.value = emptyList()
+        _chatFailure.value = null
     }
 
     /** Set the chat loading indicator. True = spinner shown; false = input re-enabled. */

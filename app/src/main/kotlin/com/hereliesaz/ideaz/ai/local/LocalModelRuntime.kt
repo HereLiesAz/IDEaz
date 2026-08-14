@@ -4,7 +4,11 @@ import android.content.Context
 import com.google.ai.edge.aicore.GenerativeModel
 import com.google.ai.edge.aicore.generationConfig
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -31,7 +35,29 @@ interface LocalModelRuntime {
     fun isAvailable(context: Context): Boolean
 
     /** One-shot generation for [prompt] using the model file at [modelFile]. */
-    suspend fun generate(context: Context, modelFile: File, prompt: String): String
+    suspend fun generate(
+        context: Context,
+        modelFile: File,
+        prompt: String,
+        limits: LocalInferenceLimits,
+    ): String
+
+    /** Releases cached native/model resources after model changes or memory pressure. */
+    suspend fun release()
+}
+
+/** Device-tier bounds shared by every local backend. */
+data class LocalInferenceLimits(
+    val maxPromptChars: Int,
+    val maxContextTokens: Int,
+    val maxOutputTokens: Int,
+)
+
+/** Conservative bounds: four UTF-16 characters approximate one tokenizer token. */
+internal fun localInferenceLimits(totalRamBytes: Long): LocalInferenceLimits = when {
+    totalRamBytes < 4_000_000_000L -> LocalInferenceLimits(8_192, 2_048, 256)
+    totalRamBytes in 4_000_000_000L until 8_000_000_000L -> LocalInferenceLimits(16_384, 4_096, 512)
+    else -> LocalInferenceLimits(24_576, 6_144, 768)
 }
 
 internal fun classPresent(fqcn: String): Boolean =
@@ -45,19 +71,37 @@ object MediaPipeRuntime : LocalModelRuntime {
     override fun isAvailable(context: Context) =
         classPresent("com.google.mediapipe.tasks.genai.llminference.LlmInference")
 
-    override suspend fun generate(context: Context, modelFile: File, prompt: String): String =
+    private val mutex = Mutex()
+    private var cachedPath: String? = null
+    private var cachedEngine: LlmInference? = null
+
+    override suspend fun generate(
+        context: Context,
+        modelFile: File,
+        prompt: String,
+        limits: LocalInferenceLimits,
+    ): String = mutex.withLock {
         withContext(Dispatchers.IO) {
-            // Loads the model and runs a one-shot generation. (Per-call load is
-            // simple and correct; caching the engine across calls is a future
-            // optimization but needs careful native-resource lifecycle handling.)
-            val options = LlmInference.LlmInferenceOptions.builder()
-                .setModelPath(modelFile.absolutePath)
-                .setMaxTokens(1024)
-                .build()
-            LlmInference.createFromOptions(context.applicationContext, options).use { llm ->
-                llm.generateResponse(prompt)
+            if (cachedPath != modelFile.absolutePath || cachedEngine == null) {
+                cachedEngine?.runCatching { close() }
+                cachedEngine = null
+                cachedPath = null
+                val options = LlmInference.LlmInferenceOptions.builder()
+                    .setModelPath(modelFile.absolutePath)
+                    .setMaxTokens(limits.maxOutputTokens)
+                    .build()
+                cachedEngine = LlmInference.createFromOptions(context.applicationContext, options)
+                cachedPath = modelFile.absolutePath
             }
+            cachedEngine!!.generateResponse(prompt)
         }
+    }
+
+    override suspend fun release() = mutex.withLock {
+        cachedEngine?.runCatching { close() }
+        cachedEngine = null
+        cachedPath = null
+    }
 }
 
 /**
@@ -80,22 +124,44 @@ object LlamaCppRuntime : LocalModelRuntime {
     override fun isAvailable(context: Context) =
         classPresent("android.llama.cpp.LLamaAndroid")
 
-    override suspend fun generate(context: Context, modelFile: File, prompt: String): String =
+    private var loadedPath: String? = null
+    private var cachedInstance: Any? = null
+    private var cachedClass: Class<*>? = null
+
+    override suspend fun generate(
+        context: Context,
+        modelFile: File,
+        prompt: String,
+        limits: LocalInferenceLimits,
+    ): String =
         mutex.withLock {
             withContext(Dispatchers.IO) {
                 val cls = runCatching { Class.forName("android.llama.cpp.LLamaAndroid") }.getOrNull()
                     ?: throw LocalRuntimeUnavailableException(displayName)
-                // instance() → load(path) → complete(prompt, maxTokens) → unload().
                 val instance = cls.getMethod("instance").invoke(null)
-                cls.getMethod("load", String::class.java).invoke(instance, modelFile.absolutePath)
-                try {
-                    cls.getMethod("complete", String::class.java, Int::class.javaPrimitiveType)
-                        .invoke(instance, prompt, 512) as String
-                } finally {
-                    runCatching { cls.getMethod("unload").invoke(instance) }
+                if (loadedPath != modelFile.absolutePath) {
+                    if (loadedPath != null) runCatching { cls.getMethod("unload").invoke(instance) }
+                    loadedPath = null
+                    cachedInstance = null
+                    cachedClass = null
+                    cls.getMethod("load", String::class.java).invoke(instance, modelFile.absolutePath)
+                    loadedPath = modelFile.absolutePath
+                    cachedInstance = instance
+                    cachedClass = cls
                 }
+                cls.getMethod("complete", String::class.java, Int::class.javaPrimitiveType)
+                    .invoke(instance, prompt, limits.maxOutputTokens) as String
             }
         }
+
+    override suspend fun release() = mutex.withLock {
+        cachedInstance?.let { instance ->
+            cachedClass?.let { cls -> runCatching { cls.getMethod("unload").invoke(instance) } }
+        }
+        cachedInstance = null
+        cachedClass = null
+        loadedPath = null
+    }
 }
 
 /**
@@ -112,7 +178,17 @@ object OnnxGenAiRuntime : LocalModelRuntime {
     override fun isAvailable(context: Context) =
         classPresent("ai.onnxruntime.genai.Model")
 
-    override suspend fun generate(context: Context, modelFile: File, prompt: String): String =
+    private val mutex = Mutex()
+    private var cachedDirectory: String? = null
+    private var cachedModel: Any? = null
+    private var cachedTokenizer: Any? = null
+
+    override suspend fun generate(
+        context: Context,
+        modelFile: File,
+        prompt: String,
+        limits: LocalInferenceLimits,
+    ): String = mutex.withLock {
         withContext(Dispatchers.IO) {
             val pkg = "ai.onnxruntime.genai"
             val modelCls = runCatching { Class.forName("$pkg.Model") }.getOrNull()
@@ -123,20 +199,25 @@ object OnnxGenAiRuntime : LocalModelRuntime {
             val sequencesCls = Class.forName("$pkg.Sequences")
 
             // GenAI loads a directory (model + genai_config.json + tokenizer files).
-            // Model/Tokenizer/Sequences/GeneratorParams/Generator all wrap native
-            // memory (AutoCloseable); close every one to avoid native leaks/OOM.
+            // Model/Tokenizer stay cached for this directory. Per-call sequences,
+            // params, and generator wrap native memory and are always closed.
             val dir = (modelFile.parentFile ?: modelFile).absolutePath
-            val model = modelCls.getConstructor(String::class.java).newInstance(dir)
-            var tokenizer: Any? = null
+            if (cachedDirectory != dir || cachedModel == null || cachedTokenizer == null) {
+                closeCached()
+                cachedModel = modelCls.getConstructor(String::class.java).newInstance(dir)
+                cachedTokenizer = tokenizerCls.getConstructor(modelCls).newInstance(cachedModel)
+                cachedDirectory = dir
+            }
+            val model = cachedModel!!
+            val tokenizer = cachedTokenizer!!
             var encoded: Any? = null
             var params: Any? = null
             var generator: Any? = null
             try {
-                tokenizer = tokenizerCls.getConstructor(modelCls).newInstance(model)
                 encoded = tokenizerCls.getMethod("encode", String::class.java).invoke(tokenizer, prompt)
                 params = paramsCls.getConstructor(modelCls).newInstance(model)
                 paramsCls.getMethod("setSearchOption", String::class.java, Double::class.javaPrimitiveType)
-                    .invoke(params, "max_length", 1024.0)
+                    .invoke(params, "max_length", limits.maxContextTokens.toDouble())
                 generator = generatorCls.getConstructor(modelCls, paramsCls).newInstance(model, params)
                 // Feed prompt tokens. Newer API: Generator.appendTokenSequences(Sequences);
                 // older API: GeneratorParams.setInput(Sequences) before generation.
@@ -152,7 +233,7 @@ object OnnxGenAiRuntime : LocalModelRuntime {
                 val generateNextToken = generatorCls.getMethod("generateNextToken")
                 val getSequence = generatorCls.getMethod("getSequence", Long::class.javaPrimitiveType)
                 var guard = 0
-                while (isDone.invoke(generator) == false && guard < 4096) {
+                while (isDone.invoke(generator) == false && guard < limits.maxOutputTokens) {
                     computeLogits?.invoke(generator)
                     generateNextToken.invoke(generator)
                     guard++
@@ -163,10 +244,19 @@ object OnnxGenAiRuntime : LocalModelRuntime {
                 runCatching { (generator as? AutoCloseable)?.close() }
                 runCatching { (params as? AutoCloseable)?.close() }
                 runCatching { (encoded as? AutoCloseable)?.close() }
-                runCatching { (tokenizer as? AutoCloseable)?.close() }
-                runCatching { (model as? AutoCloseable)?.close() }
             }
         }
+    }
+
+    override suspend fun release() = mutex.withLock { closeCached() }
+
+    private fun closeCached() {
+        runCatching { (cachedTokenizer as? AutoCloseable)?.close() }
+        runCatching { (cachedModel as? AutoCloseable)?.close() }
+        cachedTokenizer = null
+        cachedModel = null
+        cachedDirectory = null
+    }
 }
 
 /**
@@ -182,27 +272,58 @@ object AiCoreRuntime : LocalModelRuntime {
     override val displayName = "AICore · Gemini Nano (system)"
     override fun isAvailable(context: Context) =
         classPresent("com.google.ai.edge.aicore.GenerativeModel")
-    override suspend fun generate(context: Context, modelFile: File, prompt: String): String {
-        val config = generationConfig {
-            this.context = context.applicationContext
-            temperature = 0.2f
-            topK = 16
-            candidateCount = 1
-            maxOutputTokens = 512
+    private val mutex = Mutex()
+    private var cachedModel: GenerativeModel? = null
+    private var cachedOutputLimit: Int? = null
+
+    override suspend fun generate(
+        context: Context,
+        modelFile: File,
+        prompt: String,
+        limits: LocalInferenceLimits,
+    ): String = mutex.withLock {
+        if (cachedModel == null || cachedOutputLimit != limits.maxOutputTokens) {
+            cachedModel?.runCatching { close() }
+            cachedModel = null
+            cachedOutputLimit = null
+            val config = generationConfig {
+                this.context = context.applicationContext
+                temperature = 0.2f
+                topK = 16
+                candidateCount = 1
+                maxOutputTokens = limits.maxOutputTokens
+            }
+            cachedModel = GenerativeModel(generationConfig = config).also { it.prepareInferenceEngine() }
+            cachedOutputLimit = limits.maxOutputTokens
         }
-        val model = GenerativeModel(generationConfig = config)
-        return try {
-            model.prepareInferenceEngine()
-            model.generateContent(prompt).text.orEmpty().ifBlank { "(no text)" }
-        } finally {
-            runCatching { model.close() }
-        }
+        cachedModel!!.generateContent(prompt).text.orEmpty().ifBlank { "(no text)" }
+    }
+
+    override suspend fun release() = mutex.withLock {
+        cachedModel?.runCatching { close() }
+        cachedModel = null
+        cachedOutputLimit = null
     }
 }
 
 /** Registry of known on-device runtimes. */
 object LocalModelRuntimes {
+    private val releaseScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val all: List<LocalModelRuntime> =
         listOf(AiCoreRuntime, MediaPipeRuntime, LlamaCppRuntime, OnnxGenAiRuntime)
     fun byId(id: String): LocalModelRuntime? = all.firstOrNull { it.id == id }
+    suspend fun releaseAll() {
+        all.forEach { runtime ->
+            try {
+                runtime.release()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Throwable) {
+                // One broken native backend must not retain every other engine.
+            }
+        }
+    }
+    fun requestReleaseAll() {
+        releaseScope.launch { releaseAll() }
+    }
 }

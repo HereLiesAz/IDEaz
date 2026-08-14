@@ -28,6 +28,13 @@ IDEaz implements a robust, automatic error handling workflow for both the IDE it
 - **Configuration:** API Keys and Repository info are "baked in" to the source file to minimize runtime dependencies.
 - **Integration:** Requires manual or heuristic hook into `MainActivity.onCreate` (currently automated via `ProjectInitializer` stub).
 
+### 4. On-device Provider Failures
+- **Boundary:** `LocalLlmAdapter` throws `LocalProviderException`; it does not return strings prefixed with `Error:`.
+- **Policy:** `LocalProviderFailure` carries a stable kind, retryability, cloud-fallback eligibility, and diagnostic ID. Cloud fallback is disallowed after tool execution begins because local edits may already exist.
+- **Diagnostics:** `LocalProviderDiagnostics` retains a process-local maximum of 32 sanitized records containing model/runtime IDs and exception class only. User prompts, source, arguments, outputs, and exception messages are excluded.
+- **Presentation:** `MainViewModel` and `AIDelegate` render safe failure text and diagnostic IDs without appending failures to the model's conversational history. Coroutine cancellation is rethrown.
+- **Recovery:** Retry requires the currently displayed diagnostic and replays locally without duplicating the user turn. Gemini fallback additionally requires an eligible pre-tool failure, configured credential, and a one-shot approval button whose disclosure names the conversation/project context and Google cloud destination. Consent is never persisted.
+
 ## Mandatory Instruction
 All error reports include this instruction to the Agent:
 > "You are required to get a perfect code review, no blocks or nitpicks allowed in it. Then you must get a passing build with tests. Once you have it, you must take the time to go get all of the documentation up to date before committing."

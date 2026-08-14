@@ -94,3 +94,15 @@ A `fillMaxSize()` (or `fillMaxHeight()` / `fillMaxWidth()`) container is justifi
 Anything else is redundant. Do not introduce a global "rail title clearance" constant — if a screen's content collides with the rail title, that is an AzNavRail bug to file upstream, not a per-screen spacer to add.
 
 Bottom sheets mount via the `azBottomSheet` DSL on `AzNavHostScope`, never wrapped in `onscreen { }` — that gives the sheet the documented `zIndex(2f)` placement and the touch-targetable HIDDEN-detent strip at the screen bottom edge. See `docs/AZNAVRAIL_COMPLETE_GUIDE.md` §10.2.
+
+## Production Interaction Contract
+
+Every user-initiated operation must expose prerequisite validation and consequence before execution; named progress and cancellation policy during execution; a durable receipt on success; retained input, retry, and sanitized details on failure; and reconciliation after rotation, process death, connectivity loss, or upgrade. Accessibility and least-privilege disclosure apply at every stage. See [`ux_userflow_audit.md`](ux_userflow_audit.md) for the full flow inventory and release gates.
+
+On-device failure cards remain outside model history. Cloud fallback must name the
+destination and transmitted context beside a one-shot approval control; displaying a
+failure never authorizes transmission.
+
+### Current release scope
+
+Only PWA projects are selectable, matching the revival design's Phase 1 daily-driver scope. Other recognized repositories may be detected so their metadata is not rewritten, but their creation, initialization, and App View mounting remain disabled until their target loops pass end-to-end verification.

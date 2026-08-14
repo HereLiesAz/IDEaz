@@ -165,6 +165,7 @@ object AiAdapterFactory {
                 context = context.applicationContext,
                 store = com.hereliesaz.ideaz.ai.local.LocalModelStore(context),
                 downloads = com.hereliesaz.ideaz.ai.local.ModelDownloadManager(context),
+                tools = tools,
             )
 
             // Jules has its own session/poll lifecycle outside the

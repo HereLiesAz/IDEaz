@@ -12,6 +12,7 @@
 *   **Accessibility Nodes:** From API 30 (our `minSdk`) onward, `AccessibilityNodeInfo` is auto-managed — do not call `recycle()`. Phase 0 removed all stale `recycle()` calls.
 *   **JGit:** Close `Git` instances immediately after use.
 *   **View Leaks:** Be careful passing `Activity` or `View` references to background threads / Singletons.
+*   **Local inference:** Each backend caches at most one active engine/model, serializes generation and release, replaces the cache on model-path changes, and releases all caches on Android running-low-or-worse memory callbacks. Prompt, context, and output limits scale conservatively by total-RAM tier.
 
 ## 3. UI Rendering / Responsiveness
 *   **Overlay (Phase 2):** `IdeazOverlayService` runs in its own process to keep main UI smooth. AIDL calls should be `oneway` for non-blocking notifications.
