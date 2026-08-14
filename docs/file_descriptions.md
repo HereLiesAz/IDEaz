@@ -51,7 +51,7 @@
 
 #### models/
 *   `Project.kt`: Project metadata model.
-*   `ProjectType.kt`: Enum for supported project types (currently `ANDROID`, `WEB`; Phase 1 adds `PWA` detection).
+*   `ProjectType.kt`: Project-type enum and production selection gate. PWA is the sole selectable target; other types remain detectable without being routed into incomplete loops.
 *   `IdeazProjectConfig.kt`: Configuration model.
 *   `ProjectHistory.kt`: History tracking model.
 
@@ -92,7 +92,7 @@
 *   `MainViewModel.kt`: Coordinator. Logic delegated to `ui/delegates/`.
 *   `SettingsViewModel.kt`: Manages user preferences.
 *   `MainScreen.kt`: The main Compose screen.
-*   `ProjectScreen.kt`: Project management UI (Setup / Load / Clone tabs).
+*   `ProjectScreen.kt`: Project management UI (Setup / Load / Clone tabs); delegates release-scope enforcement to Setup and `MainViewModel.loadProject`.
 *   `IdeBottomSheet.kt`: Console / chat bottom sheet.
 *   `IdeNavRail.kt`: Navigation component.
 *   `AiModels.kt`: AI model selection.
@@ -158,6 +158,7 @@
 *   `LogcatReader.kt`: System logcat reader.
 
 ## docs/
+*   `ux_userflow_audit.md`: Code-backed inventory and production-readiness assessment of every user-visible flow, with P0/P1/P2 findings, interaction standards, delivery order, and release evidence gates.
 See the index in `AGENTS.md`. The current source-of-truth is `docs/plans/2026-05-01-ideaz-revival-design.md`.
 
 ## website/

@@ -330,9 +330,6 @@ fun ProjectScreen(
                         if (idx != -1) tabIndex = idx
                     },
                     onNavigateToSettings = { navController.navigate("settings") },
-                    onSelectApk = {
-                        apkPickerLauncher.launch("application/vnd.android.package-archive")
-                    }
                 )
                 "Clone" -> ProjectCloneTab(
                     viewModel,
