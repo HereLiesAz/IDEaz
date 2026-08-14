@@ -24,6 +24,20 @@ The protocol is intentionally provider-neutral and conservative:
 - unknown tools return an error to the model;
 - tool results are never invented by the adapter.
 
+Before each `write_file` or `apply_patch`, the adapter snapshots only the paths that
+tool can mutate into an out-of-tree undo checkpoint; it never stages files or moves
+Git HEAD. Completion does not reload immediately: IDEaz
+collects the changed paths, rejects conflicts, oversized files, and malformed JSON,
+then presents the file list for explicit approval. Reject and interrupted/failed
+generation restore the checkpoint. Approval reloads the preview and leaves a bounded
+undo action; undo refuses to erase later edits if the changed-file set has drifted.
+The adapter persists its last observed fingerprint and mutation phase beside the
+snapshot. On startup, interrupted edits return to the changed-file review instead of
+being silently mounted or rolled back. If death occurred during the write itself,
+rollback is disabled because ownership of later bytes is unknowable; the user may
+inspect and keep them without risking data loss. Approved undo snapshots are never
+rolled back and expire after seven days to bound retained source copies and storage.
+
 Downloads now support trusted per-file exact sizes and SHA-256 values. The manager
 verifies staged `.part` files before atomic activation, deletes corrupt staging
 payloads, and stores a manifest-bound verification marker so Settings does not

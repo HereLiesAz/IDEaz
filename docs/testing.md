@@ -15,6 +15,7 @@
 * Structured local failures — retry/fallback metadata, safe presentation, bounded diagnostic eviction, and exclusion of cause messages from retained records.
 * Local recovery policy — current-diagnostic matching, retry eligibility, cloud safety, credential gating, and post-tool fallback denial.
 * `AiTools` executors (`read_file`, `write_file`, `list_files`, `apply_patch`) — mock filesystem.
+* `IdeTools` edit review — changed-file inventory, malformed JSON rejection, drift refusal, patch deletion capture, process-death review recovery (including ambiguous-write rollback denial), and checkpoint restoration that preserves pre-existing work.
 * `PwaProjectDetector` — fixture projects under `src/test/resources`.
 * `WebViewBridge` message marshaling.
 * `JulesApiClient` (Phase 2) — `MockWebServer`.

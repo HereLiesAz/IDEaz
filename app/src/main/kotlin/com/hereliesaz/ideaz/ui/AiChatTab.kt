@@ -13,6 +13,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.hereliesaz.ideaz.ai.ChatMessage
 import com.hereliesaz.ideaz.ai.local.LocalProviderFailure
+import com.hereliesaz.ideaz.ui.delegates.LocalEditReviewState
+import com.hereliesaz.ideaz.ui.delegates.LocalEditReviewStatus
 
 /**
  * Chat UI for the AI tab in [IdeBottomSheet].
@@ -22,6 +24,7 @@ import com.hereliesaz.ideaz.ai.local.LocalProviderFailure
  *
  * @param messages  Ordered conversation history (user + model turns).
  * @param failure Structured provider failure rendered outside model history.
+ * @param editReview Validated on-device changes awaiting approval or eligible for undo.
  * @param isLoading True while waiting for an AI response.
  * @param viewModel MainViewModel to handle message sending.
  */
@@ -29,6 +32,7 @@ import com.hereliesaz.ideaz.ai.local.LocalProviderFailure
 fun AiChatTab(
     messages: List<ChatMessage>,
     failure: LocalProviderFailure?,
+    editReview: LocalEditReviewState?,
     isLoading: Boolean,
     viewModel: MainViewModel,
     modifier: Modifier = Modifier
@@ -36,9 +40,9 @@ fun AiChatTab(
     val listState = rememberLazyListState()
 
     // Auto-scroll to bottom when new messages arrive
-    LaunchedEffect(messages.size, failure?.diagnosticId) {
+    LaunchedEffect(messages.size, failure?.diagnosticId, editReview?.status) {
         when {
-            failure != null -> listState.scrollToItem(messages.size)
+            failure != null || editReview != null -> listState.scrollToItem(messages.size)
             messages.isNotEmpty() -> listState.scrollToItem(messages.size - 1)
         }
     }
@@ -111,6 +115,13 @@ fun AiChatTab(
                 }
             }
 
+            editReview?.let { state ->
+                item(key = "local-edit-${state.approval.review.checkpoint.checkpointId}") {
+                    LocalEditReviewCard(state, viewModel)
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
+            }
+
             // Loading indicator as the last list item
             if (isLoading) {
                 item {
@@ -140,6 +151,67 @@ fun AiChatTab(
             modifier = Modifier.fillMaxWidth(),
             viewModel = viewModel
         )
+    }
+}
+
+@Composable
+private fun LocalEditReviewCard(state: LocalEditReviewState, viewModel: MainViewModel) {
+    val review = state.approval.review
+    val checkpointId = review.checkpoint.checkpointId
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp)) {
+            Text(
+                when (state.status) {
+                    LocalEditReviewStatus.PENDING -> "Review on-device edit"
+                    LocalEditReviewStatus.PROCESSING -> "Applying edit decision…"
+                    LocalEditReviewStatus.APPROVED -> "On-device edit approved"
+                    LocalEditReviewStatus.REJECTED -> "On-device edit rejected"
+                    LocalEditReviewStatus.UNDONE -> "On-device edit undone"
+                },
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                review.changedFiles.joinToString(separator = "\n") { "• $it" },
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                if (review.validationErrors.isEmpty()) {
+                    "Validated · checkpoint ${checkpointId.take(8)}"
+                } else {
+                    "Validation failed · checkpoint ${checkpointId.take(8)}"
+                },
+                style = MaterialTheme.typography.labelSmall,
+            )
+            review.validationErrors.forEach { error ->
+                Text("• $error", style = MaterialTheme.typography.bodySmall)
+            }
+            if (!review.rollbackAllowed) {
+                Text(
+                    "The app stopped during a file write. Review the files; automatic rollback is disabled " +
+                        "because IDEaz cannot distinguish later edits from the interrupted write.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            when (state.status) {
+                LocalEditReviewStatus.PENDING -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { viewModel.approveLocalEdit(checkpointId) }) {
+                        Text(if (review.validationErrors.isEmpty()) "Approve & reload" else "Recheck files")
+                    }
+                    if (review.rollbackAllowed) {
+                        OutlinedButton(onClick = { viewModel.rejectLocalEdit(checkpointId) }) {
+                            Text("Reject")
+                        }
+                    }
+                }
+                LocalEditReviewStatus.APPROVED -> if (review.rollbackAllowed) {
+                    OutlinedButton(onClick = { viewModel.undoLocalEdit(checkpointId) }) {
+                        Text("Undo edit")
+                    }
+                }
+                LocalEditReviewStatus.PROCESSING -> Unit
+                LocalEditReviewStatus.REJECTED, LocalEditReviewStatus.UNDONE -> Unit
+            }
+        }
     }
 }
 

@@ -72,12 +72,12 @@
 *   `GeminiNanoAdapter.kt`: Specialized adapter for on-device Gemini Nano that shares the serialized, memory-pressure-aware `AiCoreRuntime` cache.
 *   `ConversationalAiClient.kt`: Base interface for AI clients (Phase 1, conversational), including the documented structured exception contract used by local providers.
 *   `AgenticAiClient.kt`: Phase-2 agentic provider interface — `dispatchTask(prompt, sourceContext): Flow<TaskEvent>`. Target-agnostic event stream (`SessionStarted`/`Message`/`Patch`/`TimedOut`) so the overlay renders Jules and Gemini the same way. Implemented by `jules/JulesAdapter`.
-*   `IdeTools.kt`: Definitions and dispatcher for IDE tools available to the AI.
+*   `IdeTools.kt`: Sandboxed AI file tools plus out-of-tree per-file content checkpoints, changed-file review, JSON validation, drift detection, and rollback without moving Git HEAD.
 *   `ToolSchema.kt`: JSON schemas for tools.
 
 #### ai/local/
 *   `LocalModelRuntime.kt`: Interface and implementations for on-device backends — serialized, model-keyed engine caches for AICore, MediaPipe, llama.cpp/GGUF, and ONNX GenAI, with RAM-tier inference limits and coordinated release.
-*   `LocalLlmAdapter.kt`: Conversational adapter for the selected local runtime; drives a bounded JSON protocol, applies device-tier prompt limits, and throws structured failures with retry/fallback policy and bounded content-free diagnostics.
+*   `LocalLlmAdapter.kt`: Conversational adapter for the selected local runtime; drives a bounded JSON protocol, applies device-tier prompt limits, restores interrupted mutations, and raises validated edits for explicit approval before reload.
 *   `LocalModelCatalog.kt`: Curated list of downloadable on-device models, with per-model RAM/ABI/auth requirements used for filtering.
 *   `DeviceCapabilities.kt`: Reads device RAM (`ActivityManager.MemoryInfo`) and supported CPU ABIs (`Build.SUPPORTED_ABIS`).
 *   `LocalModelAvailability.kt`: Pure, unit-tested logic deciding whether a model is usable on this device/build (backend present, RAM, ABI, token) — drives the Settings list filtering.
@@ -92,8 +92,8 @@
 *   `BridgeHeuristics.kt`: Pure, unit-tested predicates for matching the Gemini app's input/send/copy nodes and stripping the prompt from a scrape.
 
 #### ui/
-*   `MainViewModel.kt`: Coordinator. Logic delegated to `ui/delegates/`; chat recovery validates the current diagnostic and performs explicit one-shot local retry or approved Gemini fallback without duplicating user turns.
-*   `AiChatTab.kt`: Conversational history UI with a separate structured local-provider failure card, on-device retry, and a disclosed one-shot Gemini approval action.
+*   `MainViewModel.kt`: Coordinator. Logic delegated to `ui/delegates/`; chat recovery validates diagnostics, recovers interrupted local edit reviews, and performs explicit one-shot local retry or approved Gemini fallback without duplicating user turns.
+*   `AiChatTab.kt`: Conversational history UI with separate provider-failure and changed-file review cards, on-device retry, edit approve/reject/undo controls, and a disclosed one-shot Gemini approval action.
 *   `IdeBottomSheet.kt`: Global console/chat sheet; wires conversational history and structured provider-failure state into the Chat tab.
 *   `SettingsViewModel.kt`: Manages user preferences, routes gated Hugging Face tokens through the secure credential store, migrates legacy plaintext, and includes credentials only in explicit password-encrypted export/import.
 *   `MainScreen.kt`: The main Compose screen.

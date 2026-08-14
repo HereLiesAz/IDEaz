@@ -3,10 +3,15 @@ package com.hereliesaz.ideaz.ai.local
 import android.content.Context
 import com.hereliesaz.ideaz.ai.ChatMessage
 import com.hereliesaz.ideaz.ai.ConversationalAiClient
+import com.hereliesaz.ideaz.ai.IdeEditCheckpoint
+import com.hereliesaz.ideaz.ai.IdeEditReview
 import com.hereliesaz.ideaz.ai.IdeToolSchema
 import com.hereliesaz.ideaz.ai.IdeTools
 import com.hereliesaz.ideaz.ai.dispatchIdeTool
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
@@ -56,6 +61,17 @@ data class LocalProviderFailure(
 
 /** Exception boundary used by conversational callers without changing cloud adapters. */
 class LocalProviderException(val failure: LocalProviderFailure) : Exception(failure.message)
+
+/** Pending, validated local-model edit awaiting an explicit user decision. */
+data class LocalEditApproval(
+    val review: IdeEditReview,
+    val response: String,
+)
+
+/** Control-flow boundary preventing a local edit from being reloaded before approval. */
+class LocalEditApprovalRequiredException(
+    val approval: LocalEditApproval,
+) : Exception("On-device edits require approval")
 
 /** Sanitized, bounded in-process diagnostics for support without retaining user content. */
 object LocalProviderDiagnostics {
@@ -268,6 +284,59 @@ class LocalLlmAdapter(
         val modelFile = if (model.systemManaged) context.filesDir else downloads.fileFor(model)
         val limits = localInferenceLimits(DeviceCapabilities.totalRamBytes(context))
         var hasExecutedTool = false
+        var editCheckpoint: IdeEditCheckpoint? = null
+        var expectedEditFingerprint: String? = null
+
+        suspend fun restorePendingEdit(): Boolean {
+            val checkpoint = editCheckpoint ?: return true
+            val fingerprint = expectedEditFingerprint ?: return false
+            return withContext(Dispatchers.IO) {
+                runCatching { tools.restoreEditCheckpoint(checkpoint, fingerprint) }.isSuccess
+            }
+        }
+
+        suspend fun complete(response: String): String {
+            val checkpoint = editCheckpoint ?: return response
+            val review = try {
+                withContext(Dispatchers.IO) { tools.reviewEdits(checkpoint) }
+            } catch (e: Exception) {
+                val restored = restorePendingEdit()
+                localFailure(
+                    LocalProviderFailureKind.TOOL_EXECUTION_FAILED,
+                    if (restored) {
+                        "The on-device edit could not be validated and was restored."
+                    } else {
+                        "The on-device edit could not be validated or safely restored. Review project files."
+                    },
+                    retryable = true,
+                    cloudFallbackAllowed = false,
+                    modelId = model.id,
+                    runtimeId = runtime.id,
+                    cause = e,
+                )
+            }
+            if (review.validationErrors.isNotEmpty()) {
+                val restored = restorePendingEdit()
+                localFailure(
+                    LocalProviderFailureKind.TOOL_EXECUTION_FAILED,
+                    if (restored) {
+                        "The on-device edit failed validation and was restored."
+                    } else {
+                        "The on-device edit failed validation, but later file changes prevented automatic restore."
+                    },
+                    retryable = true,
+                    cloudFallbackAllowed = false,
+                    modelId = model.id,
+                    runtimeId = runtime.id,
+                )
+            }
+            if (review.changedFiles.isEmpty()) {
+                withContext(Dispatchers.IO) { tools.discardEditCheckpoint(checkpoint) }
+                return response
+            }
+            throw LocalEditApprovalRequiredException(LocalEditApproval(review, response))
+        }
+
         repeat(MAX_LOCAL_TOOL_ROUNDS) {
             val prompt = boundedLocalPrompt(
                 prefix = LocalToolProtocol.instruction + "\n\nConversation:\n",
@@ -278,8 +347,10 @@ class LocalLlmAdapter(
             val raw = try {
                 runtime.generate(context, modelFile, prompt, limits)
             } catch (e: CancellationException) {
+                restorePendingEdit()
                 throw e
             } catch (e: Exception) {
+                restorePendingEdit()
                 localFailure(
                     LocalProviderFailureKind.GENERATION_FAILED,
                     "On-device generation failed.",
@@ -291,15 +362,77 @@ class LocalLlmAdapter(
                 )
             }
             when (val reply = LocalToolProtocol.parse(raw)) {
-                is LocalModelReply.Final -> return reply.content.ifBlank { "Done." }
-                is LocalModelReply.PlainText -> return reply.content
+                is LocalModelReply.Final -> return complete(reply.content.ifBlank { "Done." })
+                is LocalModelReply.PlainText -> return complete(reply.content)
                 is LocalModelReply.ToolCall -> {
                     hasExecutedTool = true
+                    if (reply.name == "write_file" || reply.name == "apply_patch") {
+                        editCheckpoint = editCheckpoint ?: try {
+                            withContext(Dispatchers.IO) {
+                                tools.createEditCheckpoint("IDEaz: checkpoint before on-device edit")
+                            }
+                        } catch (e: Exception) {
+                            localFailure(
+                                LocalProviderFailureKind.TOOL_EXECUTION_FAILED,
+                                "The on-device edit could not create an undo checkpoint.",
+                                retryable = true,
+                                cloudFallbackAllowed = false,
+                                modelId = model.id,
+                                runtimeId = runtime.id,
+                                cause = e,
+                            )
+                        }
+                        try {
+                            expectedEditFingerprint = withContext(Dispatchers.IO) {
+                                tools.captureToolEdit(editCheckpoint!!, reply.name, reply.arguments)
+                                tools.reviewEdits(editCheckpoint!!).contentFingerprint.also { fingerprint ->
+                                    tools.updateEditCheckpointFingerprint(editCheckpoint!!, fingerprint)
+                                }
+                            }
+                        } catch (e: Exception) {
+                            editCheckpoint?.let { checkpoint ->
+                                withContext(Dispatchers.IO) {
+                                    runCatching { tools.discardEditCheckpoint(checkpoint) }
+                                }
+                            }
+                            localFailure(
+                                LocalProviderFailureKind.TOOL_EXECUTION_FAILED,
+                                "The on-device edit could not create a safe undo snapshot.",
+                                retryable = true,
+                                cloudFallbackAllowed = false,
+                                modelId = model.id,
+                                runtimeId = runtime.id,
+                                cause = e,
+                            )
+                        }
+                    }
+                    if (reply.name == "write_file" || reply.name == "apply_patch") {
+                        withContext(Dispatchers.IO) {
+                            tools.markEditMutationStarted(editCheckpoint!!)
+                        }
+                    }
                     val output = try {
-                        dispatchIdeTool(reply.name, reply.arguments, tools)
+                        if (reply.name == "write_file" || reply.name == "apply_patch") {
+                            withContext(NonCancellable + Dispatchers.IO) {
+                                dispatchIdeTool(reply.name, reply.arguments, tools).also {
+                                    expectedEditFingerprint = tools.reviewEdits(editCheckpoint!!)
+                                        .contentFingerprint
+                                        .also { fingerprint ->
+                                            tools.updateEditCheckpointFingerprint(editCheckpoint!!, fingerprint)
+                                            tools.markEditAwaitingReview(editCheckpoint!!)
+                                        }
+                                }
+                            }
+                        } else {
+                            withContext(Dispatchers.IO) {
+                                dispatchIdeTool(reply.name, reply.arguments, tools)
+                            }
+                        }
                     } catch (e: CancellationException) {
+                        restorePendingEdit()
                         throw e
                     } catch (e: Exception) {
+                        restorePendingEdit()
                         localFailure(
                             LocalProviderFailureKind.TOOL_EXECUTION_FAILED,
                             "The on-device model could not complete ${reply.name}.",
@@ -316,6 +449,7 @@ class LocalLlmAdapter(
                 }
             }
         }
+        restorePendingEdit()
         localFailure(
             LocalProviderFailureKind.TOOL_ROUND_LIMIT,
             "The on-device model reached the $MAX_LOCAL_TOOL_ROUNDS-round tool limit.",

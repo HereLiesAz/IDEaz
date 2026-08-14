@@ -10,6 +10,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.hereliesaz.ideaz.ai.local.LocalProviderFailure
+import com.hereliesaz.ideaz.ai.local.LocalEditApproval
+
+/** User-visible lifecycle of a validated on-device edit checkpoint. */
+enum class LocalEditReviewStatus { PENDING, PROCESSING, APPROVED, REJECTED, UNDONE }
+
+data class LocalEditReviewState(
+    val approval: LocalEditApproval,
+    val status: LocalEditReviewStatus = LocalEditReviewStatus.PENDING,
+)
 
 /**
  * Delegate responsible for holding and managing shared UI state.
@@ -226,6 +235,10 @@ class StateDelegate(
     /** Structured provider failure rendered outside conversational history. */
     val chatFailure = _chatFailure.asStateFlow()
 
+    private val _localEditReview = MutableStateFlow<LocalEditReviewState?>(null)
+    /** Validated changed-file receipt and its explicit approval/undo state. */
+    val localEditReview = _localEditReview.asStateFlow()
+
     private val _isChatLoading = MutableStateFlow(false)
     /** True while the AI is processing a chat request. Shows a spinner in AiChatTab. */
     val isChatLoading = _isChatLoading.asStateFlow()
@@ -297,6 +310,10 @@ class StateDelegate(
 
     fun setChatFailure(failure: LocalProviderFailure?) {
         _chatFailure.value = failure
+    }
+
+    fun setLocalEditReview(review: LocalEditReviewState?) {
+        _localEditReview.value = review
     }
 
     /** Clear all chat history (call when switching projects to avoid context leakage). */

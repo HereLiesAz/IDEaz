@@ -22,6 +22,7 @@ import com.hereliesaz.ideaz.utils.ProjectFileObserver
 import com.hereliesaz.ideaz.utils.VersionUtils
 import com.hereliesaz.ideaz.ai.AiAdapterFactory
 import com.hereliesaz.ideaz.ai.local.LocalProviderException
+import com.hereliesaz.ideaz.ai.local.LocalEditApprovalRequiredException
 import com.hereliesaz.ideaz.ai.local.LocalRecoveryAction
 import com.hereliesaz.ideaz.ai.ChatMessage
 import com.hereliesaz.ideaz.ai.GeminiAdapter
@@ -90,6 +91,23 @@ class MainViewModel(
         viewModelScope.launch {
             com.hereliesaz.ideaz.utils.LogcatReader.observe().collect {
                 stateDelegate.appendSystemLog(it)
+            }
+        }
+        settingsViewModel.getAppName()?.let { appName ->
+            viewModelScope.launch {
+                val recovered = withContext(Dispatchers.IO) {
+                    IdeTools(settingsViewModel.getProjectPath(appName)).reconcileEditCheckpoints()
+                }
+                recovered.firstOrNull()?.let { review ->
+                    stateDelegate.setLocalEditReview(
+                        LocalEditReviewState(
+                            com.hereliesaz.ideaz.ai.local.LocalEditApproval(
+                                review,
+                                "Recovered an interrupted on-device edit for review.",
+                            )
+                        )
+                    )
+                }
             }
         }
     }
@@ -217,6 +235,8 @@ class MainViewModel(
                 val response = client.chat(stateDelegate.chatMessages.value)
                 stateDelegate.appendChatMessage(ChatMessage("model", response))
                 stateDelegate.triggerWebHardReload()
+            } catch (e: LocalEditApprovalRequiredException) {
+                stateDelegate.setLocalEditReview(LocalEditReviewState(e.approval))
             } catch (e: LocalProviderException) {
                 stateDelegate.setChatFailure(e.failure)
             } catch (e: CancellationException) {
@@ -244,6 +264,8 @@ class MainViewModel(
     }
 
     fun sendChatMessage(text: String, referenceParts: List<com.hereliesaz.ideaz.ai.ChatPart>) {
+        val editStatus = stateDelegate.localEditReview.value?.status
+        if (editStatus == LocalEditReviewStatus.PENDING || editStatus == LocalEditReviewStatus.PROCESSING) return
         val appName = settingsViewModel.getAppName()
         if (appName == null) {
             stateDelegate.appendChatMessage(ChatMessage("model", "Error: No project open."))
@@ -289,6 +311,18 @@ class MainViewModel(
                 // Any file writes have already happened inside the tool-use loop;
                 // hard-reload so the WebView picks up the changes immediately.
                 stateDelegate.triggerWebHardReload()
+            } catch (e: LocalEditApprovalRequiredException) {
+                stateDelegate.localEditReview.value
+                    ?.takeIf { it.status == LocalEditReviewStatus.APPROVED }
+                    ?.approval?.review?.checkpoint
+                    ?.let { previous ->
+                        withContext(Dispatchers.IO) {
+                            runCatching {
+                                IdeTools(File(previous.projectPath)).discardEditCheckpoint(previous)
+                            }
+                        }
+                    }
+                stateDelegate.setLocalEditReview(LocalEditReviewState(e.approval))
             } catch (e: LocalProviderException) {
                 stateDelegate.setChatFailure(e.failure)
             } catch (e: CancellationException) {
@@ -296,6 +330,105 @@ class MainViewModel(
             } catch (e: Exception) {
                 stateDelegate.appendChatMessage(
                     ChatMessage("model", "Error: ${e.message}")
+                )
+            } finally {
+                stateDelegate.setChatLoading(false)
+            }
+        }
+    }
+
+    /** Approves validated local changes, records the model response, then reloads. */
+    fun approveLocalEdit(checkpointId: String) {
+        val state = stateDelegate.localEditReview.value ?: return
+        if (state.status != LocalEditReviewStatus.PENDING ||
+            state.approval.review.checkpoint.checkpointId != checkpointId
+        ) return
+        stateDelegate.setLocalEditReview(state.copy(status = LocalEditReviewStatus.PROCESSING))
+        stateDelegate.setChatLoading(true)
+        viewModelScope.launch {
+            try {
+                val reviewed = state.approval.review
+                val current = withContext(Dispatchers.IO) {
+                    IdeTools(File(reviewed.checkpoint.projectPath)).reviewEdits(reviewed.checkpoint)
+                }
+                if (reviewed.validationErrors.isNotEmpty()) {
+                    stateDelegate.setLocalEditReview(
+                        state.copy(
+                            approval = state.approval.copy(review = reviewed.refreshedFrom(current)),
+                            status = LocalEditReviewStatus.PENDING,
+                        )
+                    )
+                    return@launch
+                }
+                if (current.validationErrors.isNotEmpty()) {
+                    stateDelegate.setLocalEditReview(
+                        state.copy(
+                            approval = state.approval.copy(review = reviewed.refreshedFrom(current)),
+                            status = LocalEditReviewStatus.PENDING,
+                        )
+                    )
+                    return@launch
+                }
+                check(
+                    current.changedFiles == reviewed.changedFiles &&
+                        current.contentFingerprint == reviewed.contentFingerprint
+                ) { "Files changed after review" }
+                withContext(Dispatchers.IO) {
+                    IdeTools(File(reviewed.checkpoint.projectPath))
+                        .markEditCheckpointApproved(reviewed.checkpoint)
+                }
+                stateDelegate.setLocalEditReview(state.copy(status = LocalEditReviewStatus.APPROVED))
+                stateDelegate.appendChatMessage(ChatMessage("model", state.approval.response))
+                stateDelegate.triggerFileTreeReload()
+                stateDelegate.triggerWebHardReload()
+            } catch (_: Exception) {
+                stateDelegate.setLocalEditReview(state)
+                stateDelegate.appendChatMessage(
+                    ChatMessage("model", "Approval stopped: the project changed after review.")
+                )
+            } finally {
+                stateDelegate.setChatLoading(false)
+            }
+        }
+    }
+
+    /** Rejects pending changes and restores their pre-edit checkpoint. */
+    fun rejectLocalEdit(checkpointId: String) {
+        restoreLocalEdit(checkpointId, LocalEditReviewStatus.REJECTED)
+    }
+
+    /** Undoes an approved edit only while its changed-file set remains untouched. */
+    fun undoLocalEdit(checkpointId: String) {
+        restoreLocalEdit(checkpointId, LocalEditReviewStatus.UNDONE)
+    }
+
+    private fun restoreLocalEdit(
+        checkpointId: String,
+        targetStatus: LocalEditReviewStatus,
+    ) {
+        val state = stateDelegate.localEditReview.value ?: return
+        val approval = state.approval
+        if (approval.review.checkpoint.checkpointId != checkpointId) return
+        if (targetStatus == LocalEditReviewStatus.REJECTED && state.status != LocalEditReviewStatus.PENDING) return
+        if (targetStatus == LocalEditReviewStatus.UNDONE && state.status != LocalEditReviewStatus.APPROVED) return
+        if (!approval.review.rollbackAllowed) return
+        stateDelegate.setLocalEditReview(state.copy(status = LocalEditReviewStatus.PROCESSING))
+        stateDelegate.setChatLoading(true)
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    IdeTools(File(approval.review.checkpoint.projectPath)).restoreEditCheckpoint(
+                        approval.review.checkpoint,
+                        approval.review.contentFingerprint,
+                    )
+                }
+                stateDelegate.setLocalEditReview(state.copy(status = targetStatus))
+                stateDelegate.triggerFileTreeReload()
+                stateDelegate.triggerWebHardReload()
+            } catch (_: Exception) {
+                stateDelegate.setLocalEditReview(state)
+                stateDelegate.appendChatMessage(
+                    ChatMessage("model", "Restore stopped: the project changed after review.")
                 )
             } finally {
                 stateDelegate.setChatLoading(false)
