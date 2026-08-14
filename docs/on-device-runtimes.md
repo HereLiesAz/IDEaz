@@ -24,6 +24,15 @@ The protocol is intentionally provider-neutral and conservative:
 - unknown tools return an error to the model;
 - tool results are never invented by the adapter.
 
+The local-only `ask_cloud` tool permits one read-only Gemini consultation before any
+other tool. It raises a consent request rather than touching the network. Chat shows
+the exact bounded question/context and byte count; approval is bound to the request,
+project, conversation, and payload hash. A dedicated tool-less Gemini client receives
+only that preview—never repo maps, history, attachments, credentials, or project tools.
+The advice returns ephemerally to the local model. If local resume fails, IDEaz retains
+the answer in memory so retry does not bill or transmit twice. Declining resumes the
+same local turn with a denial result.
+
 Before each `write_file` or `apply_patch`, the adapter snapshots only the paths that
 tool can mutate into an out-of-tree undo checkpoint; it never stages files or moves
 Git HEAD. Completion does not reload immediately: IDEaz

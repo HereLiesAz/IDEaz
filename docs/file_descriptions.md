@@ -68,7 +68,7 @@
 *   `OpenAiCompatibleAdapter.kt`: Generic adapter for OpenAI-compatible `/chat/completions` endpoints.
 *   `AnthropicAdapter.kt`: Custom adapter for Anthropic's Messages API schema.
 *   `DynamicModelResolver.kt`: Resolves the absolute latest version of a model by querying provider endpoints.
-*   `GeminiAdapter.kt`: Uses the `google-genai` SDK for Gemini models.
+*   `GeminiAdapter.kt`: Uses the `google-genai` SDK for Gemini models and exposes a separate tool-less consultant that accepts only an approved bounded payload.
 *   `GeminiNanoAdapter.kt`: Specialized adapter for on-device Gemini Nano that shares the serialized, memory-pressure-aware `AiCoreRuntime` cache.
 *   `ConversationalAiClient.kt`: Base interface for AI clients (Phase 1, conversational), including the documented structured exception contract used by local providers.
 *   `AgenticAiClient.kt`: Phase-2 agentic provider interface — `dispatchTask(prompt, sourceContext): Flow<TaskEvent>`. Target-agnostic event stream (`SessionStarted`/`Message`/`Patch`/`TimedOut`) so the overlay renders Jules and Gemini the same way. Implemented by `jules/JulesAdapter`.
@@ -77,7 +77,7 @@
 
 #### ai/local/
 *   `LocalModelRuntime.kt`: Interface and implementations for on-device backends — serialized, model-keyed engine caches for AICore, MediaPipe, llama.cpp/GGUF, and ONNX GenAI, with RAM-tier inference limits and coordinated release.
-*   `LocalLlmAdapter.kt`: Conversational adapter for the selected local runtime; drives a JVM-tested six-round JSON coordinator with an explicit cancellation restoration boundary, applies device-tier prompt limits, restores interrupted mutations, and raises validated edits for explicit approval before reload.
+*   `LocalLlmAdapter.kt`: Conversational adapter for the selected local runtime; drives a JVM-tested six-round JSON coordinator, raises consent-bound local-only `ask_cloud` requests before other tools, applies device-tier prompt limits, restores interrupted mutations, and raises validated edits for explicit approval before reload.
 *   `LocalModelCatalog.kt`: Curated list of downloadable on-device models, with per-model RAM/ABI/auth requirements used for filtering.
 *   `DeviceCapabilities.kt`: Reads device RAM (`ActivityManager.MemoryInfo`) and supported CPU ABIs (`Build.SUPPORTED_ABIS`).
 *   `LocalModelAvailability.kt`: Pure, unit-tested logic deciding whether a model is usable on this device/build (backend present, RAM, ABI, token) — drives the Settings list filtering.
@@ -92,10 +92,10 @@
 *   `BridgeHeuristics.kt`: Pure, unit-tested predicates for matching the Gemini app's input/send/copy nodes and stripping the prompt from a scrape.
 
 #### ui/
-*   `MainViewModel.kt`: Coordinator. Logic delegated to `ui/delegates/`; chat recovery validates diagnostics, recovers interrupted local edit reviews, and performs explicit one-shot local retry or approved Gemini fallback without duplicating user turns.
-*   `AiChatTab.kt`: Conversational history UI with separate provider-failure and changed-file review cards, on-device retry, edit approve/reject/undo controls, and a disclosed one-shot Gemini approval action.
+*   `MainViewModel.kt`: Coordinator. Logic delegated to `ui/delegates/`; chat recovery validates diagnostics, recovers interrupted local edit reviews, and resumes consented or declined local-model cloud consultations without duplicate transmission.
+*   `AiChatTab.kt`: Conversational history UI with separate provider-failure, cloud-consultation consent, and changed-file review cards plus retry and edit approve/reject/undo controls.
 *   `IdeBottomSheet.kt`: Global console/chat sheet; wires conversational history and structured provider-failure state into the Chat tab.
-*   `SettingsViewModel.kt`: Manages user preferences, routes gated Hugging Face tokens through the secure credential store, migrates legacy plaintext, and includes credentials only in explicit password-encrypted export/import.
+*   `SettingsViewModel.kt`: Manages user preferences, routes Gemini and gated Hugging Face credentials through the secure store, migrates legacy plaintext, and includes credentials only in explicit password-encrypted export/import.
 *   `MainScreen.kt`: The main Compose screen.
 *   `ProjectScreen.kt`: Project management UI (Setup / Load / Clone tabs); delegates release-scope enforcement to Setup and `MainViewModel.loadProject`.
 *   `IdeBottomSheet.kt`: Console / chat bottom sheet.
@@ -156,7 +156,7 @@
 *   `CrashHandler.kt`: JVM uncaught exception handler.
 *   `GithubIssueReporter.kt`: Posts GitHub issues for IDE-internal errors.
 *   `SecurityUtils.kt`: PBKDF2 encryption helpers for credentials.
-*   `AndroidKeystoreCredentialStore.kt`: AES-GCM credential persistence backed by a non-exportable Android Keystore key; used for gated Hugging Face tokens.
+*   `AndroidKeystoreCredentialStore.kt`: AES-GCM credential persistence backed by a non-exportable Android Keystore key; used for Gemini and gated Hugging Face credentials.
 *   `PermissionUtils.kt`: Permission check/request helpers.
 *   `ComposeLifecycleHelper.kt`: Helper for ComposeView lifecycle in Services.
 *   `EnvironmentSetup.kt`: Setup script constants.

@@ -428,8 +428,12 @@ fun SettingsScreen(
                         hint = "AI Studio API Key",
                         secret = true,
                         onSubmit = {
-                            settingsViewModel.saveGoogleApiKey(googleApiKey)
-                            Toast.makeText(context, "AI Studio Key Saved", Toast.LENGTH_SHORT).show()
+                            val saved = settingsViewModel.saveGoogleApiKey(googleApiKey)
+                            Toast.makeText(
+                                context,
+                                if (saved) "AI Studio Key Saved Securely" else "AI Studio Key Save Failed",
+                                Toast.LENGTH_SHORT,
+                            ).show()
                         },
                         submitButtonContent = { Text("Save") }
                     )

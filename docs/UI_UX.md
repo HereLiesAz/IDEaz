@@ -103,6 +103,13 @@ On-device failure cards remain outside model history. Cloud fallback must name t
 destination and transmitted context beside a one-shot approval control; displaying a
 failure never authorizes transmission.
 
+A local model may request one read-only Gemini consultation before using any other
+tool. The consent card shows the exact question/context and byte count; it names the
+destination and states which data is excluded. Merely displaying the card performs no
+network request. **Send once** transmits exactly that preview; **Keep local** resumes
+without transmission. Cloud advice is untrusted text returned only to the local loop,
+and Gemini receives no repository map, history, attachments, credentials, or IDE tools.
+
 On-device file mutations stop at a review card before the WebView reloads. The card
 lists every changed path and offers **Approve & reload** or **Reject**; an approved
 edit retains its out-of-tree checkpoint as an **Undo edit** action until later project work

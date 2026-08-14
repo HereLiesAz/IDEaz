@@ -88,6 +88,35 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `Gemini key is stored securely and legacy plaintext migrates`() {
+        val preferences = PreferenceManager.getDefaultSharedPreferences(application)
+        preferences.edit().putString(SettingsViewModel.KEY_GOOGLE_API_KEY, "legacy_gemini").commit()
+        val credentials = FakeCredentialStore()
+        viewModel = SettingsViewModel(application, credentials)
+
+        assertEquals("legacy_gemini", viewModel.getGoogleApiKey())
+        assertEquals("legacy_gemini", credentials.values[SettingsViewModel.KEY_GOOGLE_API_KEY])
+        assertFalse(preferences.contains(SettingsViewModel.KEY_GOOGLE_API_KEY))
+
+        assertTrue(viewModel.saveGoogleApiKey("  replacement_gemini  "))
+        assertEquals("replacement_gemini", credentials.values[SettingsViewModel.KEY_GOOGLE_API_KEY])
+        assertFalse(preferences.contains(SettingsViewModel.KEY_GOOGLE_API_KEY))
+    }
+
+    @Test
+    fun `secure Gemini key wins and removes coexisting plaintext`() {
+        val preferences = PreferenceManager.getDefaultSharedPreferences(application)
+        preferences.edit().putString(SettingsViewModel.KEY_GOOGLE_API_KEY, "obsolete_plaintext").commit()
+        val credentials = FakeCredentialStore().apply {
+            values[SettingsViewModel.KEY_GOOGLE_API_KEY] = "secure_gemini"
+        }
+        val viewModel = SettingsViewModel(application, credentials)
+
+        assertEquals("secure_gemini", viewModel.getGoogleApiKey())
+        assertFalse(preferences.contains(SettingsViewModel.KEY_GOOGLE_API_KEY))
+    }
+
+    @Test
     fun `failed secure migration retains legacy Hugging Face token`() {
         val preferences = PreferenceManager.getDefaultSharedPreferences(application)
         preferences.edit().putString(SettingsViewModel.KEY_HF_API_KEY, "legacy_token").commit()

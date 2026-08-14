@@ -15,6 +15,8 @@ import com.hereliesaz.ideaz.ai.ChatMessage
 import com.hereliesaz.ideaz.ai.local.LocalProviderFailure
 import com.hereliesaz.ideaz.ui.delegates.LocalEditReviewState
 import com.hereliesaz.ideaz.ui.delegates.LocalEditReviewStatus
+import com.hereliesaz.ideaz.ui.delegates.LocalCloudConsultState
+import com.hereliesaz.ideaz.ui.delegates.LocalCloudConsultStatus
 
 /**
  * Chat UI for the AI tab in [IdeBottomSheet].
@@ -25,6 +27,7 @@ import com.hereliesaz.ideaz.ui.delegates.LocalEditReviewStatus
  * @param messages  Ordered conversation history (user + model turns).
  * @param failure Structured provider failure rendered outside model history.
  * @param editReview Validated on-device changes awaiting approval or eligible for undo.
+ * @param cloudConsult Exact cloud payload awaiting explicit one-shot consent.
  * @param isLoading True while waiting for an AI response.
  * @param viewModel MainViewModel to handle message sending.
  */
@@ -33,6 +36,7 @@ fun AiChatTab(
     messages: List<ChatMessage>,
     failure: LocalProviderFailure?,
     editReview: LocalEditReviewState?,
+    cloudConsult: LocalCloudConsultState?,
     isLoading: Boolean,
     viewModel: MainViewModel,
     modifier: Modifier = Modifier
@@ -40,9 +44,9 @@ fun AiChatTab(
     val listState = rememberLazyListState()
 
     // Auto-scroll to bottom when new messages arrive
-    LaunchedEffect(messages.size, failure?.diagnosticId, editReview?.status) {
+    LaunchedEffect(messages.size, failure?.diagnosticId, editReview?.status, cloudConsult?.status) {
         when {
-            failure != null || editReview != null -> listState.scrollToItem(messages.size)
+            failure != null || editReview != null || cloudConsult != null -> listState.scrollToItem(messages.size)
             messages.isNotEmpty() -> listState.scrollToItem(messages.size - 1)
         }
     }
@@ -122,6 +126,13 @@ fun AiChatTab(
                 }
             }
 
+            cloudConsult?.let { state ->
+                item(key = "local-cloud-consult-${state.request.requestId}") {
+                    LocalCloudConsultCard(state, viewModel)
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
+            }
+
             // Loading indicator as the last list item
             if (isLoading) {
                 item {
@@ -151,6 +162,46 @@ fun AiChatTab(
             modifier = Modifier.fillMaxWidth(),
             viewModel = viewModel
         )
+    }
+}
+
+@Composable
+private fun LocalCloudConsultCard(state: LocalCloudConsultState, viewModel: MainViewModel) {
+    val request = state.request
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Local model requests ${request.provider} advice", fontWeight = FontWeight.Bold)
+            Text(
+                "Only the text below will be sent to Google's Gemini API once. " +
+                    "No files, images, history, repo map, credentials, or IDE tools are included.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text("Exact Gemini prompt", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            Text(request.prompt, style = MaterialTheme.typography.bodySmall)
+            Text(
+                "${request.model} · ${request.byteCount} bytes · request ${request.requestId.take(8)}",
+                style = MaterialTheme.typography.labelSmall,
+            )
+            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            if (state.status == LocalCloudConsultStatus.PROCESSING) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        enabled = state.advice != null || viewModel.hasCloudFallbackCredential(),
+                        onClick = { viewModel.approveLocalCloudConsult(request.requestId) },
+                    ) {
+                        Text(if (state.advice == null) "Send once" else "Retry locally")
+                    }
+                    OutlinedButton(onClick = { viewModel.rejectLocalCloudConsult(request.requestId) }) {
+                        Text("Keep local")
+                    }
+                }
+                if (state.advice == null && !viewModel.hasCloudFallbackCredential()) {
+                    Text("Add a Gemini API key in Settings to enable consultation.", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
     }
 }
 

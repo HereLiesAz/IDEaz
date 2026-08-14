@@ -145,7 +145,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_ANTHROPIC_API_KEY = "anthropic_api_key"
         const val KEY_DEEPSEEK_API_KEY = "deepseek_api_key"
 
-        private val SECURE_CREDENTIAL_KEYS = setOf(KEY_HF_API_KEY)
+        private val SECURE_CREDENTIAL_KEYS = setOf(KEY_GOOGLE_API_KEY, KEY_HF_API_KEY)
 
         // One-shot flag: true after the app has explained the Gemini-app
         // bridge during first-run on a device that lacks Gemini Nano.
@@ -276,8 +276,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _logLevel.value = level
     }
 
-    fun saveGoogleApiKey(apiKey: String) = sharedPreferences.edit { putString(KEY_GOOGLE_API_KEY, apiKey.trim()) }
-    fun getGoogleApiKey() = sharedPreferences.getString(KEY_GOOGLE_API_KEY, null)
+    fun saveGoogleApiKey(apiKey: String): Boolean = saveString(KEY_GOOGLE_API_KEY, apiKey)
+    fun getGoogleApiKey(): String? = getApiKey(KEY_GOOGLE_API_KEY)
 
     fun saveGithubToken(token: String) = sharedPreferences.edit { putString(KEY_GITHUB_TOKEN, token.trim()) }
     fun getGithubToken() = sharedPreferences.getString(KEY_GITHUB_TOKEN, null)
@@ -294,10 +294,19 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun getApiKey() = sharedPreferences.getString(KEY_API_KEY, null)
     fun getApiKey(keyName: String): String? {
         if (keyName !in SECURE_CREDENTIAL_KEYS) return sharedPreferences.getString(keyName, null)
-        runCatching { credentialStore.get(keyName) }.getOrNull()?.let { return it }
+        runCatching { credentialStore.get(keyName) }.getOrNull()?.let { secureValue ->
+            if (sharedPreferences.contains(keyName) &&
+                !sharedPreferences.edit().remove(keyName).commit()
+            ) {
+                Log.e(TAG, "Failed to remove legacy secure credential")
+            }
+            return secureValue
+        }
         val legacy = sharedPreferences.getString(keyName, null) ?: return null
         return if (runCatching { credentialStore.put(keyName, legacy) }.isSuccess) {
-            sharedPreferences.edit().remove(keyName).commit()
+            if (!sharedPreferences.edit().remove(keyName).commit()) {
+                Log.e(TAG, "Failed to remove migrated secure credential")
+            }
             legacy
         } else {
             Log.e(TAG, "Failed to migrate secure credential")

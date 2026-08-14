@@ -12,13 +12,13 @@ import com.google.genai.types.Type
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private const val DEFAULT_MODEL = "gemini-2.0-flash"
+internal const val DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
 private const val MAX_TOOL_ROUNDS = 10
 
 class GeminiAdapter(
     private val apiKey: String,
     private val tools: IdeTools,
-    private val model: String = DEFAULT_MODEL,
+    private val model: String = DEFAULT_GEMINI_MODEL,
 ) : ConversationalAiClient {
 
     private val client: Client by lazy { Client.builder().apiKey(apiKey).build() }
@@ -81,6 +81,28 @@ class GeminiAdapter(
             .functionDeclarations(declarations)
             .build()
         return GenerateContentConfig.builder().tools(listOf(tool)).build()
+    }
+}
+
+/**
+ * Tool-less Gemini client for a single, explicitly approved consultation.
+ * It receives only the bounded preview shown in consent UI: no repo map,
+ * conversation history, images, credentials, or IDE mutation tools.
+ */
+class GeminiConsultant(
+    private val apiKey: String,
+    private val model: String = DEFAULT_GEMINI_MODEL,
+) {
+    private val client: Client by lazy { Client.builder().apiKey(apiKey).build() }
+    private val config: GenerateContentConfig by lazy { GenerateContentConfig.builder().build() }
+
+    suspend fun consult(prompt: String): String = withContext(Dispatchers.IO) {
+        val response = client.models.generateContent(
+            model,
+            listOf(ChatMessage("user", prompt).toContent()),
+            config,
+        )
+        response.text() ?: "No response from Gemini consultant."
     }
 }
 

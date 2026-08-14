@@ -8,6 +8,7 @@ import com.hereliesaz.ideaz.ai.IdeEditReview
 import com.hereliesaz.ideaz.ai.IdeToolSchema
 import com.hereliesaz.ideaz.ai.IdeTools
 import com.hereliesaz.ideaz.ai.dispatchIdeTool
+import com.hereliesaz.ideaz.ai.DEFAULT_GEMINI_MODEL
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -19,9 +20,14 @@ import kotlinx.serialization.json.jsonPrimitive
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.atomic.AtomicLong
+import java.security.MessageDigest
+import java.util.UUID
 
 private const val MAX_LOCAL_TOOL_ROUNDS = 6
 private const val MAX_LOCAL_DIAGNOSTICS = 32
+private const val MAX_CLOUD_QUESTION_CHARS = 2_000
+private const val MAX_CLOUD_CONTEXT_CHARS = 6_000
+internal const val CLOUD_CONSULT_USED_MARKER = "[IDEAZ_CLOUD_CONSULT_USED]"
 
 /** Stable categories callers can use for retry and consent-based fallback decisions. */
 enum class LocalProviderFailureKind {
@@ -72,6 +78,106 @@ data class LocalEditApproval(
 class LocalEditApprovalRequiredException(
     val approval: LocalEditApproval,
 ) : Exception("On-device edits require approval")
+
+/** Exact, bounded payload proposed for a single consent-gated cloud consultation. */
+data class LocalCloudConsultRequest(
+    val requestId: String,
+    val projectPath: String,
+    val conversationFingerprint: String,
+    val conversationMessageCount: Int,
+    val provider: String,
+    val model: String,
+    val prompt: String,
+    val payloadHash: String,
+    val byteCount: Int,
+) {
+    fun matches(requestedId: String, currentProjectPath: String, messages: List<ChatMessage>): Boolean {
+        if (requestedId != requestId || currentProjectPath != projectPath) return false
+        val currentConversation = localConversationFingerprint(messages)
+        if (messages.size != conversationMessageCount || currentConversation != conversationFingerprint) return false
+        val payload = listOf(projectPath, conversationFingerprint, provider, model, prompt).joinToString("\u0000")
+        return sha256(payload) == payloadHash &&
+            prompt.toByteArray(Charsets.UTF_8).size == byteCount
+    }
+
+    /** Rebinds factory-enriched adapter history to the durable UI conversation used for consent. */
+    fun boundTo(messages: List<ChatMessage>): LocalCloudConsultRequest {
+        val fingerprint = localConversationFingerprint(messages)
+        val hash = sha256(listOf(projectPath, fingerprint, provider, model, prompt).joinToString("\u0000"))
+        return copy(
+            conversationFingerprint = fingerprint,
+            conversationMessageCount = messages.size,
+            payloadHash = hash,
+        )
+    }
+}
+
+/** Stops local inference before any network request and transfers control to consent UI. */
+class LocalCloudConsultApprovalRequiredException(
+    val request: LocalCloudConsultRequest,
+) : Exception("Cloud consultation requires approval")
+
+internal fun localConversationFingerprint(messages: List<ChatMessage>): String = sha256(
+    messages.joinToString("\u0000") { message ->
+        message.role + "\u0000" + message.parts.joinToString("\u0000") { part ->
+            when (part) {
+                is com.hereliesaz.ideaz.ai.ChatPart.Text -> part.text
+                is com.hereliesaz.ideaz.ai.ChatPart.Image ->
+                    "<image:${part.mimeType}:${part.bytes.size}:${sha256(part.bytes)}>"
+                is com.hereliesaz.ideaz.ai.ChatPart.FileBlob ->
+                    "<file:${part.mimeType}:${part.bytes.size}:${sha256(part.bytes)}>"
+            }
+        }
+    }
+)
+
+internal fun createLocalCloudConsultRequest(
+    projectPath: String,
+    messages: List<ChatMessage>,
+    question: String?,
+    context: String?,
+): LocalCloudConsultRequest {
+    val boundedQuestion = question.orEmpty().trim()
+    val boundedContext = context.orEmpty().trim()
+    require(boundedQuestion.isNotEmpty()) { "Cloud question is required" }
+    require(boundedQuestion.length <= MAX_CLOUD_QUESTION_CHARS) { "Cloud question exceeds 2000 characters" }
+    require(boundedContext.length <= MAX_CLOUD_CONTEXT_CHARS) { "Cloud context exceeds 6000 characters" }
+    val conversation = localConversationFingerprint(messages)
+    val prompt = cloudConsultPrompt(boundedQuestion, boundedContext)
+    val provider = "Google Gemini"
+    val model = DEFAULT_GEMINI_MODEL
+    val payload = listOf(projectPath, conversation, provider, model, prompt).joinToString("\u0000")
+    return LocalCloudConsultRequest(
+        requestId = UUID.randomUUID().toString(),
+        projectPath = projectPath,
+        conversationFingerprint = conversation,
+        conversationMessageCount = messages.size,
+        provider = provider,
+        model = model,
+        prompt = prompt,
+        payloadHash = sha256(payload),
+        byteCount = prompt.toByteArray(Charsets.UTF_8).size,
+    )
+}
+
+internal fun cloudConsultPrompt(question: String, context: String): String = buildString {
+    appendLine("You are a read-only coding consultant. Give concise technical advice.")
+    appendLine("You cannot inspect other files, call tools, or change the project.")
+    appendLine("Question:")
+    appendLine(question)
+    if (context.isNotBlank()) {
+        appendLine("Context explicitly approved by the user:")
+        append(context)
+    }
+}
+
+private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
+    .digest(value.toByteArray(Charsets.UTF_8))
+    .joinToString("") { "%02x".format(it) }
+
+private fun sha256(value: ByteArray): String = MessageDigest.getInstance("SHA-256")
+    .digest(value)
+    .joinToString("") { "%02x".format(it) }
 
 /** Sanitized, bounded in-process diagnostics for support without retaining user content. */
 object LocalProviderDiagnostics {
@@ -179,6 +285,8 @@ internal object LocalToolProtocol {
             }
             appendLine()
         }
+        appendLine("- ask_cloud: Ask the Gemini cloud consultant for read-only advice. " +
+            "Arguments: question:string, context:string. Use only before every other tool and at most once.")
         append("Use one tool per turn. Read relevant files before editing. Never invent tool results.")
     }
 
@@ -323,6 +431,11 @@ class LocalLlmAdapter(
         val modelFile = if (model.systemManaged) context.filesDir else downloads.fileFor(model)
         val limits = localInferenceLimits(DeviceCapabilities.totalRamBytes(context))
         var hasExecutedTool = false
+        val cloudConsultAlreadyUsed = messages.any { message ->
+            message.parts.any { part ->
+                part is com.hereliesaz.ideaz.ai.ChatPart.Text && part.text.contains(CLOUD_CONSULT_USED_MARKER)
+            }
+        }
         var editCheckpoint: IdeEditCheckpoint? = null
         var expectedEditFingerprint: String? = null
 
@@ -377,6 +490,25 @@ class LocalLlmAdapter(
         }
 
         suspend fun executeTool(reply: LocalModelReply.ToolCall): String {
+            if (reply.name == "ask_cloud") {
+                if (hasExecutedTool || editCheckpoint != null) {
+                    return "Error: Cloud consultation is available only before every other tool."
+                }
+                if (cloudConsultAlreadyUsed) {
+                    return "Error: The one cloud consultation for this turn has already been used."
+                }
+                val request = try {
+                    createLocalCloudConsultRequest(
+                        projectPath = tools.projectPath(),
+                        messages = messages,
+                        question = reply.arguments["question"],
+                        context = reply.arguments["context"],
+                    )
+                } catch (e: IllegalArgumentException) {
+                    return "Error: ${e.message}"
+                }
+                throw LocalCloudConsultApprovalRequiredException(request)
+            }
             hasExecutedTool = true
             val mutating = reply.name == "write_file" || reply.name == "apply_patch"
             if (mutating) {

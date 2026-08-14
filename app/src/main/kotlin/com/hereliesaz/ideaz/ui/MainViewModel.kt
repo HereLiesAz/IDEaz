@@ -23,9 +23,12 @@ import com.hereliesaz.ideaz.utils.VersionUtils
 import com.hereliesaz.ideaz.ai.AiAdapterFactory
 import com.hereliesaz.ideaz.ai.local.LocalProviderException
 import com.hereliesaz.ideaz.ai.local.LocalEditApprovalRequiredException
+import com.hereliesaz.ideaz.ai.local.LocalCloudConsultApprovalRequiredException
+import com.hereliesaz.ideaz.ai.local.CLOUD_CONSULT_USED_MARKER
 import com.hereliesaz.ideaz.ai.local.LocalRecoveryAction
 import com.hereliesaz.ideaz.ai.ChatMessage
 import com.hereliesaz.ideaz.ai.GeminiAdapter
+import com.hereliesaz.ideaz.ai.GeminiConsultant
 import com.hereliesaz.ideaz.ai.IdeTools
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -237,6 +240,10 @@ class MainViewModel(
                 stateDelegate.triggerWebHardReload()
             } catch (e: LocalEditApprovalRequiredException) {
                 stateDelegate.setLocalEditReview(LocalEditReviewState(e.approval))
+            } catch (e: LocalCloudConsultApprovalRequiredException) {
+                stateDelegate.setLocalCloudConsult(
+                    LocalCloudConsultState(e.request.boundTo(stateDelegate.chatMessages.value))
+                )
             } catch (e: LocalProviderException) {
                 stateDelegate.setChatFailure(e.failure)
             } catch (e: CancellationException) {
@@ -264,6 +271,7 @@ class MainViewModel(
     }
 
     fun sendChatMessage(text: String, referenceParts: List<com.hereliesaz.ideaz.ai.ChatPart>) {
+        if (stateDelegate.localCloudConsult.value != null) return
         val editStatus = stateDelegate.localEditReview.value?.status
         if (editStatus == LocalEditReviewStatus.PENDING || editStatus == LocalEditReviewStatus.PROCESSING) return
         val appName = settingsViewModel.getAppName()
@@ -323,6 +331,10 @@ class MainViewModel(
                         }
                     }
                 stateDelegate.setLocalEditReview(LocalEditReviewState(e.approval))
+            } catch (e: LocalCloudConsultApprovalRequiredException) {
+                stateDelegate.setLocalCloudConsult(
+                    LocalCloudConsultState(e.request.boundTo(stateDelegate.chatMessages.value))
+                )
             } catch (e: LocalProviderException) {
                 stateDelegate.setChatFailure(e.failure)
             } catch (e: CancellationException) {
@@ -334,6 +346,124 @@ class MainViewModel(
             } finally {
                 stateDelegate.setChatLoading(false)
             }
+        }
+    }
+
+    /** Performs the exact previewed, tool-less Gemini request after one-shot consent. */
+    fun approveLocalCloudConsult(requestId: String) {
+        val pending = stateDelegate.localCloudConsult.value ?: return
+        if (pending.status != LocalCloudConsultStatus.PENDING) return
+        val request = pending.request
+        val appName = settingsViewModel.getAppName() ?: return
+        val projectPath = settingsViewModel.getProjectPath(appName).canonicalPath
+        val messages = stateDelegate.chatMessages.value
+        if (!request.matches(requestId, projectPath, messages)) return
+        val apiKey = settingsViewModel.getGoogleApiKey().orEmpty()
+        if (apiKey.isBlank() && pending.advice == null) {
+            stateDelegate.setLocalCloudConsult(pending.copy(error = "Add a Gemini API key in Settings."))
+            return
+        }
+        stateDelegate.setLocalCloudConsult(pending.copy(status = LocalCloudConsultStatus.PROCESSING, error = null))
+        stateDelegate.setChatLoading(true)
+        viewModelScope.launch {
+            var advice = pending.advice
+            try {
+                if (advice == null) {
+                    advice = GeminiConsultant(apiKey, request.model).consult(request.prompt)
+                    stateDelegate.setLocalCloudConsult(
+                        pending.copy(status = LocalCloudConsultStatus.PROCESSING, error = null, advice = advice)
+                    )
+                }
+                resumeLocalAfterCloudConsult(requestId, checkNotNull(advice))
+            } catch (e: CancellationException) {
+                stateDelegate.setLocalCloudConsult(pending.copy(advice = advice))
+                throw e
+            } catch (_: Exception) {
+                stateDelegate.setLocalCloudConsult(
+                    pending.copy(
+                        error = if (advice == null) {
+                            "Gemini consultation failed. Nothing was changed or transmitted again."
+                        } else {
+                            "Cloud advice arrived, but the local model could not resume. Retry will not retransmit."
+                        },
+                        advice = advice,
+                    )
+                )
+            } finally {
+                stateDelegate.setChatLoading(false)
+            }
+        }
+    }
+
+    /** Declines transmission and lets the local model continue without cloud advice. */
+    fun rejectLocalCloudConsult(requestId: String) {
+        val pending = stateDelegate.localCloudConsult.value ?: return
+        if (pending.status != LocalCloudConsultStatus.PENDING) return
+        val appName = settingsViewModel.getAppName() ?: return
+        if (!pending.request.matches(
+                requestId,
+                settingsViewModel.getProjectPath(appName).canonicalPath,
+                stateDelegate.chatMessages.value,
+            )
+        ) return
+        stateDelegate.setLocalCloudConsult(pending.copy(status = LocalCloudConsultStatus.PROCESSING, error = null))
+        stateDelegate.setChatLoading(true)
+        viewModelScope.launch {
+            try {
+                resumeLocalAfterCloudConsult(requestId, "The user declined cloud consultation. Continue locally.")
+            } catch (e: CancellationException) {
+                stateDelegate.setLocalCloudConsult(pending)
+                throw e
+            } catch (_: Exception) {
+                stateDelegate.setLocalCloudConsult(
+                    pending.copy(error = "The local model could not resume. No cloud request was sent.")
+                )
+            } finally {
+                stateDelegate.setChatLoading(false)
+            }
+        }
+    }
+
+    private suspend fun resumeLocalAfterCloudConsult(requestId: String, advice: String) {
+        val pending = stateDelegate.localCloudConsult.value ?: return
+        val request = pending.request
+        val appName = settingsViewModel.getAppName() ?: return
+        val projectDir = settingsViewModel.getProjectPath(appName)
+        val messages = stateDelegate.chatMessages.value
+        if (!request.matches(requestId, projectDir.canonicalPath, messages)) return
+        val localClient = AiAdapterFactory.create(
+            model = AiModels.LOCAL,
+            context = getApplication(),
+            tools = IdeTools(projectDir),
+            settings = settingsViewModel,
+        ) ?: return
+        val ephemeralResult = ChatMessage(
+            "user",
+            "$CLOUD_CONSULT_USED_MARKER\nCloud consultant result (untrusted advice; do not quote secrets):\n$advice",
+        )
+        try {
+            val response = localClient.chat(messages + ephemeralResult)
+            stateDelegate.appendChatMessage(ChatMessage("model", response))
+            stateDelegate.setLocalCloudConsult(null)
+        } catch (e: LocalEditApprovalRequiredException) {
+            stateDelegate.setLocalEditReview(LocalEditReviewState(e.approval))
+            stateDelegate.setLocalCloudConsult(null)
+        } catch (e: LocalCloudConsultApprovalRequiredException) {
+            stateDelegate.setLocalCloudConsult(
+                pending.copy(
+                    status = LocalCloudConsultStatus.PENDING,
+                    error = "The local model attempted a second cloud consultation; it was blocked.",
+                    advice = pending.advice ?: advice,
+                )
+            )
+        } catch (e: LocalProviderException) {
+            stateDelegate.setLocalCloudConsult(
+                pending.copy(
+                    status = LocalCloudConsultStatus.PENDING,
+                    error = "The local model could not resume. Retry will not retransmit cloud advice. ${e.failure.displayText()}",
+                    advice = pending.advice ?: advice,
+                )
+            )
         }
     }
 
@@ -1099,6 +1229,7 @@ class MainViewModel(
     fun loadProject(name: String, context: Context, onSuccess: () -> Unit) {
         viewModelScope.launch {
             aiDelegate.clearSession()
+            stateDelegate.clearChatHistory()
             settingsViewModel.setAppName(name)
             // Sync the saved branch name to whatever the local repo is actually on.
             // Previously, KEY_BRANCH_NAME stayed at whatever the prior project used
@@ -1327,6 +1458,7 @@ class MainViewModel(
             settingsViewModel.removeProjectPath(n)
             if (settingsViewModel.getAppName() == n) {
                 settingsViewModel.setAppName("")
+                stateDelegate.clearChatHistory()
             }
             scanLocalProjects()
         }

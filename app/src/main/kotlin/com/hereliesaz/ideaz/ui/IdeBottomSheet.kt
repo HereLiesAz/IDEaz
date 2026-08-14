@@ -54,6 +54,7 @@ fun IdeBottomSheet(
     val chatMessages by viewModel.stateDelegate.chatMessages.collectAsState()
     val chatFailure by viewModel.stateDelegate.chatFailure.collectAsState()
     val localEditReview by viewModel.stateDelegate.localEditReview.collectAsState()
+    val localCloudConsult by viewModel.stateDelegate.localCloudConsult.collectAsState()
     val isChatLoading by viewModel.stateDelegate.isChatLoading.collectAsState()
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
@@ -110,6 +111,7 @@ fun IdeBottomSheet(
                     chatMessages = chatMessages,
                     chatFailure = chatFailure,
                     localEditReview = localEditReview,
+                    localCloudConsult = localCloudConsult,
                     isChatLoading = isChatLoading,
                     onClearLog = { viewModel.clearLog() },
                     onSendPrompt = onSendPrompt,
@@ -157,6 +159,7 @@ private fun ExpandedContent(
     chatMessages: List<com.hereliesaz.ideaz.ai.ChatMessage>,
     chatFailure: com.hereliesaz.ideaz.ai.local.LocalProviderFailure?,
     localEditReview: com.hereliesaz.ideaz.ui.delegates.LocalEditReviewState?,
+    localCloudConsult: com.hereliesaz.ideaz.ui.delegates.LocalCloudConsultState?,
     isChatLoading: Boolean,
     onClearLog: () -> Unit,
     onSendPrompt: (String) -> Unit,
@@ -254,6 +257,7 @@ private fun ExpandedContent(
                 messages = chatMessages,
                 failure = chatFailure,
                 editReview = localEditReview,
+                cloudConsult = localCloudConsult,
                 isLoading = isChatLoading,
                 viewModel = viewModel,
                 modifier = Modifier.weight(1f)

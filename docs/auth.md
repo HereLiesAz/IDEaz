@@ -7,8 +7,8 @@ IDEaz currently operates on a **Bring Your Own Key (BYOK)** model. It does not h
 
 ### Storage Mechanism
 *   **General implementation:** Most legacy keys remain in Android's default `SharedPreferences`; completing their at-rest migration is separate security debt.
-*   **Gated model tokens:** `KEY_HF_API_KEY` is stored as AES-GCM ciphertext in the dedicated `ideaz_secure_credentials` preferences file. Its non-exportable AES key is generated and retained by Android Keystore. The preference key is hashed, so neither the token nor its provider name is stored in plaintext there.
-*   **Migration:** Reading a legacy plaintext Hugging Face token first writes it successfully to the secure store, then removes the default-preferences value. A failed secure write leaves the legacy value intact rather than converting a security migration into a credential shredder.
+*   **Provider credentials:** Gemini (`KEY_GOOGLE_API_KEY`) and gated Hugging Face (`KEY_HF_API_KEY`) credentials are stored as AES-GCM ciphertext in the dedicated `ideaz_secure_credentials` preferences file. Its non-exportable AES key is generated and retained by Android Keystore. Preference keys are hashed, so neither credentials nor provider names are stored in plaintext there.
+*   **Migration:** Reading a legacy plaintext Gemini or Hugging Face credential first writes it successfully to the secure store, then removes the default-preferences value. A failed secure write leaves the legacy value intact rather than converting a security migration into a credential shredder.
 *   **Backup:** Both default credential preferences and the secure ciphertext preferences are excluded from cloud backup and device transfer because restored ciphertext would not have its original Keystore key.
 *   **Explicit export:** User-requested settings export may include the token only inside the `SecurityUtils` payload protected by a password of at least eight characters. Routine logs, WorkManager data, notifications, and automatic backups do not include it.
 

@@ -10,10 +10,11 @@
 * Local-model storage preflight — exact boundary acceptance and one-byte-short rejection.
 * Local-model WorkManager policy — stable unique naming and transient/permanent retry classification; Android integration tests for constraints, progress, cancellation, and restoration remain on the production checklist.
 * Local-model partial reconciliation — catalog-bound identity retention/deletion and strict HTTP `Content-Range` offset/total validation.
-* Gated-model credential storage — default-preference exclusion, legacy migration after successful secure persistence, AES-GCM round trip, and tamper rejection.
+* Provider credential storage — Gemini/Hugging Face default-preference exclusion, legacy migration after successful secure persistence, AES-GCM round trip, and tamper rejection.
 * Local inference resource policy — exact RAM-tier boundaries and prompt truncation that retains protocol instructions, response suffix, and newest transcript content.
 * Structured local failures — retry/fallback metadata, safe presentation, bounded diagnostic eviction, and exclusion of cause messages from retained records.
 * Local recovery policy — current-diagnostic matching, retry eligibility, cloud safety, credential gating, and post-tool fallback denial.
+* Local cloud consultation — local-only schema isolation, exact payload/project/conversation hashing, stale/tampered consent rejection, and strict question/context ceilings.
 * Local tool coordinator — exact six-call exhaustion, structured round-limit signaling, cancellation propagation, and one restoration callback.
 * Model download streaming — chunk-boundary cancellation, retained resumable bytes/progress, exact-size rejection, and URL/size/digest catalog migration.
 * `AiTools` executors (`read_file`, `write_file`, `list_files`, `apply_patch`) — mock filesystem.

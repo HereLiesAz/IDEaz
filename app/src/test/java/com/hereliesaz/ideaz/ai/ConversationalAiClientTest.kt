@@ -10,6 +10,7 @@ import com.hereliesaz.ideaz.ai.local.LocalToolRoundLimitExceeded
 import com.hereliesaz.ideaz.ai.local.boundedLocalPrompt
 import com.hereliesaz.ideaz.ai.local.localInferenceLimits
 import com.hereliesaz.ideaz.ai.local.runBoundedLocalToolLoop
+import com.hereliesaz.ideaz.ai.local.createLocalCloudConsultRequest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
@@ -20,6 +21,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class ConversationalAiClientTest {
@@ -79,6 +81,72 @@ class ConversationalAiClientTest {
         val raw = """{"type":{"nested":true},"arguments":[]}"""
 
         assertEquals(LocalModelReply.PlainText(raw), LocalToolProtocol.parse(raw))
+    }
+
+    @Test
+    fun `local protocol advertises cloud consultation without polluting shared IDE tools`() {
+        assertTrue(LocalToolProtocol.instruction.contains("ask_cloud"))
+        assertFalse(IdeToolSchema.all.any { it.name == "ask_cloud" })
+    }
+
+    @Test
+    fun `cloud consultation consent binds exact payload project and conversation`() {
+        val messages = listOf(ChatMessage("user", "Why is reload broken?"))
+        val request = createLocalCloudConsultRequest(
+            projectPath = "/projects/pwa",
+            messages = messages,
+            question = "Review this service-worker theory",
+            context = "The fetch handler returns a cached shell.",
+        )
+
+        assertTrue(request.matches(request.requestId, "/projects/pwa", messages))
+        assertFalse(request.matches("stale-id", "/projects/pwa", messages))
+        assertFalse(request.matches(request.requestId, "/projects/other", messages))
+        assertFalse(request.matches(request.requestId, "/projects/pwa", messages + ChatMessage("model", "new")))
+        assertFalse(request.matches(request.requestId, "/projects/pwa", listOf(ChatMessage("user", "same count, different text"))))
+        assertFalse(request.copy(prompt = "tampered").matches(request.requestId, "/projects/pwa", messages))
+        assertFalse(request.copy(model = "different-model").matches(request.requestId, "/projects/pwa", messages))
+        assertEquals("Google Gemini", request.provider)
+        assertEquals("gemini-2.0-flash", request.model)
+        val expectedPrompt = """You are a read-only coding consultant. Give concise technical advice.
+You cannot inspect other files, call tools, or change the project.
+Question:
+Review this service-worker theory
+Context explicitly approved by the user:
+The fetch handler returns a cached shell."""
+        assertEquals(expectedPrompt, request.prompt)
+        assertEquals(
+            expectedPrompt.toByteArray(Charsets.UTF_8).size,
+            request.byteCount,
+        )
+    }
+
+    @Test
+    fun `cloud consultation rejects missing and oversized model payloads`() {
+        val messages = listOf(ChatMessage("user", "help"))
+
+        assertThrows(IllegalArgumentException::class.java) {
+            createLocalCloudConsultRequest("/project", messages, "", "context")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            createLocalCloudConsultRequest("/project", messages, "q".repeat(2_001), "")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            createLocalCloudConsultRequest("/project", messages, "question", "c".repeat(6_001))
+        }
+    }
+
+    @Test
+    fun `cloud consent rejects same-size changed attachment content`() {
+        val original = listOf(
+            ChatMessage("user", listOf(ChatPart.Image(byteArrayOf(1, 2, 3), "image/png")))
+        )
+        val changed = listOf(
+            ChatMessage("user", listOf(ChatPart.Image(byteArrayOf(3, 2, 1), "image/png")))
+        )
+        val request = createLocalCloudConsultRequest("/project", original, "question", "context")
+
+        assertFalse(request.matches(request.requestId, "/project", changed))
     }
 
     @Test

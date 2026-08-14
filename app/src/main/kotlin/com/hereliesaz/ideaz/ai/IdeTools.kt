@@ -38,6 +38,9 @@ class IdeTools(private val projectDir: File) {
 
     private val json = Json { ignoreUnknownKeys = true }
 
+    /** Canonical project identity used to bind consent and edit checkpoints. */
+    fun projectPath(): String = projectDir.canonicalPath
+
     /**
      * Resolve [relativePath] against [projectDir], throwing [IllegalArgumentException]
      * if the canonical result would escape the project directory.
