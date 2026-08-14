@@ -9,6 +9,8 @@ Renders immediately — every library is resolved from IDEaz's bundled runtime o
 a single shared React instance. No `npm install` needed. The Data page's fetch
 requires network access on the device.
 
+The root `version.properties` is the release and workflow version source (`major.minor.patch.build`).
+
 ## Run / build locally
 ```sh
 npm install

@@ -1,3 +1,5 @@
+import java.io.FileInputStream
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -7,6 +9,15 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.compose")
 }
+
+val versionProperties = Properties().apply {
+    FileInputStream(rootProject.file("version.properties")).use(::load)
+}
+val versionMajor = versionProperties.getProperty("major").toInt()
+val versionMinor = versionProperties.getProperty("minor").toInt()
+val versionPatch = versionProperties.getProperty("patch").toInt()
+val versionBuild = System.getenv("BUILD_NUMBER")?.toIntOrNull()
+    ?: versionProperties.getProperty("build").toInt()
 
 kotlin {
     // Local preview target. IDEaz compiles commonMain + wasmJsMain to a .wasm
@@ -57,8 +68,8 @@ android {
         applicationId = "com.example.helloworld"
         minSdk = 24
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = versionMajor * 1_000_000 + versionMinor * 10_000 + versionPatch * 100 + versionBuild
+        versionName = "$versionMajor.$versionMinor.$versionPatch.$versionBuild"
     }
 
     compileOptions {
