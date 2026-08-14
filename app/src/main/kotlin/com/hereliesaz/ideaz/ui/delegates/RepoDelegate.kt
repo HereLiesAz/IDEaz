@@ -369,6 +369,7 @@ class RepoDelegate(
             val packageName = settingsViewModel.getTargetPackageName() ?: "com.example.app"
 
             // 1. Generate Files
+            ProjectConfigManager.ensureVersioning(projectDir, type)
             ProjectConfigManager.ensureWorkflow(projectDir, type)
             ProjectConfigManager.ensureSetupScript(projectDir)
             ProjectConfigManager.ensureAgentsSetupMd(projectDir)

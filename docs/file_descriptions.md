@@ -10,14 +10,16 @@
 *   `README.md`: Project overview.
 *   `build.gradle.kts`: Root Gradle build script.
 *   `settings.gradle.kts`: Gradle settings and repository configuration.
-*   `version.properties`: Single Source of Truth for the project version (automatically incremented during build).
+*   `version.properties`: Four-component source of truth for repository versions; generated projects receive the same contract.
 *   `webruntime/`: Dynamic feature module for bundled web runtime assets.
 *   `get_version.sh`: Script to retrieve the version string for CI/CD workflows.
 *   `.gitignore`: Git ignore rules.
+*   `.github/workflows/antigravity-*.yml`: Antigravity CLI dispatch, invocation, review, and issue-triage automation.
 
 ## app/
 *   `build.gradle.kts`: App module build script.
 *   `src/main/AndroidManifest.xml`: Application manifest (Permissions, Activities, Services).
+*   `src/main/assets/templates/android/version.properties`: Four-component version seed consumed by the bundled Android template and its workflow.
 
 ### app/src/main/kotlin/com/hereliesaz/ideaz/
 *   `MainActivity.kt`: The main entry point and UI host.

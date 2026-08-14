@@ -1,4 +1,4 @@
-name: '🔀 Gemini Dispatch'
+name: '🔀 Antigravity Dispatch'
 
 on:
   pull_request_review_comment:
@@ -49,14 +49,14 @@ jobs:
   dispatch:
     # For PRs: only if not from a fork
     # For issues: only on open/reopen
-    # For comments: only if user types @gemini-cli and is OWNER/MEMBER/COLLABORATOR
+    # For comments: only if user types @antigravity-cli and is OWNER/MEMBER/COLLABORATOR
     if: >-
       ${{
-        (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false) ||
-        (github.event_name == 'issues' && contains(fromJSON('["opened", "reopened"]'), github.event.action)) ||
+        (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)) ||
+        (github.event_name == 'issues' && contains(fromJSON('["opened", "reopened"]'), github.event.action) && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association)) ||
         (
           github.event.sender.type == 'User' &&
-          startsWith(github.event.comment.body || github.event.review.body || github.event.issue.body, '@gemini-cli') &&
+          startsWith(github.event.comment.body || github.event.review.body || github.event.issue.body, '@antigravity-cli') &&
           contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association || github.event.review.author_association || github.event.issue.author_association)
         )
       }}
@@ -97,14 +97,14 @@ jobs:
             const request = process.env.REQUEST;
             core.setOutput('request', request);
 
-            if (request.startsWith("@gemini-cli /review")) {
+            if (request.startsWith("@antigravity-cli /review")) {
               core.setOutput('command', 'review');
-              const additionalContext = request.replace(/^@gemini-cli \/review/, '').trim();
+              const additionalContext = request.replace(/^@antigravity-cli \/review/, '').trim();
               core.setOutput('additional_context', additionalContext);
-            } else if (request.startsWith("@gemini-cli /triage")) {
+            } else if (request.startsWith("@antigravity-cli /triage")) {
               core.setOutput('command', 'triage');
-            } else if (request.startsWith("@gemini-cli")) {
-              const additionalContext = request.replace(/^@gemini-cli/, '').trim();
+            } else if (request.startsWith("@antigravity-cli")) {
+              const additionalContext = request.replace(/^@antigravity-cli/, '').trim();
               core.setOutput('command', 'invoke');
               core.setOutput('additional_context', additionalContext);
             } else if (eventType === 'pull_request.opened') {
@@ -112,7 +112,7 @@ jobs:
               core.setOutput('additional_context', 'Assess this pull request. If it looks good, merge it into the target branch. If there are conflicts blocking the merge, resolve them by pushing fixes to the PR branch, and then merge it.');
             } else if (['issues.opened', 'issues.reopened'].includes(eventType)) {
               core.setOutput('command', 'invoke');
-              core.setOutput('additional_context', 'Please address this issue. Analyze the request and take appropriate action using your tools. Commit your solution directly to the master branch.');
+              core.setOutput('additional_context', 'Please address this issue. Analyze the request and take appropriate action using your tools. Open a pull request against the repository default branch; do not assume its name.');
             } else {
               core.setOutput('command', 'fallthrough');
             }
@@ -122,7 +122,7 @@ jobs:
     needs: 'dispatch'
     if: |-
       ${{ needs.dispatch.outputs.command == 'review' }}
-    uses: './.github/workflows/gemini-review.yml'
+    uses: './.github/workflows/antigravity-review.yml'
     permissions:
       contents: 'write'
       id-token: 'write'
@@ -136,7 +136,7 @@ jobs:
     needs: 'dispatch'
     if: |-
       ${{ needs.dispatch.outputs.command == 'triage' }}
-    uses: './.github/workflows/gemini-triage.yml'
+    uses: './.github/workflows/antigravity-triage.yml'
     permissions:
       contents: 'write'
       id-token: 'write'
@@ -150,7 +150,7 @@ jobs:
     needs: 'dispatch'
     if: |-
       ${{ needs.dispatch.outputs.command == 'invoke' }}
-    uses: './.github/workflows/gemini-invoke.yml'
+    uses: './.github/workflows/antigravity-invoke.yml'
     permissions:
       contents: 'write'
       id-token: 'write'
