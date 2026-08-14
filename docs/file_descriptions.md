@@ -15,6 +15,7 @@
 *   `get_version.sh`: Script to retrieve the version string for CI/CD workflows.
 *   `.gitignore`: Git ignore rules.
 *   `.github/workflows/antigravity-*.yml`: Antigravity CLI dispatch, invocation, review, and issue-triage automation.
+*   `.github/workflows/dependency-submission.yml`: Submits the resolved `:app` and `:webruntime` release-runtime dependency graph to GitHub; intentionally excludes test, lint, Gradle, AGP, plugin, and other build-tool configurations from the production SBOM.
 
 ## app/
 *   `build.gradle.kts`: App module build script.
@@ -76,11 +77,12 @@
 
 #### ai/local/
 *   `LocalModelRuntime.kt`: Interface and implementations for on-device backends — AICore + MediaPipe (wired) and llama.cpp/GGUF + ONNX GenAI (reflection-driven `generate()`, active once their library is on the classpath).
+*   `LocalLlmAdapter.kt`: Conversational adapter for the selected local runtime; drives a bounded JSON protocol over the sandboxed IDE tools and falls back to plain chat when a model cannot emit structured output.
 *   `LocalModelCatalog.kt`: Curated list of downloadable on-device models, with per-model RAM/ABI/auth requirements used for filtering.
 *   `DeviceCapabilities.kt`: Reads device RAM (`ActivityManager.MemoryInfo`) and supported CPU ABIs (`Build.SUPPORTED_ABIS`).
 *   `LocalModelAvailability.kt`: Pure, unit-tested logic deciding whether a model is usable on this device/build (backend present, RAM, ABI, token) — drives the Settings list filtering.
 *   `LocalModelStore.kt`: Manages locally stored model files and metadata.
-*   `ModelDownloadManager.kt`: Handles background downloading of model files with auth support.
+*   `ModelDownloadManager.kt`: Downloads model files with authentication and range resume; preflights remaining bytes plus a safety reserve, validates trusted exact sizes/SHA-256 values before atomic activation, and records manifest-bound verification markers.
 
 #### ai/bridge/
 *   `GeminiAppBridgeAdapter.kt`: `ConversationalAiClient` that routes prompts through the user's installed Gemini app — attaches the project as `project.txt` and raises the touch-block scrim, then waits for the scraped reply.

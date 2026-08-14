@@ -7,8 +7,13 @@ package com.hereliesaz.ideaz.ai.local
  * before the download will succeed. URLs are direct download links; the download
  * manager is URL-generic, so this catalog can grow without code changes.
  */
-/** One extra file that belongs to a multi-file model (e.g. an ONNX model dir). */
-data class LocalModelFile(val url: String, val fileName: String)
+/** One file belonging to a downloadable model, including its trusted manifest data. */
+data class LocalModelFile(
+    val url: String,
+    val fileName: String,
+    val expectedSizeBytes: Long? = null,
+    val sha256: String? = null,
+)
 
 data class LocalModel(
     val id: String,
@@ -17,6 +22,10 @@ data class LocalModel(
     val url: String,
     val approxSizeBytes: Long,
     val fileName: String,
+    /** Trusted exact size for the primary file; null until its catalog entry is audited. */
+    val expectedSizeBytes: Long? = null,
+    /** Trusted lowercase/uppercase SHA-256 for the primary file. */
+    val sha256: String? = null,
     val requiresAuth: Boolean = false,
     /** True for runtimes that manage their own model (e.g. AICore): no file download. */
     val systemManaged: Boolean = false,

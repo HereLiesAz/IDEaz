@@ -167,14 +167,14 @@ configurations.all {
         force("androidx.concurrent:concurrent-futures-ktx:1.3.0")
 
         // Security: pin transitive libraries flagged by Dependabot to patched versions.
-        // Only Jackson actually ships in the APK (pulled by google-genai into
-        // releaseRuntimeClasspath); the rest live solely in test / lint-tooling
-        // classpaths — BouncyCastle via Robolectric, commons-lang3 (and BouncyCastle)
-        // via AGP's androidLintTool, Netty via grpc-netty on the unit-test classpath.
-        // They never reach a device, but they stay in the dependency graph, so pin
-        // them everywhere to clear the alerts. (The earlier foojay-resolver removal in
-        // settings.gradle.kts did NOT address these — that plugin was misattributed as
-        // the source; these come from real app dependencies.)
+        // Jackson (via google-genai) and bcprov (GithubSecretBox) ship in the APK.
+        // The remaining copies are limited to test / lint-tooling classpaths:
+        // bcpkix/bcutil via Robolectric or AGP, commons-lang3 via AGP's lint tools,
+        // and Netty via grpc-netty on the unit-test classpath. Pin every occurrence;
+        // the release-runtime-only dependency submission below reports only what can
+        // ship, while local/CI resolution remains hardened on every configuration.
+        // The earlier foojay-resolver removal in settings.gradle.kts did not address
+        // these dependencies because that plugin was never their source.
         force(
             "org.bouncycastle:bcprov-jdk18on:1.85",
             "org.bouncycastle:bcpkix-jdk18on:1.85",

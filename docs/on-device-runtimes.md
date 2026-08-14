@@ -8,6 +8,37 @@ Working today (dependency in the build):
 - **AICore (Gemini Nano)** — `AiCoreRuntime`, system-managed, no download.
 - **MediaPipe LLM Inference** — `MediaPipeRuntime`, wired (`com.google.mediapipe:tasks-genai`).
 
+`LocalLlmAdapter` supplies these text-only runtimes with a bounded six-round JSON
+tool protocol. A local model can request one `read_file`, `write_file`,
+`list_files`, or `apply_patch` operation per round, receives the real sandboxed
+result, and then continues or returns a final response. Invalid/non-JSON output
+falls back to ordinary chat text instead of bricking the conversation. This makes
+capable local models useful in the PWA edit loop without pretending every small
+model will obey structured output flawlessly.
+
+The protocol is intentionally provider-neutral and conservative:
+
+- one tool call per generation;
+- six rounds maximum;
+- paths remain contained by `IdeTools`;
+- unknown tools return an error to the model;
+- tool results are never invented by the adapter.
+
+Downloads now support trusted per-file exact sizes and SHA-256 values. The manager
+verifies staged `.part` files before atomic activation, deletes corrupt staging
+payloads, and stores a manifest-bound verification marker so Settings does not
+rehash multi-gigabyte models during every recomposition. Legacy catalog entries
+without trusted manifest values still work while their immutable revisions,
+licenses, sizes, and hashes are audited; production release remains gated on
+populating both fields for every downloadable file.
+
+Before opening the network, the manager calculates the remaining payload from exact
+per-file sizes when the full manifest provides them, otherwise from the catalog's
+conservative aggregate estimate. Existing final or `.part` bytes reduce the amount
+still required. The download proceeds only when that remainder plus a 256 MiB safety
+reserve fits in the model filesystem; failure is reported through the existing
+per-model Settings error instead of filling the device and letting Android improvise.
+
 **ONNX Runtime GenAI** (`OnnxGenAiRuntime`) and **llama.cpp** (`LlamaCppRuntime`)
 now have their `generate()` **implemented** (against `ai.onnxruntime.genai` and
 `android.llama.cpp.LLamaAndroid` respectively, via reflection so the app compiles

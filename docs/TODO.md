@@ -14,6 +14,32 @@ When Phase 0 completes, this file will point to Phase 1's plan.
 - Close all P0 release blockers in the UX user-flow audit before production release.
 - Execute and retain the device, accessibility, failure-injection, privacy, and store-policy evidence required by the audit.
 - Completed the first P0 mitigation: PWA is the sole selectable production target; other repository types remain detectable but creation, initialization, and unfinished App View mounting are release-gated until their loops are complete.
+- Corrected dependency submission to inventory only release-runtime configurations, preventing CI-only Gradle/AGP/test/lint dependency instances from being conflated with the shipped graph while retaining the pinned runtime Jackson and Bouncy Castle dependencies.
+- Added bounded on-device tool use: local models can now read, list, write, and patch project files through the same sandbox as cloud providers, with strict round limits and plain-text fallback.
+
+## On-device Model Production Coverage
+
+The on-device provider is not production-complete until every unchecked item below has device evidence. A model producing one charming sentence on the maintainer's phone is a demo, not a subsystem.
+
+- [x] Provide a unified runtime registry with hardware/backend availability filtering.
+- [x] Provide download, HTTP-range resume, progress, selection, and deletion controls.
+- [x] Connect the selected local model to `ConversationalAiClient` assignments.
+- [x] Add bounded `read_file`, `write_file`, `list_files`, and `apply_patch` tool use with malformed-output fallback.
+- [x] Implement staged exact-size/SHA-256 verification, corrupt-payload deletion, atomic activation, and manifest-bound verification markers.
+- [ ] Reduce the production catalog to models whose URL, immutable revision, exact files, license, and redistribution terms have been manually verified.
+- [ ] Populate and require an exact byte count and SHA-256 for every downloadable production catalog file.
+- [x] Preflight available storage, including existing partial/final bytes, download staging space, and a 256 MiB safety reserve, before network work begins.
+- [ ] Move downloads to unique WorkManager jobs with network constraints, foreground notification progress, cancellation, retry/backoff, and process-death restoration.
+- [ ] Persist download state and reconcile interrupted `.part` files, server range behavior, catalog changes, and user deletion.
+- [ ] Move gated-provider tokens from plain preferences into the encrypted credential path; redact them from logs and exports unless explicitly requested.
+- [ ] Cache inference engines safely, serialize access per backend, unload on memory pressure/model change, and bound context/output tokens per device tier.
+- [ ] Replace assistant-text `Error:` responses with structured local-provider failures supporting retry, fallback, and retained diagnostics.
+- [ ] Add explicit cloud fallback policy without silently transmitting prompts or source code after a local failure.
+- [ ] Validate tool edits before reload, create an undo checkpoint, and surface changed files for user approval.
+- [ ] Add unit coverage for integrity, resume semantics, storage rejection, cancellation, catalog migration, tool-loop limits, and structured failures.
+- [ ] Add physical-device tests across the supported ARM64/RAM matrix for cold start, tokens/second, peak RSS, thermal throttling, backgrounding, process death, and repeated inference.
+- [ ] Publish the supported-device/model matrix and experimental limitations in Settings and release documentation.
+- [ ] Complete privacy, model-license, and telemetry review; never collect prompts, source, model inputs, or generated output by default.
 
 ## Completed (Triage Phase)
 - Fixed build failure with Kotlin 2.4.10 and AGP 9.3.0 by excluding the incompatible `aznavrail-cmp-wasm-js` variant from the `libs.aznavrail` dependency.
