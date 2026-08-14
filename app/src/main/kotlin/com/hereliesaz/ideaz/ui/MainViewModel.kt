@@ -913,6 +913,16 @@ class MainViewModel(
                 ProjectAnalyzer.detectProjectType(projectDir)
             }
             settingsViewModel.setProjectType(detectedType.name)
+            if (detectedType !in ProjectType.selectable) {
+                stateDelegate.setCurrentWebUrl(null)
+                stateDelegate.setTargetAppVisible(false)
+                logHandler.onOverlayLog(
+                    "${detectedType.displayName} projects are not available in this release. " +
+                        "The project was not modified."
+                )
+                onSuccess()
+                return@launch
+            }
             if (!detectedType.isWebLike()) {
                 withContext(Dispatchers.IO) { ProjectAnalyzer.detectPackageName(projectDir) }
                     ?.let { settingsViewModel.saveTargetPackageName(it) }
@@ -927,8 +937,8 @@ class MainViewModel(
                 aiDelegate.fetchSessionsForRepo("$user/$name")
             }
 
-            // Re-mount: clear any prior preview so launchTargetApp mounts THIS
-            // project, then actually show it (web → live preview, Android → host).
+            // Re-mount only after the release-scope gate above has accepted the
+            // detected project type.
             stateDelegate.setCurrentWebUrl(null)
             launchTargetApp(context)
             onSuccess()

@@ -8,6 +8,22 @@ Working today (dependency in the build):
 - **AICore (Gemini Nano)** — `AiCoreRuntime`, system-managed, no download.
 - **MediaPipe LLM Inference** — `MediaPipeRuntime`, wired (`com.google.mediapipe:tasks-genai`).
 
+`LocalLlmAdapter` supplies these text-only runtimes with a bounded six-round JSON
+tool protocol. A local model can request one `read_file`, `write_file`,
+`list_files`, or `apply_patch` operation per round, receives the real sandboxed
+result, and then continues or returns a final response. Invalid/non-JSON output
+falls back to ordinary chat text instead of bricking the conversation. This makes
+capable local models useful in the PWA edit loop without pretending every small
+model will obey structured output flawlessly.
+
+The protocol is intentionally provider-neutral and conservative:
+
+- one tool call per generation;
+- six rounds maximum;
+- paths remain contained by `IdeTools`;
+- unknown tools return an error to the model;
+- tool results are never invented by the adapter.
+
 **ONNX Runtime GenAI** (`OnnxGenAiRuntime`) and **llama.cpp** (`LlamaCppRuntime`)
 now have their `generate()` **implemented** (against `ai.onnxruntime.genai` and
 `android.llama.cpp.LLamaAndroid` respectively, via reflection so the app compiles

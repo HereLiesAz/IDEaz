@@ -40,7 +40,13 @@ If the failure looks like an IDE-infrastructure bug rather than a user-code bug 
 
 ## 5. Secrets
 
-GitHub Actions workflows that need API keys (e.g., signing keystore, AI provider keys when CI uses them) read from repository secrets. `RepoDelegate.uploadProjectSecrets` is the device-side path that pushes secrets to the repo via the GitHub Actions secrets API. **It is currently a no-op stub** awaiting libsodium re-integration — see [`plans/phase-0-followups.md`](plans/phase-0-followups.md).
+GitHub Actions workflows that need API keys (e.g., signing keystore, AI provider keys when CI uses them) read from repository secrets. `RepoDelegate.uploadProjectSecrets` fetches the repository Actions public key, encrypts each value with the pure-JVM libsodium-compatible `GithubSecretBox`, uploads it through the Actions secrets API, and reports partial failures. See [`plans/phase-0-followups.md`](plans/phase-0-followups.md).
+
+## 5.1 Dependency security inventory
+
+`.github/workflows/dependency-submission.yml` submits only configurations matching `.*[Rr]eleaseRuntimeClasspath`. This covers dependencies packaged into the release APK/AAB in both `:app` and `:webruntime` while excluding unit-test, instrumentation-test, lint, Gradle, AGP, plugin, and other CI-tooling classpaths.
+
+The boundary is deliberate. A production SBOM must describe the production artifact. Submitting every resolvable Gradle configuration previously caused GitHub to conflate build-runner copies of Netty, Apache HttpClient, Commons Lang, Jackson, and Bouncy Castle with the Android runtime graph. Build tooling is handled separately through pinned action/plugin versions and Dependabot updates. Runtime Jackson and Bouncy Castle remain in the submitted graph at the versions pinned by `app/build.gradle.kts`; narrowing submission does not relax resolution on any configuration.
 
 ---
 

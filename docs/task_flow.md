@@ -24,6 +24,8 @@
 
 ## 3. The Android Edit Loop (Phase 2)
 
+**Current release gate:** Android remains detectable so existing project metadata is preserved, but it is not offered for creation or initialization and loading it does not mount App View. The steps below remain the acceptance target for lifting that gate.
+
 1.  **Build target:** Tap "Build" → tagged release build via `release.yml`. `RemoteBuildManager` polls Releases. APK arrives → `PackageInstaller` sideloads → auto-launch.
 2.  **Inspect:** Target app full-screen on the device. IDEaz drops to a `TYPE_APPLICATION_OVERLAY`. User taps the floating IDEaz button → enters select mode.
 3.  **Capture:** `IdeazAccessibilityService` walks the active window's `AccessibilityNodeInfo` tree, captures the tapped node (class, resource ID, text, content description, bounds, parent chain) and a region screenshot.

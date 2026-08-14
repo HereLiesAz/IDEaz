@@ -8,6 +8,15 @@ abandoned-and-now-revived project. It has been superseded.
 
 When Phase 0 completes, this file will point to Phase 1's plan.
 
+**Production-readiness UX audit:** [`ux_userflow_audit.md`](ux_userflow_audit.md)
+
+## Production Readiness
+- Close all P0 release blockers in the UX user-flow audit before production release.
+- Execute and retain the device, accessibility, failure-injection, privacy, and store-policy evidence required by the audit.
+- Completed the first P0 mitigation: PWA is the sole selectable production target; other repository types remain detectable but creation, initialization, and unfinished App View mounting are release-gated until their loops are complete.
+- Corrected dependency submission to inventory only release-runtime configurations, preventing CI-only Gradle/AGP/test/lint dependency instances from being conflated with the shipped graph while retaining the pinned runtime Jackson and Bouncy Castle dependencies.
+- Added bounded on-device tool use: local models can now read, list, write, and patch project files through the same sandbox as cloud providers, with strict round limits and plain-text fallback.
+
 ## Completed (Triage Phase)
 - Fixed build failure with Kotlin 2.4.10 and AGP 9.3.0 by excluding the incompatible `aznavrail-cmp-wasm-js` variant from the `libs.aznavrail` dependency.
 - Fixed build failure in `app/build.gradle.kts` caused by missing `java.util.Properties` and `java.io.FileInputStream` imports.

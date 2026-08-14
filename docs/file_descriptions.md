@@ -15,6 +15,7 @@
 *   `get_version.sh`: Script to retrieve the version string for CI/CD workflows.
 *   `.gitignore`: Git ignore rules.
 *   `.github/workflows/antigravity-*.yml`: Antigravity CLI dispatch, invocation, review, and issue-triage automation.
+*   `.github/workflows/dependency-submission.yml`: Submits the resolved `:app` and `:webruntime` release-runtime dependency graph to GitHub; intentionally excludes test, lint, Gradle, AGP, plugin, and other build-tool configurations from the production SBOM.
 
 ## app/
 *   `build.gradle.kts`: App module build script.
@@ -51,7 +52,7 @@
 
 #### models/
 *   `Project.kt`: Project metadata model.
-*   `ProjectType.kt`: Enum for supported project types (currently `ANDROID`, `WEB`; Phase 1 adds `PWA` detection).
+*   `ProjectType.kt`: Project-type enum and production selection gate. PWA is the sole selectable target; other types remain detectable without being routed into incomplete loops.
 *   `IdeazProjectConfig.kt`: Configuration model.
 *   `ProjectHistory.kt`: History tracking model.
 
@@ -76,6 +77,7 @@
 
 #### ai/local/
 *   `LocalModelRuntime.kt`: Interface and implementations for on-device backends — AICore + MediaPipe (wired) and llama.cpp/GGUF + ONNX GenAI (reflection-driven `generate()`, active once their library is on the classpath).
+*   `LocalLlmAdapter.kt`: Conversational adapter for the selected local runtime; drives a bounded JSON protocol over the sandboxed IDE tools and falls back to plain chat when a model cannot emit structured output.
 *   `LocalModelCatalog.kt`: Curated list of downloadable on-device models, with per-model RAM/ABI/auth requirements used for filtering.
 *   `DeviceCapabilities.kt`: Reads device RAM (`ActivityManager.MemoryInfo`) and supported CPU ABIs (`Build.SUPPORTED_ABIS`).
 *   `LocalModelAvailability.kt`: Pure, unit-tested logic deciding whether a model is usable on this device/build (backend present, RAM, ABI, token) — drives the Settings list filtering.
@@ -92,7 +94,7 @@
 *   `MainViewModel.kt`: Coordinator. Logic delegated to `ui/delegates/`.
 *   `SettingsViewModel.kt`: Manages user preferences.
 *   `MainScreen.kt`: The main Compose screen.
-*   `ProjectScreen.kt`: Project management UI (Setup / Load / Clone tabs).
+*   `ProjectScreen.kt`: Project management UI (Setup / Load / Clone tabs); delegates release-scope enforcement to Setup and `MainViewModel.loadProject`.
 *   `IdeBottomSheet.kt`: Console / chat bottom sheet.
 *   `IdeNavRail.kt`: Navigation component.
 *   `AiModels.kt`: AI model selection.
@@ -158,6 +160,7 @@
 *   `LogcatReader.kt`: System logcat reader.
 
 ## docs/
+*   `ux_userflow_audit.md`: Code-backed inventory and production-readiness assessment of every user-visible flow, with P0/P1/P2 findings, interaction standards, delivery order, and release evidence gates.
 See the index in `AGENTS.md`. The current source-of-truth is `docs/plans/2026-05-01-ideaz-revival-design.md`.
 
 ## website/

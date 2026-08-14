@@ -5,6 +5,7 @@
 ## 1. Where TDD pays off (unit tests)
 
 * `ConversationalAiClient` adapters (Phase 1 `GeminiAdapter`) — mock HTTP.
+* Local-model structured-response parsing — fenced tool calls, final responses, and malformed-output fallback.
 * `AiTools` executors (`read_file`, `write_file`, `list_files`, `apply_patch`) — mock filesystem.
 * `PwaProjectDetector` — fixture projects under `src/test/resources`.
 * `WebViewBridge` message marshaling.
