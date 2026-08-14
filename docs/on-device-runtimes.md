@@ -24,6 +24,14 @@ The protocol is intentionally provider-neutral and conservative:
 - unknown tools return an error to the model;
 - tool results are never invented by the adapter.
 
+Downloads now support trusted per-file exact sizes and SHA-256 values. The manager
+verifies staged `.part` files before atomic activation, deletes corrupt staging
+payloads, and stores a manifest-bound verification marker so Settings does not
+rehash multi-gigabyte models during every recomposition. Legacy catalog entries
+without trusted manifest values still work while their immutable revisions,
+licenses, sizes, and hashes are audited; production release remains gated on
+populating both fields for every downloadable file.
+
 **ONNX Runtime GenAI** (`OnnxGenAiRuntime`) and **llama.cpp** (`LlamaCppRuntime`)
 now have their `generate()` **implemented** (against `ai.onnxruntime.genai` and
 `android.llama.cpp.LLamaAndroid` respectively, via reflection so the app compiles

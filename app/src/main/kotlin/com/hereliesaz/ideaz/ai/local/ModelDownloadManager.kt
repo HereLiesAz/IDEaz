@@ -8,7 +8,48 @@ import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
+
+/**
+ * Verifies [file] against the trusted fields carried by [spec].
+ *
+ * A missing manifest field is skipped so legacy catalog entries remain usable while
+ * they are audited. Production catalog policy requires both fields; that rollout is
+ * tracked separately in `docs/TODO.md` because inventing a checksum would be security
+ * theatre with better typography.
+ */
+internal fun verifyDownloadedFile(file: File, spec: LocalModelFile) {
+    if (!file.isFile || file.length() <= 0L) {
+        throw IOException("Downloaded file is empty or missing: ${spec.fileName}")
+    }
+    spec.expectedSizeBytes?.let { expected ->
+        if (expected <= 0L) throw IOException("Invalid expected size for ${spec.fileName}: $expected")
+        if (file.length() != expected) {
+            throw IOException(
+                "Size mismatch for ${spec.fileName}: expected $expected bytes, got ${file.length()}"
+            )
+        }
+    }
+    spec.sha256?.let { expected ->
+        if (!expected.matches(Regex("[0-9a-fA-F]{64}"))) {
+            throw IOException("Invalid SHA-256 manifest value for ${spec.fileName}")
+        }
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().buffered().use { input ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        val actual = digest.digest().joinToString("") { "%02x".format(it) }
+        if (!actual.equals(expected, ignoreCase = true)) {
+            throw IOException("SHA-256 mismatch for ${spec.fileName}")
+        }
+    }
+}
 
 /**
  * Downloads on-device model files into a per-model directory
@@ -33,10 +74,24 @@ class ModelDownloadManager(
     fun fileFor(model: LocalModel): File = File(modelDir(model), model.fileName)
 
     private fun filesOf(model: LocalModel): List<LocalModelFile> =
-        listOf(LocalModelFile(model.url, model.fileName)) + model.additionalFiles
+        listOf(
+            LocalModelFile(
+                url = model.url,
+                fileName = model.fileName,
+                expectedSizeBytes = model.expectedSizeBytes,
+                sha256 = model.sha256,
+            )
+        ) + model.additionalFiles
 
     fun isDownloaded(model: LocalModel): Boolean = model.systemManaged ||
-        filesOf(model).all { File(modelDir(model), it.fileName).let { f -> f.isFile && f.length() > 0 } }
+        filesOf(model).all { spec ->
+            val file = File(modelDir(model), spec.fileName)
+            if (!file.isFile || file.length() <= 0L) return@all false
+            if (spec.expectedSizeBytes == null && spec.sha256 == null) return@all true
+            val marker = File(modelDir(model), spec.fileName + ".verified")
+            marker.isFile && runCatching { marker.readText() }.getOrNull() ==
+                verificationMarker(spec, file.length())
+        }
 
     fun delete(model: LocalModel): Boolean = !model.systemManaged && modelDir(model).deleteRecursively()
 
@@ -58,9 +113,15 @@ class ModelDownloadManager(
         for (f in filesOf(model)) {
             val target = File(mdir, f.fileName)
             if (target.isFile && target.length() > 0) {
-                cumulative += target.length()
-                onProgress(cumulative, approxTotal)
-                continue
+                val valid = runCatching { verifyDownloadedFile(target, f) }.isSuccess
+                if (valid) {
+                    writeVerificationMarker(f, target)
+                    cumulative += target.length()
+                    onProgress(cumulative, approxTotal)
+                    continue
+                }
+                target.delete()
+                File(mdir, f.fileName + ".verified").delete()
             }
             val base = cumulative
             downloadOne(f, mdir, authToken) { soFar -> onProgress(base + soFar, approxTotal) }
@@ -107,7 +168,23 @@ class ModelDownloadManager(
             }
         }
 
+        try {
+            verifyDownloadedFile(part, f)
+        } catch (e: IOException) {
+            part.delete()
+            throw e
+        }
         if (target.exists()) target.delete()
         if (!part.renameTo(target)) throw IOException("Could not finalize ${f.fileName}")
+        writeVerificationMarker(f, target)
     }
+
+    private fun writeVerificationMarker(spec: LocalModelFile, file: File) {
+        if (spec.expectedSizeBytes == null && spec.sha256 == null) return
+        File(file.parentFile, file.name + ".verified")
+            .writeText(verificationMarker(spec, file.length()))
+    }
+
+    private fun verificationMarker(spec: LocalModelFile, actualSize: Long): String =
+        "size=$actualSize;expected=${spec.expectedSizeBytes ?: ""};sha256=${spec.sha256?.lowercase() ?: ""}"
 }

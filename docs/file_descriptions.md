@@ -82,7 +82,7 @@
 *   `DeviceCapabilities.kt`: Reads device RAM (`ActivityManager.MemoryInfo`) and supported CPU ABIs (`Build.SUPPORTED_ABIS`).
 *   `LocalModelAvailability.kt`: Pure, unit-tested logic deciding whether a model is usable on this device/build (backend present, RAM, ABI, token) — drives the Settings list filtering.
 *   `LocalModelStore.kt`: Manages locally stored model files and metadata.
-*   `ModelDownloadManager.kt`: Handles background downloading of model files with auth support.
+*   `ModelDownloadManager.kt`: Downloads model files with authentication and range resume; validates trusted exact sizes/SHA-256 values before atomic activation and records manifest-bound verification markers.
 
 #### ai/bridge/
 *   `GeminiAppBridgeAdapter.kt`: `ConversationalAiClient` that routes prompts through the user's installed Gemini app — attaches the project as `project.txt` and raises the touch-block scrim, then waits for the scraped reply.
