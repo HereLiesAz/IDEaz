@@ -2,8 +2,12 @@ package com.hereliesaz.ideaz.ai.local
 
 import com.hereliesaz.ideaz.ai.local.LocalModelAvailability.Status
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
 import org.junit.Test
+import java.io.IOException
+import java.nio.file.Files
 
 class LocalModelAvailabilityTest {
 
@@ -76,5 +80,90 @@ class LocalModelAvailabilityTest {
     fun `unknown abis (empty) skips the abi check`() {
         val s = LocalModelAvailability.evaluate(gguf(abi = "arm64-v8a"), true, "llama.cpp", 8_000_000_000, emptySet(), false)
         assertEquals(Status.Usable, s)
+    }
+
+    @Test
+    fun `download verifier accepts independently hashed payload`() {
+        val payload = "verified model bytes".toByteArray()
+        val file = Files.createTempFile("ideaz-model", ".bin").toFile().apply {
+            writeBytes(payload)
+            deleteOnExit()
+        }
+        // Calculated independently with: printf 'verified model bytes' | sha256sum
+        val expectedHash = "03cfa25d83f5eaa1faac98ed6ceaaf0e7afe3c273a1e1502c2714ebe10b8263e"
+
+        verifyDownloadedFile(
+            file,
+            LocalModelFile(
+                url = "https://example.invalid/model",
+                fileName = file.name,
+                expectedSizeBytes = payload.size.toLong(),
+                sha256 = expectedHash,
+            ),
+        )
+    }
+
+    @Test
+    fun `download verifier rejects wrong digest and removes no evidence`() {
+        val file = Files.createTempFile("ideaz-model", ".bin").toFile().apply {
+            writeText("payload supplied by test")
+            deleteOnExit()
+        }
+        val wrongHash = "00".repeat(32)
+
+        val error = assertThrows(IOException::class.java) {
+            verifyDownloadedFile(
+                file,
+                LocalModelFile(
+                    url = "https://example.invalid/model",
+                    fileName = file.name,
+                    expectedSizeBytes = file.length(),
+                    sha256 = wrongHash,
+                ),
+            )
+        }
+
+        assertTrue(error.message.orEmpty().contains("SHA-256 mismatch"))
+        assertTrue(file.exists())
+    }
+
+    @Test
+    fun `download storage preflight accepts payload plus reserve`() {
+        requireDownloadStorage(
+            availableBytes = 1_024L,
+            remainingDownloadBytes = 700L,
+            reserveBytes = 300L,
+        )
+    }
+
+    @Test
+    fun `download storage preflight rejects one byte short`() {
+        val error = assertThrows(IOException::class.java) {
+            requireDownloadStorage(
+                availableBytes = 999L,
+                remainingDownloadBytes = 700L,
+                reserveBytes = 300L,
+            )
+        }
+
+        assertTrue(error.message.orEmpty().contains("need 1000 bytes"))
+        assertTrue(error.message.orEmpty().contains("999 bytes available"))
+    }
+
+    @Test
+    fun `download worker retry policy separates transient and permanent failures`() {
+        assertTrue(isRetryableModelDownloadFailure("timeout while reading response"))
+        assertTrue(isRetryableModelDownloadFailure("Download failed for model: HTTP 503"))
+        assertFalse(isRetryableModelDownloadFailure("Download failed for model: HTTP 404"))
+        assertFalse(isRetryableModelDownloadFailure("SHA-256 mismatch for model.task"))
+        assertFalse(isRetryableModelDownloadFailure("Not enough storage for model download"))
+    }
+
+    @Test
+    fun `download worker uses stable unique name per model`() {
+        assertEquals(
+            "local-model-download:gemma-test",
+            LocalModelDownloadWorker.uniqueWorkName("gemma-test"),
+        )
     }
 }

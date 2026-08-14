@@ -18,11 +18,15 @@ enum class ProjectType(val displayName: String) {
 
     companion object {
         /**
-         * The project types a user can actually create or select. OTHER and
-         * UNKNOWN are internal-only sentinels (an unsupported or not-yet-detected
-         * folder) and are never offered as a choice in the UI.
+         * Project types that have a complete, production-usable edit loop.
+         *
+         * Other types remain recognized so existing repositories can be detected
+         * without corrupting their metadata. They are deliberately not selectable
+         * until their target loops work end to end. Offering a project type whose
+         * App View ends in a placeholder is not a feature; it is a trap with
+         * branding.
          */
-        val selectable: List<ProjectType> = listOf(ANDROID, WEB, PWA, REACT)
+        val selectable: List<ProjectType> = listOf(PWA)
 
         fun fromString(value: String?): ProjectType {
             return values().find { it.name == value } ?: UNKNOWN

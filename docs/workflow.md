@@ -33,6 +33,7 @@ The on-device toolchain (`aapt2`, `d8`, `kotlinc`, Maven Aether) was removed in 
 | Phase | Provider | Adapter | Style |
 |---|---|---|---|
 | 1 (default) | Gemini | `GeminiAdapter` (`ConversationalAiClient`) | Chat with tool-use (`read_file`, `write_file`, `list_files`, `apply_patch`); writes directly to working tree; user commits manually |
+| 1 (optional) | On-device model | `LocalLlmAdapter` (`ConversationalAiClient`) | Bounded JSON tool loop over the same four sandboxed project tools; malformed structured output degrades to text chat |
 | 2 | Jules | `JulesAdapter` (`AgenticAiClient`) | PR-based; auto-merge (configurable); rebuild on merge |
 | 3+ | Claude / OpenAI | new adapters | Same `ConversationalAiClient` interface |
 
@@ -54,6 +55,8 @@ The IDEaz project's own CI (`.github/workflows/`) builds the app on every push:
 *   **Assemble debug:** `./gradlew :app:assembleDebug`.
 
 Release artifacts ship via tagged builds.
+
+The dependency-submission workflow publishes the resolved release-runtime graph for `:app` and `:webruntime`. It does not submit test, lint, Gradle, AGP, or plugin configurations as application dependencies. Those tools run only in CI and are maintained through pinned workflow/plugin versions and Dependabot; the submitted graph is the production APK/AAB software bill of materials.
 
 ## 6. Repository Automation
 

@@ -34,6 +34,7 @@ kotlinxCoroutinesTest = "1.11.0"
 json = "20260719"
 appcompat = "1.7.1"
 webkit = "1.16.0"
+workRuntime = "2.11.0"
 aicore = "0.0.1-exp02"
 mediapipeGenai = "0.10.35"
 
@@ -46,6 +47,7 @@ apacheHttpclient = "4.5.14"
 [libraries]
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 androidx-webkit = { group = "androidx.webkit", name = "webkit", version.ref = "webkit" }
+androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "workRuntime" }
 org-json = { module = "org.json:json", version.ref = "json" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 sora-editor = { module = "io.github.Rosemoe.sora-editor:editor", version.ref = "soraEditor" }

@@ -37,4 +37,15 @@ class ProjectTypeTemplateTest {
     fun fromString_roundTripsReact() {
         assertEquals(ProjectType.REACT, ProjectType.fromString("REACT"))
     }
+
+    @Test
+    fun selectable_excludesIncompleteAndInternalProjectTypes() {
+        assertEquals(
+            listOf(ProjectType.PWA),
+            ProjectType.selectable,
+        )
+        assertFalse(ProjectType.selectable.contains(ProjectType.ANDROID))
+        assertFalse(ProjectType.selectable.contains(ProjectType.WEB))
+        assertFalse(ProjectType.selectable.contains(ProjectType.REACT))
+    }
 }
