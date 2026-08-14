@@ -28,7 +28,7 @@ The on-device provider is not production-complete until every unchecked item bel
 - [x] Implement staged exact-size/SHA-256 verification, corrupt-payload deletion, atomic activation, and manifest-bound verification markers.
 - [ ] Reduce the production catalog to models whose URL, immutable revision, exact files, license, and redistribution terms have been manually verified.
 - [ ] Populate and require an exact byte count and SHA-256 for every downloadable production catalog file.
-- [ ] Preflight available storage, including download staging space and a safety reserve, before network work begins.
+- [x] Preflight available storage, including existing partial/final bytes, download staging space, and a 256 MiB safety reserve, before network work begins.
 - [ ] Move downloads to unique WorkManager jobs with network constraints, foreground notification progress, cancellation, retry/backoff, and process-death restoration.
 - [ ] Persist download state and reconcile interrupted `.part` files, server range behavior, catalog changes, and user deletion.
 - [ ] Move gated-provider tokens from plain preferences into the encrypted credential path; redact them from logs and exports unless explicitly requested.

@@ -32,6 +32,13 @@ without trusted manifest values still work while their immutable revisions,
 licenses, sizes, and hashes are audited; production release remains gated on
 populating both fields for every downloadable file.
 
+Before opening the network, the manager calculates the remaining payload from exact
+per-file sizes when the full manifest provides them, otherwise from the catalog's
+conservative aggregate estimate. Existing final or `.part` bytes reduce the amount
+still required. The download proceeds only when that remainder plus a 256 MiB safety
+reserve fits in the model filesystem; failure is reported through the existing
+per-model Settings error instead of filling the device and letting Android improvise.
+
 **ONNX Runtime GenAI** (`OnnxGenAiRuntime`) and **llama.cpp** (`LlamaCppRuntime`)
 now have their `generate()` **implemented** (against `ai.onnxruntime.genai` and
 `android.llama.cpp.LLamaAndroid` respectively, via reflection so the app compiles

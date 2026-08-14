@@ -11,6 +11,35 @@ import java.io.IOException
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
+private const val DOWNLOAD_STORAGE_RESERVE_BYTES = 256L * 1024L * 1024L
+
+/**
+ * Rejects a model download unless [availableBytes] can hold the remaining payload
+ * plus a fixed safety reserve for app data, filesystem bookkeeping, and the user's
+ * continued ability to use their phone. Saturating arithmetic prevents a corrupt
+ * catalog size from wrapping the requirement negative.
+ */
+internal fun requireDownloadStorage(
+    availableBytes: Long,
+    remainingDownloadBytes: Long,
+    reserveBytes: Long = DOWNLOAD_STORAGE_RESERVE_BYTES,
+) {
+    if (availableBytes < 0L || remainingDownloadBytes < 0L || reserveBytes < 0L) {
+        throw IOException("Invalid storage calculation for model download")
+    }
+    val required = if (remainingDownloadBytes > Long.MAX_VALUE - reserveBytes) {
+        Long.MAX_VALUE
+    } else {
+        remainingDownloadBytes + reserveBytes
+    }
+    if (availableBytes < required) {
+        throw IOException(
+            "Not enough storage for model download: need $required bytes including reserve, " +
+                "only $availableBytes bytes available"
+        )
+    }
+}
+
 /**
  * Verifies [file] against the trusted fields carried by [spec].
  *
@@ -107,6 +136,7 @@ class ModelDownloadManager(
         onProgress: (downloaded: Long, total: Long) -> Unit = { _, _ -> },
     ): File = withContext(Dispatchers.IO) {
         val mdir = modelDir(model).apply { mkdirs() }
+        preflightStorage(model, mdir)
         val approxTotal = if (model.approxSizeBytes > 0) model.approxSizeBytes else -1L
         var cumulative = 0L
 
@@ -128,6 +158,40 @@ class ModelDownloadManager(
             cumulative += target.length()
         }
         fileFor(model)
+    }
+
+    /**
+     * Calculates bytes still needed on this filesystem. Exact per-file manifest
+     * sizes win when every file has one; otherwise the catalog's conservative total
+     * estimate is used. Existing final and partial bytes reduce the requirement
+     * because activation is a same-filesystem rename, not a second full copy.
+     */
+    private fun preflightStorage(model: LocalModel, mdir: File) {
+        val specs = filesOf(model)
+        val manifestTotal = specs
+            .takeIf { entries -> entries.all { it.expectedSizeBytes != null } }
+            ?.fold(0L) { total, spec ->
+                val size = spec.expectedSizeBytes!!
+                if (size < 0L || total > Long.MAX_VALUE - size) Long.MAX_VALUE else total + size
+            }
+        val total = manifestTotal ?: model.approxSizeBytes
+        if (total <= 0L) {
+            throw IOException("Model catalog has no usable size estimate for ${model.name}")
+        }
+        val existing = specs.fold(0L) { accumulated, spec ->
+            val target = File(mdir, spec.fileName)
+            val part = File(mdir, spec.fileName + ".part")
+            val size = when {
+                target.isFile -> target.length()
+                part.isFile -> part.length()
+                else -> 0L
+            }
+            if (accumulated > Long.MAX_VALUE - size) Long.MAX_VALUE else accumulated + size
+        }.coerceAtMost(total)
+        requireDownloadStorage(
+            availableBytes = root.usableSpace,
+            remainingDownloadBytes = (total - existing).coerceAtLeast(0L),
+        )
     }
 
     private fun downloadOne(

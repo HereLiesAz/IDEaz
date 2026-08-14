@@ -125,4 +125,27 @@ class LocalModelAvailabilityTest {
         assertTrue(error.message.orEmpty().contains("SHA-256 mismatch"))
         assertTrue(file.exists())
     }
+
+    @Test
+    fun `download storage preflight accepts payload plus reserve`() {
+        requireDownloadStorage(
+            availableBytes = 1_024L,
+            remainingDownloadBytes = 700L,
+            reserveBytes = 300L,
+        )
+    }
+
+    @Test
+    fun `download storage preflight rejects one byte short`() {
+        val error = assertThrows(IOException::class.java) {
+            requireDownloadStorage(
+                availableBytes = 999L,
+                remainingDownloadBytes = 700L,
+                reserveBytes = 300L,
+            )
+        }
+
+        assertTrue(error.message.orEmpty().contains("need 1000 bytes"))
+        assertTrue(error.message.orEmpty().contains("999 bytes available"))
+    }
 }
