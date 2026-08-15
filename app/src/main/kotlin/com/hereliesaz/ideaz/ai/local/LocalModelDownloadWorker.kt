@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.ai.local
 
+import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
@@ -50,7 +51,7 @@ class LocalModelDownloadWorker(
         if (model.systemManaged) return failure("System-managed models are not downloadable")
 
         setForeground(foregroundInfo(model.name, downloaded = 0L, total = model.approxSizeBytes))
-        val settings = SettingsViewModel(applicationContext)
+        val settings = SettingsViewModel(applicationContext as Application)
         val token = settings.getApiKey(SettingsViewModel.KEY_HF_API_KEY)?.takeIf { it.isNotBlank() }
 
         return try {

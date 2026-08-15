@@ -1098,7 +1098,7 @@ fun PasswordDialog(
                 },
                 hint = "Enter Password",
                 secret = true,
-                onSubmit = submit,
+                onSubmit = { submit() },
             )
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         },
