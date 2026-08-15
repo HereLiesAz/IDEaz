@@ -6,6 +6,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.test.runTest
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.nio.file.Files
 
@@ -128,6 +132,57 @@ class LocalModelAvailabilityTest {
     }
 
     @Test
+    fun `download verifier rejects wrong exact size`() {
+        val file = Files.createTempFile("ideaz-model-size", ".bin").toFile().apply {
+            writeBytes(byteArrayOf(1, 2, 3))
+            deleteOnExit()
+        }
+
+        val error = assertThrows(IOException::class.java) {
+            verifyDownloadedFile(
+                file,
+                LocalModelFile(
+                    url = "https://example.invalid/model",
+                    fileName = file.name,
+                    expectedSizeBytes = 4L,
+                ),
+            )
+        }
+
+        assertTrue(error.message.orEmpty().contains("expected 4 bytes, got 3"))
+    }
+
+    @Test
+    fun `download copy cancellation stops after completed chunk and preserves progress`() = runTest {
+        val payload = ByteArray(128 * 1024) { 7 }
+        val output = ByteArrayOutputStream()
+        val progress = mutableListOf<Long>()
+        var checks = 0
+
+        val cancelled = try {
+            copyDownloadBytes(
+                input = ByteArrayInputStream(payload),
+                output = output,
+                initialBytes = 0L,
+                expectedSizeBytes = payload.size.toLong(),
+                fileName = "model.bin",
+                onBytes = progress::add,
+                ensureNotCancelled = {
+                    checks++
+                    if (checks == 2) throw CancellationException("cancelled by test")
+                },
+            )
+            false
+        } catch (_: CancellationException) {
+            true
+        }
+
+        assertTrue(cancelled)
+        assertEquals(64 * 1024, output.size())
+        assertEquals(listOf(64L * 1024L), progress)
+    }
+
+    @Test
     fun `download storage preflight accepts payload plus reserve`() {
         requireDownloadStorage(
             availableBytes = 1_024L,
@@ -165,5 +220,86 @@ class LocalModelAvailabilityTest {
             "local-model-download:gemma-test",
             LocalModelDownloadWorker.uniqueWorkName("gemma-test"),
         )
+    }
+
+    @Test
+    fun `partial download survives only with matching catalog identity`() {
+        val directory = Files.createTempDirectory("ideaz-partial").toFile().apply { deleteOnExit() }
+        val part = directory.resolve("model.gguf.part").apply { writeText("partial bytes") }
+        val metadata = directory.resolve("model.gguf.part.meta")
+        val spec = LocalModelFile(
+            url = "https://models.example/v1/model.gguf",
+            fileName = "model.gguf",
+            expectedSizeBytes = 1_000L,
+            sha256 = "ab".repeat(32),
+        )
+        // Independently calculated with Python hashlib over the NUL-delimited manifest fields.
+        metadata.writeText("8fd402aac9c33d82d0b3ca18cb35987cacf5bb4c46113da98f809e1feefd20eb")
+
+        assertEquals(part.length(), reconcilePartialDownload(part, metadata, spec))
+        assertTrue(part.exists())
+    }
+
+    @Test
+    fun `catalog change deletes stale partial download`() {
+        val directory = Files.createTempDirectory("ideaz-stale-partial").toFile().apply { deleteOnExit() }
+        val part = directory.resolve("model.gguf.part").apply { writeText("old model bytes") }
+        val metadata = directory.resolve("model.gguf.part.meta")
+        val oldSpec = LocalModelFile("https://models.example/v1/model.gguf", "model.gguf")
+        val newSpec = oldSpec.copy(url = "https://models.example/v2/model.gguf")
+        // Independently calculated with Python hashlib over the NUL-delimited old manifest fields.
+        metadata.writeText("731ff952ebb5253b3f0f8e92ee89840845ad3e183e3b379b9c739379e93bd2aa")
+
+        assertEquals(0L, reconcilePartialDownload(part, metadata, newSpec))
+        assertFalse(part.exists())
+        assertFalse(metadata.exists())
+    }
+
+    @Test
+    fun `catalog size or digest migration deletes stale partial download`() {
+        val directory = Files.createTempDirectory("ideaz-manifest-migration").toFile().apply { deleteOnExit() }
+        val part = directory.resolve("model.gguf.part").apply { writeText("old model bytes") }
+        val metadata = directory.resolve("model.gguf.part.meta")
+        val oldSpec = LocalModelFile(
+            url = "https://models.example/model.gguf",
+            fileName = "model.gguf",
+            expectedSizeBytes = 100L,
+            sha256 = "aa".repeat(32),
+        )
+        val migratedSpec = oldSpec.copy(
+            expectedSizeBytes = 101L,
+            sha256 = "bb".repeat(32),
+        )
+        // Calculated independently with Python hashlib over the old NUL-delimited manifest fields.
+        metadata.writeText("49b14553eebbec8e3cb920956558fc34a439ceaaf7fceffced55f450b97719db")
+
+        assertEquals(0L, reconcilePartialDownload(part, metadata, migratedSpec))
+        assertFalse(part.exists())
+        assertFalse(metadata.exists())
+    }
+
+    @Test
+    fun `oversized partial download is discarded`() {
+        val directory = Files.createTempDirectory("ideaz-oversized-partial").toFile().apply { deleteOnExit() }
+        val part = directory.resolve("model.gguf.part").apply { writeText("too many bytes") }
+        val metadata = directory.resolve("model.gguf.part.meta")
+        val spec = LocalModelFile(
+            url = "https://models.example/v1/model.gguf",
+            fileName = "model.gguf",
+            expectedSizeBytes = 4L,
+        )
+        metadata.writeText("00".repeat(32))
+
+        assertEquals(0L, reconcilePartialDownload(part, metadata, spec))
+        assertFalse(part.exists())
+        assertFalse(metadata.exists())
+    }
+
+    @Test
+    fun `content range validation rejects wrong offsets and totals`() {
+        assertTrue(contentRangeMatches("bytes 400-999/1000", 400L, 1_000L))
+        assertFalse(contentRangeMatches("bytes 0-999/1000", 400L, 1_000L))
+        assertFalse(contentRangeMatches("bytes 400-999/1200", 400L, 1_000L))
+        assertFalse(contentRangeMatches("bytes */1000", 400L, 1_000L))
     }
 }

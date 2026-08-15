@@ -93,4 +93,192 @@ class IdeToolsTest {
         val result = tools.applyPatch("this is not a valid patch")
         assertTrue("Expected error prefix, got: $result", result.startsWith("Error:"))
     }
+
+    // --- edit review checkpoints ---
+
+    @Test
+    fun `reviewEdits lists changed files and rejects invalid JSON`() {
+        tempFolder.newFile("manifest.json").writeText("{\"name\":\"before\"}")
+        val checkpoint = tools.createEditCheckpoint("before AI edit")
+        tools.captureEditTargets(checkpoint, listOf("manifest.json", "new.css"))
+
+        tools.writeFile("manifest.json", "{broken")
+        tools.writeFile("new.css", "body { color: blue; }")
+
+        val review = tools.reviewEdits(checkpoint)
+        assertEquals(listOf("manifest.json", "new.css"), review.changedFiles)
+        assertEquals(listOf("manifest.json contains invalid JSON"), review.validationErrors)
+        tools.discardEditCheckpoint(checkpoint)
+    }
+
+    @Test
+    fun `restoreEditCheckpoint preserves pre-edit work and removes AI files`() {
+        tempFolder.newFile("index.html").writeText("<h1>user draft</h1>")
+        val checkpoint = tools.createEditCheckpoint("before AI edit")
+        tools.captureEditTargets(checkpoint, listOf("index.html", "generated.js"))
+
+        tools.writeFile("index.html", "<h1>AI rewrite</h1>")
+        tools.writeFile("generated.js", "alert('generated')")
+        tools.restoreEditCheckpoint(checkpoint)
+
+        assertEquals("<h1>user draft</h1>", tempFolder.root.resolve("index.html").readText())
+        assertFalse(tempFolder.root.resolve("generated.js").exists())
+        assertFalse(File(checkpoint.snapshotPath).exists())
+    }
+
+    @Test
+    fun `review fingerprint changes when reviewed content changes`() {
+        tempFolder.newFile("index.html").writeText("before")
+        val checkpoint = tools.createEditCheckpoint("before AI edit")
+        tools.captureEditTargets(checkpoint, listOf("index.html"))
+        tools.writeFile("index.html", "AI draft")
+        val reviewed = tools.reviewEdits(checkpoint)
+
+        tools.writeFile("index.html", "user changed after review")
+        val drifted = tools.reviewEdits(checkpoint)
+
+        assertEquals(reviewed.changedFiles, drifted.changedFiles)
+        assertNotEquals(reviewed.contentFingerprint, drifted.contentFingerprint)
+        tools.discardEditCheckpoint(checkpoint)
+    }
+
+    @Test
+    fun `restore refuses to erase content changed after review`() {
+        tempFolder.newFile("index.html").writeText("before")
+        val checkpoint = tools.createEditCheckpoint("before AI edit")
+        tools.captureEditTargets(checkpoint, listOf("index.html"))
+        tools.writeFile("index.html", "AI draft")
+        val reviewed = tools.reviewEdits(checkpoint)
+
+        tools.writeFile("index.html", "user changed after review")
+        assertThrows(IllegalStateException::class.java) {
+            tools.restoreEditCheckpoint(checkpoint, reviewed.contentFingerprint)
+        }
+        assertEquals("user changed after review", tempFolder.root.resolve("index.html").readText())
+        tools.discardEditCheckpoint(checkpoint)
+    }
+
+    @Test
+    fun `captureToolEdit snapshots every apply patch target`() {
+        tempFolder.newFile("a.css").writeText("a")
+        val checkpoint = tools.createEditCheckpoint("before AI edit")
+        tools.captureToolEdit(
+            checkpoint,
+            "apply_patch",
+            mapOf(
+                "patch" to "--- a/a.css\n+++ b/a.css\n@@ -1 +1 @@\n-a\n+b\n" +
+                    "--- /dev/null\n+++ b/new.js\n@@ -0,0 +1 @@\n+new\n"
+            ),
+        )
+        tools.writeFile("a.css", "b")
+        tools.writeFile("new.js", "new")
+
+        assertEquals(listOf("a.css", "new.js"), tools.reviewEdits(checkpoint).changedFiles)
+        tools.discardEditCheckpoint(checkpoint)
+    }
+
+    @Test
+    fun `captureToolEdit restores a file deleted by patch`() {
+        tempFolder.newFile("obsolete.js").writeText("old")
+        val checkpoint = tools.createEditCheckpoint("before AI edit")
+        tools.captureToolEdit(
+            checkpoint,
+            "apply_patch",
+            mapOf("patch" to "--- a/obsolete.js\n+++ /dev/null\n@@ -1 +0,0 @@\n-old\n"),
+        )
+        tempFolder.root.resolve("obsolete.js").delete()
+        val reviewed = tools.reviewEdits(checkpoint)
+
+        tools.restoreEditCheckpoint(checkpoint, reviewed.contentFingerprint)
+
+        assertEquals("old", tempFolder.root.resolve("obsolete.js").readText())
+    }
+
+    @Test
+    fun `startup reconciliation recovers a completed write for explicit review`() {
+        tempFolder.newFile("index.html").writeText("before")
+        val checkpoint = tools.createEditCheckpoint("before AI edit")
+        tools.captureEditTargets(checkpoint, listOf("index.html"))
+        tools.markEditMutationStarted(checkpoint)
+        tools.writeFile("index.html", "interrupted AI edit")
+        tools.updateEditCheckpointFingerprint(
+            checkpoint,
+            tools.reviewEdits(checkpoint).contentFingerprint,
+        )
+        tools.markEditAwaitingReview(checkpoint)
+
+        val recovered = IdeTools(tempFolder.root).reconcileEditCheckpoints()
+        assertEquals(1, recovered.size)
+        assertTrue(recovered.single().rollbackAllowed)
+        assertEquals("interrupted AI edit", tempFolder.root.resolve("index.html").readText())
+        tools.restoreEditCheckpoint(checkpoint, recovered.single().contentFingerprint)
+        assertEquals("before", tempFolder.root.resolve("index.html").readText())
+        assertFalse(File(checkpoint.snapshotPath).exists())
+    }
+
+    @Test
+    fun `startup reconciliation preserves an approved edit`() {
+        tempFolder.newFile("index.html").writeText("before")
+        val checkpoint = tools.createEditCheckpoint("before AI edit")
+        tools.captureEditTargets(checkpoint, listOf("index.html"))
+        tools.writeFile("index.html", "approved AI edit")
+        tools.markEditCheckpointApproved(checkpoint)
+
+        assertTrue(IdeTools(tempFolder.root).reconcileEditCheckpoints().isEmpty())
+        assertEquals("approved AI edit", tempFolder.root.resolve("index.html").readText())
+        tools.discardEditCheckpoint(checkpoint)
+    }
+
+    @Test
+    fun `startup reconciliation never rolls back an ambiguous interrupted write`() {
+        tempFolder.newFile("index.html").writeText("before")
+        val checkpoint = tools.createEditCheckpoint("before AI edit")
+        tools.captureEditTargets(checkpoint, listOf("index.html"))
+        tools.updateEditCheckpointFingerprint(
+            checkpoint,
+            tools.reviewEdits(checkpoint).contentFingerprint,
+        )
+        tools.markEditMutationStarted(checkpoint)
+        tools.writeFile("index.html", "uncertain bytes")
+
+        val recovered = IdeTools(tempFolder.root).reconcileEditCheckpoints().single()
+
+        assertFalse(recovered.rollbackAllowed)
+        assertEquals("uncertain bytes", tempFolder.root.resolve("index.html").readText())
+        tools.discardEditCheckpoint(checkpoint)
+    }
+
+    @Test
+    fun `startup reconciliation retains validation errors for approval gate`() {
+        tempFolder.newFile("manifest.json").writeText("{\"name\":\"before\"}")
+        val checkpoint = tools.createEditCheckpoint("before AI edit")
+        tools.captureEditTargets(checkpoint, listOf("manifest.json"))
+        tools.markEditMutationStarted(checkpoint)
+        tools.writeFile("manifest.json", "{broken")
+        val fingerprint = tools.reviewEdits(checkpoint).contentFingerprint
+        tools.updateEditCheckpointFingerprint(checkpoint, fingerprint)
+        tools.markEditAwaitingReview(checkpoint)
+
+        val recovered = IdeTools(tempFolder.root).reconcileEditCheckpoints().single()
+
+        assertEquals(listOf("manifest.json contains invalid JSON"), recovered.validationErrors)
+        tools.discardEditCheckpoint(checkpoint)
+    }
+
+    @Test
+    fun `validation refresh never re-enables ambiguous rollback`() {
+        tempFolder.newFile("manifest.json").writeText("{\"name\":\"before\"}")
+        val checkpoint = tools.createEditCheckpoint("before AI edit")
+        tools.captureEditTargets(checkpoint, listOf("manifest.json"))
+        tools.markEditMutationStarted(checkpoint)
+        tools.writeFile("manifest.json", "{broken")
+        val ambiguous = tools.reviewEdits(checkpoint).copy(rollbackAllowed = false)
+
+        tools.writeFile("manifest.json", "{\"name\":\"fixed\"}")
+        val refreshed = ambiguous.refreshedFrom(tools.reviewEdits(checkpoint))
+
+        assertFalse(refreshed.rollbackAllowed)
+        assertTrue(refreshed.validationErrors.isEmpty())
+        tools.discardEditCheckpoint(checkpoint)
+    }
 }

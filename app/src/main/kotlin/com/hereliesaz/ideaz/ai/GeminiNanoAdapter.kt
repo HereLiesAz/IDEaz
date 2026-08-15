@@ -4,10 +4,11 @@ import android.content.Context
 import com.google.ai.edge.aicore.GenerativeAIException
 import com.google.ai.edge.aicore.GenerativeModel
 import com.google.ai.edge.aicore.generationConfig
+import com.hereliesaz.ideaz.ai.local.AiCoreRuntime
+import com.hereliesaz.ideaz.ai.local.DeviceCapabilities
+import com.hereliesaz.ideaz.ai.local.localInferenceLimits
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
@@ -30,9 +31,6 @@ class GeminiNanoAdapter(
     @Suppress("unused") private val tools: IdeTools,
 ) : ConversationalAiClient {
 
-    private val modelMutex = Mutex()
-    @Volatile private var cachedModel: GenerativeModel? = null
-
     override suspend fun chat(messages: List<ChatMessage>): String = withContext(Dispatchers.IO) {
         // On-device API is text-only. Flatten parts; if any non-text parts
         // were attached, surface a one-line notice in the prompt so the user
@@ -44,17 +42,13 @@ class GeminiNanoAdapter(
             "$speaker: ${msg.content}"
         } + "\n\nAssistant:"
 
-        val model = try {
-            obtainModel()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Throwable) {
-            return@withContext "Gemini Nano is unavailable on this device: ${e.message ?: e::class.simpleName}"
-        }
-
         try {
-            val response = model.generateContent(prompt)
-            response.text.orEmpty().ifBlank { "Gemini Nano returned no text." }
+            AiCoreRuntime.generate(
+                context = context,
+                modelFile = context.filesDir,
+                prompt = prompt,
+                limits = localInferenceLimits(DeviceCapabilities.totalRamBytes(context)),
+            )
         } catch (e: CancellationException) {
             throw e
         } catch (e: GenerativeAIException) {
@@ -62,34 +56,6 @@ class GeminiNanoAdapter(
         } catch (e: Throwable) {
             "Gemini Nano error: ${e.message ?: e::class.simpleName}"
         }
-    }
-
-    private suspend fun obtainModel(): GenerativeModel = modelMutex.withLock {
-        cachedModel?.let { return@withLock it }
-        val config = generationConfig {
-            this.context = this@GeminiNanoAdapter.context.applicationContext
-            temperature = 0.2f
-            topK = 16
-            candidateCount = 1
-            maxOutputTokens = 512
-        }
-        val model = GenerativeModel(generationConfig = config)
-        // prepareInferenceEngine() warms the on-device runtime; throws on
-        // unsupported devices. Letting the exception escape lets chat() return
-        // a user-friendly "unavailable" message.
-        model.prepareInferenceEngine()
-        cachedModel = model
-        model
-    }
-
-    /**
-     * Close any cached on-device model. Call from a viewModel-scope cleanup
-     * (e.g. MainViewModel.onCleared) to release the inference engine when the
-     * app shuts down. Safe to call when no model is cached.
-     */
-    fun close() {
-        cachedModel?.runCatching { close() }
-        cachedModel = null
     }
 
     companion object {

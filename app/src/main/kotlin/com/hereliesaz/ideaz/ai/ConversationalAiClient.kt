@@ -16,6 +16,8 @@ interface ConversationalAiClient {
      * @return The AI's text response after any internal tool-use loops complete.
      * @throws Exception (implementation-specific) on network failure or API error.
      *   Callers are responsible for catching and surfacing errors to the user.
+     *   On-device adapters throw `LocalProviderException`, whose structured failure
+     *   carries retry, consent-based fallback, and sanitized diagnostic metadata.
      */
     suspend fun chat(messages: List<ChatMessage>): String
 }

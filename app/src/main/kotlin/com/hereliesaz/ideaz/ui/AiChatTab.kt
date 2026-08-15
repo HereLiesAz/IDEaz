@@ -12,6 +12,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.hereliesaz.ideaz.ai.ChatMessage
+import com.hereliesaz.ideaz.ai.local.LocalProviderFailure
+import com.hereliesaz.ideaz.ui.delegates.LocalEditReviewState
+import com.hereliesaz.ideaz.ui.delegates.LocalEditReviewStatus
+import com.hereliesaz.ideaz.ui.delegates.LocalCloudConsultState
+import com.hereliesaz.ideaz.ui.delegates.LocalCloudConsultStatus
 
 /**
  * Chat UI for the AI tab in [IdeBottomSheet].
@@ -20,12 +25,18 @@ import com.hereliesaz.ideaz.ai.ChatMessage
  * model bubbles left-aligned. Shows a loading spinner when [isLoading] is true.
  *
  * @param messages  Ordered conversation history (user + model turns).
+ * @param failure Structured provider failure rendered outside model history.
+ * @param editReview Validated on-device changes awaiting approval or eligible for undo.
+ * @param cloudConsult Exact cloud payload awaiting explicit one-shot consent.
  * @param isLoading True while waiting for an AI response.
  * @param viewModel MainViewModel to handle message sending.
  */
 @Composable
 fun AiChatTab(
     messages: List<ChatMessage>,
+    failure: LocalProviderFailure?,
+    editReview: LocalEditReviewState?,
+    cloudConsult: LocalCloudConsultState?,
     isLoading: Boolean,
     viewModel: MainViewModel,
     modifier: Modifier = Modifier
@@ -33,8 +44,11 @@ fun AiChatTab(
     val listState = rememberLazyListState()
 
     // Auto-scroll to bottom when new messages arrive
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) listState.scrollToItem(messages.size - 1)
+    LaunchedEffect(messages.size, failure?.diagnosticId, editReview?.status, cloudConsult?.status) {
+        when {
+            failure != null || editReview != null || cloudConsult != null -> listState.scrollToItem(messages.size)
+            messages.isNotEmpty() -> listState.scrollToItem(messages.size - 1)
+        }
     }
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -50,6 +64,73 @@ fun AiChatTab(
             itemsIndexed(messages, key = { index, _ -> index }) { _, msg ->
                 ChatBubble(msg)
                 Spacer(modifier = Modifier.height(6.dp))
+            }
+
+            failure?.let { localFailure ->
+                item(key = "local-provider-failure-${localFailure.diagnosticId}") {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text("On-device provider stopped", fontWeight = FontWeight.Bold)
+                            Text(localFailure.message, style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                buildString {
+                                    append(if (localFailure.retryable) "Retry available" else "Retry unavailable")
+                                    append(" · Cloud fallback ")
+                                    append(if (localFailure.cloudFallbackAllowed) "eligible with approval" else "blocked")
+                                    append(" · ").append(localFailure.diagnosticId)
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                            if (localFailure.retryable) {
+                                Button(
+                                    onClick = { viewModel.retryLocalFailure(localFailure.diagnosticId) },
+                                ) {
+                                    Text("Retry on device")
+                                }
+                            }
+                            if (localFailure.cloudFallbackAllowed) {
+                                Text(
+                                    "Gemini fallback sends this conversation and project context to Google's cloud once. " +
+                                        "Nothing is sent unless you approve.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                                if (viewModel.hasCloudFallbackCredential()) {
+                                    Button(
+                                        onClick = { viewModel.approveCloudFallback(localFailure.diagnosticId) },
+                                    ) {
+                                        Text("Approve Gemini once")
+                                    }
+                                } else {
+                                    Text(
+                                        "Add a Gemini API key in Settings to enable fallback.",
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
+            }
+
+            editReview?.let { state ->
+                item(key = "local-edit-${state.approval.review.checkpoint.checkpointId}") {
+                    LocalEditReviewCard(state, viewModel)
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
+            }
+
+            cloudConsult?.let { state ->
+                item(key = "local-cloud-consult-${state.request.requestId}") {
+                    LocalCloudConsultCard(state, viewModel)
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
             }
 
             // Loading indicator as the last list item
@@ -81,6 +162,107 @@ fun AiChatTab(
             modifier = Modifier.fillMaxWidth(),
             viewModel = viewModel
         )
+    }
+}
+
+@Composable
+private fun LocalCloudConsultCard(state: LocalCloudConsultState, viewModel: MainViewModel) {
+    val request = state.request
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Local model requests ${request.provider} advice", fontWeight = FontWeight.Bold)
+            Text(
+                "Only the text below will be sent to Google's Gemini API once. " +
+                    "No files, images, history, repo map, credentials, or IDE tools are included.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text("Exact Gemini prompt", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            Text(request.prompt, style = MaterialTheme.typography.bodySmall)
+            Text(
+                "${request.model} · ${request.byteCount} bytes · request ${request.requestId.take(8)}",
+                style = MaterialTheme.typography.labelSmall,
+            )
+            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            if (state.status == LocalCloudConsultStatus.PROCESSING) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        enabled = state.advice != null || viewModel.hasCloudFallbackCredential(),
+                        onClick = { viewModel.approveLocalCloudConsult(request.requestId) },
+                    ) {
+                        Text(if (state.advice == null) "Send once" else "Retry locally")
+                    }
+                    OutlinedButton(onClick = { viewModel.rejectLocalCloudConsult(request.requestId) }) {
+                        Text("Keep local")
+                    }
+                }
+                if (state.advice == null && !viewModel.hasCloudFallbackCredential()) {
+                    Text("Add a Gemini API key in Settings to enable consultation.", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LocalEditReviewCard(state: LocalEditReviewState, viewModel: MainViewModel) {
+    val review = state.approval.review
+    val checkpointId = review.checkpoint.checkpointId
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp)) {
+            Text(
+                when (state.status) {
+                    LocalEditReviewStatus.PENDING -> "Review on-device edit"
+                    LocalEditReviewStatus.PROCESSING -> "Applying edit decision…"
+                    LocalEditReviewStatus.APPROVED -> "On-device edit approved"
+                    LocalEditReviewStatus.REJECTED -> "On-device edit rejected"
+                    LocalEditReviewStatus.UNDONE -> "On-device edit undone"
+                },
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                review.changedFiles.joinToString(separator = "\n") { "• $it" },
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                if (review.validationErrors.isEmpty()) {
+                    "Validated · checkpoint ${checkpointId.take(8)}"
+                } else {
+                    "Validation failed · checkpoint ${checkpointId.take(8)}"
+                },
+                style = MaterialTheme.typography.labelSmall,
+            )
+            review.validationErrors.forEach { error ->
+                Text("• $error", style = MaterialTheme.typography.bodySmall)
+            }
+            if (!review.rollbackAllowed) {
+                Text(
+                    "The app stopped during a file write. Review the files; automatic rollback is disabled " +
+                        "because IDEaz cannot distinguish later edits from the interrupted write.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            when (state.status) {
+                LocalEditReviewStatus.PENDING -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { viewModel.approveLocalEdit(checkpointId) }) {
+                        Text(if (review.validationErrors.isEmpty()) "Approve & reload" else "Recheck files")
+                    }
+                    if (review.rollbackAllowed) {
+                        OutlinedButton(onClick = { viewModel.rejectLocalEdit(checkpointId) }) {
+                            Text("Reject")
+                        }
+                    }
+                }
+                LocalEditReviewStatus.APPROVED -> if (review.rollbackAllowed) {
+                    OutlinedButton(onClick = { viewModel.undoLocalEdit(checkpointId) }) {
+                        Text("Undo edit")
+                    }
+                }
+                LocalEditReviewStatus.PROCESSING -> Unit
+                LocalEditReviewStatus.REJECTED, LocalEditReviewStatus.UNDONE -> Unit
+            }
+        }
     }
 }
 

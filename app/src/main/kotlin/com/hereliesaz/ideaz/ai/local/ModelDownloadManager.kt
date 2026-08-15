@@ -10,10 +10,61 @@ import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
 private const val DOWNLOAD_STORAGE_RESERVE_BYTES = 256L * 1024L * 1024L
+private const val PART_METADATA_SUFFIX = ".part.meta"
+
+/** Stable catalog identity persisted beside an interrupted partial download. */
+internal fun partialDownloadFingerprint(spec: LocalModelFile): String {
+    val manifest = listOf(
+        spec.url,
+        spec.fileName,
+        spec.expectedSizeBytes?.toString().orEmpty(),
+        spec.sha256?.lowercase().orEmpty(),
+    ).joinToString("\u0000")
+    return MessageDigest.getInstance("SHA-256")
+        .digest(manifest.toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it) }
+}
+
+/**
+ * Keeps only a non-empty, manifest-matching partial whose size is plausible.
+ * Old or catalog-stale bytes are deleted instead of being grafted onto a new model.
+ */
+internal fun reconcilePartialDownload(part: File, metadata: File, spec: LocalModelFile): Long {
+    if (!part.isFile) {
+        metadata.delete()
+        return 0L
+    }
+    val valid = part.length() > 0L &&
+        spec.expectedSizeBytes?.let { part.length() <= it } != false &&
+        metadata.isFile &&
+        runCatching { metadata.readText() }.getOrNull() == partialDownloadFingerprint(spec)
+    if (!valid) {
+        part.delete()
+        metadata.delete()
+        return 0L
+    }
+    return part.length()
+}
+
+/** Validates that a partial response continues the requested and catalogued byte range. */
+internal fun contentRangeMatches(value: String?, expectedStart: Long, expectedTotal: Long?): Boolean {
+    val match = value?.let {
+        Regex("^bytes (\\d+)-(\\d+)/(\\d+|\\*)$").matchEntire(it.trim())
+    } ?: return false
+    val start = match.groupValues[1].toLongOrNull() ?: return false
+    val end = match.groupValues[2].toLongOrNull() ?: return false
+    val total = match.groupValues[3].takeUnless { it == "*" }?.toLongOrNull()
+    return start == expectedStart &&
+        end >= start &&
+        (total == null || total > end) &&
+        (expectedTotal == null || total == expectedTotal)
+}
 
 /**
  * Rejects a model download unless [availableBytes] can hold the remaining payload
@@ -40,6 +91,36 @@ internal fun requireDownloadStorage(
                 "only $availableBytes bytes available"
         )
     }
+}
+
+/**
+ * Copies a response into resumable staging while checking cancellation before
+ * every chunk. Returning the running byte count keeps progress arithmetic in one
+ * independently testable place.
+ */
+internal suspend fun copyDownloadBytes(
+    input: InputStream,
+    output: OutputStream,
+    initialBytes: Long,
+    expectedSizeBytes: Long?,
+    fileName: String,
+    onBytes: (Long) -> Unit,
+    ensureNotCancelled: suspend () -> Unit = { currentCoroutineContext().ensureActive() },
+): Long {
+    var downloaded = initialBytes
+    val buffer = ByteArray(64 * 1024)
+    while (true) {
+        ensureNotCancelled()
+        val count = input.read(buffer)
+        if (count == -1) break
+        output.write(buffer, 0, count)
+        downloaded += count
+        if (expectedSizeBytes?.let { downloaded > it } == true) {
+            throw IOException("Downloaded file exceeds expected size for $fileName")
+        }
+        onBytes(downloaded)
+    }
+    return downloaded
 }
 
 /**
@@ -150,6 +231,8 @@ class ModelDownloadManager(
                     writeVerificationMarker(f, target)
                     cumulative += target.length()
                     onProgress(cumulative, approxTotal)
+                    File(mdir, f.fileName + ".part").delete()
+                    File(mdir, f.fileName + PART_METADATA_SUFFIX).delete()
                     continue
                 }
                 target.delete()
@@ -185,7 +268,11 @@ class ModelDownloadManager(
             val part = File(mdir, spec.fileName + ".part")
             val size = when {
                 target.isFile -> target.length()
-                part.isFile -> part.length()
+                part.isFile -> reconcilePartialDownload(
+                    part,
+                    File(mdir, spec.fileName + PART_METADATA_SUFFIX),
+                    spec,
+                )
                 else -> 0L
             }
             if (accumulated > Long.MAX_VALUE - size) Long.MAX_VALUE else accumulated + size
@@ -204,7 +291,8 @@ class ModelDownloadManager(
     ) {
         val target = File(mdir, f.fileName)
         val part = File(mdir, f.fileName + ".part")
-        val existing = if (part.isFile) part.length() else 0L
+        val metadata = File(mdir, f.fileName + PART_METADATA_SUFFIX)
+        val existing = reconcilePartialDownload(part, metadata, f)
 
         val request = Request.Builder().url(f.url).apply {
             if (existing > 0) header("Range", "bytes=$existing-")
@@ -212,24 +300,51 @@ class ModelDownloadManager(
         }.build()
 
         client.newCall(request).execute().use { resp ->
+            if (resp.code == 416 && existing > 0L) {
+                val hasCompleteManifest = f.expectedSizeBytes != null && f.sha256 != null
+                val complete = hasCompleteManifest && runCatching { verifyDownloadedFile(part, f) }.isSuccess
+                if (complete) {
+                    if (target.exists()) target.delete()
+                    if (!part.renameTo(target)) throw IOException("Could not finalize ${f.fileName}")
+                    metadata.delete()
+                    writeVerificationMarker(f, target)
+                    return
+                }
+                part.delete()
+                metadata.delete()
+                throw IOException("Server rejected stale resume data for ${f.fileName}")
+            }
             if (!resp.isSuccessful) throw IOException("Download failed for ${f.fileName}: HTTP ${resp.code}")
             val body = resp.body
             val resuming = resp.code == 206
+            if (resuming && !contentRangeMatches(
+                    resp.header("Content-Range"),
+                    existing,
+                    f.expectedSizeBytes,
+                )
+            ) {
+                part.delete()
+                metadata.delete()
+                throw IOException("Server returned an inconsistent Content-Range for ${f.fileName}")
+            }
             val append = resuming && existing > 0
-            if (!append) part.delete()
-            var downloaded = if (append) existing else 0L
+            if (!append) {
+                part.delete()
+                metadata.delete()
+            }
+            metadata.writeText(partialDownloadFingerprint(f))
+            val initialBytes = if (append) existing else 0L
 
             body.byteStream().use { input ->
                 FileOutputStream(part, append).use { output ->
-                    val buf = ByteArray(64 * 1024)
-                    while (true) {
-                        currentCoroutineContext().ensureActive()
-                        val n = input.read(buf)
-                        if (n == -1) break
-                        output.write(buf, 0, n)
-                        downloaded += n
-                        onBytes(downloaded)
-                    }
+                    copyDownloadBytes(
+                        input = input,
+                        output = output,
+                        initialBytes = initialBytes,
+                        expectedSizeBytes = f.expectedSizeBytes,
+                        fileName = f.fileName,
+                        onBytes = onBytes,
+                    )
                     output.fd.sync()
                 }
             }
@@ -239,10 +354,12 @@ class ModelDownloadManager(
             verifyDownloadedFile(part, f)
         } catch (e: IOException) {
             part.delete()
+            metadata.delete()
             throw e
         }
         if (target.exists()) target.delete()
         if (!part.renameTo(target)) throw IOException("Could not finalize ${f.fileName}")
+        metadata.delete()
         writeVerificationMarker(f, target)
     }
 

@@ -24,7 +24,7 @@
 
 ### app/src/main/kotlin/com/hereliesaz/ideaz/
 *   `MainActivity.kt`: The main entry point and UI host.
-*   `MainApplication.kt`: Application subclass for global initialization.
+*   `MainApplication.kt`: Application subclass for global initialization and memory-pressure release of cached local inference engines.
 *   `IBuildService.aidl`: IPC interface for the Build Service.
 *   `IBuildCallback.aidl`: IPC interface for Build Service callbacks.
 
@@ -68,21 +68,21 @@
 *   `OpenAiCompatibleAdapter.kt`: Generic adapter for OpenAI-compatible `/chat/completions` endpoints.
 *   `AnthropicAdapter.kt`: Custom adapter for Anthropic's Messages API schema.
 *   `DynamicModelResolver.kt`: Resolves the absolute latest version of a model by querying provider endpoints.
-*   `GeminiAdapter.kt`: Uses the `google-genai` SDK for Gemini models.
-*   `GeminiNanoAdapter.kt`: Specialized adapter for on-device Gemini Nano.
-*   `ConversationalAiClient.kt`: Base interface for AI clients (Phase 1, conversational).
+*   `GeminiAdapter.kt`: Uses the `google-genai` SDK for Gemini models and exposes a separate tool-less consultant that accepts only an approved bounded payload.
+*   `GeminiNanoAdapter.kt`: Specialized adapter for on-device Gemini Nano that shares the serialized, memory-pressure-aware `AiCoreRuntime` cache.
+*   `ConversationalAiClient.kt`: Base interface for AI clients (Phase 1, conversational), including the documented structured exception contract used by local providers.
 *   `AgenticAiClient.kt`: Phase-2 agentic provider interface — `dispatchTask(prompt, sourceContext): Flow<TaskEvent>`. Target-agnostic event stream (`SessionStarted`/`Message`/`Patch`/`TimedOut`) so the overlay renders Jules and Gemini the same way. Implemented by `jules/JulesAdapter`.
-*   `IdeTools.kt`: Definitions and dispatcher for IDE tools available to the AI.
+*   `IdeTools.kt`: Sandboxed AI file tools plus out-of-tree per-file content checkpoints, changed-file review, JSON validation, drift detection, and rollback without moving Git HEAD.
 *   `ToolSchema.kt`: JSON schemas for tools.
 
 #### ai/local/
-*   `LocalModelRuntime.kt`: Interface and implementations for on-device backends — AICore + MediaPipe (wired) and llama.cpp/GGUF + ONNX GenAI (reflection-driven `generate()`, active once their library is on the classpath).
-*   `LocalLlmAdapter.kt`: Conversational adapter for the selected local runtime; drives a bounded JSON protocol over the sandboxed IDE tools and falls back to plain chat when a model cannot emit structured output.
+*   `LocalModelRuntime.kt`: Interface and implementations for on-device backends — serialized, model-keyed engine caches for AICore, MediaPipe, llama.cpp/GGUF, and ONNX GenAI, with RAM-tier inference limits and coordinated release.
+*   `LocalLlmAdapter.kt`: Conversational adapter for the selected local runtime; drives a JVM-tested six-round JSON coordinator, raises consent-bound local-only `ask_cloud` requests before other tools, applies device-tier prompt limits, restores interrupted mutations, and raises validated edits for explicit approval before reload.
 *   `LocalModelCatalog.kt`: Curated list of downloadable on-device models, with per-model RAM/ABI/auth requirements used for filtering.
 *   `DeviceCapabilities.kt`: Reads device RAM (`ActivityManager.MemoryInfo`) and supported CPU ABIs (`Build.SUPPORTED_ABIS`).
 *   `LocalModelAvailability.kt`: Pure, unit-tested logic deciding whether a model is usable on this device/build (backend present, RAM, ABI, token) — drives the Settings list filtering.
-*   `LocalModelStore.kt`: Manages locally stored model files and metadata.
-*   `ModelDownloadManager.kt`: Downloads model files with authentication and range resume; preflights remaining bytes plus a safety reserve, validates trusted exact sizes/SHA-256 values before atomic activation, and records manifest-bound verification markers.
+*   `LocalModelStore.kt`: Persists the selected on-device model and requests cached-engine release when that selection changes.
+*   `ModelDownloadManager.kt`: Downloads model files with authentication and strict range resume; copies cancellable chunks through a JVM-tested staging primitive, reconciles interrupted partials through catalog-bound sidecars, preflights remaining bytes plus a safety reserve, validates trusted exact sizes/SHA-256 values before atomic activation, and records manifest-bound verification markers.
 *   `LocalModelDownloadWorker.kt`: Unique WorkManager foreground job for durable model downloads with connected-network constraints, progress, cancellation, bounded retry/backoff, and token-safe input data.
 
 #### ai/bridge/
@@ -92,15 +92,17 @@
 *   `BridgeHeuristics.kt`: Pure, unit-tested predicates for matching the Gemini app's input/send/copy nodes and stripping the prompt from a scrape.
 
 #### ui/
-*   `MainViewModel.kt`: Coordinator. Logic delegated to `ui/delegates/`.
-*   `SettingsViewModel.kt`: Manages user preferences.
+*   `MainViewModel.kt`: Coordinator. Logic delegated to `ui/delegates/`; chat recovery validates diagnostics, recovers interrupted local edit reviews, and resumes consented or declined local-model cloud consultations without duplicate transmission.
+*   `AiChatTab.kt`: Conversational history UI with separate provider-failure, cloud-consultation consent, and changed-file review cards plus retry and edit approve/reject/undo controls.
+*   `IdeBottomSheet.kt`: Global console/chat sheet; wires conversational history and structured provider-failure state into the Chat tab.
+*   `SettingsViewModel.kt`: Manages user preferences, routes Gemini and gated Hugging Face credentials through the secure store, migrates legacy plaintext, and includes credentials only in explicit password-encrypted export/import.
 *   `MainScreen.kt`: The main Compose screen.
 *   `ProjectScreen.kt`: Project management UI (Setup / Load / Clone tabs); delegates release-scope enforcement to Setup and `MainViewModel.loadProject`.
 *   `IdeBottomSheet.kt`: Console / chat bottom sheet.
 *   `IdeNavRail.kt`: Navigation component.
 *   `AiModels.kt`: AI model selection.
 *   `GitScreen.kt`: Git management UI.
-*   `SettingsScreen.kt`: Settings UI.
+*   `SettingsScreen.kt`: Settings UI, including secure Hugging Face token feedback and minimum-password validation for credential-bearing exports.
 *   `FileExplorerScreen.kt`: Read/write file explorer (escape hatch).
 *   `FileContentScreen.kt`: File viewer/editor (escape hatch).
 *   `LibrariesScreen.kt`: Dependency management UI.
@@ -116,7 +118,8 @@
 *   `theme/`: Theme definitions.
 
 #### ui/delegates/
-*   `AIDelegate.kt`: AI sessions (Phase 1 Gemini conversational; Phase 2 Jules agentic).
+*   `AIDelegate.kt`: AI sessions (Phase 1 Gemini conversational; Phase 2 Jules agentic), including structured local-provider failure presentation for overlay tasks.
+*   `StateDelegate.kt`: Shared UI state, including conversational history and a separate structured chat-failure channel so failures never become model turns.
 *   `BuildDelegate.kt`: BuildService binding; remote build dispatch + poll + install.
 *   `GitDelegate.kt`: Git operations and state.
 *   `OverlayDelegate.kt`: Visual overlay and selection mode. `isScreenCaptureEnabled()` gates MediaProjection capture to Android target projects (web/PWA never prompt).
@@ -153,6 +156,7 @@
 *   `CrashHandler.kt`: JVM uncaught exception handler.
 *   `GithubIssueReporter.kt`: Posts GitHub issues for IDE-internal errors.
 *   `SecurityUtils.kt`: PBKDF2 encryption helpers for credentials.
+*   `AndroidKeystoreCredentialStore.kt`: AES-GCM credential persistence backed by a non-exportable Android Keystore key; used for Gemini and gated Hugging Face credentials.
 *   `PermissionUtils.kt`: Permission check/request helpers.
 *   `ComposeLifecycleHelper.kt`: Helper for ComposeView lifecycle in Services.
 *   `EnvironmentSetup.kt`: Setup script constants.

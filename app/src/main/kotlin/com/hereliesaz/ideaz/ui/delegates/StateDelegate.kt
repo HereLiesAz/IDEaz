@@ -9,6 +9,27 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.hereliesaz.ideaz.ai.local.LocalProviderFailure
+import com.hereliesaz.ideaz.ai.local.LocalEditApproval
+import com.hereliesaz.ideaz.ai.local.LocalCloudConsultRequest
+
+/** User-visible lifecycle of a validated on-device edit checkpoint. */
+enum class LocalEditReviewStatus { PENDING, PROCESSING, APPROVED, REJECTED, UNDONE }
+
+data class LocalEditReviewState(
+    val approval: LocalEditApproval,
+    val status: LocalEditReviewStatus = LocalEditReviewStatus.PENDING,
+)
+
+enum class LocalCloudConsultStatus { PENDING, PROCESSING }
+
+data class LocalCloudConsultState(
+    val request: LocalCloudConsultRequest,
+    val status: LocalCloudConsultStatus = LocalCloudConsultStatus.PENDING,
+    val error: String? = null,
+    /** Ephemeral cloud answer retained only to retry local resume without retransmission. */
+    val advice: String? = null,
+)
 
 /**
  * Delegate responsible for holding and managing shared UI state.
@@ -221,6 +242,18 @@ class StateDelegate(
     /** Ordered list of turns in the AI Chat tab conversation. */
     val chatMessages = _chatMessages.asStateFlow()
 
+    private val _chatFailure = MutableStateFlow<LocalProviderFailure?>(null)
+    /** Structured provider failure rendered outside conversational history. */
+    val chatFailure = _chatFailure.asStateFlow()
+
+    private val _localEditReview = MutableStateFlow<LocalEditReviewState?>(null)
+    /** Validated changed-file receipt and its explicit approval/undo state. */
+    val localEditReview = _localEditReview.asStateFlow()
+
+    private val _localCloudConsult = MutableStateFlow<LocalCloudConsultState?>(null)
+    /** Exact cloud payload awaiting one-shot consent; null means no consultation is pending. */
+    val localCloudConsult = _localCloudConsult.asStateFlow()
+
     private val _isChatLoading = MutableStateFlow(false)
     /** True while the AI is processing a chat request. Shows a spinner in AiChatTab. */
     val isChatLoading = _isChatLoading.asStateFlow()
@@ -290,9 +323,23 @@ class StateDelegate(
         _chatMessages.update { it + msg }
     }
 
+    fun setChatFailure(failure: LocalProviderFailure?) {
+        _chatFailure.value = failure
+    }
+
+    fun setLocalEditReview(review: LocalEditReviewState?) {
+        _localEditReview.value = review
+    }
+
+    fun setLocalCloudConsult(state: LocalCloudConsultState?) {
+        _localCloudConsult.value = state
+    }
+
     /** Clear all chat history (call when switching projects to avoid context leakage). */
     fun clearChatHistory() {
         _chatMessages.value = emptyList()
+        _chatFailure.value = null
+        _localCloudConsult.value = null
     }
 
     /** Set the chat loading indicator. True = spinner shown; false = input re-enabled. */

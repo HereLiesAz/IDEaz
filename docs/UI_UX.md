@@ -99,6 +99,25 @@ Bottom sheets mount via the `azBottomSheet` DSL on `AzNavHostScope`, never wrapp
 
 Every user-initiated operation must expose prerequisite validation and consequence before execution; named progress and cancellation policy during execution; a durable receipt on success; retained input, retry, and sanitized details on failure; and reconciliation after rotation, process death, connectivity loss, or upgrade. Accessibility and least-privilege disclosure apply at every stage. See [`ux_userflow_audit.md`](ux_userflow_audit.md) for the full flow inventory and release gates.
 
+On-device failure cards remain outside model history. Cloud fallback must name the
+destination and transmitted context beside a one-shot approval control; displaying a
+failure never authorizes transmission.
+
+A local model may request one read-only Gemini consultation before using any other
+tool. The consent card shows the exact question/context and byte count; it names the
+destination and states which data is excluded. Merely displaying the card performs no
+network request. **Send once** transmits exactly that preview; **Keep local** resumes
+without transmission. Cloud advice is untrusted text returned only to the local loop,
+and Gemini receives no repository map, history, attachments, credentials, or IDE tools.
+
+On-device file mutations stop at a review card before the WebView reloads. The card
+lists every changed path and offers **Approve & reload** or **Reject**; an approved
+edit retains its out-of-tree checkpoint as an **Undo edit** action until later project work
+makes that rollback unsafe.
+Validation failures replace approval with a recheck action. Recovery from a crash
+during a write permanently disables automatic rollback for that checkpoint; later
+validation cannot resurrect a destructive button merely by changing its clothes.
+
 ### Current release scope
 
 Only PWA projects are selectable, matching the revival design's Phase 1 daily-driver scope. Other recognized repositories may be detected so their metadata is not rewritten, but their creation, initialization, and App View mounting remain disabled until their target loops pass end-to-end verification.

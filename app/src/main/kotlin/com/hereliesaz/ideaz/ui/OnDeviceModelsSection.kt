@@ -104,8 +104,7 @@ fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
     )
     Spacer(Modifier.height(8.dp))
 
-    val hfToken = settingsViewModel.getApiKey(SettingsViewModel.KEY_HF_API_KEY).orEmpty()
-    val hasToken = hfToken.isNotBlank()
+    val hasToken = !settingsViewModel.getApiKey(SettingsViewModel.KEY_HF_API_KEY).isNullOrBlank()
 
     @Suppress("UNUSED_EXPRESSION") refresh // re-read per-card download state when bumped
 

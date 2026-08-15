@@ -46,6 +46,13 @@
 *   **Route:** `GithubIssueReporter` posts to `HereLiesAz/IDEaz` with the `jules` label.
 *   **Constraint:** Never sent to the user's AI session.
 
-## 5. Background Reliability
+## 5. On-device AI Recovery
+1. A local failure becomes a structured status card, not a model response.
+2. Retry, when permitted, replays the current history on device without another user turn.
+3. Cloud fallback is offered only before any local tool execution and only with a configured Gemini key.
+4. The user must press **Approve Gemini once** after reading that the conversation and project context will go to Google's cloud.
+5. Approval applies to that diagnostic once. It is never stored and never authorizes later fallback.
+
+## 6. Background Reliability
 *   **Notification:** Persistent notification shows last 3 log lines.
 *   **Polling:** Jules polling never times out — checks for *Activity* updates to show liveness.

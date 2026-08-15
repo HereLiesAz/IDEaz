@@ -18,4 +18,6 @@
     <!-- Default-shared-prefs file holds GitHub PATs, Google API keys,
          Jules API keys, and keystore passwords. Excluded from Auto Backup. -->
     <exclude domain="sharedpref" path="com.hereliesaz.ideaz_preferences.xml"/>
+    <!-- Ciphertext cannot be restored without the device-bound Android Keystore key. -->
+    <exclude domain="sharedpref" path="ideaz_secure_credentials.xml"/>
 </full-backup-content>

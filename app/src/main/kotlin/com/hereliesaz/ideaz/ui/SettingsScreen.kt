@@ -209,6 +209,7 @@ fun SettingsScreen(
         PasswordDialog(
             title = "Set Password for Export",
             confirmText = "Export",
+            minimumLength = 8,
             onDismiss = { showExportPasswordDialog = false },
             onConfirm = { password ->
                 showExportPasswordDialog = false
@@ -427,8 +428,12 @@ fun SettingsScreen(
                         hint = "AI Studio API Key",
                         secret = true,
                         onSubmit = {
-                            settingsViewModel.saveGoogleApiKey(googleApiKey)
-                            Toast.makeText(context, "AI Studio Key Saved", Toast.LENGTH_SHORT).show()
+                            val saved = settingsViewModel.saveGoogleApiKey(googleApiKey)
+                            Toast.makeText(
+                                context,
+                                if (saved) "AI Studio Key Saved Securely" else "AI Studio Key Save Failed",
+                                Toast.LENGTH_SHORT,
+                            ).show()
                         },
                         submitButtonContent = { Text("Save") }
                     )
@@ -492,8 +497,12 @@ fun SettingsScreen(
                     storedKey = settingsViewModel.getApiKey(SettingsViewModel.KEY_HF_API_KEY).orEmpty(),
                     signupUrl = "https://huggingface.co/settings/tokens",
                     onSave = {
-                        settingsViewModel.saveString(SettingsViewModel.KEY_HF_API_KEY, it)
-                        Toast.makeText(context, "HF key saved", Toast.LENGTH_SHORT).show()
+                        val saved = settingsViewModel.saveString(SettingsViewModel.KEY_HF_API_KEY, it)
+                        Toast.makeText(
+                            context,
+                            if (saved) "HF key saved securely" else "HF key could not be saved",
+                            if (saved) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
+                        ).show()
                     },
                 )
                 FreeProviderKeyRow(
@@ -1065,23 +1074,36 @@ fun PasswordDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
     title: String,
-    confirmText: String
+    confirmText: String,
+    minimumLength: Int = 0,
 ) {
     var password by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    val submit = {
+        if (password.length < minimumLength) {
+            error = "Use at least $minimumLength characters"
+        } else {
+            onConfirm(password)
+        }
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
             AzTextBox(
                 value = password,
-                onValueChange = { password = it },
+                onValueChange = {
+                    password = it
+                    error = null
+                },
                 hint = "Enter Password",
                 secret = true,
-                onSubmit = { onConfirm(password) }
+                onSubmit = submit,
             )
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         },
         confirmButton = {
-            AzButton(onClick = { onConfirm(password) }, text = confirmText)
+            AzButton(onClick = submit, text = confirmText)
         },
         dismissButton = {
             AzButton(onClick = onDismiss, text = "Cancel", shape = AzButtonShape.NONE)

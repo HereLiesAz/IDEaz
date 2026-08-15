@@ -24,6 +24,29 @@ The protocol is intentionally provider-neutral and conservative:
 - unknown tools return an error to the model;
 - tool results are never invented by the adapter.
 
+The local-only `ask_cloud` tool permits one read-only Gemini consultation before any
+other tool. It raises a consent request rather than touching the network. Chat shows
+the exact bounded question/context and byte count; approval is bound to the request,
+project, conversation, and payload hash. A dedicated tool-less Gemini client receives
+only that preview—never repo maps, history, attachments, credentials, or project tools.
+The advice returns ephemerally to the local model. If local resume fails, IDEaz retains
+the answer in memory so retry does not bill or transmit twice. Declining resumes the
+same local turn with a denial result.
+
+Before each `write_file` or `apply_patch`, the adapter snapshots only the paths that
+tool can mutate into an out-of-tree undo checkpoint; it never stages files or moves
+Git HEAD. Completion does not reload immediately: IDEaz
+collects the changed paths, rejects conflicts, oversized files, and malformed JSON,
+then presents the file list for explicit approval. Reject and interrupted/failed
+generation restore the checkpoint. Approval reloads the preview and leaves a bounded
+undo action; undo refuses to erase later edits if the changed-file set has drifted.
+The adapter persists its last observed fingerprint and mutation phase beside the
+snapshot. On startup, interrupted edits return to the changed-file review instead of
+being silently mounted or rolled back. If death occurred during the write itself,
+rollback is disabled because ownership of later bytes is unknowable; the user may
+inspect and keep them without risking data loss. Approved undo snapshots are never
+rolled back and expire after seven days to bound retained source copies and storage.
+
 Downloads now support trusted per-file exact sizes and SHA-256 values. The manager
 verifies staged `.part` files before atomic activation, deletes corrupt staging
 payloads, and stores a manifest-bound verification marker so Settings does not
@@ -46,6 +69,52 @@ bounded exponential backoff, and promotes active transfers to a foreground
 notification with a cancellation action. Only the model ID is persisted in work
 input; the worker resolves any gated-provider token at execution time so credentials
 do not leak into WorkManager's database or progress/output records.
+
+Gated Hugging Face tokens are encrypted at rest with a non-exportable Android
+Keystore AES-GCM key. Legacy plaintext values migrate on first successful secure
+read/write and are then removed from default preferences. The ciphertext store is
+excluded from backup and device transfer. The token appears in an export only when
+the user explicitly creates a password-encrypted settings archive.
+
+Each interrupted `.part` file has a sidecar containing a SHA-256 identity derived
+from its catalog URL, filename, exact size, and expected digest. Resume discards
+partials that are empty, oversized, missing their identity, or belong to an older
+catalog revision. HTTP `206` responses must continue at the requested offset and,
+when the manifest supplies an exact size, report that same total. A `416` response
+activates the partial only if full verification succeeds; otherwise the stale bytes
+are removed before retry. Deletion cancels the unique job before recursively removing
+the model directory, including partial state. Thus yesterday's model cannot become
+today's model merely because both wore the same filename. Files have tried worse.
+
+Inference backends retain one engine/model per runtime and serialize generation and
+release through a backend mutex. Selecting another model schedules release of every
+cached backend; `MainApplication` does the same when Android reports running-low or
+stronger memory pressure. MediaPipe, llama.cpp, ONNX GenAI, and AICore therefore avoid
+per-message reloads without permitting an unload to race active inference. RAM tiers
+bound prompts/context/output to 8,192/2,048/256 below 4 GB, 16,384/4,096/512 below
+8 GB, and 24,576/6,144/768 otherwise (prompt characters/context tokens/output tokens).
+Prompt truncation preserves the tool protocol and newest conversation state. The
+numbers are conservative defaults; physical-device evidence still gets the last word,
+as usual, shortly after software has declared victory.
+
+Local-provider failures cross the adapter boundary as `LocalProviderException` with a
+stable category, retry flag, cloud-fallback eligibility, and opaque diagnostic ID.
+Diagnostics retain at most 32 entries and contain only model/runtime identifiers and
+the exception class—never prompts, source, tool arguments, tool output, or exception
+messages. Once any tool call has begun, cloud fallback is marked unsafe because the
+working tree may already have changed. Chat and overlay callers render the structured
+failure without adding it to model history; cancellation remains cancellation rather
+than becoming a counterfeit assistant reply.
+
+Eligible chat failures offer two explicit recovery actions. **Retry on device** replays
+the existing conversation without adding a duplicate user turn. **Approve Gemini
+once** appears only when the failure still matches the displayed diagnostic, fallback
+is safe, and a Gemini key exists. Its disclosure states that the conversation and
+project context will be sent to Google's cloud. Creating the Gemini client and making
+any network request happen only after that button is pressed; approval is neither
+remembered nor generalized to later failures. Fallback is blocked after local tool
+execution begins, when a second agent would inherit a working tree with unknowable
+half-finished business. Consent cannot unscramble an omelet.
 
 **ONNX Runtime GenAI** (`OnnxGenAiRuntime`) and **llama.cpp** (`LlamaCppRuntime`)
 now have their `generate()` **implemented** (against `ai.onnxruntime.genai` and

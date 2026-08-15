@@ -14,12 +14,17 @@ Projects are primarily stored in the application's internal private storage, but
 
 ## 2. Configuration (`SharedPreferences`)
 User settings and lightweight state are stored in `SharedPreferences`.
+Gemini and gated Hugging Face credentials are the exception: `AndroidKeystoreCredentialStore`
+stores AES-GCM ciphertext in dedicated private preferences, backed by a non-exportable
+Android Keystore key. Both credential-bearing preference files are excluded from
+backup and device transfer.
 *   **File:** Default shared preferences.
 *   **Key Constants:** Defined in `SettingsViewModel`.
     *   `KEY_GITHUB_USER` (String): GitHub username.
     *   `KEY_GITHUB_TOKEN` (String): GitHub PAT.
     *   `KEY_JULES_PROJECT_ID` (String): Project ID for Jules API (Phase 2).
-    *   `google_api_key` (String): Gemini API Key (Phase 1 default provider).
+    *   `google_api_key` (encrypted credential store): Gemini API key used by the default provider and consented local-model consultation.
+    *   `hf_api_key` (encrypted credential store): Hugging Face token used by gated model downloads and hosted inference.
     *   `project_type` (String/Enum): Current project type (`ANDROID`, `WEB`; Phase 1 adds `PWA`).
     *   `last_opened_project` (String): Name of the last loaded project.
     *   `KEY_THEME` (Boolean/Int): Theme preference.

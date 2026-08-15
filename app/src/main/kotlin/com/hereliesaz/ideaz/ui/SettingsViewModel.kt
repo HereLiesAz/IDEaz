@@ -12,6 +12,8 @@ import androidx.preference.PreferenceManager
 import androidx.core.content.edit
 import com.hereliesaz.ideaz.api.AuthInterceptor
 import com.hereliesaz.ideaz.utils.SecurityUtils
+import com.hereliesaz.ideaz.utils.AndroidKeystoreCredentialStore
+import com.hereliesaz.ideaz.utils.CredentialStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -114,6 +116,11 @@ data class KeystoreData(
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(application)
+    private var credentialStore: CredentialStore = AndroidKeystoreCredentialStore(application)
+
+    internal constructor(application: Application, credentialStore: CredentialStore) : this(application) {
+        this.credentialStore = credentialStore
+    }
 
     companion object {
         private const val TAG = "SettingsViewModel"
@@ -137,6 +144,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_OPENAI_API_KEY = "openai_api_key"
         const val KEY_ANTHROPIC_API_KEY = "anthropic_api_key"
         const val KEY_DEEPSEEK_API_KEY = "deepseek_api_key"
+
+        private val SECURE_CREDENTIAL_KEYS = setOf(KEY_GOOGLE_API_KEY, KEY_HF_API_KEY)
 
         // One-shot flag: true after the app has explained the Gemini-app
         // bridge during first-run on a device that lacks Gemini Nano.
@@ -267,8 +276,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _logLevel.value = level
     }
 
-    fun saveGoogleApiKey(apiKey: String) = sharedPreferences.edit { putString(KEY_GOOGLE_API_KEY, apiKey.trim()) }
-    fun getGoogleApiKey() = sharedPreferences.getString(KEY_GOOGLE_API_KEY, null)
+    fun saveGoogleApiKey(apiKey: String): Boolean = saveString(KEY_GOOGLE_API_KEY, apiKey)
+    fun getGoogleApiKey(): String? = getApiKey(KEY_GOOGLE_API_KEY)
 
     fun saveGithubToken(token: String) = sharedPreferences.edit { putString(KEY_GITHUB_TOKEN, token.trim()) }
     fun getGithubToken() = sharedPreferences.getString(KEY_GITHUB_TOKEN, null)
@@ -283,15 +292,47 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _apiKey.value = trimmed
     }
     fun getApiKey() = sharedPreferences.getString(KEY_API_KEY, null)
-    fun getApiKey(keyName: String) = sharedPreferences.getString(keyName, null)
+    fun getApiKey(keyName: String): String? {
+        if (keyName !in SECURE_CREDENTIAL_KEYS) return sharedPreferences.getString(keyName, null)
+        runCatching { credentialStore.get(keyName) }.getOrNull()?.let { secureValue ->
+            if (sharedPreferences.contains(keyName) &&
+                !sharedPreferences.edit().remove(keyName).commit()
+            ) {
+                Log.e(TAG, "Failed to remove legacy secure credential")
+            }
+            return secureValue
+        }
+        val legacy = sharedPreferences.getString(keyName, null) ?: return null
+        return if (runCatching { credentialStore.put(keyName, legacy) }.isSuccess) {
+            if (!sharedPreferences.edit().remove(keyName).commit()) {
+                Log.e(TAG, "Failed to remove migrated secure credential")
+            }
+            legacy
+        } else {
+            Log.e(TAG, "Failed to migrate secure credential")
+            legacy
+        }
+    }
 
     /**
      * Generic string-pref setter. Used by the free-provider rows in Settings
      * so each provider's key gets persisted under its own KEY_* constant
      * without growing a save method per provider.
      */
-    fun saveString(keyName: String, value: String) {
+    fun saveString(keyName: String, value: String): Boolean {
+        val trimmed = value.trim()
+        if (keyName in SECURE_CREDENTIAL_KEYS) {
+            return runCatching {
+                if (trimmed.isEmpty()) credentialStore.remove(keyName) else credentialStore.put(keyName, trimmed)
+                check(sharedPreferences.edit().remove(keyName).commit()) {
+                    "Plaintext credential cleanup failed"
+                }
+            }.onFailure {
+                Log.e(TAG, "Failed to store secure credential")
+            }.isSuccess
+        }
         sharedPreferences.edit { putString(keyName, value.trim()) }
+        return true
     }
 
     /**
@@ -353,6 +394,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 val stringSets = mutableMapOf<String, Set<String>>()
 
                 prefsMap.forEach { (key, value) ->
+                    if (key in SECURE_CREDENTIAL_KEYS) return@forEach
                     if (value != null) {
                         when (value) {
                             is String -> strings[key] = value
@@ -366,6 +408,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                             }
                         }
                     }
+                }
+                SECURE_CREDENTIAL_KEYS.forEach { key ->
+                    getApiKey(key)?.let { strings[key] = it }
                 }
                 var keystoreData: KeystoreData? = null
                 val keystorePath = getKeystorePath()
@@ -399,13 +444,23 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
                 val export = json.decodeFromString<SettingsExport>(jsonString)
 
+                SECURE_CREDENTIAL_KEYS.forEach { key ->
+                    export.strings[key]?.let { credentialStore.put(key, it) }
+                }
+
                 sharedPreferences.edit {
-                    export.strings.forEach { (k, v) -> putString(k, v) }
+                    export.strings.filterKeys { it !in SECURE_CREDENTIAL_KEYS }
+                        .forEach { (k, v) -> putString(k, v) }
                     export.booleans.forEach { (k, v) -> putBoolean(k, v) }
                     export.ints.forEach { (k, v) -> putInt(k, v) }
                     export.longs.forEach { (k, v) -> putLong(k, v) }
                     export.floats.forEach { (k, v) -> putFloat(k, v) }
                     export.stringSets.forEach { (k, v) -> putStringSet(k, v) }
+                }
+                SECURE_CREDENTIAL_KEYS.forEach { key ->
+                    check(sharedPreferences.edit().remove(key).commit()) {
+                        "Plaintext credential cleanup failed"
+                    }
                 }
 
                 if (export.keystore != null) {
