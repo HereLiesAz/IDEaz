@@ -48,6 +48,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: 'Ensure telemetry directory exists'
+        run: 'mkdir -p .antigravity'
+
       - name: 'Run Antigravity CLI'
         uses: 'google-github-actions/run-gemini-cli@v0'
         env:
@@ -133,4 +136,4 @@ jobs:
                  instead.
               4. Stop. Do not merge. Do not close. Do not delete branches.
 
-          IMPORTANT: Do not include the string 'EOF' in your output.
+            IMPORTANT: Do not include the string 'EOF' in your output.

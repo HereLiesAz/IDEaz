@@ -41,6 +41,9 @@ jobs:
       - name: 'Checkout repository'
         uses: 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0' # ratchet:actions/checkout@v5
 
+      - name: 'Ensure telemetry directory exists'
+        run: 'mkdir -p .antigravity'
+
       - name: 'Run Antigravity pull request review'
         uses: 'google-github-actions/run-gemini-cli@v0' # ratchet:exclude
         id: 'antigravity_pr_review'

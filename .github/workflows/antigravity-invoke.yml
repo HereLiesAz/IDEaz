@@ -43,6 +43,9 @@ jobs:
           token: '${{ steps.mint_identity_token.outputs.token || secrets.GH_TOKEN || github.token }}'
           fetch-depth: 0
 
+      - name: 'Ensure telemetry directory exists'
+        run: 'mkdir -p .antigravity'
+
       - name: 'Run Antigravity CLI'
         id: 'run_antigravity'
         uses: 'google-github-actions/run-gemini-cli@v0' # ratchet:exclude
