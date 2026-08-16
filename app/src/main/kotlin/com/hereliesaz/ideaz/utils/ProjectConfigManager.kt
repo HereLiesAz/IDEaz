@@ -214,8 +214,8 @@ jobs:
           GITHUB_TOKEN: ${'$'}{{ secrets.GH_TOKEN || github.token }}
           GEMINI_TRUST_WORKSPACE: true
         with:
-          gemini_api_key: '${'$'}{{ secrets.ANTIGRAVITY_API_KEY }}'
-          google_api_key: '${'$'}{{ secrets.ANTIGRAVITY_API_KEY }}'
+          gemini_api_key: '${'$'}{{ secrets.GEMINI_API_KEY }}'
+          google_api_key: '${'$'}{{ secrets.GEMINI_API_KEY }}'
           gcp_project_id: ""
           gemini_cli_version: '0.24.0'
           workflow_name: 'antigravity-issue-handler'
@@ -328,8 +328,8 @@ jobs:
           GITHUB_TOKEN: ${'$'}{{ secrets.GH_TOKEN || github.token }}
           GEMINI_TRUST_WORKSPACE: true
         with:
-          gemini_api_key: '${'$'}{{ secrets.ANTIGRAVITY_API_KEY }}'
-          google_api_key: '${'$'}{{ secrets.ANTIGRAVITY_API_KEY }}'
+          gemini_api_key: '${'$'}{{ secrets.GEMINI_API_KEY }}'
+          google_api_key: '${'$'}{{ secrets.GEMINI_API_KEY }}'
           gcp_project_id: ""
           gemini_cli_version: '0.24.0'
           workflow_name: 'antigravity-branch-manager'
