@@ -174,7 +174,7 @@ name: Antigravity Issue Handler
 #   2. Issue title/body delivered as ENV VARS, never interpolated into prompt.
 #   3. MCP write tools removed. Read + comment only.
 #   4. Permissions: contents:read + issues:write only.
-#   5. run-antigravity-cli upgrades require explicit review to reduce supply-chain risk.
+#   5. run-gemini-cli upgrades require explicit review to reduce supply-chain risk.
 
 on:
   issues:
@@ -201,7 +201,7 @@ jobs:
           persist-credentials: false
 
       - name: 'Run Antigravity CLI (read-only triage mode)'
-        uses: 'google-github-actions/run-antigravity-cli@v0'
+        uses: 'google-github-actions/run-gemini-cli@v0'
         env:
           ISSUE_TITLE: ${'$'}{{ github.event.issue.title }}
           ISSUE_BODY: ${'$'}{{ github.event.issue.body }}
@@ -209,12 +209,12 @@ jobs:
           ISSUE_AUTHOR: ${'$'}{{ github.event.issue.user.login }}
           REPOSITORY: ${'$'}{{ github.repository }}
           GITHUB_TOKEN: ${'$'}{{ secrets.GH_TOKEN || github.token }}
-          ANTIGRAVITY_CLI_TRUST_WORKSPACE: true
+          GEMINI_TRUST_WORKSPACE: true
         with:
-          antigravity_api_key: '${'$'}{{ secrets.ANTIGRAVITY_API_KEY }}'
+          gemini_api_key: '${'$'}{{ secrets.ANTIGRAVITY_API_KEY }}'
           google_api_key: '${'$'}{{ secrets.ANTIGRAVITY_API_KEY }}'
           gcp_project_id: ""
-          antigravity_cli_version: '0.24.0'
+          gemini_cli_version: '0.24.0'
           workflow_name: 'antigravity-issue-handler'
           use_gemini_code_assist: false
           use_vertex_ai: false
@@ -309,7 +309,7 @@ jobs:
           fetch-depth: 0
 
       - name: 'Run Antigravity CLI'
-        uses: 'google-github-actions/run-antigravity-cli@v0'
+        uses: 'google-github-actions/run-gemini-cli@v0'
         env:
           BRANCH: ${'$'}{{ github.ref_name }}
           REPOSITORY: ${'$'}{{ github.repository }}
@@ -320,12 +320,12 @@ jobs:
           REVIEW_BODY: ${'$'}{{ github.event.review.body }}
           REVIEWER: ${'$'}{{ github.event.review.user.login }}
           GITHUB_TOKEN: ${'$'}{{ secrets.GH_TOKEN || github.token }}
-          ANTIGRAVITY_CLI_TRUST_WORKSPACE: true
+          GEMINI_TRUST_WORKSPACE: true
         with:
-          antigravity_api_key: '${'$'}{{ secrets.ANTIGRAVITY_API_KEY }}'
+          gemini_api_key: '${'$'}{{ secrets.ANTIGRAVITY_API_KEY }}'
           google_api_key: '${'$'}{{ secrets.ANTIGRAVITY_API_KEY }}'
           gcp_project_id: ""
-          antigravity_cli_version: '0.24.0'
+          gemini_cli_version: '0.24.0'
           workflow_name: 'antigravity-branch-manager'
           use_gemini_code_assist: false
           use_vertex_ai: false

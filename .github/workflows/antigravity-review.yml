@@ -42,7 +42,7 @@ jobs:
         uses: 'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0' # ratchet:actions/checkout@v5
 
       - name: 'Run Antigravity pull request review'
-        uses: 'google-github-actions/run-antigravity-cli@v0' # ratchet:exclude
+        uses: 'google-github-actions/run-gemini-cli@v0' # ratchet:exclude
         id: 'antigravity_pr_review'
         env:
           GITHUB_TOKEN: '${{ steps.mint_identity_token.outputs.token || secrets.GH_TOKEN || github.token }}'
@@ -51,16 +51,16 @@ jobs:
           PULL_REQUEST_NUMBER: '${{ github.event.pull_request.number || github.event.issue.number }}'
           REPOSITORY: '${{ github.repository }}'
           ADDITIONAL_CONTEXT: '${{ inputs.additional_context }}'
-          ANTIGRAVITY_CLI_TRUST_WORKSPACE: true
+          GEMINI_TRUST_WORKSPACE: true
         with:
           google_api_key: '${{ secrets.ANTIGRAVITY_API_KEY }}'
           gcp_project_id: ""
           gcp_location: '${{ vars.GOOGLE_CLOUD_LOCATION }}'
           gcp_service_account: '${{ vars.SERVICE_ACCOUNT_EMAIL }}'
-          antigravity_api_key: '${{ secrets.ANTIGRAVITY_API_KEY }}'
-          antigravity_cli_version: '0.24.0'
-          antigravity_debug: '${{ fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}'
-          antigravity_model: '${{ vars.ANTIGRAVITY_MODEL }}'
+          gemini_api_key: '${{ secrets.ANTIGRAVITY_API_KEY }}'
+          gemini_cli_version: '0.24.0'
+          gemini_debug: '${{ fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}'
+          gemini_model: '${{ vars.ANTIGRAVITY_MODEL }}'
           use_gemini_code_assist: false
           use_vertex_ai: false
           upload_artifacts: '${{ vars.UPLOAD_ARTIFACTS }}'
