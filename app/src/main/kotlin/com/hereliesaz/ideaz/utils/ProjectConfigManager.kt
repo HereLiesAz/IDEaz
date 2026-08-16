@@ -200,6 +200,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: 'Ensure telemetry directory exists'
+        run: 'mkdir -p .antigravity'
+
       - name: 'Run Antigravity CLI (read-only triage mode)'
         uses: 'google-github-actions/run-gemini-cli@v0'
         env:
@@ -307,6 +310,9 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      - name: 'Ensure telemetry directory exists'
+        run: 'mkdir -p .antigravity'
 
       - name: 'Run Antigravity CLI'
         uses: 'google-github-actions/run-gemini-cli@v0'

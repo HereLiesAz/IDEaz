@@ -105,6 +105,11 @@ jobs:
             }
             core.setOutput('issues_to_triage', JSON.stringify(issues));
 
+      - name: 'Ensure telemetry directory exists'
+        if: |-
+          fromJSON(steps.find_issues.outputs.issues_to_triage).length > 0
+        run: 'mkdir -p .antigravity'
+
       - name: 'Run Antigravity scheduled issue triage'
         if: |-
           fromJSON(steps.find_issues.outputs.issues_to_triage).length > 0
