@@ -190,32 +190,29 @@ configurations.all {
         }
         eachDependency {
             when {
-                // jackson-core/jackson-databind/jackson-annotations all publish under this
-                // group. Pin to 2.18.9: jackson-core needs >= 2.18.8 (GHSA-r7wm-3cxj-wff9,
-                // async parser maxNumberLength bypass) and jackson-databind needs >= 2.18.9
-                // (CVE-2026-54515, case-insensitive deserialization bypass; CVE-2026-54512,
-                // PolymorphicTypeValidator bypass needs >= 2.18.8).
-                requested.group == "com.fasterxml.jackson.core" ->
-                    useVersion("2.18.9")
-                // Everything else in the family (datatype/module/dataformat modules, the
-                // BOM) — the java8 datatype modules (jackson-datatype-jdk8/jsr310) stop
-                // publishing at 2.18.7, so pin the rest of the family there. None of the
-                // open CVEs are in these modules; they're compatible with core/databind
-                // 2.18.9 since Jackson keeps API/behavior stable across a minor line.
+                // Jackson arrives as core/databind/annotations + datatype modules and a
+                // BOM; pin the whole family to a patched 2.18.x. Use 2.18.7 — the java8
+                // datatype modules (jackson-datatype-jdk8/jsr310) stop there, while
+                // core/databind go to 2.18.8, so 2.18.7 is the latest version every
+                // module publishes (and still > the 2.18.6 fix).
+                //
+                // 2026-08-16: tried bumping core/databind/annotations to 2.18.9 and Netty
+                // (below) to 4.1.137.Final to close out newer CVEs. The very first CI build
+                // against that combination hung indefinitely on `Build with Gradle` (30+ min
+                // against a ~7 min baseline, no error, no completion) and had to be reverted
+                // sight-unseen — no log access to an in-progress job to pin down whether it
+                // was dependency-resolution backtracking or an R8 pathological case. Re-attempt
+                // in isolation (one version bump at a time, watched locally first) rather than
+                // both at once.
                 requested.group.startsWith("com.fasterxml.jackson") ->
                     useVersion("2.18.7")
                 // Netty arrives as ~11 modules via grpc-netty (unit-test only). Pin the
                 // io.netty group to the latest patched 4.1.x — staying off 4.2.x, which
                 // grpc-netty does not support. (netty-tcnative tracks a separate scheme.)
-                // 4.1.137.Final (Aug 2026) rolls up the fixes from 4.1.135/.136/.137,
-                // covering the CONTINUATION flood, MadeYouReset, IPv6 subnet bypass,
-                // SNI/hostname-verification, request-smuggling, and decompression-bomb
-                // CVEs Dependabot flagged across netty-codec-http(2)/netty-handler/
-                // netty-common.
                 requested.group == "io.netty" &&
                     requested.name.startsWith("netty-") &&
                     !requested.name.startsWith("netty-tcnative") ->
-                    useVersion("4.1.137.Final")
+                    useVersion("4.1.134.Final")
             }
         }
     }
