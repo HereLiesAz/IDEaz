@@ -108,24 +108,24 @@ jobs:
       - name: 'Run Antigravity scheduled issue triage'
         if: |-
           fromJSON(steps.find_issues.outputs.issues_to_triage).length > 0
-        uses: 'google-github-actions/run-antigravity-cli@v0' # ratchet:exclude
+        uses: 'google-github-actions/run-gemini-cli@v0' # ratchet:exclude
         id: 'antigravity_scheduled_triage'
         env:
           GITHUB_TOKEN: '${{ steps.mint_identity_token.outputs.token || secrets.GH_TOKEN || github.token }}'
           ISSUES_TO_TRIAGE: '${{ steps.find_issues.outputs.issues_to_triage }}'
           REPOSITORY: '${{ github.repository }}'
           AVAILABLE_LABELS: '${{ steps.get_labels.outputs.available_labels }}'
-          ANTIGRAVITY_CLI_TRUST_WORKSPACE: true
+          GEMINI_TRUST_WORKSPACE: true
         with:
           google_api_key: '${{ secrets.ANTIGRAVITY_API_KEY }}'
           gcp_project_id: ""
           gcp_location: '${{ vars.GOOGLE_CLOUD_LOCATION }}'
           gcp_service_account: '${{ vars.SERVICE_ACCOUNT_EMAIL }}'
           gcp_workload_identity_provider: '${{ vars.GCP_WIF_PROVIDER }}'
-          antigravity_api_key: '${{ secrets.ANTIGRAVITY_API_KEY }}'
-          antigravity_cli_version: '0.24.0'
-          antigravity_debug: '${{ fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}'
-          antigravity_model: '${{ vars.ANTIGRAVITY_MODEL }}'
+          gemini_api_key: '${{ secrets.ANTIGRAVITY_API_KEY }}'
+          gemini_cli_version: '0.24.0'
+          gemini_debug: '${{ fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}'
+          gemini_model: '${{ vars.ANTIGRAVITY_MODEL }}'
           # Force AI Studio (API Key) auth when using ANTIGRAVITY_API_KEY
           use_gemini_code_assist: false
           use_vertex_ai: false

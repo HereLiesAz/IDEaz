@@ -19,7 +19,7 @@ name: Antigravity Branch Manager
 #   4. Removed the auto-merge and auto-delete-branch behaviour. The agent now
 #      proposes; humans dispose. Auto-merging on a `pull_request_review` event
 #      where the review can come from outside is too dangerous.
-#   5. TODO: pin run-antigravity-cli to a commit SHA before relying on this in CI.
+#   5. TODO: pin run-gemini-cli to a commit SHA before relying on this in CI.
 
 on:
   push:
@@ -49,7 +49,7 @@ jobs:
           fetch-depth: 0
 
       - name: 'Run Antigravity CLI'
-        uses: 'google-github-actions/run-antigravity-cli@v0'
+        uses: 'google-github-actions/run-gemini-cli@v0'
         env:
           BRANCH: ${{ github.ref_name }}
           REPOSITORY: ${{ github.repository }}
@@ -60,12 +60,12 @@ jobs:
           REVIEW_BODY: ${{ github.event.review.body }}
           REVIEWER: ${{ github.event.review.user.login }}
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
-          ANTIGRAVITY_CLI_TRUST_WORKSPACE: true
+          GEMINI_TRUST_WORKSPACE: true
         with:
           gcp_project_id: ""
-          antigravity_api_key: '${{ secrets.ANTIGRAVITY_API_KEY }}'
+          gemini_api_key: '${{ secrets.ANTIGRAVITY_API_KEY }}'
           google_api_key: '${{ secrets.ANTIGRAVITY_API_KEY }}'
-          antigravity_cli_version: '0.24.0'
+          gemini_cli_version: '0.24.0'
           workflow_name: 'antigravity-branch-manager'
           use_gemini_code_assist: false
           use_vertex_ai: false
