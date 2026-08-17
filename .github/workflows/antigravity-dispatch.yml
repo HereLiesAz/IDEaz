@@ -26,8 +26,13 @@ defaults:
 
 jobs:
   debugger:
+    # Also disabled for now, alongside every other job in this file: unlike
+    # `dispatch` below, this job's own condition never checked fork origin
+    # or author association, so leaving vars.DEBUG on would let any PR from
+    # anyone trigger a job holding contents:write that dumps the full event
+    # payload into its log. Re-enable together with `dispatch`.
     if: |-
-     ${{ fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}
+     ${{ false && fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}
     runs-on: 'ubuntu-latest'
     permissions:
       contents: 'write'
