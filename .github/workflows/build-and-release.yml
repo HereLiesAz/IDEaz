@@ -95,6 +95,7 @@ jobs:
 
       - name: Build with Gradle
         id: gradle-build
+        shell: bash
         env:
            KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
            KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
