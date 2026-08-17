@@ -76,13 +76,24 @@ class StateDelegate(
         data class BatchLines(val lines: List<String>) : LogEvent
     }
 
+    /** Tags a queued event with the [clearGeneration] active when it was enqueued. */
+    private data class LogEnvelope(val gen: Int, val event: LogEvent)
+
     // Unbounded channel to ensure producers (BuildService) never suspend/block when emitting logs.
-    private val logChannel = Channel<LogEvent>(Channel.UNLIMITED)
+    private val logChannel = Channel<LogEnvelope>(Channel.UNLIMITED)
+
+    // Bumped by clearLog() so any batch still in flight - whether still queued in
+    // logChannel or already dequeued into the loop's local `buffer` below,
+    // mid-delay - gets dropped instead of silently repopulating the log a
+    // moment after the user cleared it. The check happens at processing time
+    // (after the 100ms batch delay), not at dequeue time, so it catches both cases.
+    @Volatile
+    private var clearGeneration = 0
 
     init {
         // Launch the log processing loop.
         scope.launch(dispatcher) {
-            val buffer = mutableListOf<LogEvent>()
+            val buffer = mutableListOf<LogEnvelope>()
             while (true) {
                 // Suspend until the first item arrives. This prevents the loop from spinning CPU when idle.
                 val first = logChannel.receive()
@@ -98,11 +109,14 @@ class StateDelegate(
                     result = logChannel.tryReceive()
                 }
 
-                // Process the collected batch.
-                if (buffer.isNotEmpty()) {
-                    processLogBatch(buffer)
-                    buffer.clear()
+                // Process the collected batch, dropping anything from a generation
+                // the user has since cleared.
+                val currentGen = clearGeneration
+                val liveEvents = buffer.filter { it.gen == currentGen }.map { it.event }
+                if (liveEvents.isNotEmpty()) {
+                    processLogBatch(liveEvents)
                 }
+                buffer.clear()
             }
         }
     }
@@ -265,7 +279,7 @@ class StateDelegate(
      * Thread-safe and non-blocking.
      */
     fun appendBuildLog(msg: String) {
-        logChannel.trySend(LogEvent.Build(msg))
+        logChannel.trySend(LogEnvelope(clearGeneration, LogEvent.Build(msg)))
     }
 
     /**
@@ -274,21 +288,21 @@ class StateDelegate(
      */
     fun appendBuildLogLines(lines: List<String>) {
         if (lines.isEmpty()) return
-        logChannel.trySend(LogEvent.BatchLines(lines))
+        logChannel.trySend(LogEnvelope(clearGeneration, LogEvent.BatchLines(lines)))
     }
 
     /**
      * Appends an AI message to the log queue (will be prefixed with `[AI]`).
      */
     fun appendAiLog(msg: String) {
-        logChannel.trySend(LogEvent.Ai(msg))
+        logChannel.trySend(LogEnvelope(clearGeneration, LogEvent.Ai(msg)))
     }
 
     /**
      * Appends a system log message to the log queue.
      */
     fun appendSystemLog(msg: String) {
-        logChannel.trySend(LogEvent.System(msg))
+        logChannel.trySend(LogEnvelope(clearGeneration, LogEvent.System(msg)))
     }
 
     /** Sets the loading progress. Pass `null` to hide the indicator. */
@@ -349,6 +363,10 @@ class StateDelegate(
 
     /** Clears all log StateFlows. */
     fun clearLog() {
+        // Bump first: any batch already queued or mid-flight in the processing
+        // loop's buffer carries the old generation and gets dropped when it's
+        // finally processed, instead of repopulating the log we're about to clear.
+        clearGeneration++
         _buildLog.value = emptyList()
         _gitLog.value = emptyList()
         _aiLog.value = emptyList()

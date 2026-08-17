@@ -89,6 +89,23 @@ class StateDelegateTest {
     }
 
     @Test
+    fun `clearLog drops a batch already dequeued into the processing loop's buffer`() = testScope.runTest {
+        stateDelegate.appendBuildLog("stale")
+        // Let the loop's receive() dequeue "stale" and enter its 100ms batch
+        // delay, without advancing virtual time far enough for that delay to
+        // complete - this reproduces clearing mid-flight, before the fix's
+        // generation tag existed to catch it.
+        runCurrent()
+
+        stateDelegate.clearLog()
+
+        // Let the pending delay complete and the batch get processed.
+        advanceUntilIdle()
+
+        assertTrue(stateDelegate.buildLog.value.isEmpty())
+    }
+
+    @Test
     fun `appendChatMessage adds message to chatMessages`() = testScope.runTest {
         stateDelegate.appendChatMessage(
             com.hereliesaz.ideaz.ai.ChatMessage("user", "hello")
