@@ -17,7 +17,13 @@ permissions:
 
 jobs:
   validate-pr:
+    # Disabled: the GEMINI_API_KEY secret holds a value Google's API rejects
+    # ("API key not valid"), and every run fails auth (confirmed repeatedly
+    # on #806/#807/#808/#810/#816). Re-enable by deleting the `false &&` line
+    # and the wrapping parens once a valid key is set under Settings ->
+    # Secrets and variables -> Actions.
     if: |
+      false && (
       github.event_name == 'pull_request' ||
       (
         github.event_name == 'issue_comment' &&
@@ -29,6 +35,7 @@ jobs:
         github.event_name == 'pull_request_review_comment' &&
         contains(github.event.comment.body, '/validate-contribution') &&
         contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+      )
       )
     runs-on: ubuntu-latest
 
