@@ -104,8 +104,13 @@ fun WebProjectHost(
     val scope = rememberCoroutineScope()
 
     // Stable instances so add/remove below reference the same objects.
-    val ideazJsInterface = remember { IdeazJsInterface(context) }
-    val ideazBridge = remember { WebViewBridge { json -> scope.launch { currentOnElementContext(json) } } }
+    // Explicit types: lint's JavascriptInterface check can't resolve the
+    // @JavascriptInterface-annotated members of a class through remember<T>'s
+    // generic inference, and reports "None of the methods in the added
+    // interface (T) have been annotated" against the literal unresolved "T"
+    // instead of the real type otherwise.
+    val ideazJsInterface: IdeazJsInterface = remember { IdeazJsInterface(context) }
+    val ideazBridge: WebViewBridge = remember { WebViewBridge { json -> scope.launch { currentOnElementContext(json) } } }
 
     // The active project directory is held in mutable state so the (single,
     // long-lived) asset loader always serves the currently-previewed project
