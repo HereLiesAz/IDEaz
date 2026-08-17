@@ -4,30 +4,28 @@ import com.hereliesaz.ideaz.models.OperationProgress
 import com.hereliesaz.ideaz.models.OperationState
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Test
 
+/**
+ * Each test constructs its own [OperationController] from the [runTest]
+ * lambda's own `TestScope` receiver (`this`), not a scope built in `@Before`
+ * — `advanceUntilIdle`/`runCurrent` only drive coroutines dispatched on the
+ * exact scheduler the active `runTest` call owns, so the controller under
+ * test needs to be launched into that same scope, not a separately
+ * constructed one.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 class OperationControllerTest {
 
-    private lateinit var testScope: TestScope
-    private lateinit var controller: OperationController<String>
-
-    @Before
-    fun setUp() {
-        testScope = TestScope()
-        controller = OperationController(testScope.backgroundScope)
-    }
-
     @Test
-    fun `start runs the block and publishes Succeeded with its result`() = testScope.runTest {
+    fun `start runs the block and publishes Succeeded with its result`() = runTest {
+        val controller = OperationController<String>(this)
         val started = controller.start { "done" }
         assertTrue(started)
         advanceUntilIdle()
@@ -35,7 +33,8 @@ class OperationControllerTest {
     }
 
     @Test
-    fun `start publishes Running immediately, before the block completes`() = testScope.runTest {
+    fun `start publishes Running immediately, before the block completes`() = runTest {
+        val controller = OperationController<String>(this)
         controller.start {
             delay(100)
             "done"
@@ -46,7 +45,8 @@ class OperationControllerTest {
     }
 
     @Test
-    fun `start reports progress through the callback`() = testScope.runTest {
+    fun `start reports progress through the callback`() = runTest {
+        val controller = OperationController<String>(this)
         controller.start { report ->
             report(OperationProgress(fraction = 0.5f, step = "halfway"))
             delay(100) // keep the operation in flight so the report is observable
@@ -62,7 +62,8 @@ class OperationControllerTest {
     }
 
     @Test
-    fun `start does nothing while an operation is already active`() = testScope.runTest {
+    fun `start does nothing while an operation is already active`() = runTest {
+        val controller = OperationController<String>(this)
         controller.start {
             delay(100)
             "first"
@@ -74,7 +75,8 @@ class OperationControllerTest {
     }
 
     @Test
-    fun `a thrown exception publishes a retryable Failed state`() = testScope.runTest {
+    fun `a thrown exception publishes a retryable Failed state`() = runTest {
+        val controller = OperationController<String>(this)
         controller.start { error("boom") }
         advanceUntilIdle()
         val state = controller.state.value
@@ -84,7 +86,8 @@ class OperationControllerTest {
     }
 
     @Test
-    fun `cancel stops the running operation and publishes Cancelled`() = testScope.runTest {
+    fun `cancel stops the running operation and publishes Cancelled`() = runTest {
+        val controller = OperationController<String>(this)
         controller.start {
             delay(1000)
             "done"
@@ -96,20 +99,23 @@ class OperationControllerTest {
     }
 
     @Test
-    fun `cancel on an inactive controller is a no-op`() = testScope.runTest {
+    fun `cancel on an inactive controller is a no-op`() = runTest {
+        val controller = OperationController<String>(this)
         controller.cancel()
         assertEquals(OperationState.Queued, controller.state.value)
     }
 
     @Test
-    fun `a fresh never-started controller is not active`() {
+    fun `a fresh never-started controller is not active`() = runTest {
         // Regression guard: isActive must not treat the idle Queued default
         // as busy, or start() would refuse to ever run on a fresh controller.
+        val controller = OperationController<String>(this)
         assertFalse(controller.isActive)
     }
 
     @Test
-    fun `retry re-runs the last block after a retryable failure`() = testScope.runTest {
+    fun `retry re-runs the last block after a retryable failure`() = runTest {
+        val controller = OperationController<String>(this)
         var attempt = 0
         controller.start {
             attempt++
@@ -126,13 +132,15 @@ class OperationControllerTest {
     }
 
     @Test
-    fun `retry does nothing when nothing has failed yet`() = testScope.runTest {
+    fun `retry does nothing when nothing has failed yet`() = runTest {
+        val controller = OperationController<String>(this)
         assertFalse(controller.retry())
         assertEquals(OperationState.Queued, controller.state.value)
     }
 
     @Test
-    fun `a thrown NonRetryableOperationException publishes a non-retryable Failed state`() = testScope.runTest {
+    fun `a thrown NonRetryableOperationException publishes a non-retryable Failed state`() = runTest {
+        val controller = OperationController<String>(this)
         controller.start { throw NonRetryableOperationException("bad credential") }
         advanceUntilIdle()
         val state = controller.state.value
@@ -142,7 +150,8 @@ class OperationControllerTest {
     }
 
     @Test
-    fun `retry does nothing after a non-retryable failure`() = testScope.runTest {
+    fun `retry does nothing after a non-retryable failure`() = runTest {
+        val controller = OperationController<String>(this)
         controller.start { throw NonRetryableOperationException("bad credential") }
         advanceUntilIdle()
         assertFalse(controller.retry())
