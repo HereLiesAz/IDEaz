@@ -116,11 +116,18 @@ jobs:
             fi
           fi
           echo "Running configured build command"
-          bash -eo pipefail -c "$BUILD_COMMAND" > build.log 2>&1
-          
-          EXIT_CODE=$?
+          # Stream to the console live via `tee` (not just to build.log) and bound
+          # runtime with `timeout`: a wedged build previously produced ZERO visible
+          # output and silently ate the default 6h job ceiling, twice, with no way
+          # to tell what it was stuck on. `timeout` exits 124 on expiry; PIPESTATUS
+          # captures the real command's exit code past the `tee` pipe.
+          timeout 30m bash -eo pipefail -c "$BUILD_COMMAND" 2>&1 | tee build.log
+
+          EXIT_CODE=${PIPESTATUS[0]}
+          if [ "$EXIT_CODE" -eq 124 ]; then
+            echo "Build timed out after 30 minutes" >&2
+          fi
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
-          cat build.log
           exit $EXIT_CODE
 
       # ------------------------------------------------------------------
