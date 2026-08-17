@@ -50,7 +50,23 @@ class LocalModelDownloadWorker(
             ?: return failure("Model '$modelId' is no longer in the catalog")
         if (model.systemManaged) return failure("System-managed models are not downloadable")
 
-        setForeground(foregroundInfo(model.name, downloaded = 0L, total = model.approxSizeBytes))
+        try {
+            setForeground(foregroundInfo(model.name, downloaded = 0L, total = model.approxSizeBytes))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // API 31+ throws ForegroundServiceStartNotAllowedException when the app is
+            // backgrounded - a routine case for a WorkManager backoff retry firing
+            // while the user has left the app. Uncaught, this escaped doWork with no
+            // error key, so WorkManager just recorded a bare failure and the UI showed
+            // an unexplained one. Retry (the app may be foregrounded by the next
+            // attempt) instead of crashing the worker outright.
+            return if (runAttemptCount < MAX_RETRIES) {
+                Result.retry()
+            } else {
+                failure("Could not start the download notification (app is in the background). Reopen the app and retry.")
+            }
+        }
         val settings = SettingsViewModel(applicationContext as Application)
         val token = settings.getApiKey(SettingsViewModel.KEY_HF_API_KEY)?.takeIf { it.isNotBlank() }
 

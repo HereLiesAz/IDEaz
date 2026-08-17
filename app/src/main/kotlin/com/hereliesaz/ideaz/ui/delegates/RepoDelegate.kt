@@ -16,6 +16,7 @@ import com.hereliesaz.ideaz.ui.AiModels
 import com.hereliesaz.ideaz.ui.ProjectMetadata
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.utils.GithubSecretBox
+import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ProjectConfigManager
 import com.hereliesaz.ideaz.utils.ProjectInitializer
 import com.hereliesaz.ideaz.utils.RepoMapper
@@ -57,6 +58,14 @@ class RepoDelegate(
     /** List of repositories owned by the authenticated GitHub user. */
     val ownedRepos = _ownedRepos.asStateFlow()
 
+    private val _repoFetchError = MutableStateFlow<String?>(null)
+    /**
+     * Non-null after [fetchGitHubRepos] fails (network error, bad token, etc.).
+     * An empty [ownedRepos] with a null error means the account genuinely has none -
+     * without this, both cases rendered as the same "No repositories found." message.
+     */
+    val repoFetchError = _repoFetchError.asStateFlow()
+
     // --- Public Operations ---
 
     /**
@@ -70,6 +79,7 @@ class RepoDelegate(
     fun fetchGitHubRepos() {
         scope.launch {
             onLoadingProgress(0)
+            _repoFetchError.value = null
             try {
                 val julesProjectId = settingsViewModel.getJulesProjectId()
 
@@ -98,6 +108,12 @@ class RepoDelegate(
 
             } catch (e: Exception) {
                 onOverlayLog("Error fetching repos: ${e.message}")
+                // Distinct from "the account genuinely has zero repos" - previously
+                // only logged to the overlay console, so an offline user with a
+                // valid token saw the exact same "No repositories found." empty
+                // state as someone who really has none, with no retry affordance
+                // beyond the generic refresh icon.
+                _repoFetchError.value = e.message ?: "Could not load repositories."
             } finally {
                 onLoadingProgress(null)
             }
@@ -344,6 +360,23 @@ class RepoDelegate(
                     onOverlayLog("Clone complete.")
                 }
 
+                // Project type is a GLOBAL setting (see MainViewModel.loadProject's
+                // same re-detection) - re-derive it from what's actually on disk
+                // rather than carrying over whatever the previously open project
+                // was. Without this, a cloned Android or plain-web repo silently
+                // inherited a stale type, bypassing this release's PWA-only gate:
+                // secrets were uploaded and CI workflows were pushed for a project
+                // type this release doesn't support.
+                val detectedType = withContext(Dispatchers.IO) { ProjectAnalyzer.detectProjectType(projectDir) }
+                settingsViewModel.setProjectType(detectedType.name)
+                if (detectedType !in ProjectType.selectable) {
+                    onOverlayLog(
+                        "${detectedType.displayName} projects are not available in this release. " +
+                            "The repository was cloned but not initialized."
+                    )
+                    return@launch
+                }
+
                 onSuccess(owner, defaultBranch)
             } catch (e: Exception) {
                 onOverlayLog("Error loading repository: ${e.message}")
@@ -463,7 +496,12 @@ class RepoDelegate(
                 val secrets = mutableMapOf<String, String>()
                 settingsViewModel.getApiKey()?.let { secrets["JULES_API_KEY"] = it }
                 settingsViewModel.getApiKey(AiModels.GEMINI.requiredKey)?.let { secrets["GEMINI_API_KEY"] = it }
-                settingsViewModel.getApiKey("GOOGLE_API_KEY")?.let { secrets["GOOGLE_API_KEY"] = it }
+                // Was looking up the literal string "GOOGLE_API_KEY" (uppercase),
+                // but the actual preference key is lowercase (KEY_GOOGLE_API_KEY =
+                // "google_api_key") - this always returned null, so the secret was
+                // silently never uploaded and the "(uploaded/size)" warning below
+                // could never fire for it.
+                settingsViewModel.getApiKey(SettingsViewModel.KEY_GOOGLE_API_KEY)?.let { secrets["GOOGLE_API_KEY"] = it }
                 settingsViewModel.getJulesProjectId()?.let { secrets["JULES_PROJECT_ID"] = it }
 
                 val keystorePath = settingsViewModel.getKeystorePath()

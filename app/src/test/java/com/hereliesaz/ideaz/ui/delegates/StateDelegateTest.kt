@@ -7,6 +7,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -86,6 +87,23 @@ class StateDelegateTest {
         assertEquals(1, stateDelegate.buildLog.value.size)
         stateDelegate.clearLog()
         assertEquals(0, stateDelegate.buildLog.value.size)
+    }
+
+    @Test
+    fun `clearLog drops a batch already dequeued into the processing loop's buffer`() = testScope.runTest {
+        stateDelegate.appendBuildLog("stale")
+        // Let the loop's receive() dequeue "stale" and enter its 100ms batch
+        // delay, without advancing virtual time far enough for that delay to
+        // complete - this reproduces clearing mid-flight, before the fix's
+        // generation tag existed to catch it.
+        runCurrent()
+
+        stateDelegate.clearLog()
+
+        // Let the pending delay complete and the batch get processed.
+        advanceUntilIdle()
+
+        assertTrue(stateDelegate.buildLog.value.isEmpty())
     }
 
     @Test

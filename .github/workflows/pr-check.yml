@@ -1,0 +1,104 @@
+name: PR Check
+
+# The only pre-merge gate in this repo: compiles the app, runs its unit
+# tests, and runs lint against every pull request. build-and-release.yml
+# deliberately no longer triggers on pull_request (it used to, alongside a
+# push trigger, and the two independent un-deduped builds that produced are
+# in git history/TODO.md) - this workflow exists specifically so removing
+# that trigger didn't also remove pre-merge validation entirely.
+#
+# Deliberately narrower than build-and-release.yml: no release signing, no
+# artifact packaging, no publishing. Just enough to catch a build break or a
+# broken test before merge.
+
+on:
+  pull_request:
+
+# Keyed on the PR number only, and this workflow has exactly one trigger
+# type (pull_request), so there's no push-vs-pull_request ref mismatch to
+# chase here - a push to an open PR simply supersedes the previous check.
+concurrency:
+  group: pr-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Inject Google Services
+        env:
+          GOOGLE_SERVICES_API_KEY: ${{ secrets.GOOGLE_SERVICES_API_KEY }}
+          PROJECT_ID: ${{ secrets.PROJECT_ID }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+        run: |
+          TEMPLATE=$(find . -name 'google-services.json.template' -print -quit)
+          if [ -n "$TEMPLATE" ]; then
+            TARGET=${TEMPLATE%.template}
+            echo "Injecting ${TEMPLATE} into ${TARGET}"
+            sed -e 's/{{\([^}]*\)}}/${\1}/g' "$TEMPLATE" | envsubst > "$TARGET"
+          fi
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        if: ${{ hashFiles('**/gradlew') != '' }}
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: false
+          cache-provider: basic
+
+      - name: Grant execute permission for Gradle wrapper
+        if: ${{ hashFiles('**/gradlew') != '' }}
+        run: chmod +x gradlew
+
+      - name: Compile, unit test, and lint
+        shell: bash
+        run: |
+          set +e
+          # Same bounded-timeout + live-streaming pattern as build-and-release.yml.
+          # This job originally skipped the thread-dump watchdog on the theory
+          # that it "just needs to fail loudly instead of hanging silently" -
+          # it then reproduced the exact testDebugUnitTest teardown hang this
+          # session spent hours root-causing, with zero diagnostic output,
+          # because there was no watchdog. Carrying the watchdog over here too.
+          (
+            timeout --kill-after=1m 20m bash -eo pipefail -c \
+              './gradlew testDebugUnitTest lintDebug --continue' 2>&1 | tee build.log
+            echo "${PIPESTATUS[0]}" > /tmp/build_exit_code
+          ) &
+          BUILD_PID=$!
+
+          (
+            sleep 480
+            if kill -0 "$BUILD_PID" 2>/dev/null; then
+              echo "::warning::Still running after 8 min - dumping JVM thread stacks"
+              JCMD="${JAVA_HOME:+$JAVA_HOME/bin/jcmd}"
+              JCMD="${JCMD:-jcmd}"
+              for pid in $("$JCMD" -l 2>/dev/null | awk '{print $1}'); do
+                echo "===== $JCMD $pid Thread.print ====="
+                "$JCMD" "$pid" Thread.print 2>&1 || true
+              done
+            fi
+          ) &
+          WATCHDOG_PID=$!
+
+          wait "$BUILD_PID"
+          pkill -P "$WATCHDOG_PID" 2>/dev/null || true
+          kill "$WATCHDOG_PID" 2>/dev/null || true
+          wait "$WATCHDOG_PID" 2>/dev/null || true
+
+          EXIT_CODE=$(cat /tmp/build_exit_code 2>/dev/null || echo 1)
+          if [ "$EXIT_CODE" -eq 124 ]; then
+            echo "PR check timed out after 20 minutes" >&2
+          fi
+          exit "$EXIT_CODE"

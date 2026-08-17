@@ -21,8 +21,12 @@ defaults:
 
 jobs:
   debugger:
+    # Disabled for now, alongside `triage` below and every other antigravity-*
+    # job: a debug job holding contents:write shouldn't stay one accidental
+    # vars.DEBUG=true away from live while the rest of this automation is
+    # off. Re-enable together with `triage`.
     if: |-
-     ${{ fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}
+     ${{ false && fromJSON(vars.DEBUG || vars.ACTIONS_STEP_DEBUG || false) }}
     runs-on: 'ubuntu-latest'
     permissions:
       contents: 'write'

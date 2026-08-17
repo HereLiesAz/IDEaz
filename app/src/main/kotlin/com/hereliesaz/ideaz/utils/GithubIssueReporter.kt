@@ -82,7 +82,6 @@ object GithubIssueReporter {
 
         // Truncate for safety (API limit ~65k chars, URL limit 2k-8k). Keep the
         // head — the exception and app frames live at the top of a stack trace.
-        val sanitizedPrimary = sanitizeContent(stackTrace.take(4000))
         val bodyContent = """
             **Context:** $contextMessage
             **Device:** ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})
@@ -96,9 +95,13 @@ object GithubIssueReporter {
             Please debug this, Jules. Make sure you get both a correct code review and a passing build with tests before submitting your solution.
         """.trimIndent()
 
+        // The title is posted to a public repo just like the body - it needs the
+        // same sanitization. This was previously missed (only the body was
+        // sanitized), so a secret landing in an exception message or the first
+        // line of a build log would have been posted in plain text in the title.
         val errorTitle = when {
-            error != null -> "${error::class.simpleName} - ${error.message?.take(50) ?: "Unknown"}"
-            stackTraceOverride != null -> stackTraceOverride.lines().firstOrNull()?.take(50) ?: "Unknown Error"
+            error != null -> "${error::class.simpleName} - ${sanitizeContent(error.message ?: "Unknown").take(50)}"
+            stackTraceOverride != null -> sanitizeContent(stackTraceOverride.lines().firstOrNull() ?: "Unknown Error").take(50)
             else -> "Unknown Error"
         }
         val titleContent = "IDE Error: $errorTitle"

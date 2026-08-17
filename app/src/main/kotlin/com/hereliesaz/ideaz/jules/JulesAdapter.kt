@@ -46,9 +46,26 @@ class JulesAdapter(
             emit(TaskEvent.SessionStarted(session))
             session.id
         } else {
-            runCatching { getAllActivities(existingSessionId) }
-                .getOrDefault(emptyList())
-                .forEach { processed.add(it.id) }
+            // A failed seed fetch used to be swallowed by getOrDefault(emptyList())
+            // and CancellationException along with it: `processed` would stay
+            // empty, so the very next poll would treat every activity in the
+            // session's entire history as new and re-emit (and re-apply) every
+            // past patch. Retry a few times instead of silently proceeding with
+            // an empty seed set, and propagate failure - and cancellation - if
+            // it still can't be seeded, rather than risk replaying history.
+            var seedAttempt = 0
+            while (true) {
+                try {
+                    getAllActivities(existingSessionId).forEach { processed.add(it.id) }
+                    break
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    seedAttempt++
+                    if (seedAttempt >= SEED_ATTEMPTS) throw e
+                    delay(pollDelayMs)
+                }
+            }
             client.sendMessage(existingSessionId, SendMessageRequest(prompt = prompt))
             existingSessionId
         }
@@ -112,6 +129,12 @@ class JulesAdapter(
 
     companion object {
         const val POLL_DELAY_MS = 3_000L
-        const val MAX_POLL_ATTEMPTS = 15 // ~45s total
+        // Real agentic coding tasks (writing code, running it, opening a PR)
+        // routinely take longer than the ~45s this used to allow - a task
+        // that finished at, say, 90s would time out here with the consumer
+        // never learning it actually succeeded. ~10 minutes is still bounded
+        // but gives real tasks realistic room to finish.
+        const val MAX_POLL_ATTEMPTS = 200 // ~10 min total
+        const val SEED_ATTEMPTS = 3
     }
 }

@@ -134,7 +134,13 @@ class AIDelegate(
 
     // --- Internal State ---
 
-    /** The Job for the currently running contextual task. Allows cancellation. */
+    /**
+     * The Job for the currently running contextual task. [startContextualAITask]
+     * cancels the previous one before launching a new one, so only one overlay
+     * prompt is ever in flight - without this, two prompts in quick succession
+     * would race on [_isLoadingJulesResponse] (whichever `finally` block ran
+     * last would win, regardless of which task was actually still running).
+     */
     private var contextualTaskJob: Job? = null
 
     // --- Public Methods ---
@@ -186,6 +192,9 @@ class AIDelegate(
                     source.equals(targetSource, ignoreCase = true)
                 }
                 _sessions.value = filtered
+            } catch (e: CancellationException) {
+                // Structured-concurrency contract: never swallow cancellation.
+                throw e
             } catch (e: Exception) {
                 // Silently fail or log debug
                 _sessions.value = emptyList()
@@ -236,7 +245,12 @@ class AIDelegate(
             }
         }
 
-        contextualTaskJob = scope.launch {
+        // Cancel any prior in-flight task: only one overlay prompt should ever
+        // be running at once. See the contextualTaskJob doc comment above.
+        contextualTaskJob?.cancel()
+
+        lateinit var thisJob: Job
+        thisJob = scope.launch {
             try {
                 // Try the multi-provider factory first. If it returns a client,
                 // route through the unified runConversationalTask path. Jules
@@ -263,9 +277,15 @@ class AIDelegate(
                 onOverlayLog("Error: ${e.message}")
                 _julesError.value = e.message
             } finally {
-                _isLoadingJulesResponse.value = false
+                // Only the most recent task should clear the loading indicator -
+                // a superseded, cancelled task's finally block would otherwise
+                // race with (and could outlive) the task that replaced it.
+                if (contextualTaskJob === thisJob) {
+                    _isLoadingJulesResponse.value = false
+                }
             }
         }
+        contextualTaskJob = thisJob
     }
 
     /**

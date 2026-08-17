@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.jules
 
+import com.hereliesaz.ideaz.BuildConfig
 import com.hereliesaz.ideaz.api.*
 import com.hereliesaz.ideaz.api.AuthInterceptor
 import com.hereliesaz.ideaz.api.RetryInterceptor
@@ -50,7 +51,11 @@ object JulesApiClient : IJulesApiClient {
 
     private fun buildClient(): JulesApi {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            // BODY logging in a release build writes every request/response -
+            // including user prompts and source snippets - to logcat, which
+            // is also piped into the in-app console (LogcatReader). Header
+            // redaction alone never covered that.
+            level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY else HttpLoggingInterceptor.Level.NONE
             redactHeader("X-Goog-Api-Key")
         }
         val okHttpClient = OkHttpClient.Builder()

@@ -36,9 +36,9 @@ object CrashHandler {
             val stackTrace = sw.toString()
 
             val prefs = PreferenceManager.getDefaultSharedPreferences(context)
-            val apiKey = prefs.getString(SettingsViewModel.KEY_API_KEY, null)
+            val apiKey = readSecureOrLegacyCredential(context, SettingsViewModel.KEY_API_KEY)
             val projectId = prefs.getString(SettingsViewModel.KEY_JULES_PROJECT_ID, null)
-            val githubToken = prefs.getString(SettingsViewModel.KEY_GITHUB_TOKEN, null)
+            val githubToken = readSecureOrLegacyCredential(context, SettingsViewModel.KEY_GITHUB_TOKEN)
             val githubUser = prefs.getString(SettingsViewModel.KEY_GITHUB_USER, "Unknown")
             val reportToGithub = prefs.getBoolean(SettingsViewModel.KEY_REPORT_IDE_ERRORS, true)
 

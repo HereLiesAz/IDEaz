@@ -52,8 +52,11 @@ class IdeazJsInterface(private val context: Context) {
  * same-origin policy and service-worker support.
  *
  * @param url            The URL to load. Remote URLs (e.g. GitHub Pages) are passed
- *                       through unchanged. For local projects [projectDir] is set and
- *                       the project is loaded from the asset-loader root.
+ *                       through unchanged - but without the `Ideaz`/`IdeazBridge`
+ *                       JS interfaces, which are only added for this app's own
+ *                       asset-loader origin (see the load `LaunchedEffect` below).
+ *                       For local projects [projectDir] is set and the project is
+ *                       loaded from the asset-loader root instead.
  * @param projectDir     The local project directory to mount at the asset-loader root
  *                       (via [WebProjectPathHandler]). `null` for remote URLs.
  * @param reloadTrigger  Soft-reload signal. When this Long changes (and is > 0), the
@@ -100,6 +103,10 @@ fun WebProjectHost(
     val currentOnElementContext by rememberUpdatedState(onElementContext)
     val scope = rememberCoroutineScope()
 
+    // Stable instances so add/remove below reference the same objects.
+    val ideazJsInterface = remember { IdeazJsInterface(context) }
+    val ideazBridge = remember { WebViewBridge { json -> scope.launch { currentOnElementContext(json) } } }
+
     // The active project directory is held in mutable state so the (single,
     // long-lived) asset loader always serves the currently-previewed project
     // without recreating the WebView when the user switches projects.
@@ -140,16 +147,15 @@ fun WebProjectHost(
                 safeBrowsingEnabled = true
             }
 
-            // Trust boundary: these interfaces are only safe because this WebView
-            // exclusively loads app-served content from the WebViewAssetLoader origin
-            // (https://appassets.androidplatform.net). Never load remote/untrusted URLs
-            // here. resourceId from onInspectResult is path-validated downstream in
-            // SourceContextHelper before any file access.
-            addJavascriptInterface(IdeazJsInterface(context), "Ideaz")
-            addJavascriptInterface(
-                WebViewBridge { json -> scope.launch { currentOnElementContext(json) } },
-                "IdeazBridge"
-            )
+            // Trust boundary: these interfaces are only added when the target
+            // being loaded is this app's own WebViewAssetLoader origin - see
+            // the LaunchedEffect below, which adds/removes them per navigation
+            // rather than once here unconditionally. addJavascriptInterface has
+            // no per-origin scoping of its own, so a remote URL loaded with
+            // these always present would hand that page the same bridge local
+            // project content gets. resourceId from onInspectResult is
+            // path-validated downstream in SourceContextHelper before any file
+            // access, independent of this.
 
             webChromeClient = object : WebChromeClient() {
                 override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
@@ -305,6 +311,16 @@ fun WebProjectHost(
         projectDirState.value = projectDir
         if (!isWebViewDestroyed.value) {
             val target = if (projectDir != null) WebProjectUrlUtils.localProjectRootUrl() else url
+            // Only expose the privileged bridge when we're actually loading
+            // this app's own asset-loader origin - a remote URL (the "passed
+            // through unchanged" path below) gets no bridge at all.
+            if (target.startsWith(WebProjectUrlUtils.ASSET_ROOT_URL)) {
+                webView.addJavascriptInterface(ideazJsInterface, "Ideaz")
+                webView.addJavascriptInterface(ideazBridge, "IdeazBridge")
+            } else {
+                webView.removeJavascriptInterface("Ideaz")
+                webView.removeJavascriptInterface("IdeazBridge")
+            }
             webView.loadUrl(target)
         }
     }

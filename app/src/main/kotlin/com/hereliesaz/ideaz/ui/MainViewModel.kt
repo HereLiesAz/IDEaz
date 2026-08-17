@@ -658,6 +658,7 @@ class MainViewModel(
     private var lastPrompt: String? = null
 
     val ownedRepos = repoDelegate.ownedRepos
+    val repoFetchError = repoDelegate.repoFetchError
     val sessions = aiDelegate.sessions
     val commitHistory = gitDelegate.commitHistory
     val branches = gitDelegate.branches
@@ -709,6 +710,21 @@ class MainViewModel(
         fileObserver?.stopWatching()
         buildDelegate.unbindService(getApplication())
         systemEventDelegate.cleanup()
+    }
+
+    /**
+     * Public entry point for releasing this ViewModel's resources.
+     *
+     * This ViewModel is deliberately Application-scoped - constructed once
+     * directly in [com.hereliesaz.ideaz.MainApplication.onCreate], not
+     * through a [androidx.lifecycle.ViewModelProvider] - so the framework
+     * never calls [onCleared] (that's `protected`, and only a
+     * `ViewModelStore` invokes it). Exposed here, and called from
+     * `MainApplication.onTerminate()`, so the release path is at least
+     * reachable rather than permanently dead code.
+     */
+    fun releaseResources() {
+        onCleared()
     }
 
     /**
@@ -1354,6 +1370,19 @@ class MainViewModel(
 
                 // Analyze and Load
                 val projectType = com.hereliesaz.ideaz.utils.ProjectAnalyzer.detectProjectType(destDir)
+                // Same release gate loadProject() enforces: an imported folder can be
+                // any project type ProjectAnalyzer recognizes, but only ProjectType.selectable
+                // is release-ready. Without this check, importing an Android or plain-web
+                // folder fully initialized it anyway - pushing CI workflows and injecting
+                // crash-reporting code for a project type this release doesn't support.
+                if (projectType !in ProjectType.selectable) {
+                    destDir.deleteRecursively()
+                    logHandler.onOverlayLog(
+                        "${projectType.displayName} projects are not available in this release. " +
+                            "The imported folder was not kept."
+                    )
+                    return@launch
+                }
                 val packageName = com.hereliesaz.ideaz.utils.ProjectAnalyzer.detectPackageName(destDir)
                     ?: "com.ideaz.imported.${projectName.filter { it.isLetterOrDigit() }.lowercase()}"
 
@@ -1500,6 +1529,17 @@ class MainViewModel(
                 if (indexFile.exists()) {
                     stateDelegate.setCurrentWebProjectDir(projectDir)
                     stateDelegate.setCurrentWebUrl(WebProjectUrlUtils.localProjectRootUrl())
+                } else {
+                    // App View mounting is gated on currentWebUrl being set, not on
+                    // project type - setTargetAppVisible(true) below with no URL used
+                    // to fall through to MainScreen's Android-placeholder branch,
+                    // showing "Android target host arrives in Phase 2" for what's
+                    // actually a PWA project missing its entry file. Surface the real
+                    // problem instead and stay on the current screen.
+                    logHandler.onOverlayLog(
+                        "Can't launch: this project has no index.html. Add one to preview it."
+                    )
+                    return
                 }
             }
             startFileObservation(projectDir)

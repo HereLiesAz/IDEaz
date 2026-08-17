@@ -164,7 +164,24 @@ The fetch handler returns a cached shell."""
         assertEquals(256, localInferenceLimits(0L).maxOutputTokens)
         assertEquals(512, localInferenceLimits(4_000_000_000L).maxOutputTokens)
         assertEquals(768, localInferenceLimits(8_000_000_000L).maxOutputTokens)
-        assertEquals(8_192, localInferenceLimits(2_000_000_000L).maxPromptChars)
+        // maxPromptChars leaves maxOutputTokens of headroom inside maxContextTokens
+        // (both budgets share one total window) - (2048 - 256) tokens * 4 chars/token.
+        assertEquals(7_168, localInferenceLimits(2_000_000_000L).maxPromptChars)
+    }
+
+    @Test
+    fun `local inference limits reserve room for output within the total context budget`() {
+        val low = localInferenceLimits(2_000_000_000L)
+        val mid = localInferenceLimits(4_000_000_000L)
+        val high = localInferenceLimits(8_000_000_000L)
+        for (limits in listOf(low, mid, high)) {
+            val promptTokenEstimate = limits.maxPromptChars / 4
+            assertTrue(
+                "prompt (${promptTokenEstimate}t) + output (${limits.maxOutputTokens}t) must fit " +
+                    "within the total context budget (${limits.maxContextTokens}t)",
+                promptTokenEstimate + limits.maxOutputTokens <= limits.maxContextTokens,
+            )
+        }
     }
 
     @Test

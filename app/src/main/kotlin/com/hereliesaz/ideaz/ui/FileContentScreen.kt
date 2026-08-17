@@ -15,13 +15,63 @@ import com.hereliesaz.ideaz.ui.editor.EditorSetup
 import com.hereliesaz.ideaz.ui.editor.EditorViewModel
 import java.io.File
 
+/**
+ * Heuristic binary-file detector: a NUL byte anywhere in the first 8000 bytes
+ * means this isn't text (the same heuristic `git` and most editors use). Text
+ * files, including UTF-8/UTF-16 with BOMs, never legitimately contain NUL.
+ */
+private fun looksBinary(file: File): Boolean {
+    val probe = ByteArray(8000)
+    val read = file.inputStream().use { it.read(probe) }
+    return (0 until read.coerceAtLeast(0)).any { probe[it] == 0.toByte() }
+}
+
+private sealed interface FileLoadResult {
+    data class Text(val content: String) : FileLoadResult
+    object Binary : FileLoadResult
+    data class Unreadable(val message: String) : FileLoadResult
+}
+
+private fun loadFile(file: File): FileLoadResult {
+    if (!file.isFile) return FileLoadResult.Unreadable("File no longer exists.")
+    return runCatching {
+        if (looksBinary(file)) FileLoadResult.Binary else FileLoadResult.Text(file.readText())
+    }.getOrElse { e -> FileLoadResult.Unreadable(e.message ?: "Could not read file.") }
+}
+
 @Composable
 fun FileContentScreen(
     filePath: String,
     viewModel: EditorViewModel? = null
 ) {
     val file = File(filePath)
-    var fileContent by remember { mutableStateOf(file.readText()) }
+    // Re-probed only when filePath changes, not on every recomposition -
+    // loadFile() reads the file from disk.
+    val loadResult = remember(filePath) { loadFile(file) }
+
+    if (loadResult !is FileLoadResult.Text) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(file.name, style = MaterialTheme.typography.headlineMedium)
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                when (loadResult) {
+                    is FileLoadResult.Binary ->
+                        "This looks like a binary file. IDEaz's editor only supports text " +
+                            "files - opening it here would corrupt its contents on save."
+                    is FileLoadResult.Unreadable -> loadResult.message
+                    is FileLoadResult.Text -> "" // unreachable
+                },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        return
+    }
+
+    var fileContent by remember(filePath) { mutableStateOf(loadResult.content) }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
