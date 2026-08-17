@@ -223,7 +223,7 @@ class AIDelegate(
         // otherwise the default is project-type-aware — Android targets use Jules
         // (agentic, PR-based), Web/PWA use Gemini (conversational, local tool-use).
         val modelId = settingsViewModel.getAiAssignment(SettingsViewModel.KEY_AI_ASSIGNMENT_OVERLAY)
-        val projectType = ProjectType.fromString(settingsViewModel.getProjectType())
+        val projectType = ProjectType.fromString(settingsViewModel.readProjectType())
         var model = defaultOverlayModel(modelId, projectType)
 
         // Jules is GitHub-anchored and pointless for Web/PWA projects (it needs a

@@ -792,7 +792,7 @@ class MainViewModel(
             val appName = settingsViewModel.getAppName()
             val user = settingsViewModel.getGithubUser()
             if (!appName.isNullOrBlank() && !user.isNullOrBlank()) {
-                val type = ProjectType.fromString(settingsViewModel.getProjectType())
+                val type = ProjectType.fromString(settingsViewModel.readProjectType())
                 if (type == ProjectType.ANDROID) {
                     startArtifactPolling(user, appName)
                 }
@@ -812,7 +812,7 @@ class MainViewModel(
      */
     fun deployWebProject() {
         val appName = settingsViewModel.getAppName()
-        val projectTypeStr = settingsViewModel.getProjectType()
+        val projectTypeStr = settingsViewModel.readProjectType()
         val projectType = ProjectType.fromString(projectTypeStr)
         if (!projectType.isWebLike()) return
 
@@ -1517,7 +1517,7 @@ class MainViewModel(
         }
 
         val appName = settingsViewModel.getAppName() ?: return
-        val projectTypeStr = settingsViewModel.getProjectType()
+        val projectTypeStr = settingsViewModel.readProjectType()
         val projectType = ProjectType.fromString(projectTypeStr)
 
         if (projectType.isWebLike()) {

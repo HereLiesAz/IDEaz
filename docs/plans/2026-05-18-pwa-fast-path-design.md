@@ -35,7 +35,7 @@ Web/PWA project lifecycle is fully local. AI edits land in the project directory
 `AIDelegate.startContextualAITask()` at line 206 dispatches `AiModels.JULES_DEFAULT → runJulesTask(...)` regardless of project type. Add a check at the top of `runJulesTask` (or in the dispatch switch) that converts Jules-for-PWA into Gemini-for-PWA with a log entry:
 
 ```kotlin
-val projectType = ProjectType.fromString(settingsViewModel.getProjectType())
+val projectType = ProjectType.fromString(settingsViewModel.readProjectType())
 if (projectType == ProjectType.WEB || projectType == ProjectType.PWA) {
     onLog("[AI] Jules is not used for Web/PWA projects. Routing through Gemini.\n")
     runGeminiTask(richPrompt, settingsViewModel.getGoogleApiKey())

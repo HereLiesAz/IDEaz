@@ -398,7 +398,7 @@ class RepoDelegate(
         scope.launch(Dispatchers.IO) {
             val appName = settingsViewModel.getAppName() ?: return@launch
             val projectDir = settingsViewModel.getProjectPath(appName)
-            val type = ProjectType.fromString(settingsViewModel.getProjectType())
+            val type = ProjectType.fromString(settingsViewModel.readProjectType())
             val packageName = settingsViewModel.getTargetPackageName() ?: "com.example.app"
 
             // 1. Generate Files

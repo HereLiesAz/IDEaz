@@ -74,9 +74,9 @@ class SettingsViewModelTest {
 
     @Test
     fun testProjectTypePersistence() {
-        assertEquals("UNKNOWN", viewModel.getProjectType())
+        assertEquals("UNKNOWN", viewModel.readProjectType())
         viewModel.setProjectType("ANDROID")
-        assertEquals("ANDROID", viewModel.getProjectType())
+        assertEquals("ANDROID", viewModel.readProjectType())
         assertEquals("ANDROID", viewModel.projectType.value)
     }
 

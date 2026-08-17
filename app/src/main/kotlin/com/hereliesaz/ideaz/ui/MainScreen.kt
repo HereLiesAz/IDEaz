@@ -18,6 +18,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +34,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import com.hereliesaz.aznavrail.AzHostActivityLayout
 import com.hereliesaz.aznavrail.bottomsheet.rememberAzSheetController
 import com.hereliesaz.aznavrail.model.AzSheetDetent
+import kotlinx.coroutines.launch
 
 const val Z_INDEX_WEB_VIEW = 0f
 const val Z_INDEX_OVERLAY = 200f
@@ -72,13 +74,14 @@ fun MainScreen(
     // bridge explainer yet, suggest the Gemini-app bridge as a zero-key path.
     val settingsViewModel = viewModel.settingsViewModel
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     // Called explicitly from every exit path of the crash-reporting dialog
     // below (never from a second LaunchedEffect keyed on its visibility flag)
     // so the two first-run dialogs are deterministically sequenced - a
     // genuinely first launch shows the bridge explainer only after the crash-
     // reporting one closes, never both stacked at once.
-    fun maybeShowBridgeFirstRun() {
+    suspend fun maybeShowBridgeFirstRun() {
         if (!settingsViewModel.hasShownBridgeFirstRun() &&
             GeminiAppBridgeAdapter.resolveGeminiPackage(context) != null &&
             !GeminiNanoAdapter.isAvailable(context)
@@ -103,7 +106,7 @@ fun MainScreen(
             onDismissRequest = {
                 settingsViewModel.markCrashReportingFirstRunShown()
                 showCrashReportingFirstRun = false
-                maybeShowBridgeFirstRun()
+                coroutineScope.launch { maybeShowBridgeFirstRun() }
             },
             title = { Text("Report crashes to help fix bugs?") },
             text = {
@@ -120,7 +123,7 @@ fun MainScreen(
                     settingsViewModel.setReportIdeErrorsEnabled(true)
                     settingsViewModel.markCrashReportingFirstRunShown()
                     showCrashReportingFirstRun = false
-                    maybeShowBridgeFirstRun()
+                    coroutineScope.launch { maybeShowBridgeFirstRun() }
                 }) { Text("Allow") }
             },
             dismissButton = {
@@ -128,7 +131,7 @@ fun MainScreen(
                     settingsViewModel.setReportIdeErrorsEnabled(false)
                     settingsViewModel.markCrashReportingFirstRunShown()
                     showCrashReportingFirstRun = false
-                    maybeShowBridgeFirstRun()
+                    coroutineScope.launch { maybeShowBridgeFirstRun() }
                 }) { Text("Don't allow") }
             },
         )

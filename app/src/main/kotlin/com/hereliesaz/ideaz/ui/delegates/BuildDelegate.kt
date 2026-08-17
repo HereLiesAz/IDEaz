@@ -119,7 +119,7 @@ class BuildDelegate(
         scope.launch {
             onLog("\n[IDE] Build successful: $apkPath\n")
 
-            val type = ProjectType.fromString(settingsViewModel.getProjectType())
+            val type = ProjectType.fromString(settingsViewModel.readProjectType())
 
             if (type.isWebLike()) {
                 onLog("[IDE] Web Project ready. Loading WebView...\n")
@@ -174,7 +174,7 @@ class BuildDelegate(
         buildJob?.cancel()
 
         buildJob = scope.launch {
-            val typeStr = settingsViewModel.getProjectType()
+            val typeStr = settingsViewModel.readProjectType()
             val type = ProjectType.fromString(typeStr)
 
             val token = settingsViewModel.getGithubToken()
