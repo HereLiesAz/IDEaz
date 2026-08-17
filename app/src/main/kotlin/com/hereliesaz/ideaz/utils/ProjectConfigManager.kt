@@ -391,7 +391,34 @@ jobs:
             IMPORTANT: Do not include the string 'EOF' in your output.
 """.trimIndent()
 
-    fun ensureWorkflow(projectDir: File, type: ProjectType): Boolean {
+    /**
+     * The exact project-relative paths [ensureWorkflow]/[ensureSetupScript]/
+     * [ensureAgentsSetupMd]/[ensureVersioning] can write for [type], computed
+     * without touching disk. Used to preview "Regenerate CI Files" before the
+     * user confirms it — this covers every path those four functions can
+     * write; it does NOT cover Android's crash-reporter injection
+     * ([ProjectInitializer.injectCrashReporting]), whose exact paths (which
+     * MainActivity file, if any, gets modified) can only be known by actually
+     * walking the project tree, not predicted ahead of time.
+     */
+    fun initFileRelativePaths(type: ProjectType): List<String> {
+        val workflowFilenames = when (type) {
+            ProjectType.ANDROID -> listOf(
+                "build.yml", "release.yml",
+                "antigravity-issue-handler.yml", "antigravity-branch-manager.yml",
+            )
+            ProjectType.WEB -> listOf(
+                "web_ci_pages.yml",
+                "antigravity-issue-handler.yml", "antigravity-branch-manager.yml",
+            )
+            else -> emptyList()
+        }
+        return workflowFilenames.map { ".github/workflows/$it" } +
+            listOf("setup_env.sh", "AGENTS_SETUP.md", "version.properties")
+    }
+
+    /** Returns the project-relative paths actually written, empty if nothing changed. */
+    fun ensureWorkflow(projectDir: File, type: ProjectType): List<String> {
         // We use hardcoded strings for robustness if assets are missing
         val workflows = when (type) {
             ProjectType.ANDROID -> listOf(
@@ -408,7 +435,7 @@ jobs:
             else -> emptyList()
         }
 
-        var modified = false
+        val written = mutableListOf<String>()
         try {
             val workflowsDir = File(projectDir, ".github/workflows")
             if (!workflowsDir.exists()) {
@@ -419,38 +446,38 @@ jobs:
                 val destFile = File(workflowsDir, filename)
                 if (!destFile.exists() || destFile.readText() != content) {
                     destFile.writeText(content)
-                    modified = true
+                    written += ".github/workflows/$filename"
                 }
             }
         } catch (e: Exception) {
             android.util.Log.w("ProjectConfigManager", "Project config operation failed", e)
         }
-        return modified
+        return written
     }
 
-    fun ensureAgentsSetupMd(projectDir: File): Boolean {
-        var modified = false
+    /** Returns `["AGENTS_SETUP.md"]` if it wrote the file, empty if nothing changed. */
+    fun ensureAgentsSetupMd(projectDir: File): List<String> {
         try {
             val agentsFile = File(projectDir, "AGENTS_SETUP.md")
             val instruction = "\n\n# Environment Setup\nPlease run `./setup_env.sh` to set up the build environment."
             if (!agentsFile.exists()) {
                 agentsFile.writeText("# Project Instructions$instruction")
-                modified = true
+                return listOf("AGENTS_SETUP.md")
             } else {
                 val content = agentsFile.readText()
                 if (!content.contains("setup_env.sh")) {
                     agentsFile.appendText(instruction)
-                    modified = true
+                    return listOf("AGENTS_SETUP.md")
                 }
             }
         } catch (e: Exception) {
             android.util.Log.w("ProjectConfigManager", "Project config operation failed", e)
         }
-        return modified
+        return emptyList()
     }
 
-    fun ensureSetupScript(projectDir: File): Boolean {
-        var modified = false
+    /** Returns `["setup_env.sh"]` if it wrote the file, empty if nothing changed. */
+    fun ensureSetupScript(projectDir: File): List<String> {
         try {
             val setupFile = File(projectDir, "setup_env.sh")
             val content = EnvironmentSetup.ANDROID_SETUP_SCRIPT
@@ -458,22 +485,23 @@ jobs:
             if (!setupFile.exists() || setupFile.readText() != content) {
                 setupFile.writeText(content)
                 setupFile.setExecutable(true)
-                modified = true
+                return listOf("setup_env.sh")
             }
         } catch (e: Exception) {
             android.util.Log.w("ProjectConfigManager", "Project config operation failed", e)
         }
-        return modified
+        return emptyList()
     }
 
-    fun ensureVersioning(projectDir: File, type: ProjectType): Boolean {
-        var modified = false
+    /** Returns the project-relative paths actually written, empty if nothing changed. */
+    fun ensureVersioning(projectDir: File, type: ProjectType): List<String> {
+        val written = mutableListOf<String>()
         if (projectDir.exists()) {
             try {
                 val versionFile = File(projectDir, "version.properties")
                 if (!versionFile.exists()) {
                     versionFile.writeText("major=1\nminor=0\npatch=0\nbuild=1\n")
-                    modified = true
+                    written += "version.properties"
                 } else {
                     val existing = versionFile.readText()
                     val missing = listOf("major" to "1", "minor" to "0", "patch" to "0", "build" to "1")
@@ -481,28 +509,28 @@ jobs:
                     if (missing.isNotEmpty()) {
                         val separator = if (existing.endsWith('\n')) "" else "\n"
                         versionFile.appendText(separator + missing.joinToString("\n") { (key, value) -> "${'$'}key=${'$'}value" } + "\n")
-                        modified = true
+                        written += "version.properties"
                     }
                 }
 
-                if (type != ProjectType.ANDROID) return modified
+                if (type != ProjectType.ANDROID) return written
 
                 // Inject Android version fields when a conventional app module exists.
                 val appDir = File(projectDir, "app")
                 val ktsFile = File(appDir, "build.gradle.kts")
                 if (ktsFile.exists()) {
-                    if (injectVersioningKts(ktsFile)) modified = true
+                    if (injectVersioningKts(ktsFile)) written += "app/build.gradle.kts"
                 } else {
                     val groovyFile = File(appDir, "build.gradle")
                     if (groovyFile.exists()) {
-                        if (injectVersioningGroovy(groovyFile)) modified = true
+                        if (injectVersioningGroovy(groovyFile)) written += "app/build.gradle"
                     }
                 }
             } catch (e: Exception) {
                 android.util.Log.w("ProjectConfigManager", "Project config operation failed", e)
             }
         }
-        return modified
+        return written
     }
 
     private fun injectVersioningKts(file: File): Boolean {
