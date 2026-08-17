@@ -73,6 +73,14 @@ class IdeazJsInterface(private val context: Context) {
  * otherwise be re-instantiated from the stale copy) and hot-reloads the HTML
  * host page.
  */
+// Lint's JavascriptInterface check can't resolve the annotated members of
+// IdeazJsInterface/WebViewBridge through a remember<T>-typed local (confirmed:
+// an explicit type annotation on the val didn't change its verdict either),
+// so it reports "None of the methods in the added interface (T) have been
+// annotated" against the unresolved literal "T". Both classes genuinely do
+// have an @JavascriptInterface-annotated method (IdeazJsInterface.onInspectResult,
+// WebViewBridge.onElementTapped) - this is a false positive, not a real gap.
+@Suppress("JavascriptInterface")
 @Composable
 fun WebProjectHost(
     url: String,
