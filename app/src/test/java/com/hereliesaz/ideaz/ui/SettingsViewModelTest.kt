@@ -28,6 +28,18 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `crash reporting defaults on but the first-run disclosure is unseen until marked`() {
+        assertTrue(viewModel.isReportIdeErrorsEnabled())
+        assertFalse(viewModel.hasShownCrashReportingFirstRun())
+
+        viewModel.setReportIdeErrorsEnabled(false)
+        viewModel.markCrashReportingFirstRunShown()
+
+        assertFalse(viewModel.isReportIdeErrorsEnabled())
+        assertTrue(viewModel.hasShownCrashReportingFirstRun())
+    }
+
+    @Test
     fun testAppNamePersistence() {
         assertNull(viewModel.getAppName())
         viewModel.setAppName("TestApp")
