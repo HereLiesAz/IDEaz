@@ -130,22 +130,53 @@ jobs:
           # Stream to the console live via `tee` (not just to build.log) and bound
           # runtime with `timeout`: a wedged build previously produced ZERO visible
           # output and silently ate the default 6h job ceiling, twice, with no way
-          # to tell what it was stuck on. `timeout` exits 124 on expiry; PIPESTATUS
-          # captures the real command's exit code past the `tee` pipe.
+          # to tell what it was stuck on. `timeout` exits 124 on expiry.
           #
           # --kill-after=1m: `timeout` only sends SIGTERM at the deadline and then
           # WAITS for the process to exit - if the JVM/Gradle daemon ignores or is
           # too wedged to act on SIGTERM, it would still run until GitHub's 6h job
           # ceiling, recreating the exact blind hang this exists to prevent. Force
           # a SIGKILL one minute after SIGTERM if it hasn't exited by then.
-          timeout --kill-after=1m 30m bash -eo pipefail -c "$BUILD_COMMAND" 2>&1 | tee build.log
+          #
+          # Run it in a subshell backgrounded so a watchdog can dump JVM thread
+          # stacks partway through: two runs have now hung for 20-30+ min with
+          # zero output right after all Gradle tasks finish (once on a lint
+          # failure, once on test failures - both times losing 3h/6h/30m/30m to a
+          # silent freeze), and switching off Gradle's Enhanced Caching provider
+          # didn't fix it either. This repo's tasks normally finish inside ~7-8
+          # min, so at 12 min (comfortably past that, comfortably before the 30
+          # min ceiling) dump every JVM's threads to find out what's actually
+          # blocked instead of guessing again.
+          (
+            timeout --kill-after=1m 30m bash -eo pipefail -c "$BUILD_COMMAND" 2>&1 | tee build.log
+            echo "${PIPESTATUS[0]}" > /tmp/build_exit_code
+          ) &
+          BUILD_PID=$!
 
-          EXIT_CODE=${PIPESTATUS[0]}
+          (
+            sleep 720
+            if kill -0 "$BUILD_PID" 2>/dev/null; then
+              echo "::warning::Build still running after 12 min - dumping JVM thread stacks"
+              JCMD="${JAVA_HOME:+$JAVA_HOME/bin/jcmd}"
+              JCMD="${JCMD:-jcmd}"
+              for pid in $("$JCMD" -l 2>/dev/null | awk '{print $1}'); do
+                echo "===== $JCMD $pid Thread.print ====="
+                "$JCMD" "$pid" Thread.print 2>&1 || true
+              done
+            fi
+          ) &
+          WATCHDOG_PID=$!
+
+          wait "$BUILD_PID"
+          kill "$WATCHDOG_PID" 2>/dev/null || true
+          wait "$WATCHDOG_PID" 2>/dev/null || true
+
+          EXIT_CODE=$(cat /tmp/build_exit_code 2>/dev/null || echo 1)
           if [ "$EXIT_CODE" -eq 124 ]; then
             echo "Build timed out after 30 minutes" >&2
           fi
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
-          exit $EXIT_CODE
+          exit "$EXIT_CODE"
 
       # ------------------------------------------------------------------
       # FAILURE HANDLING
