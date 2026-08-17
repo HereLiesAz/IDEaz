@@ -200,6 +200,14 @@ fun SettingsScreen(
         }
     )
 
+    val appInfoLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+        onResult = {
+            Log.d(TAG, "Returned from app info")
+            refreshTrigger++
+        }
+    )
+
     // --- Dialogs ---
 
     if (showExportPasswordDialog) {
@@ -572,6 +580,28 @@ fun SettingsScreen(
                 OnDeviceModelsSection(settingsViewModel = settingsViewModel)
 
                 Text("Permissions", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Android may label permissions below \"Restricted\" for an app installed " +
+                        "outside the Play Store, which silently blocks granting them. If a toggle " +
+                        "below won't turn on, open App Info, tap the ⋮ menu, and choose " +
+                        "\"Allow restricted settings\".",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                AzButton(
+                    onClick = {
+                        val intent = Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.parse("package:${context.packageName}")
+                        )
+                        appInfoLauncher.launch(intent)
+                    },
+                    text = "Open App Info",
+                    shape = AzButtonShape.RECTANGLE,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(modifier = Modifier.height(16.dp))
 
                 val hasOverlay by remember(refreshTrigger) {
