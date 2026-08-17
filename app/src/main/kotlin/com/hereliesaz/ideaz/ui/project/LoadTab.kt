@@ -27,14 +27,9 @@ import com.hereliesaz.ideaz.ui.MainViewModel
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import android.provider.Settings
 import android.net.Uri
-import android.content.Intent
-import android.os.Environment
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import com.hereliesaz.ideaz.utils.checkAndRequestStoragePermission
 
 @Composable
 fun ProjectLoadTab(
@@ -164,9 +159,7 @@ fun ProjectLoadTab(
 
             AzButton(
                 onClick = {
-                    checkAndRequestStoragePermission(context) {
-                        externalProjectLauncher.launch(null)
-                    }
+                    externalProjectLauncher.launch(null)
                 },
                 text = "Add External Project",
                 shape = AzButtonShape.RECTANGLE,
