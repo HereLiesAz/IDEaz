@@ -215,15 +215,16 @@ private fun LocalCloudConsultCard(state: LocalCloudConsultState, viewModel: Main
 private fun LocalEditReviewCard(state: LocalEditReviewState, viewModel: MainViewModel) {
     val review = state.approval.review
     val checkpointId = review.checkpoint.checkpointId
+    val source = state.approval.source
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Text(
                 when (state.status) {
-                    LocalEditReviewStatus.PENDING -> "Review on-device edit"
+                    LocalEditReviewStatus.PENDING -> "Review $source edit"
                     LocalEditReviewStatus.PROCESSING -> "Applying edit decision…"
-                    LocalEditReviewStatus.APPROVED -> "On-device edit approved"
-                    LocalEditReviewStatus.REJECTED -> "On-device edit rejected"
-                    LocalEditReviewStatus.UNDONE -> "On-device edit undone"
+                    LocalEditReviewStatus.APPROVED -> "$source edit approved"
+                    LocalEditReviewStatus.REJECTED -> "$source edit rejected"
+                    LocalEditReviewStatus.UNDONE -> "$source edit undone"
                 },
                 fontWeight = FontWeight.Bold,
             )
