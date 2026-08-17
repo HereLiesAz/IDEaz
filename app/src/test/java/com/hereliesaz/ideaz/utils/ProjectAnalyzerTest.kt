@@ -2,6 +2,8 @@ package com.hereliesaz.ideaz.utils
 
 import com.hereliesaz.ideaz.models.ProjectType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -178,5 +180,48 @@ class ProjectAnalyzerTest {
         // Should sanitize "My-Project_123" to something valid.
         // Assuming format: "com.ideaz.generated.myproject123"
         assertEquals("com.ideaz.generated.myproject123", packageName)
+    }
+
+    /**
+     * ProjectTypeTemplateTest.selectable_excludesIncompleteAndInternalProjectTypes
+     * only checks the [ProjectType.selectable] *declaration* against a literal list -
+     * it can't catch a bug in how that declaration is actually applied to a project
+     * on disk. These drive the real detector (the same one every release-gate call
+     * site - MainViewModel.loadProject/registerExternalProject,
+     * RepoDelegate.selectRepositoryForSetup - calls before checking `!in selectable`)
+     * to prove the two actually agree on real project layouts, not just in theory.
+     */
+    @Test
+    fun releaseGate_admitsDetectedPwaProject() {
+        val projectDir = tempFolder.newFolder("gate_pwa")
+        File(projectDir, "index.html").createNewFile()
+        File(projectDir, "manifest.webmanifest").createNewFile()
+
+        val detected = ProjectAnalyzer.detectProjectType(projectDir)
+
+        assertEquals(ProjectType.PWA, detected)
+        assertTrue(detected in ProjectType.selectable)
+    }
+
+    @Test
+    fun releaseGate_rejectsDetectedAndroidProject() {
+        val projectDir = tempFolder.newFolder("gate_android")
+        File(projectDir, "build.gradle.kts").createNewFile()
+
+        val detected = ProjectAnalyzer.detectProjectType(projectDir)
+
+        assertEquals(ProjectType.ANDROID, detected)
+        assertFalse(detected in ProjectType.selectable)
+    }
+
+    @Test
+    fun releaseGate_rejectsDetectedPlainWebProject() {
+        val projectDir = tempFolder.newFolder("gate_web")
+        File(projectDir, "index.html").createNewFile()
+
+        val detected = ProjectAnalyzer.detectProjectType(projectDir)
+
+        assertEquals(ProjectType.WEB, detected)
+        assertFalse(detected in ProjectType.selectable)
     }
 }

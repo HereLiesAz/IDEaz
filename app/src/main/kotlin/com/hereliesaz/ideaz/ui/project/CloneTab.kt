@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,6 +37,7 @@ fun ProjectCloneTab(
     onNavigateToSettings: () -> Unit
 ) {
     val ownedRepos by viewModel.ownedRepos.collectAsState()
+    val repoFetchError by viewModel.repoFetchError.collectAsState()
     val loadingProgress by viewModel.loadingProgress.collectAsState()
     val isBusy = loadingProgress != null
 
@@ -111,6 +113,11 @@ fun ProjectCloneTab(
         } else if (!isBusy) {
             item {
                 val hasToken = settingsViewModel.getGithubToken().isNullOrBlank().not()
+                // A failed fetch (offline, expired token, GitHub outage) previously
+                // rendered identically to "this account genuinely has zero repos" -
+                // same icon, same text, no way to tell them apart or retry beyond the
+                // generic refresh icon up top.
+                val fetchFailed = repoFetchError != null
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -119,18 +126,33 @@ fun ProjectCloneTab(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
-                            imageVector = if (hasToken) Icons.Default.Info else Icons.Default.Settings,
+                            imageVector = when {
+                                fetchFailed -> Icons.Default.WarningAmber
+                                hasToken -> Icons.Default.Info
+                                else -> Icons.Default.Settings
+                            },
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(48.dp)
                         )
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            text = if (hasToken) "No repositories found." else "Configure GitHub Token to see your repos.",
+                            text = when {
+                                fetchFailed -> "Couldn't load repositories: $repoFetchError"
+                                hasToken -> "No repositories found."
+                                else -> "Configure GitHub Token to see your repos."
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        if (!hasToken) {
+                        if (fetchFailed) {
+                            Spacer(Modifier.height(16.dp))
+                            AzButton(
+                                onClick = { viewModel.fetchGitHubRepos() },
+                                text = "Retry",
+                                shape = AzButtonShape.RECTANGLE
+                            )
+                        } else if (!hasToken) {
                             Spacer(Modifier.height(16.dp))
                             AzButton(
                                 onClick = onNavigateToSettings,

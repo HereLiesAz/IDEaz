@@ -43,6 +43,12 @@ fun AiChatTab(
 ) {
     val listState = rememberLazyListState()
 
+    // Same provider sendChatMessage() actually routes to (KEY_AI_ASSIGNMENT_DEFAULT,
+    // falling back to Gemini) - model replies were previously labeled "Gemini"
+    // unconditionally, including for on-device and every other provider.
+    val chatModelId = viewModel.settingsViewModel.getAiAssignment(SettingsViewModel.KEY_AI_ASSIGNMENT_DEFAULT)
+    val providerDisplayName = (AiModels.findById(chatModelId) ?: AiModels.GEMINI).displayName
+
     // Auto-scroll to bottom when new messages arrive
     LaunchedEffect(messages.size, failure?.diagnosticId, editReview?.status, cloudConsult?.status) {
         when {
@@ -62,7 +68,7 @@ fun AiChatTab(
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             itemsIndexed(messages, key = { index, _ -> index }) { _, msg ->
-                ChatBubble(msg)
+                ChatBubble(msg, providerDisplayName)
                 Spacer(modifier = Modifier.height(6.dp))
             }
 
@@ -267,7 +273,7 @@ private fun LocalEditReviewCard(state: LocalEditReviewState, viewModel: MainView
 }
 
 @Composable
-private fun ChatBubble(msg: ChatMessage) {
+private fun ChatBubble(msg: ChatMessage, providerDisplayName: String) {
     val isUser = msg.role == "user"
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -278,7 +284,7 @@ private fun ChatBubble(msg: ChatMessage) {
             horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
         ) {
             Text(
-                text = if (isUser) "You" else "Gemini",
+                text = if (isUser) "You" else providerDisplayName,
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
