@@ -9,9 +9,24 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.LooperMode
 
+/**
+ * LEGACY looper mode: with a null token, [GithubIssueReporter.reportError] falls
+ * through to `withContext(Dispatchers.Main) { context.startActivity(intent) }`.
+ * Under the default PAUSED looper mode that post just queues on the main Looper
+ * and nothing here ever idles it, so `withContext` - and the surrounding
+ * `runBlocking` - suspends forever. Since app/build.gradle.kts sets no
+ * `forkEvery`, that one deadlocked test hangs the entire testDebugUnitTest task
+ * (and therefore the whole build) every time this test runs; this was the actual
+ * cause of the repeated ~30-minute CI timeouts traced back to this file. LEGACY
+ * mode executes posted Handler work synchronously instead of queuing it, which
+ * this test - it only checks dedup/sanitization logic, not real looper timing -
+ * doesn't need to avoid.
+ */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@LooperMode(LooperMode.Mode.LEGACY)
 class GithubIssueReporterTest {
 
     @Test
