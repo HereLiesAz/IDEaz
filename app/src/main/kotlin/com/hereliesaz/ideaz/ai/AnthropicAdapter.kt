@@ -1,12 +1,18 @@
 package com.hereliesaz.ideaz.ai
 
+import com.hereliesaz.ideaz.ai.local.LocalEditApproval
+import com.hereliesaz.ideaz.ai.local.LocalEditApprovalRequiredException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+
+private val MUTATING_TOOLS = setOf("write_file", "apply_patch")
 
 class AnthropicAdapter(
     private val apiKey: String,
@@ -24,19 +30,80 @@ class AnthropicAdapter(
             resolvedModel = modelResolver()
         }
         val currentModel = resolvedModel!!
-        
+
         val history = messages.map { it.toAnthropicMessage() }.toMutableList()
+
+        // Same checkpoint/review/approval contract LocalLlmAdapter and
+        // GeminiAdapter use — see LocalEditApproval's doc comment.
+        var editCheckpoint: IdeEditCheckpoint? = null
+        var expectedEditFingerprint: String? = null
+
+        fun restorePendingEdit(): Boolean {
+            val checkpoint = editCheckpoint ?: return true
+            val fingerprint = expectedEditFingerprint ?: return false
+            return runCatching { tools.restoreEditCheckpoint(checkpoint, fingerprint) }.isSuccess
+        }
+
+        fun complete(response: String): String {
+            val checkpoint = editCheckpoint ?: return response
+            val review = try {
+                tools.reviewEdits(checkpoint)
+            } catch (e: Exception) {
+                val restored = restorePendingEdit()
+                return if (restored) {
+                    "Error: the edit could not be validated and was restored."
+                } else {
+                    "Error: the edit could not be validated or safely restored. Review project files."
+                }
+            }
+            if (review.validationErrors.isNotEmpty()) {
+                val restored = restorePendingEdit()
+                return if (restored) {
+                    "Error: the edit failed validation and was restored."
+                } else {
+                    "Error: the edit failed validation, but later file changes prevented automatic restore."
+                }
+            }
+            if (review.changedFiles.isEmpty()) {
+                runCatching { tools.discardEditCheckpoint(checkpoint) }
+                return response
+            }
+            throw LocalEditApprovalRequiredException(LocalEditApproval(review, response, source = "Claude"))
+        }
+
+        fun dispatchMutatingTool(name: String, stringArgs: Map<String, String?>): String {
+            val checkpoint = editCheckpoint
+                ?: tools.createEditCheckpoint("IDEaz: checkpoint before Claude edit").also { editCheckpoint = it }
+            return try {
+                tools.captureToolEdit(checkpoint, name, stringArgs)
+                expectedEditFingerprint = tools.reviewEdits(checkpoint).contentFingerprint
+                    .also { tools.updateEditCheckpointFingerprint(checkpoint, it) }
+                tools.markEditMutationStarted(checkpoint)
+                dispatchIdeTool(name, stringArgs, tools).also {
+                    expectedEditFingerprint = tools.reviewEdits(checkpoint).contentFingerprint
+                        .also { fingerprint ->
+                            tools.updateEditCheckpointFingerprint(checkpoint, fingerprint)
+                            tools.markEditAwaitingReview(checkpoint)
+                        }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                restorePendingEdit()
+                "Error: could not complete $name: ${e.message}"
+            }
+        }
 
         var rounds = 0
         while (rounds < OpenAiCompatibleAdapter.MAX_TOOL_ROUNDS) {
             val response = postMessages(history, currentModel)
-            
+
             val contentArray = response["content"] as? JsonArray ?: return@withContext "No response from $currentModel."
-            
+
             // Extract text and tool_use blocks
             var textContent = ""
             val toolUses = mutableListOf<JsonObject>()
-            
+
             for (block in contentArray) {
                 if (block !is JsonObject) continue
                 when ((block["type"] as? JsonPrimitive)?.content) {
@@ -46,7 +113,7 @@ class AnthropicAdapter(
             }
 
             if (toolUses.isEmpty()) {
-                return@withContext textContent.ifBlank { "No response from $currentModel." }
+                return@withContext complete(textContent.ifBlank { "No response from $currentModel." })
             }
 
             // Echo assistant turn
@@ -60,29 +127,34 @@ class AnthropicAdapter(
                 val toolUseId = (call["id"] as? JsonPrimitive)?.content.orEmpty()
                 val name = (call["name"] as? JsonPrimitive)?.content.orEmpty()
                 val argsObj = call["input"] as? JsonObject ?: buildJsonObject {}
-                
+
                 val argMap = argsObj.entries.associate { (k, v) ->
                     k to (v as? JsonPrimitive)?.contentOrNullSafe()
                 }
-                
-                val output = dispatchIdeTool(name, argMap, tools)
-                
+
+                val output = if (name in MUTATING_TOOLS) {
+                    withContext(NonCancellable) { dispatchMutatingTool(name, argMap) }
+                } else {
+                    dispatchIdeTool(name, argMap, tools)
+                }
+
                 toolResults.add(buildJsonObject {
                     put("type", "tool_result")
                     put("tool_use_id", toolUseId)
                     put("content", output)
                 })
             }
-            
+
             history.add(buildJsonObject {
                 put("role", "user")
                 putJsonArray("content") {
                     toolResults.forEach { add(it) }
                 }
             })
-            
+
             rounds++
         }
+        restorePendingEdit()
         "Error: Tool-use loop exceeded ${OpenAiCompatibleAdapter.MAX_TOOL_ROUNDS} rounds."
     }
 
