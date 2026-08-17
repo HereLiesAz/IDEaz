@@ -67,6 +67,15 @@
             </intent-filter>
         </service>
 
+        <!-- WorkManager's SystemForegroundService backs LocalModelDownloadWorker's
+             setForeground(dataSync). Android 14+ requires every foreground service
+             type used at runtime to be declared in the manifest; WorkManager's own
+             manifest entry declares none, so override it here. -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
+
         <service
             android:name=".services.IdeazAccessibilityService"
             android:exported="true"
