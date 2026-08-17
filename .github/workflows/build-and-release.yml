@@ -18,15 +18,15 @@ on:
 # git history/TODO.md). Removing the extra triggers entirely fixes it
 # at the root instead of chasing key-matching bugs.
 #
-# cancel-in-progress is deliberately false: this workflow force-pushes
-# the release tag before uploading the built artifact (see "Publish
-# Release" below), so a run that gets cancelled between those two steps
-# can leave the tag pointing at a commit with no matching asset, or a
-# release retargeted but still carrying the previous build. Queuing
-# instead of cancelling means a second master push waits for the first
-# run to finish (including its release publish) before starting - a
-# small delay, not a correctness risk. The eventual queued run still
-# publishes the newest commit.
+# cancel-in-progress is deliberately false: this workflow force-pushes a
+# release tag before uploading the built artifact (see "Publish Debug
+# Build" / "Publish Latest Release" below), so a run that gets cancelled
+# between those two steps can leave a tag pointing at a commit with no
+# matching asset, or a release retargeted but still carrying the previous
+# build. Queuing instead of cancelling means a second master push waits
+# for the first run to finish (including its release publish) before
+# starting - a small delay, not a correctness risk. The eventual queued
+# run still publishes the newest commit.
 concurrency:
   group: ${{ github.workflow }}-master
   cancel-in-progress: false
@@ -269,7 +269,12 @@ jobs:
             [[ "$value" =~ ^[0-9]+$ ]] || { echo "Invalid version.properties" >&2; exit 1; }
           done
           VERSION_NAME="$MAJOR.$MINOR.$PATCH.$BUILD_NUMBER"
-          TAG_NAME="v$MAJOR.$MINOR"
+          # Debug builds (every push to master) and the real "Latest Release"
+          # (manual workflow_dispatch only, see the two Publish steps below)
+          # get separate tags/releases so an ordinary push never overwrites
+          # the deliberately-published release.
+          DEBUG_TAG_NAME="debug-v$MAJOR.$MINOR"
+          RELEASE_TAG_NAME="v$MAJOR.$MINOR"
           REPOSITORY_NAME="${GITHUB_REPOSITORY##*/}"
           ARTIFACT_GLOB=${{ vars.RELEASE_ARTIFACT_PATH || '' }}
           if [ -n "$ARTIFACT_GLOB" ]; then
@@ -281,11 +286,12 @@ jobs:
           EXTENSION="${ARTIFACT##*.}"
           TARGET_NAME="${REPOSITORY_NAME}-${VERSION_NAME}.${EXTENSION}"
           cp "$ARTIFACT" "$TARGET_NAME"
-          echo "TAG_NAME=$TAG_NAME" >> "$GITHUB_ENV"
+          echo "DEBUG_TAG_NAME=$DEBUG_TAG_NAME" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG_NAME=$RELEASE_TAG_NAME" >> "$GITHUB_ENV"
           echo "ARTIFACT_FILE=$TARGET_NAME" >> "$GITHUB_ENV"
 
-      - name: Publish Release
-        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == github.event.repository.default_branch
+      - name: Publish Debug Build
+        if: success() && github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
         run: |
@@ -293,21 +299,53 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           # Force update tag to point to current commit
-          git tag -fa $TAG_NAME -m "Latest Debug Build"
-          git push origin $TAG_NAME --force
+          git tag -fa $DEBUG_TAG_NAME -m "Latest Debug Build"
+          git push origin $DEBUG_TAG_NAME --force
 
           # Check if release exists
-          if gh release view $TAG_NAME > /dev/null 2>&1; then
-             echo "Updating existing release..."
-             gh release edit $TAG_NAME --prerelease \
-               --title "Latest Release ($TAG_NAME)" \
+          if gh release view $DEBUG_TAG_NAME > /dev/null 2>&1; then
+             echo "Updating existing debug release..."
+             gh release edit $DEBUG_TAG_NAME --prerelease \
+               --title "Latest Debug Build ($DEBUG_TAG_NAME)" \
                --notes "Auto-build from commit $GITHUB_SHA" \
                --target $GITHUB_SHA
-             gh release upload $TAG_NAME "$ARTIFACT_FILE" --clobber
+             gh release upload $DEBUG_TAG_NAME "$ARTIFACT_FILE" --clobber
+          else
+             echo "Creating new debug release..."
+             gh release create $DEBUG_TAG_NAME "$ARTIFACT_FILE" --prerelease \
+               --title "Latest Debug Build ($DEBUG_TAG_NAME)" \
+               --notes "Auto-build from commit $GITHUB_SHA" \
+               --target $GITHUB_SHA
+          fi
+
+      # Deliberate, human-triggered promotion to "Latest Release" - never
+      # runs on an ordinary push, only when someone runs this workflow via
+      # workflow_dispatch. Unlike the debug build, it's not marked
+      # prerelease: it's meant to be an actual vetted release.
+      - name: Publish Latest Release
+        if: success() && github.event_name == 'workflow_dispatch' && github.ref_name == github.event.repository.default_branch
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Force update tag to point to current commit
+          git tag -fa $RELEASE_TAG_NAME -m "Latest Release"
+          git push origin $RELEASE_TAG_NAME --force
+
+          # Check if release exists
+          if gh release view $RELEASE_TAG_NAME > /dev/null 2>&1; then
+             echo "Updating existing release..."
+             gh release edit $RELEASE_TAG_NAME --prerelease=false \
+               --title "Latest Release ($RELEASE_TAG_NAME)" \
+               --notes "Release build from commit $GITHUB_SHA" \
+               --target $GITHUB_SHA
+             gh release upload $RELEASE_TAG_NAME "$ARTIFACT_FILE" --clobber
           else
              echo "Creating new release..."
-             gh release create $TAG_NAME "$ARTIFACT_FILE" --prerelease \
-               --title "Latest Release ($TAG_NAME)" \
-               --notes "Auto-build from commit $GITHUB_SHA" \
+             gh release create $RELEASE_TAG_NAME "$ARTIFACT_FILE" \
+               --title "Latest Release ($RELEASE_TAG_NAME)" \
+               --notes "Release build from commit $GITHUB_SHA" \
                --target $GITHUB_SHA
           fi
