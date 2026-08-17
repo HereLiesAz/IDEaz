@@ -17,13 +17,16 @@ object ProjectInitializer {
      * @param projectDir Root directory of the target project
      * @param packageName Package name of the target project (e.g., com.example.app)
      * @param settingsViewModel To retrieve API keys/User info for configuration
+     * @return the project-relative paths actually written, for the caller to
+     *   stage precisely — deliberately excludes Secrets.kt, which must never
+     *   be committed (that's exactly what the .gitignore entry below is for).
      */
     fun injectCrashReporting(
         context: Context,
         projectDir: File,
         packageName: String,
         settingsViewModel: SettingsViewModel
-    ) {
+    ): List<String> {
         try {
             Log.d(TAG, "Injecting crash reporting into $projectDir for package $packageName")
 
@@ -37,7 +40,7 @@ object ProjectInitializer {
                      targetUtilsDir = File(projectDir, "app/src/main/java/$packagePath/utils")
                      if (!targetUtilsDir.exists() && !targetUtilsDir.mkdirs()) {
                          Log.e(TAG, "Failed to create utils directory at ${targetUtilsDir.absolutePath}")
-                         return
+                         return emptyList()
                      }
                 }
             }
@@ -77,6 +80,7 @@ object ProjectInitializer {
             val reporterFile = File(targetUtilsDir, "CrashReporter.kt")
             reporterFile.writeText(reporterContent)
             Log.d(TAG, "CrashReporter.kt injected.")
+            val written = mutableListOf(reporterFile.relativeTo(projectDir).invariantSeparatorsPath)
 
             // 5. Add Secrets.kt to .gitignore
             val gitignore = File(projectDir, ".gitignore")
@@ -84,20 +88,25 @@ object ProjectInitializer {
                 val currentIgnore = gitignore.readText()
                 if (!currentIgnore.contains("Secrets.kt")) {
                     gitignore.appendText("\n# IDEaz Secrets\n**/utils/Secrets.kt\n")
+                    written += ".gitignore"
                 }
             } else {
                  gitignore.writeText("\n# IDEaz Secrets\n**/utils/Secrets.kt\n")
+                 written += ".gitignore"
             }
 
             // 6. Inject Initialization Logic into MainActivity
-            injectInitCall(projectDir, packageName)
+            injectInitCall(projectDir, packageName)?.let { written += it }
 
+            return written
         } catch (e: Exception) {
             Log.e(TAG, "Failed to inject crash reporting", e)
+            return emptyList()
         }
     }
 
-    private fun injectInitCall(projectDir: File, packageName: String) {
+    /** Returns the project-relative path it modified, or null if no MainActivity needed the hook. */
+    private fun injectInitCall(projectDir: File, packageName: String): String? {
         val mainSrcDir = File(projectDir, "app/src/main")
 
         mainSrcDir.walkTopDown().forEach { file ->
@@ -112,7 +121,7 @@ object ProjectInitializer {
                             val newContent = content.replace(hook, injection)
                             file.writeText(newContent)
                             Log.d(TAG, "Injected initialization into ${file.name}")
-                            return
+                            return file.relativeTo(projectDir).invariantSeparatorsPath
                         }
                     }
                 } catch (e: Exception) {
@@ -120,5 +129,6 @@ object ProjectInitializer {
                 }
             }
         }
+        return null
     }
 }

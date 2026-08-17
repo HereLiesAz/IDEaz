@@ -401,16 +401,25 @@ class RepoDelegate(
             val type = ProjectType.fromString(settingsViewModel.readProjectType())
             val packageName = settingsViewModel.getTargetPackageName() ?: "com.example.app"
 
-            // 1. Generate Files
-            ProjectConfigManager.ensureVersioning(projectDir, type)
-            ProjectConfigManager.ensureWorkflow(projectDir, type)
-            ProjectConfigManager.ensureSetupScript(projectDir)
-            ProjectConfigManager.ensureAgentsSetupMd(projectDir)
+            // 1. Generate Files — collect exactly what changed so the commit
+            // below stages only these paths, never unrelated uncommitted work
+            // sitting in the same working tree (see GitManager.addPaths).
+            val writtenPaths = mutableListOf<String>()
+            writtenPaths += ProjectConfigManager.ensureVersioning(projectDir, type)
+            writtenPaths += ProjectConfigManager.ensureWorkflow(projectDir, type)
+            writtenPaths += ProjectConfigManager.ensureSetupScript(projectDir)
+            writtenPaths += ProjectConfigManager.ensureAgentsSetupMd(projectDir)
 
             // 2. Inject Code (Crash Reporter)
             if (type == ProjectType.ANDROID) {
-                ProjectInitializer.injectCrashReporting(application, projectDir, packageName, settingsViewModel)
+                writtenPaths += ProjectInitializer.injectCrashReporting(application, projectDir, packageName, settingsViewModel)
             }
+
+            if (writtenPaths.isEmpty()) {
+                onOverlayLog("Init files already up to date — nothing to regenerate.")
+                return@launch
+            }
+            onOverlayLog("Regenerated: ${writtenPaths.joinToString(", ")}")
 
             // 3. Git Operations (Init, Commit, Push)
             try {
@@ -445,14 +454,13 @@ class RepoDelegate(
                     }
                 }
 
-                // Commit & Push
-                if (git.hasChanges()) {
-                    git.addAll()
-                    git.commit("IDEaz: Update Init Files & Workflows")
-                    if (token != null && user != null) {
-                        git.push(user, token) { progress, task -> onGitProgress(progress, task) }
-                        onOverlayLog("Init files pushed successfully.")
-                    }
+                // Commit & Push — staged to exactly writtenPaths, not addAll(),
+                // so this can never silently sweep up unrelated pending work.
+                git.addPaths(writtenPaths)
+                git.commit("IDEaz: Update Init Files & Workflows")
+                if (token != null && user != null) {
+                    git.push(user, token) { progress, task -> onGitProgress(progress, task) }
+                    onOverlayLog("Init files pushed successfully.")
                 }
             } catch (e: Exception) {
                 onOverlayLog("Error pushing init files: ${e.message}")

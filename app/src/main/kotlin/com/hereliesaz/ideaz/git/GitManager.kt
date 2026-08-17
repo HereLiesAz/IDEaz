@@ -104,6 +104,31 @@ class GitManager(private val projectDir: File) {
     }
 
     /**
+     * Stages exactly the given project-relative paths, unlike [addAll] — for
+     * automated commits (e.g. CI-file regeneration) that must never sweep up
+     * unrelated uncommitted user work sitting in the same working tree.
+     */
+    fun addPaths(paths: Collection<String>) {
+        if (paths.isEmpty()) return
+        fun doAdd() = Git.open(projectDir).use { git ->
+            val cmd = git.add()
+            paths.forEach { cmd.addFilepattern(it) }
+            cmd.call()
+        }
+        try {
+            doAdd()
+        } catch (e: Exception) {
+            val indexLock = File(projectDir, ".git/index.lock")
+            if (indexLock.exists()) {
+                indexLock.delete()
+                doAdd()
+            } else {
+                throw e
+            }
+        }
+    }
+
+    /**
      * Commits staged changes.
      *
      * @param message The commit message.

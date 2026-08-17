@@ -14,6 +14,8 @@ import androidx.compose.ui.unit.dp
 import com.hereliesaz.aznavrail.AzButton
 import com.hereliesaz.aznavrail.AzTextBox
 import com.hereliesaz.aznavrail.model.AzButtonShape
+import com.hereliesaz.ideaz.models.ProjectType
+import com.hereliesaz.ideaz.utils.ProjectConfigManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,6 +32,7 @@ fun GitScreen(
     var showStashDialog by remember { mutableStateOf(false) }
     var stashMessage by remember { mutableStateOf("") }
     var pendingBranchSwitch by remember { mutableStateOf<String?>(null) }
+    var showRegenerateConfirm by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.refreshGitData()
@@ -97,6 +100,52 @@ fun GitScreen(
         )
     }
 
+    if (showRegenerateConfirm) {
+        val type = ProjectType.fromString(settingsViewModel.readProjectType())
+        val paths = ProjectConfigManager.initFileRelativePaths(type)
+        val repo = settingsViewModel.getGithubUser()?.let { user ->
+            settingsViewModel.getAppName()?.let { app -> "$user/$app" }
+        } ?: "this project"
+        AlertDialog(
+            onDismissRequest = { showRegenerateConfirm = false },
+            title = { Text("Regenerate and push CI files?") },
+            text = {
+                Column {
+                    Text("Repository: $repo")
+                    Text("Branch: $selectedBranch")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Overwrites and commits, only if their content actually changed:")
+                    paths.forEach { path -> Text("• $path", style = MaterialTheme.typography.bodySmall) }
+                    if (type == ProjectType.ANDROID) {
+                        Text(
+                            "• crash-reporter integration files (exact paths depend on your package layout)",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "This pushes directly to $selectedBranch — only files listed above are " +
+                            "touched; other uncommitted work in this project is left alone.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
+            confirmButton = {
+                AzButton(
+                    onClick = {
+                        showRegenerateConfirm = false
+                        viewModel.forceUpdateInitFiles()
+                    },
+                    text = "Regenerate & push",
+                    shape = AzButtonShape.RECTANGLE
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { showRegenerateConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         // Commit a custom message — Phase 1 had no UI for this, so commits only
         // happened indirectly through deploy/build with timestamp-only messages.
@@ -134,7 +183,7 @@ fun GitScreen(
         // Regenerate the GitHub Actions workflow, setup.sh, and AGENTS_SETUP.md.
         // Previously labeled "Push Inits" which gave no clue what it does.
         AzButton(
-            onClick = { viewModel.forceUpdateInitFiles() },
+            onClick = { showRegenerateConfirm = true },
             text = "Regenerate CI Files",
             shape = AzButtonShape.RECTANGLE
         )
