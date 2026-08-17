@@ -2,7 +2,7 @@
 agp = "9.3.1"
 aznavrail = "11.6"
 coreKtx = "1.19.0"
-googleGenai = "1.65.0"
+googleGenai = "1.66.0"
 kotlinxCoroutinesCore = "1.11.0"
 mockwebserver = "5.4.0"
 preferenceKtx = "1.2.1"
