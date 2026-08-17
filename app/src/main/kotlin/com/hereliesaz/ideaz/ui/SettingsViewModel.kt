@@ -317,24 +317,26 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun getApiKey() = getApiKey(KEY_API_KEY)
     fun getApiKey(keyName: String): String? {
         if (keyName !in SECURE_CREDENTIAL_KEYS) return sharedPreferences.getString(keyName, null)
-        runCatching { credentialStore.get(keyName) }.getOrNull()?.let { secureValue ->
-            if (sharedPreferences.contains(keyName) &&
-                !sharedPreferences.edit().remove(keyName).commit()
-            ) {
-                Log.e(TAG, "Failed to remove legacy secure credential")
+        runCatching { credentialStore.get(keyName) }
+            .onFailure { Log.e(TAG, "Failed to read secure credential: $keyName", it) }
+            .getOrNull()
+            ?.let { secureValue ->
+                if (sharedPreferences.contains(keyName) &&
+                    !sharedPreferences.edit().remove(keyName).commit()
+                ) {
+                    Log.e(TAG, "Failed to remove legacy secure credential: $keyName")
+                }
+                return secureValue
             }
-            return secureValue
-        }
         val legacy = sharedPreferences.getString(keyName, null) ?: return null
-        return if (runCatching { credentialStore.put(keyName, legacy) }.isSuccess) {
-            if (!sharedPreferences.edit().remove(keyName).commit()) {
-                Log.e(TAG, "Failed to remove migrated secure credential")
+        return runCatching { credentialStore.put(keyName, legacy) }
+            .onFailure { Log.e(TAG, "Failed to migrate secure credential: $keyName", it) }
+            .onSuccess {
+                if (!sharedPreferences.edit().remove(keyName).commit()) {
+                    Log.e(TAG, "Failed to remove migrated secure credential: $keyName")
+                }
             }
-            legacy
-        } else {
-            Log.e(TAG, "Failed to migrate secure credential")
-            legacy
-        }
+            .let { legacy }
     }
 
     /**
@@ -351,7 +353,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     "Plaintext credential cleanup failed"
                 }
             }.onFailure {
-                Log.e(TAG, "Failed to store secure credential")
+                Log.e(TAG, "Failed to store secure credential: $keyName", it)
             }.isSuccess
         }
         sharedPreferences.edit { putString(keyName, value.trim()) }
