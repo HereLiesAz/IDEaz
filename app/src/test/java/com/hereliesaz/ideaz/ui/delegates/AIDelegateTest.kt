@@ -10,7 +10,9 @@ import com.hereliesaz.ideaz.ui.AiModels
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -24,6 +26,12 @@ class AIDelegateTest {
     private lateinit var aiDelegate: AIDelegate
     private lateinit var settingsViewModel: SettingsViewModel
     private lateinit var mockApiClient: MockJulesApiClient
+    private lateinit var scope: CoroutineScope
+
+    @After
+    fun tearDown() {
+        scope.cancel()
+    }
 
     class MockJulesApiClient : IJulesApiClient {
         var sessions = listOf<Session>()
@@ -69,7 +77,7 @@ class AIDelegateTest {
     fun setUp() {
         settingsViewModel = SettingsViewModel(ApplicationProvider.getApplicationContext())
         mockApiClient = MockJulesApiClient()
-        val scope = CoroutineScope(Dispatchers.Unconfined)
+        scope = CoroutineScope(Dispatchers.Unconfined)
         aiDelegate = AIDelegate(settingsViewModel, scope, {}, { true }, mockApiClient)
     }
 
@@ -117,7 +125,6 @@ class AIDelegateTest {
     @Test
     fun pullRequestEventForwardsUrlToCallback() = runBlocking {
         var capturedUrl: String? = null
-        val scope = CoroutineScope(Dispatchers.Unconfined)
         val delegate = AIDelegate(
             settingsViewModel, scope, {}, { true }, mockApiClient,
             onAgentPullRequest = { capturedUrl = it }
