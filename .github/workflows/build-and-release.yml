@@ -50,6 +50,16 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: false
+          # Enhanced Caching (the default) injects hooks straight into the Gradle
+          # process via an init script and does its own network-backed syncing to
+          # Gradle Inc's proprietary caching backend - distinct from, and running
+          # earlier than, the plain actions/cache save we see afterward in "Post
+          # Setup Gradle". Build with Gradle hung silently for ~20-30 min twice in
+          # a row, always right after a task failure and always inside this same
+          # ./gradlew process, with no further output. Switch to the open-source
+          # `basic` provider (a thin actions/cache wrapper, no in-process network
+          # calls) to rule this in or out as the cause.
+          cache-provider: basic
 
       - name: Grant execute permission for Gradle wrapper
         if: ${{ hashFiles('**/gradlew') != '' }}

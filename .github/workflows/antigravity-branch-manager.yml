@@ -34,7 +34,12 @@ permissions:
 
 jobs:
   manage_branch:
+    # Disabled: the GEMINI_API_KEY secret holds a value Google's API rejects
+    # ("API key not valid"), and every run fails auth (confirmed repeatedly
+    # on #806/#807/#808/#810/#816). Re-enable by deleting the `false &&` line
+    # once a valid key is set under Settings -> Secrets and variables -> Actions.
     if: >-
+      false &&
       (github.event_name != 'push' || github.ref_name != github.event.repository.default_branch) &&
       (github.event_name != 'pull_request_review' ||
        github.event.review.author_association == 'OWNER' ||

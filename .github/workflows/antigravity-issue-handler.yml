@@ -33,10 +33,18 @@ jobs:
     # Only run for issues opened by trusted actors. Anyone else gets a no-op.
     # author_association values: OWNER, MEMBER, COLLABORATOR, CONTRIBUTOR,
     # FIRST_TIME_CONTRIBUTOR, FIRST_TIMER, MANNEQUIN, NONE.
+    #
+    # Also disabled outright right now: the GEMINI_API_KEY secret holds a
+    # value Google's API rejects ("API key not valid"), and every run fails
+    # auth (confirmed repeatedly on #806/#807/#808/#810/#816). Re-enable by
+    # deleting the `false &&` line and its wrapping parens once a valid key
+    # is set under Settings -> Secrets and variables -> Actions.
     if: >-
+      false && (
       github.event.issue.author_association == 'OWNER' ||
       github.event.issue.author_association == 'MEMBER' ||
       github.event.issue.author_association == 'COLLABORATOR'
+      )
 
     runs-on: ubuntu-latest
 

@@ -18,6 +18,11 @@ defaults:
 
 jobs:
   invoke:
+    # Disabled: the GEMINI_API_KEY secret holds a value Google's API rejects
+    # ("API key not valid"), and every run fails auth (confirmed repeatedly
+    # on #806/#807/#808/#810/#816). Re-enable by deleting this line once a
+    # valid key is set under Settings -> Secrets and variables -> Actions.
+    if: false
     runs-on: 'ubuntu-latest'
     permissions:
       contents: 'write'
