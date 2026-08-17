@@ -15,6 +15,12 @@
     <!-- Exclude build artifacts -->
     <exclude domain="file" path="web_dist"/>
 
+    <!-- The user's imported release-signing keystore (written to
+         filesDir/user_release.keystore by SettingsViewModel.importKeystore).
+         Whoever holds this file can sign updates that Play/Android trust as
+         coming from this app - it must never ride along in a backup. -->
+    <exclude domain="file" path="user_release.keystore"/>
+
     <!-- Default-shared-prefs file holds GitHub PATs, Google API keys,
          Jules API keys, and keystore passwords. Excluded from Auto Backup. -->
     <exclude domain="sharedpref" path="com.hereliesaz.ideaz_preferences.xml"/>

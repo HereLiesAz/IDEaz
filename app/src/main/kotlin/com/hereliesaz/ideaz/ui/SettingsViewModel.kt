@@ -145,7 +145,20 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_ANTHROPIC_API_KEY = "anthropic_api_key"
         const val KEY_DEEPSEEK_API_KEY = "deepseek_api_key"
 
-        private val SECURE_CREDENTIAL_KEYS = setOf(KEY_GOOGLE_API_KEY, KEY_HF_API_KEY)
+        private val SECURE_CREDENTIAL_KEYS = setOf(
+            KEY_GOOGLE_API_KEY,
+            KEY_HF_API_KEY,
+            KEY_API_KEY,
+            KEY_GITHUB_TOKEN,
+            KEY_GROQ_API_KEY,
+            KEY_CEREBRAS_API_KEY,
+            KEY_MISTRAL_API_KEY,
+            KEY_OPENAI_API_KEY,
+            KEY_ANTHROPIC_API_KEY,
+            KEY_DEEPSEEK_API_KEY,
+            KEY_KEYSTORE_PASS,
+            KEY_KEY_PASS,
+        )
 
         // One-shot flag: true after the app has explained the Gemini-app
         // bridge during first-run on a device that lacks Gemini Nano.
@@ -279,19 +292,19 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun saveGoogleApiKey(apiKey: String): Boolean = saveString(KEY_GOOGLE_API_KEY, apiKey)
     fun getGoogleApiKey(): String? = getApiKey(KEY_GOOGLE_API_KEY)
 
-    fun saveGithubToken(token: String) = sharedPreferences.edit { putString(KEY_GITHUB_TOKEN, token.trim()) }
-    fun getGithubToken() = sharedPreferences.getString(KEY_GITHUB_TOKEN, null)
+    fun saveGithubToken(token: String): Boolean = saveString(KEY_GITHUB_TOKEN, token)
+    fun getGithubToken() = getApiKey(KEY_GITHUB_TOKEN)
 
     fun saveJulesProjectId(projectId: String) = sharedPreferences.edit { putString(KEY_JULES_PROJECT_ID, projectId.trim()) }
     fun getJulesProjectId() = sharedPreferences.getString(KEY_JULES_PROJECT_ID, null)
 
     fun saveApiKey(apiKey: String) {
         val trimmed = apiKey.trim()
-        sharedPreferences.edit { putString(KEY_API_KEY, trimmed) }
+        saveString(KEY_API_KEY, trimmed)
         AuthInterceptor.apiKey = trimmed
         _apiKey.value = trimmed
     }
-    fun getApiKey() = sharedPreferences.getString(KEY_API_KEY, null)
+    fun getApiKey() = getApiKey(KEY_API_KEY)
     fun getApiKey(keyName: String): String? {
         if (keyName !in SECURE_CREDENTIAL_KEYS) return sharedPreferences.getString(keyName, null)
         runCatching { credentialStore.get(keyName) }.getOrNull()?.let { secureValue ->
@@ -373,13 +386,20 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
     fun saveSigningCredentials(storePass: String, alias: String, keyPass: String) {
-        sharedPreferences.edit { putString(KEY_KEYSTORE_PASS, storePass).putString(KEY_KEY_ALIAS, alias).putString(KEY_KEY_PASS, keyPass) }
+        // Alias is just a label, not a secret; the two passwords are.
+        saveString(KEY_KEYSTORE_PASS, storePass)
+        sharedPreferences.edit { putString(KEY_KEY_ALIAS, alias) }
+        saveString(KEY_KEY_PASS, keyPass)
     }
     fun getKeystorePath() = sharedPreferences.getString(KEY_KEYSTORE_PATH, null)
-    fun getKeystorePass() = sharedPreferences.getString(KEY_KEYSTORE_PASS, "android") ?: "android"
+    fun getKeystorePass() = getApiKey(KEY_KEYSTORE_PASS) ?: "android"
     fun getKeyAlias() = sharedPreferences.getString(KEY_KEY_ALIAS, "androiddebugkey") ?: "androiddebugkey"
-    fun getKeyPass() = sharedPreferences.getString(KEY_KEY_PASS, "android") ?: "android"
-    fun clearSigningConfig() = sharedPreferences.edit { remove(KEY_KEYSTORE_PATH).remove(KEY_KEYSTORE_PASS).remove(KEY_KEY_ALIAS).remove(KEY_KEY_PASS) }
+    fun getKeyPass() = getApiKey(KEY_KEY_PASS) ?: "android"
+    fun clearSigningConfig() {
+        sharedPreferences.edit { remove(KEY_KEYSTORE_PATH).remove(KEY_KEY_ALIAS) }
+        runCatching { credentialStore.remove(KEY_KEYSTORE_PASS) }
+        runCatching { credentialStore.remove(KEY_KEY_PASS) }
+    }
 
     // --- EXPORT/IMPORT ---
     fun exportSettings(context: Context, uri: Uri, password: String) {
@@ -466,6 +486,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 if (export.keystore != null) {
                     val bytes = android.util.Base64.decode(export.keystore.contentBase64, android.util.Base64.NO_WRAP)
                     val destFile = File(context.filesDir, export.keystore.filename)
+                    // The filename comes from the imported blob, unvalidated. Without
+                    // this check, a crafted "../"-laden filename could write outside
+                    // filesDir entirely - the same class of bug the Zip Slip fix in
+                    // BackupManager/RemoteBuildManager addresses, left open here.
+                    val canonicalDestDir = context.filesDir.canonicalFile.toPath()
+                    val canonicalDestFile = destFile.canonicalFile.toPath()
+                    if (!canonicalDestFile.startsWith(canonicalDestDir)) {
+                        throw java.io.IOException("Keystore filename is outside the target directory: ${export.keystore.filename}")
+                    }
                     FileOutputStream(destFile).use { it.write(bytes) }
                     sharedPreferences.edit { putString(KEY_KEYSTORE_PATH, destFile.absolutePath) }
                 }

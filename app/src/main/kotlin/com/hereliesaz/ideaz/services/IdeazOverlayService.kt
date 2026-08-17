@@ -12,6 +12,7 @@ import android.content.IntentFilter
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.pm.ServiceInfo
+import androidx.core.content.ContextCompat
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.os.Build
@@ -172,11 +173,12 @@ class IdeazOverlayService : Service() {
             addAction("com.hereliesaz.ideaz.TARGET_WINDOW_BOUNDS")
             addAction("com.hereliesaz.ideaz.BRIDGE_BLOCK")
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(receiver, filter)
-        }
+        // minSdk is 30, and the raw two-arg registerReceiver() below API 33
+        // registers a world-exported receiver with no way to restrict it -
+        // any app on the device could broadcast these actions (raise the
+        // overlay, feed it fake highlight/bounds data). ContextCompat
+        // backports RECEIVER_NOT_EXPORTED correctly on every API level here.
+        ContextCompat.registerReceiver(this, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
     }
 
     override fun onDestroy() {

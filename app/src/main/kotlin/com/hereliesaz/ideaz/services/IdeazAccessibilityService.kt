@@ -6,11 +6,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Rect
-import android.os.Build
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
+import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
 
 /**
@@ -47,11 +47,12 @@ class IdeazAccessibilityService : AccessibilityService() {
             addAction("com.hereliesaz.ideaz.INTERNAL_TAP_DETECTED")
             addAction("com.hereliesaz.ideaz.REQUEST_TARGET_BOUNDS")
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(tapReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(tapReceiver, filter)
-        }
+        // minSdk is 30, and the raw two-arg registerReceiver() below API 33
+        // registers a world-exported receiver - any app on the device could
+        // broadcast INTERNAL_TAP_DETECTED/REQUEST_TARGET_BOUNDS to drive this
+        // accessibility service. ContextCompat backports RECEIVER_NOT_EXPORTED
+        // correctly on every API level here.
+        ContextCompat.registerReceiver(this, tapReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
     }
 
     override fun onDestroy() {

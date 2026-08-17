@@ -15,6 +15,7 @@ import com.hereliesaz.ideaz.IBuildService
 import com.hereliesaz.ideaz.MainActivity
 import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.ui.SettingsViewModel
+import com.hereliesaz.ideaz.utils.readSecureOrLegacyCredential
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -236,7 +237,7 @@ class BuildService : Service() {
         serviceScope.launch {
             try {
                 val prefs = PreferenceManager.getDefaultSharedPreferences(this@BuildService)
-                val token = prefs.getString(SettingsViewModel.KEY_GITHUB_TOKEN, null)
+                val token = readSecureOrLegacyCredential(this@BuildService, SettingsViewModel.KEY_GITHUB_TOKEN)
                 val user = prefs.getString(SettingsViewModel.KEY_GITHUB_USER, null)
 
                 val git = GitManager(File(path))

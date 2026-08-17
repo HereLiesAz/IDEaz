@@ -37,10 +37,18 @@ class SettingsViewModelTest {
 
     @Test
     fun testApiKeyPersistence() {
+        // The Jules API key is a secure credential now (routes through
+        // AndroidKeystoreCredentialStore), so - like every other secure-key
+        // test below - use a fake store rather than exercising real Android
+        // Keystore crypto, which Robolectric doesn't simulate.
+        val credentials = FakeCredentialStore()
+        viewModel = SettingsViewModel(application, credentials)
+
         assertNull(viewModel.getApiKey())
         viewModel.saveApiKey("secret_key")
         assertEquals("secret_key", viewModel.getApiKey())
         assertEquals("secret_key", viewModel.apiKey.value)
+        assertEquals("secret_key", credentials.values[SettingsViewModel.KEY_API_KEY])
     }
 
     @Test
@@ -129,6 +137,50 @@ class SettingsViewModelTest {
 
         assertEquals("legacy_token", viewModel.getApiKey(SettingsViewModel.KEY_HF_API_KEY))
         assertEquals("legacy_token", preferences.getString(SettingsViewModel.KEY_HF_API_KEY, null))
+    }
+
+    @Test
+    fun `GitHub token and provider API keys are stored outside default preferences`() {
+        // Previously only google_api_key and hf_api_key were secure; every
+        // other credential type (GitHub token, Jules key, the six
+        // OpenAI-compatible provider keys, signing passwords) lived in
+        // plaintext preferences.
+        val credentials = FakeCredentialStore()
+        viewModel = SettingsViewModel(application, credentials)
+        val preferences = PreferenceManager.getDefaultSharedPreferences(application)
+
+        assertTrue(viewModel.saveGithubToken("  ghp_secret  "))
+        assertEquals("ghp_secret", credentials.values[SettingsViewModel.KEY_GITHUB_TOKEN])
+        assertFalse(preferences.contains(SettingsViewModel.KEY_GITHUB_TOKEN))
+        assertEquals("ghp_secret", viewModel.getGithubToken())
+
+        assertTrue(viewModel.saveString(SettingsViewModel.KEY_OPENAI_API_KEY, "sk-secret"))
+        assertEquals("sk-secret", credentials.values[SettingsViewModel.KEY_OPENAI_API_KEY])
+        assertFalse(preferences.contains(SettingsViewModel.KEY_OPENAI_API_KEY))
+    }
+
+    @Test
+    fun `signing passwords are stored securely, alias stays plain`() {
+        val credentials = FakeCredentialStore()
+        viewModel = SettingsViewModel(application, credentials)
+        val preferences = PreferenceManager.getDefaultSharedPreferences(application)
+
+        viewModel.saveSigningCredentials(storePass = "storePass", alias = "myAlias", keyPass = "keyPass")
+
+        assertEquals("storePass", credentials.values[SettingsViewModel.KEY_KEYSTORE_PASS])
+        assertEquals("keyPass", credentials.values[SettingsViewModel.KEY_KEY_PASS])
+        assertFalse(preferences.contains(SettingsViewModel.KEY_KEYSTORE_PASS))
+        assertFalse(preferences.contains(SettingsViewModel.KEY_KEY_PASS))
+        assertEquals("myAlias", preferences.getString(SettingsViewModel.KEY_KEY_ALIAS, null))
+
+        assertEquals("storePass", viewModel.getKeystorePass())
+        assertEquals("keyPass", viewModel.getKeyPass())
+        assertEquals("myAlias", viewModel.getKeyAlias())
+
+        viewModel.clearSigningConfig()
+        assertNull(credentials.values[SettingsViewModel.KEY_KEYSTORE_PASS])
+        assertNull(credentials.values[SettingsViewModel.KEY_KEY_PASS])
+        assertEquals("android", viewModel.getKeystorePass())
     }
 
     @Test

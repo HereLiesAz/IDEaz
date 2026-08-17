@@ -463,7 +463,12 @@ class RepoDelegate(
                 val secrets = mutableMapOf<String, String>()
                 settingsViewModel.getApiKey()?.let { secrets["JULES_API_KEY"] = it }
                 settingsViewModel.getApiKey(AiModels.GEMINI.requiredKey)?.let { secrets["GEMINI_API_KEY"] = it }
-                settingsViewModel.getApiKey("GOOGLE_API_KEY")?.let { secrets["GOOGLE_API_KEY"] = it }
+                // Was looking up the literal string "GOOGLE_API_KEY" (uppercase),
+                // but the actual preference key is lowercase (KEY_GOOGLE_API_KEY =
+                // "google_api_key") - this always returned null, so the secret was
+                // silently never uploaded and the "(uploaded/size)" warning below
+                // could never fire for it.
+                settingsViewModel.getApiKey(SettingsViewModel.KEY_GOOGLE_API_KEY)?.let { secrets["GOOGLE_API_KEY"] = it }
                 settingsViewModel.getJulesProjectId()?.let { secrets["JULES_PROJECT_ID"] = it }
 
                 val keystorePath = settingsViewModel.getKeystorePath()

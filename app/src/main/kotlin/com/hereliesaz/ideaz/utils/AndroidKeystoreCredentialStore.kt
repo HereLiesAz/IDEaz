@@ -18,6 +18,23 @@ interface CredentialStore {
     fun remove(key: String)
 }
 
+/**
+ * Read-only, migration-side-effect-free credential lookup for call sites that
+ * don't hold a [com.hereliesaz.ideaz.ui.SettingsViewModel] instance (services,
+ * static crash handlers). Checks the Keystore-backed store first, falling back
+ * to the legacy plaintext preference of the same name for a value that hasn't
+ * been migrated yet - [com.hereliesaz.ideaz.ui.SettingsViewModel.getApiKey]
+ * still performs the actual one-time migration whenever Settings is opened.
+ */
+fun readSecureOrLegacyCredential(context: Context, key: String): String? {
+    val secure = runCatching { AndroidKeystoreCredentialStore(context).get(key) }.getOrNull()
+    if (secure != null) return secure
+    return context.getSharedPreferences(
+        androidx.preference.PreferenceManager.getDefaultSharedPreferencesName(context),
+        Context.MODE_PRIVATE,
+    ).getString(key, null)
+}
+
 /** Encrypts one credential into a versioned AES-GCM envelope. */
 internal fun encryptCredential(value: String, key: SecretKey, associatedData: String): String {
     val iv = ByteArray(12).also(SecureRandom()::nextBytes)
