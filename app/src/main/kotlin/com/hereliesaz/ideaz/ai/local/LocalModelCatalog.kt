@@ -74,8 +74,12 @@ object LocalModelCatalog {
             name = "Qwen2.5 0.5B Instruct · Q4 (GGUF)",
             runtimeId = "llamacpp",
             url = "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf",
-            approxSizeBytes = 400_000_000,
+            approxSizeBytes = 491_400_032,
             fileName = "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+            // Verified against the Hugging Face Hub tree API (LFS oid/size), not by
+            // downloading the file - see docs/TODO.md for how this was obtained.
+            expectedSizeBytes = 491_400_032,
+            sha256 = "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db",
             minRamBytes = 2_000_000_000,
             requiredAbi = "arm64-v8a",
             notes = "Tiny and fast; good for low-RAM devices.",
@@ -85,8 +89,10 @@ object LocalModelCatalog {
             name = "Gemma 3 Nano (E2B) Instruct · Q4 (GGUF)",
             runtimeId = "llamacpp",
             url = "https://huggingface.co/lmstudio-community/gemma-3n-E2B-it-text-GGUF/resolve/main/gemma-3n-E2B-it-Q4_K_M.gguf",
-            approxSizeBytes = 3_000_000_000,
+            approxSizeBytes = 2_787_805_568,
             fileName = "gemma-3n-e2b-it-Q4_K_M.gguf",
+            expectedSizeBytes = 2_787_805_568,
+            sha256 = "4eff1cf815bdcb15c63575d266064ad609563c835a39b324531ad9266f2dd862",
             minRamBytes = 4_000_000_000,
             requiredAbi = "arm64-v8a",
             notes = "Gemma 3 Nano E2B (2B effective parameters). Good balance of speed and quality.",
@@ -96,8 +102,10 @@ object LocalModelCatalog {
             name = "Gemma 3 Nano (E4B) Instruct · Q4 (GGUF)",
             runtimeId = "llamacpp",
             url = "https://huggingface.co/unsloth/gemma-3n-E4B-it-GGUF/resolve/main/gemma-3n-E4B-it-Q4_K_M.gguf",
-            approxSizeBytes = 4_500_000_000,
+            approxSizeBytes = 4_539_054_208,
             fileName = "gemma-3n-e4b-it-Q4_K_M.gguf",
+            expectedSizeBytes = 4_539_054_208,
+            sha256 = "43b489bb77a81bda85180e7c490d40ad7f1d5c2ce654c9b05e15e104bd3c777e",
             minRamBytes = 6_000_000_000,
             requiredAbi = "arm64-v8a",
             notes = "Gemma 3 Nano E4B (4B effective parameters). Needs ~5 GB RAM.",
@@ -111,20 +119,38 @@ object LocalModelCatalog {
             fileName = "gemma-2-2b-it.Q4_K_M.gguf",
             minRamBytes = 4_000_000_000,
             requiredAbi = "arm64-v8a",
-            notes = "Stronger; wants ~3 GB free RAM.",
+            // unsloth/gemma-2-2b-it-GGUF's Hub API returned 401 "Invalid username or
+            // password" for this entire repo as of this audit pass (not just this
+            // file) - it may have been renamed, made private, or moved. The URL is
+            // left as-is (still worth trying at download time) but expectedSizeBytes/
+            // sha256 are deliberately NOT populated: this needs a human to locate the
+            // model's current home before its integrity can be pinned.
+            notes = "Stronger; wants ~3 GB free RAM. NEEDS VERIFICATION: source repo returned 401 as of the last audit pass.",
         ),
         run {
+            // The catalog previously pointed at cpu_and_mobile/cpu-int4-rtn-block-32-
+            // acc-level-4/, which the Hub API confirms no longer exists in this repo
+            // (every download would 404). Repointed to the current
+            // cpu-int4-awq-block-128-acc-level-4/ variant and re-verified size/sha256
+            // against the Hub API for every file in the directory.
             val base = "https://huggingface.co/microsoft/Phi-3.5-mini-instruct-onnx/resolve/main/" +
-                "cpu_and_mobile/cpu-int4-rtn-block-32-acc-level-4/"
+                "cpu_and_mobile/cpu-int4-awq-block-128-acc-level-4/"
+            val onnxFile = "phi-3.5-mini-instruct-cpu-int4-awq-block-128-acc-level-4.onnx"
             LocalModel(
                 id = "phi3_5-mini-onnx",
                 name = "Phi-3.5 Mini Instruct (ONNX GenAI · CPU int4)",
                 runtimeId = "onnx",
-                url = base + "model.onnx",
-                approxSizeBytes = 2_200_000_000,
-                fileName = "model.onnx",
+                url = base + onnxFile,
+                approxSizeBytes = 52_176_615,
+                fileName = onnxFile,
+                expectedSizeBytes = 52_176_615,
+                sha256 = "c4f05e6ef52f2588df181e566afbf5e8eeba097fece2fc8246770473a10225fd",
                 additionalFiles = listOf(
-                    LocalModelFile(base + "model.onnx.data", "model.onnx.data"),
+                    LocalModelFile(
+                        base + "$onnxFile.data", "$onnxFile.data",
+                        expectedSizeBytes = 2_728_144_896,
+                        sha256 = "3351fe9cc669eba43e07fb3cec436078629d5145531a28bc36fe6d5ad7683eb8",
+                    ),
                     LocalModelFile(base + "genai_config.json", "genai_config.json"),
                     LocalModelFile(base + "tokenizer.json", "tokenizer.json"),
                     LocalModelFile(base + "tokenizer_config.json", "tokenizer_config.json"),
@@ -132,7 +158,7 @@ object LocalModelCatalog {
                 ),
                 minRamBytes = 4_000_000_000,
                 requiredAbi = "arm64-v8a",
-                notes = "ONNX Runtime GenAI; multi-file model directory. Verify file list before use.",
+                notes = "ONNX Runtime GenAI; multi-file model directory.",
             )
         },
         LocalModel(
@@ -145,7 +171,14 @@ object LocalModelCatalog {
             requiresAuth = true,
             minRamBytes = 4_000_000_000,
             requiredAbi = "arm64-v8a",
-            notes = "Gated by Google — requires a Hugging Face token with access granted.",
+            // google/gemma-2-2b-it's Hub tree API (checked during this audit pass) does
+            // NOT contain a "gemma-2-2b-it.task" file at all - that repo ships raw
+            // .safetensors weights, not a MediaPipe-converted .task bundle. This URL
+            // 404s. A correct MediaPipe .task source (e.g. a litert-community
+            // conversion) needs to be located and its license/redistribution terms
+            // checked before this entry can be pointed at it.
+            notes = "Gated by Google — requires a Hugging Face token with access granted. " +
+                "BROKEN: source repo has no .task file; needs a corrected URL.",
         ),
     )
 

@@ -53,12 +53,28 @@ data class LocalInferenceLimits(
     val maxOutputTokens: Int,
 )
 
-/** Conservative bounds: four UTF-16 characters approximate one tokenizer token. */
+/**
+ * Conservative bounds: four UTF-16 characters approximate one tokenizer token.
+ * [LocalInferenceLimits.maxPromptChars] is sized to leave [LocalInferenceLimits.maxOutputTokens]
+ * of headroom inside [LocalInferenceLimits.maxContextTokens] - it is the prompt-side
+ * share of the *same* total budget, not an independent limit. A runtime whose API
+ * takes a single total-token budget (MediaPipe's `setMaxTokens`, ONNX's `max_length`)
+ * should be given [LocalInferenceLimits.maxContextTokens] directly.
+ */
 internal fun localInferenceLimits(totalRamBytes: Long): LocalInferenceLimits = when {
-    totalRamBytes < 4_000_000_000L -> LocalInferenceLimits(8_192, 2_048, 256)
-    totalRamBytes in 4_000_000_000L until 8_000_000_000L -> LocalInferenceLimits(16_384, 4_096, 512)
-    else -> LocalInferenceLimits(24_576, 6_144, 768)
+    totalRamBytes < 4_000_000_000L -> deviceTierLimits(maxContextTokens = 2_048, maxOutputTokens = 256)
+    totalRamBytes in 4_000_000_000L until 8_000_000_000L -> deviceTierLimits(maxContextTokens = 4_096, maxOutputTokens = 512)
+    else -> deviceTierLimits(maxContextTokens = 6_144, maxOutputTokens = 768)
 }
+
+private const val CHARS_PER_TOKEN = 4
+
+private fun deviceTierLimits(maxContextTokens: Int, maxOutputTokens: Int): LocalInferenceLimits =
+    LocalInferenceLimits(
+        maxPromptChars = (maxContextTokens - maxOutputTokens) * CHARS_PER_TOKEN,
+        maxContextTokens = maxContextTokens,
+        maxOutputTokens = maxOutputTokens,
+    )
 
 internal fun classPresent(fqcn: String): Boolean =
     runCatching { Class.forName(fqcn, false, LocalModelRuntime::class.java.classLoader) }.isSuccess
@@ -86,9 +102,13 @@ object MediaPipeRuntime : LocalModelRuntime {
                 cachedEngine?.runCatching { close() }
                 cachedEngine = null
                 cachedPath = null
+                // setMaxTokens is MediaPipe's *total* (prompt + output) budget, not an
+                // output-only cap - passing maxOutputTokens here left far too little
+                // room for the prompt (the tool-protocol instructions alone are a few
+                // hundred tokens), so generation failed on essentially every real turn.
                 val options = LlmInference.LlmInferenceOptions.builder()
                     .setModelPath(modelFile.absolutePath)
-                    .setMaxTokens(limits.maxOutputTokens)
+                    .setMaxTokens(limits.maxContextTokens)
                     .build()
                 cachedEngine = LlmInference.createFromOptions(context.applicationContext, options)
                 cachedPath = modelFile.absolutePath
@@ -111,6 +131,14 @@ object MediaPipeRuntime : LocalModelRuntime {
  * present (see its README). [generate] talks to the binding by reflection so the
  * app compiles whether or not the module is on the classpath; when it's absent
  * [isAvailable] is false and the model is hidden.
+ *
+ * The binding's native `nativeComplete` sizes its own context as
+ * `n_prompt + maxTokens + 8` (see `llama-android.cpp`) rather than taking a fixed
+ * context-budget parameter, so [LocalInferenceLimits.maxContextTokens] isn't passed
+ * here directly - it's honored indirectly: [limits] is used to bound the prompt
+ * that's built *before* this is called (see `boundedLocalPrompt` in
+ * `LocalLlmAdapter`), and [LocalInferenceLimits.maxPromptChars] already reserves
+ * room for [LocalInferenceLimits.maxOutputTokens] within the same total budget.
  */
 object LlamaCppRuntime : LocalModelRuntime {
     override val id = "llamacpp"
@@ -266,6 +294,11 @@ object OnnxGenAiRuntime : LocalModelRuntime {
  * hardware (Pixel 8+/select Samsung); [generate] surfaces a clear message on
  * unsupported devices. This is the same engine the GEMINI_NANO provider uses,
  * exposed here so it appears in the unified on-device picker.
+ *
+ * [GenerationConfig] exposes no total-context-budget setter - only
+ * [LocalInferenceLimits.maxOutputTokens] is configurable here. The prompt side of
+ * the same budget is still bounded by [LocalInferenceLimits.maxPromptChars] before
+ * it reaches [generate] (see `boundedLocalPrompt` in `LocalLlmAdapter`).
  */
 object AiCoreRuntime : LocalModelRuntime {
     override val id = "aicore"
