@@ -81,9 +81,15 @@ class GithubIssueReporterTest {
 
     @Test
     fun `test sanitizeContent`() {
-        val raw = "My secret key is AIzaTestKey1234567890123456789012345"
+        // LogSanitizer's Google-key pattern is AIza + exactly 35 chars (Google
+        // API keys are a fixed 39 chars total) - this fake key previously had
+        // only 32, so it silently never matched and this assertion was broken
+        // long before this session touched the file. Invisible until now: the
+        // whole test class used to deadlock before JUnit could ever report an
+        // individual test result (see the class doc comment above).
+        val raw = "My secret key is AIzaTestFakeKey123456789012345678901234"
         val sanitized = GithubIssueReporter.sanitizeContent(raw)
         assertTrue(sanitized.contains("***REDACTED***"))
-        assertTrue(!sanitized.contains("AIzaTestKey"))
+        assertTrue(!sanitized.contains("AIzaTestFakeKey"))
     }
 }
