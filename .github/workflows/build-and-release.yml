@@ -8,13 +8,16 @@ on:
 
 # ⚡ Concurrency: Cancels the entire job if a new push comes in.
 #
-# Keyed on the PR head ref (not github.ref) so that a push to an open PR
-# branch doesn't spawn two independent, un-deduped builds: github.ref is
-# refs/heads/<branch> for the push event but refs/pull/<n>/merge for the
-# pull_request event fired by the same push, so grouping on github.ref
-# alone let both run concurrently to completion every time.
+# Keyed on the bare branch name so a push to an open PR branch doesn't
+# spawn two independent, un-deduped builds. github.head_ref is the PR's
+# source branch name for pull_request events and empty for push events;
+# github.ref_name is the bare branch name for push events (unlike
+# github.ref, which is prefixed refs/heads/<branch>). Falling back from
+# github.ref to github.ref_name previously produced mismatched keys
+# (refs/heads/<branch> vs <branch>), so push and pull_request runs for
+# the same branch never actually shared a group.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.head.ref || github.ref }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
