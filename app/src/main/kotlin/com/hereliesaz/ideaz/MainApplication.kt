@@ -33,4 +33,18 @@ class MainApplication : Application() {
         super.onLowMemory()
         LocalModelRuntimes.requestReleaseAll()
     }
+
+    override fun onTerminate() {
+        // Best-effort only: the platform guarantees onTerminate() is never
+        // called on a real device, only in the emulator/test harness. This
+        // ViewModel is intentionally Application-scoped (constructed once
+        // above, never through a ViewModelStore), so its onCleared() -
+        // which unregisters SystemEventDelegate's broadcast receivers,
+        // stops the file observer, and unbinds the build service - was
+        // otherwise completely unreachable. Real teardown still happens the
+        // same way every process-scoped resource does: the OS reclaims it
+        // at process death.
+        mainViewModel.releaseResources()
+        super.onTerminate()
+    }
 }

@@ -65,12 +65,39 @@ jobs:
         shell: bash
         run: |
           set +e
-          # Same bounded-timeout + live-streaming pattern as build-and-release.yml,
-          # scaled down: this job doesn't need the full watchdog machinery, it just
-          # needs to fail loudly instead of hanging silently if something wedges.
-          timeout --kill-after=1m 20m bash -eo pipefail -c \
-            './gradlew testDebugUnitTest lintDebug --continue' 2>&1 | tee build.log
-          EXIT_CODE=${PIPESTATUS[0]}
+          # Same bounded-timeout + live-streaming pattern as build-and-release.yml.
+          # This job originally skipped the thread-dump watchdog on the theory
+          # that it "just needs to fail loudly instead of hanging silently" -
+          # it then reproduced the exact testDebugUnitTest teardown hang this
+          # session spent hours root-causing, with zero diagnostic output,
+          # because there was no watchdog. Carrying the watchdog over here too.
+          (
+            timeout --kill-after=1m 20m bash -eo pipefail -c \
+              './gradlew testDebugUnitTest lintDebug --continue' 2>&1 | tee build.log
+            echo "${PIPESTATUS[0]}" > /tmp/build_exit_code
+          ) &
+          BUILD_PID=$!
+
+          (
+            sleep 480
+            if kill -0 "$BUILD_PID" 2>/dev/null; then
+              echo "::warning::Still running after 8 min - dumping JVM thread stacks"
+              JCMD="${JAVA_HOME:+$JAVA_HOME/bin/jcmd}"
+              JCMD="${JCMD:-jcmd}"
+              for pid in $("$JCMD" -l 2>/dev/null | awk '{print $1}'); do
+                echo "===== $JCMD $pid Thread.print ====="
+                "$JCMD" "$pid" Thread.print 2>&1 || true
+              done
+            fi
+          ) &
+          WATCHDOG_PID=$!
+
+          wait "$BUILD_PID"
+          pkill -P "$WATCHDOG_PID" 2>/dev/null || true
+          kill "$WATCHDOG_PID" 2>/dev/null || true
+          wait "$WATCHDOG_PID" 2>/dev/null || true
+
+          EXIT_CODE=$(cat /tmp/build_exit_code 2>/dev/null || echo 1)
           if [ "$EXIT_CODE" -eq 124 ]; then
             echo "PR check timed out after 20 minutes" >&2
           fi

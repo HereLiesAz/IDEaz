@@ -712,6 +712,21 @@ class MainViewModel(
     }
 
     /**
+     * Public entry point for releasing this ViewModel's resources.
+     *
+     * This ViewModel is deliberately Application-scoped - constructed once
+     * directly in [com.hereliesaz.ideaz.MainApplication.onCreate], not
+     * through a [androidx.lifecycle.ViewModelProvider] - so the framework
+     * never calls [onCleared] (that's `protected`, and only a
+     * `ViewModelStore` invokes it). Exposed here, and called from
+     * `MainApplication.onTerminate()`, so the release path is at least
+     * reachable rather than permanently dead code.
+     */
+    fun releaseResources() {
+        onCleared()
+    }
+
+    /**
      * Called by UI when a screen transition occurs to flush non-fatal errors.
      *
      * **Logic:**
