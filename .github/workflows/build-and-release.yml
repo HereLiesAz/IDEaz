@@ -7,8 +7,14 @@ on:
   workflow_dispatch:
 
 # ⚡ Concurrency: Cancels the entire job if a new push comes in.
+#
+# Keyed on the PR head ref (not github.ref) so that a push to an open PR
+# branch doesn't spawn two independent, un-deduped builds: github.ref is
+# refs/heads/<branch> for the push event but refs/pull/<n>/merge for the
+# pull_request event fired by the same push, so grouping on github.ref
+# alone let both run concurrently to completion every time.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
