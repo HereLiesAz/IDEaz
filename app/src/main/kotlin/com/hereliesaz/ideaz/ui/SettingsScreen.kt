@@ -328,8 +328,12 @@ fun SettingsScreen(
                     hint = "Key Password",
                     secret = true,
                     onSubmit = {
-                        settingsViewModel.saveSigningCredentials(keystorePass, keyAlias, keyPass)
-                        Toast.makeText(context, "Signing config saved", Toast.LENGTH_SHORT).show()
+                        val saved = settingsViewModel.saveSigningCredentials(keystorePass, keyAlias, keyPass)
+                        Toast.makeText(
+                            context,
+                            if (saved) "Signing config saved" else "Signing config save failed",
+                            Toast.LENGTH_SHORT,
+                        ).show()
                     },
                     submitButtonContent = { Text("Save") }
                 )
@@ -370,8 +374,12 @@ fun SettingsScreen(
                         hint = "Jules API Key",
                         secret = true,
                         onSubmit = {
-                            settingsViewModel.saveApiKey(apiKey)
-                            Toast.makeText(context, "Jules Key Saved", Toast.LENGTH_SHORT).show()
+                            val saved = settingsViewModel.saveApiKey(apiKey)
+                            Toast.makeText(
+                                context,
+                                if (saved) "Jules Key Saved" else "Jules Key Save Failed",
+                                Toast.LENGTH_SHORT,
+                            ).show()
                         },
                         submitButtonContent = { Text("Save") }
                     )
@@ -398,8 +406,15 @@ fun SettingsScreen(
                         hint = "GitHub Token",
                         secret = true,
                         onSubmit = {
-                            settingsViewModel.saveGithubToken(githubToken)
-                            Toast.makeText(context, "GitHub Token Saved", Toast.LENGTH_SHORT).show()
+                            val saved = settingsViewModel.saveGithubToken(githubToken)
+                            if (saved) {
+                                viewModel.fetchGitHubRepos()
+                            }
+                            Toast.makeText(
+                                context,
+                                if (saved) "GitHub Token Saved" else "GitHub Token Save Failed",
+                                Toast.LENGTH_SHORT,
+                            ).show()
                         },
                         submitButtonContent = { Text("Save") }
                     )
@@ -478,8 +493,12 @@ fun SettingsScreen(
                     storedKey = settingsViewModel.getApiKey(SettingsViewModel.KEY_GROQ_API_KEY).orEmpty(),
                     signupUrl = "https://console.groq.com/keys",
                     onSave = {
-                        settingsViewModel.saveString(SettingsViewModel.KEY_GROQ_API_KEY, it)
-                        Toast.makeText(context, "Groq key saved", Toast.LENGTH_SHORT).show()
+                        val saved = settingsViewModel.saveString(SettingsViewModel.KEY_GROQ_API_KEY, it)
+                        Toast.makeText(
+                            context,
+                            if (saved) "Groq key saved" else "Groq key could not be saved",
+                            if (saved) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
+                        ).show()
                     },
                 )
                 FreeProviderKeyRow(
@@ -487,8 +506,12 @@ fun SettingsScreen(
                     storedKey = settingsViewModel.getApiKey(SettingsViewModel.KEY_CEREBRAS_API_KEY).orEmpty(),
                     signupUrl = "https://cloud.cerebras.ai/",
                     onSave = {
-                        settingsViewModel.saveString(SettingsViewModel.KEY_CEREBRAS_API_KEY, it)
-                        Toast.makeText(context, "Cerebras key saved", Toast.LENGTH_SHORT).show()
+                        val saved = settingsViewModel.saveString(SettingsViewModel.KEY_CEREBRAS_API_KEY, it)
+                        Toast.makeText(
+                            context,
+                            if (saved) "Cerebras key saved" else "Cerebras key could not be saved",
+                            if (saved) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
+                        ).show()
                     },
                 )
                 FreeProviderKeyRow(
@@ -509,8 +532,12 @@ fun SettingsScreen(
                     storedKey = settingsViewModel.getApiKey(SettingsViewModel.KEY_MISTRAL_API_KEY).orEmpty(),
                     signupUrl = "https://console.mistral.ai/api-keys/",
                     onSave = {
-                        settingsViewModel.saveString(SettingsViewModel.KEY_MISTRAL_API_KEY, it)
-                        Toast.makeText(context, "Mistral key saved", Toast.LENGTH_SHORT).show()
+                        val saved = settingsViewModel.saveString(SettingsViewModel.KEY_MISTRAL_API_KEY, it)
+                        Toast.makeText(
+                            context,
+                            if (saved) "Mistral key saved" else "Mistral key could not be saved",
+                            if (saved) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
+                        ).show()
                     },
                 )
 
@@ -528,8 +555,12 @@ fun SettingsScreen(
                     storedKey = settingsViewModel.getApiKey(SettingsViewModel.KEY_OPENAI_API_KEY).orEmpty(),
                     signupUrl = "https://platform.openai.com/api-keys",
                     onSave = {
-                        settingsViewModel.saveString(SettingsViewModel.KEY_OPENAI_API_KEY, it)
-                        Toast.makeText(context, "OpenAI key saved", Toast.LENGTH_SHORT).show()
+                        val saved = settingsViewModel.saveString(SettingsViewModel.KEY_OPENAI_API_KEY, it)
+                        Toast.makeText(
+                            context,
+                            if (saved) "OpenAI key saved" else "OpenAI key could not be saved",
+                            if (saved) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
+                        ).show()
                     },
                 )
                 FreeProviderKeyRow(
@@ -537,8 +568,12 @@ fun SettingsScreen(
                     storedKey = settingsViewModel.getApiKey(SettingsViewModel.KEY_ANTHROPIC_API_KEY).orEmpty(),
                     signupUrl = "https://console.anthropic.com/settings/keys",
                     onSave = {
-                        settingsViewModel.saveString(SettingsViewModel.KEY_ANTHROPIC_API_KEY, it)
-                        Toast.makeText(context, "Anthropic key saved", Toast.LENGTH_SHORT).show()
+                        val saved = settingsViewModel.saveString(SettingsViewModel.KEY_ANTHROPIC_API_KEY, it)
+                        Toast.makeText(
+                            context,
+                            if (saved) "Anthropic key saved" else "Anthropic key could not be saved",
+                            if (saved) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
+                        ).show()
                     },
                 )
                 FreeProviderKeyRow(
@@ -546,8 +581,12 @@ fun SettingsScreen(
                     storedKey = settingsViewModel.getApiKey(SettingsViewModel.KEY_DEEPSEEK_API_KEY).orEmpty(),
                     signupUrl = "https://platform.deepseek.com/api_keys",
                     onSave = {
-                        settingsViewModel.saveString(SettingsViewModel.KEY_DEEPSEEK_API_KEY, it)
-                        Toast.makeText(context, "DeepSeek key saved", Toast.LENGTH_SHORT).show()
+                        val saved = settingsViewModel.saveString(SettingsViewModel.KEY_DEEPSEEK_API_KEY, it)
+                        Toast.makeText(
+                            context,
+                            if (saved) "DeepSeek key saved" else "DeepSeek key could not be saved",
+                            if (saved) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
+                        ).show()
                     },
                 )
 

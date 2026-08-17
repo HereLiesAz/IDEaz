@@ -196,6 +196,70 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `default AI assignment falls back to Gemini when no provider key is saved`() {
+        assertEquals(AiModels.GEMINI_FLASH, viewModel.getAiAssignment(SettingsViewModel.KEY_AI_ASSIGNMENT_DEFAULT))
+    }
+
+    @Test
+    fun `default AI assignment picks the highest-ranked provider the user has a key for`() {
+        val credentials = FakeCredentialStore()
+        viewModel = SettingsViewModel(application, credentials)
+
+        // Groq and Cerebras outrank nothing here yet - Anthropic (entered
+        // below) outranks both in AiModels.defaultRanking, so it should win.
+        viewModel.saveString(SettingsViewModel.KEY_GROQ_API_KEY, "groq_secret")
+        viewModel.saveString(SettingsViewModel.KEY_CEREBRAS_API_KEY, "cerebras_secret")
+        assertEquals(AiModels.GROQ_LLAMA, viewModel.getAiAssignment(SettingsViewModel.KEY_AI_ASSIGNMENT_DEFAULT))
+
+        viewModel.saveString(SettingsViewModel.KEY_ANTHROPIC_API_KEY, "anthropic_secret")
+        assertEquals(AiModels.ANTHROPIC_CLAUDE, viewModel.getAiAssignment(SettingsViewModel.KEY_AI_ASSIGNMENT_DEFAULT))
+    }
+
+    @Test
+    fun `an explicit Default AI assignment overrides the ranked auto-pick`() {
+        val credentials = FakeCredentialStore()
+        viewModel = SettingsViewModel(application, credentials)
+        viewModel.saveString(SettingsViewModel.KEY_ANTHROPIC_API_KEY, "anthropic_secret")
+
+        viewModel.saveAiAssignment(SettingsViewModel.KEY_AI_ASSIGNMENT_DEFAULT, AiModels.MISTRAL_SMALL)
+
+        assertEquals(AiModels.MISTRAL_SMALL, viewModel.getAiAssignment(SettingsViewModel.KEY_AI_ASSIGNMENT_DEFAULT))
+    }
+
+    @Test
+    fun `a task without its own assignment inherits the ranked default`() {
+        val credentials = FakeCredentialStore()
+        viewModel = SettingsViewModel(application, credentials)
+        viewModel.saveString(SettingsViewModel.KEY_OPENAI_API_KEY, "openai_secret")
+
+        assertEquals(AiModels.OPENAI_GPT4O, viewModel.getAiAssignment(SettingsViewModel.KEY_AI_ASSIGNMENT_OVERLAY))
+    }
+
+    @Test
+    fun `saveApiKey reports failure when the secure store rejects the write`() {
+        val credentials = object : CredentialStore {
+            override fun get(key: String): String? = null
+            override fun put(key: String, value: String) = error("keystore unavailable")
+            override fun remove(key: String) = Unit
+        }
+        viewModel = SettingsViewModel(application, credentials)
+
+        assertFalse(viewModel.saveApiKey("secret_key"))
+    }
+
+    @Test
+    fun `saveSigningCredentials reports failure when the secure store rejects the write`() {
+        val credentials = object : CredentialStore {
+            override fun get(key: String): String? = null
+            override fun put(key: String, value: String) = error("keystore unavailable")
+            override fun remove(key: String) = Unit
+        }
+        viewModel = SettingsViewModel(application, credentials)
+
+        assertFalse(viewModel.saveSigningCredentials(storePass = "storePass", alias = "myAlias", keyPass = "keyPass"))
+    }
+
+    @Test
     fun `credential envelope hides plaintext and rejects tampering`() {
         val key = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
         val envelope = encryptCredential("hf_secret", key, "hf_api_key")
