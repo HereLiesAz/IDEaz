@@ -50,8 +50,20 @@ jobs:
     # For PRs: only if not from a fork
     # For issues: only on open/reopen
     # For comments: only if user types @antigravity-cli and is OWNER/MEMBER/COLLABORATOR
+    #
+    # Also disabled outright right now: the GEMINI_API_KEY secret holds a
+    # value Google's API rejects ("API key not valid"), so review/triage/
+    # invoke could never actually work here, and worse - every routine push
+    # to an open PR (a 'synchronize' event, matched by none of the branches
+    # below) fell through to the `fallthrough` job, which unconditionally
+    # posted a false "I'm sorry, unable to process your request" comment
+    # even though nothing was ever requested and no AI call was attempted.
+    # Re-enable by deleting the `false &&` line and its wrapping parens
+    # once a valid key is set under Settings -> Secrets and variables ->
+    # Actions, and consider also fixing `fallthrough` to not fire on
+    # routine synchronize/reopened events that were never a command.
     if: >-
-      ${{
+      false && (
         (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)) ||
         (github.event_name == 'issues' && contains(fromJSON('["opened", "reopened"]'), github.event.action) && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association)) ||
         (
@@ -59,7 +71,7 @@ jobs:
           startsWith(github.event.comment.body || github.event.review.body || github.event.issue.body, '@antigravity-cli') &&
           contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association || github.event.review.author_association || github.event.issue.author_association)
         )
-      }}
+      )
     runs-on: 'ubuntu-latest'
     permissions:
       contents: 'write'
