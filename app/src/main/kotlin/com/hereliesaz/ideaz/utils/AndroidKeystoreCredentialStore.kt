@@ -29,10 +29,7 @@ interface CredentialStore {
 fun readSecureOrLegacyCredential(context: Context, key: String): String? {
     val secure = runCatching { AndroidKeystoreCredentialStore(context).get(key) }.getOrNull()
     if (secure != null) return secure
-    return context.getSharedPreferences(
-        androidx.preference.PreferenceManager.getDefaultSharedPreferencesName(context),
-        Context.MODE_PRIVATE,
-    ).getString(key, null)
+    return androidx.preference.PreferenceManager.getDefaultSharedPreferences(context).getString(key, null)
 }
 
 /** Encrypts one credential into a versioned AES-GCM envelope. */
