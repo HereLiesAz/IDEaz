@@ -269,7 +269,7 @@ jobs:
             [[ "$value" =~ ^[0-9]+$ ]] || { echo "Invalid version.properties" >&2; exit 1; }
           done
           VERSION_NAME="$MAJOR.$MINOR.$PATCH.$BUILD_NUMBER"
-          TAG_NAME="v$VERSION_NAME"
+          TAG_NAME="v$MAJOR.$MINOR"
           REPOSITORY_NAME="${GITHUB_REPOSITORY##*/}"
           ARTIFACT_GLOB=${{ vars.RELEASE_ARTIFACT_PATH || '' }}
           if [ -n "$ARTIFACT_GLOB" ]; then
