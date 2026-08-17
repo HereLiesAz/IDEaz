@@ -77,7 +77,7 @@ fun ProjectSetupTab(
             // Preserve a recognized stored type, including a legacy Android
             // project, so opening Setup cannot silently rewrite its metadata as
             // a web project. Unsupported sentinels fall back to the PWA loop.
-            selectedType = ProjectType.fromString(settingsViewModel.getProjectType())
+            selectedType = ProjectType.fromString(settingsViewModel.readProjectType())
                 .takeUnless { it == ProjectType.OTHER || it == ProjectType.UNKNOWN }
                 ?: ProjectType.PWA
             if (appName.isNotBlank()) viewModel.fetchSessionsForRepo(appName)

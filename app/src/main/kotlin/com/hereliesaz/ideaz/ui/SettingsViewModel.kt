@@ -218,7 +218,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _targetPackageName = MutableStateFlow(getTargetPackageName())
     val targetPackageName = _targetPackageName.asStateFlow()
 
-    private val _projectType = MutableStateFlow(getProjectType())
+    private val _projectType = MutableStateFlow(readProjectType())
     val projectType = _projectType.asStateFlow()
 
     private val _apiKey = MutableStateFlow(getApiKey())
@@ -601,7 +601,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setGithubUser(githubUser: String) = sharedPreferences.edit { putString(KEY_GITHUB_USER, githubUser) }
     fun getBranchName() = sharedPreferences.getString(KEY_BRANCH_NAME, "main") ?: "main"
     fun saveBranchName(branchName: String) = sharedPreferences.edit { putString(KEY_BRANCH_NAME, branchName) }
-    fun getProjectType() = sharedPreferences.getString(KEY_PROJECT_TYPE, "UNKNOWN") ?: "UNKNOWN"
+    // Named distinctly from the `projectType` StateFlow property below (not
+    // `getProjectType`): a same-named function and property accessor collide
+    // at the JVM method level (same name, different return types), which is
+    // legal bytecode but silently confuses reflection-based tooling like
+    // Mockito's stub recorder - see OverlayDelegateWebContextTest's history.
+    fun readProjectType() = sharedPreferences.getString(KEY_PROJECT_TYPE, "UNKNOWN") ?: "UNKNOWN"
     fun setProjectType(type: String) {
         sharedPreferences.edit { putString(KEY_PROJECT_TYPE, type) }
         _projectType.value = type

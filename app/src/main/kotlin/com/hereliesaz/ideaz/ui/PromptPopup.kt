@@ -54,7 +54,7 @@ fun PromptPopup(
                                 viewModel.settingsViewModel.getProjectPath(appName)
                             } else null
                             val projectType = ProjectType.fromString(
-                                viewModel.settingsViewModel.getProjectType()
+                                viewModel.settingsViewModel.readProjectType()
                             )
 
                             val resolved = if (attachments.isNotEmpty() && projectDir != null) {

@@ -103,7 +103,7 @@ class OverlayDelegate(
      * go unused). Re-evaluated per call so switching projects takes effect live.
      */
     internal fun isScreenCaptureEnabled(): Boolean =
-        ProjectType.fromString(settingsViewModel.getProjectType()) == ProjectType.ANDROID
+        ProjectType.fromString(settingsViewModel.readProjectType()) == ProjectType.ANDROID
 
     // --- Public Operations ---
 

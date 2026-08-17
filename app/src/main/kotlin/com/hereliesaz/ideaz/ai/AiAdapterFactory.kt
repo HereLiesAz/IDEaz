@@ -41,7 +41,7 @@ object AiAdapterFactory {
         // is meaningless to the tool-less bridge).
         if (model.id == AiModels.GEMINI_APP_BRIDGE) return base
         val appName = settings.getAppName()?.takeIf { it.isNotBlank() } ?: "this project"
-        val projectType = settings.getProjectType()
+        val projectType = settings.readProjectType()
         return RepoAwareClient(base, tools, appName, projectType)
     }
 
@@ -56,7 +56,7 @@ object AiAdapterFactory {
 
             AiModels.GEMINI_APP_BRIDGE -> {
                 val appName = settings.getAppName()?.takeIf { it.isNotBlank() } ?: "this project"
-                val projectType = settings.getProjectType()
+                val projectType = settings.readProjectType()
                 val projectDir = settings.getAppName()
                     ?.takeIf { it.isNotBlank() }
                     ?.let { settings.getProjectPath(it) }
