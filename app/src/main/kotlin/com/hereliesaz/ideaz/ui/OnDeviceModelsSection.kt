@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.ui
 
+import android.content.Intent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.hereliesaz.aznavrail.AzButton
@@ -99,6 +101,15 @@ fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
         "Run the AI fully on-device. Download a model (or use the system AICore model), " +
             "select it below, then choose \"On-device model\" as an AI Assignment above. " +
             "Only models this device can run are shown.",
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall,
+    )
+    Spacer(Modifier.height(4.dp))
+    Text(
+        "Experimental: RAM/ABI requirements below are enforced by this device check, " +
+            "but on-device speed and battery impact haven't been benchmarked on physical " +
+            "hardware yet — see docs/supported-devices.md in the repo for what's verified " +
+            "so far.",
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         style = MaterialTheme.typography.bodySmall,
     )
@@ -190,6 +201,20 @@ fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall,
                         )
+                        if (model.license.isNotBlank()) {
+                            Text(
+                                "License: ${model.license}" + (if (model.licenseUrl.isNotBlank()) " ↗" else ""),
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = if (model.licenseUrl.isNotBlank()) {
+                                    Modifier.clickable {
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, model.licenseUrl.toUri()))
+                                    }
+                                } else {
+                                    Modifier
+                                },
+                            )
+                        }
                         if (model.notes.isNotBlank()) {
                             Text(
                                 model.notes,

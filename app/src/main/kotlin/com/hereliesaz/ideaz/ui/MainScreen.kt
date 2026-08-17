@@ -66,18 +66,72 @@ fun MainScreen(
     var isPromptPopupVisible by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
     var showBridgeFirstRun by remember { mutableStateOf(false) }
+    var showCrashReportingFirstRun by remember { mutableStateOf(false) }
 
     // First-run check: if Nano isn't available and the user hasn't seen the
     // bridge explainer yet, suggest the Gemini-app bridge as a zero-key path.
     val settingsViewModel = viewModel.settingsViewModel
     val context = LocalContext.current
-    LaunchedEffect(Unit) {
+
+    // Called explicitly from every exit path of the crash-reporting dialog
+    // below (never from a second LaunchedEffect keyed on its visibility flag)
+    // so the two first-run dialogs are deterministically sequenced - a
+    // genuinely first launch shows the bridge explainer only after the crash-
+    // reporting one closes, never both stacked at once.
+    fun maybeShowBridgeFirstRun() {
         if (!settingsViewModel.hasShownBridgeFirstRun() &&
             GeminiAppBridgeAdapter.resolveGeminiPackage(context) != null &&
             !GeminiNanoAdapter.isAvailable(context)
         ) {
             showBridgeFirstRun = true
         }
+    }
+
+    LaunchedEffect(Unit) {
+        // isReportIdeErrorsEnabled() defaults to true, so without this a crash
+        // could be reported to a public GitHub repo before the user ever opens
+        // Settings and discovers the toggle. This is the actual consent point.
+        if (!settingsViewModel.hasShownCrashReportingFirstRun()) {
+            showCrashReportingFirstRun = true
+        } else {
+            maybeShowBridgeFirstRun()
+        }
+    }
+
+    if (showCrashReportingFirstRun) {
+        AlertDialog(
+            onDismissRequest = {
+                settingsViewModel.markCrashReportingFirstRunShown()
+                showCrashReportingFirstRun = false
+                maybeShowBridgeFirstRun()
+            },
+            title = { Text("Report crashes to help fix bugs?") },
+            text = {
+                Text(
+                    "If IDEaz crashes, it can automatically file a GitHub issue on " +
+                        "HereLiesAz/IDEaz - a public repository. The report includes a " +
+                        "sanitized stack trace and your device model/Android version, " +
+                        "not your prompts, source code, or project files. You can " +
+                        "change this anytime in Settings."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    settingsViewModel.setReportIdeErrorsEnabled(true)
+                    settingsViewModel.markCrashReportingFirstRunShown()
+                    showCrashReportingFirstRun = false
+                    maybeShowBridgeFirstRun()
+                }) { Text("Allow") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    settingsViewModel.setReportIdeErrorsEnabled(false)
+                    settingsViewModel.markCrashReportingFirstRunShown()
+                    showCrashReportingFirstRun = false
+                    maybeShowBridgeFirstRun()
+                }) { Text("Don't allow") }
+            },
+        )
     }
 
     if (showBridgeFirstRun) {

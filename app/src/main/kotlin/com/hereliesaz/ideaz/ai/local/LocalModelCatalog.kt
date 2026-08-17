@@ -49,6 +49,17 @@ data class LocalModel(
      */
     val requiredAbi: String? = null,
     val notes: String = "",
+    /**
+     * The model's redistribution license (e.g. "Apache-2.0", "MIT", "Gemma"),
+     * verified against the source repository's own declared license as of the
+     * last catalog audit. Shown in Settings so a user knows what they're
+     * agreeing to before downloading — required for Gemma-licensed entries in
+     * particular, since Google's Gemma Terms of Use conditions redistribution
+     * on the license being surfaced, not just linked from a README upstream.
+     */
+    val license: String = "",
+    /** Link to the license's full text, shown alongside [license] when non-blank. */
+    val licenseUrl: String = "",
 )
 
 /**
@@ -68,6 +79,8 @@ object LocalModelCatalog {
             systemManaged = true,
             notes = "No download — provided and updated by the device's AICore service. " +
                 "Supported hardware only (Pixel 8+/select Samsung).",
+            license = "Google AICore terms (system service, not a redistributed file)",
+            licenseUrl = "https://ai.google.dev/edge/mediapipe/solutions/genai/llm_inference",
         ),
         LocalModel(
             id = "qwen2_5-0_5b-instruct-q4-gguf",
@@ -83,6 +96,8 @@ object LocalModelCatalog {
             minRamBytes = 2_000_000_000,
             requiredAbi = "arm64-v8a",
             notes = "Tiny and fast; good for low-RAM devices.",
+            license = "Apache-2.0",
+            licenseUrl = "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF",
         ),
         LocalModel(
             id = "gemma-3n-e2b-it-q4-gguf",
@@ -96,6 +111,8 @@ object LocalModelCatalog {
             minRamBytes = 4_000_000_000,
             requiredAbi = "arm64-v8a",
             notes = "Gemma 3 Nano E2B (2B effective parameters). Good balance of speed and quality.",
+            license = "Gemma",
+            licenseUrl = "https://ai.google.dev/gemma/terms",
         ),
         LocalModel(
             id = "gemma-3n-e4b-it-q4-gguf",
@@ -109,23 +126,32 @@ object LocalModelCatalog {
             minRamBytes = 6_000_000_000,
             requiredAbi = "arm64-v8a",
             notes = "Gemma 3 Nano E4B (4B effective parameters). Needs ~5 GB RAM.",
+            license = "Gemma",
+            licenseUrl = "https://ai.google.dev/gemma/terms",
         ),
         LocalModel(
-            id = "gemma2-2b-it-q4-gguf",
-            name = "Gemma 2 2B Instruct · Q4 (GGUF)",
+            // unsloth/gemma-2-2b-it-GGUF (the previous source) is gone - the Hub
+            // API 401s on the whole repo, and a broad Hub search for any current
+            // "gemma-2-2b-it" GGUF turns up nothing; the quantizer ecosystem has
+            // moved on to Gemma 4. unsloth/gemma-4-E2B-it-GGUF is the actively
+            // maintained (461k+ downloads), current-generation equivalent -
+            // Apache-2.0 licensed (not gated, unlike the old entry), with
+            // size/sha256 verified directly against the Hub API. Renamed the id/
+            // display name to match what's actually shipped instead of keeping
+            // stale "Gemma 2" naming pointed at Gemma 4 weights.
+            id = "gemma-4-e2b-it-q4-gguf",
+            name = "Gemma 4 (E2B) Instruct · Q4 (GGUF)",
             runtimeId = "llamacpp",
-            url = "https://huggingface.co/unsloth/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it.Q4_K_M.gguf",
-            approxSizeBytes = 1_700_000_000,
-            fileName = "gemma-2-2b-it.Q4_K_M.gguf",
+            url = "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf",
+            approxSizeBytes = 3_106_738_272,
+            fileName = "gemma-4-e2b-it-Q4_K_M.gguf",
+            expectedSizeBytes = 3_106_738_272,
+            sha256 = "740185b21d22ceb83a11c3aa62ad5842ef32c70f6096d756bbee85a1e4ec34b8",
             minRamBytes = 4_000_000_000,
             requiredAbi = "arm64-v8a",
-            // unsloth/gemma-2-2b-it-GGUF's Hub API returned 401 "Invalid username or
-            // password" for this entire repo as of this audit pass (not just this
-            // file) - it may have been renamed, made private, or moved. The URL is
-            // left as-is (still worth trying at download time) but expectedSizeBytes/
-            // sha256 are deliberately NOT populated: this needs a human to locate the
-            // model's current home before its integrity can be pinned.
-            notes = "Stronger; wants ~3 GB free RAM. NEEDS VERIFICATION: source repo returned 401 as of the last audit pass.",
+            notes = "Current-generation replacement for the retired Gemma 2 2B GGUF entry; wants ~4 GB free RAM.",
+            license = "Apache-2.0",
+            licenseUrl = "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF",
         ),
         run {
             // The catalog previously pointed at cpu_and_mobile/cpu-int4-rtn-block-32-
@@ -159,26 +185,37 @@ object LocalModelCatalog {
                 minRamBytes = 4_000_000_000,
                 requiredAbi = "arm64-v8a",
                 notes = "ONNX Runtime GenAI; multi-file model directory.",
+                license = "MIT",
+                licenseUrl = "https://huggingface.co/microsoft/Phi-3.5-mini-instruct-onnx",
             )
         },
         LocalModel(
             id = "gemma2-2b-it-mediapipe",
             name = "Gemma 2 2B Instruct (MediaPipe .task)",
             runtimeId = "mediapipe",
-            url = "https://huggingface.co/google/gemma-2-2b-it/resolve/main/gemma-2-2b-it.task",
-            approxSizeBytes = 1_300_000_000,
-            fileName = "gemma-2-2b-it.task",
+            // litert-community is Google's own org for LiteRT/MediaPipe-format
+            // conversions (the previous URL pointed at google/gemma-2-2b-it,
+            // which only ships raw .safetensors weights - never had a .task file
+            // at all). Confirmed via the Hub tree API: this repo genuinely
+            // contains a MediaPipe .task bundle, gated the same way the old
+            // entry already expected (license:gemma, requiresAuth = true, same
+            // HF-token flow this app already implements). The repo's LFS object
+            // hashes are masked while gated/unauthenticated, so sha256 can't be
+            // verified without an HF token accepted into this specific repo -
+            // expectedSizeBytes is real (visible even gated); sha256 stays null
+            // until someone with access can confirm it.
+            url = "https://huggingface.co/litert-community/Gemma2-2B-IT/resolve/main/" +
+                "Gemma2-2B-IT_multi-prefill-seq_q8_ekv1280.task",
+            approxSizeBytes = 2_713_274_466,
+            fileName = "gemma2-2b-it_multi-prefill-seq_q8_ekv1280.task",
+            expectedSizeBytes = 2_713_274_466,
             requiresAuth = true,
-            minRamBytes = 4_000_000_000,
+            minRamBytes = 6_000_000_000,
             requiredAbi = "arm64-v8a",
-            // google/gemma-2-2b-it's Hub tree API (checked during this audit pass) does
-            // NOT contain a "gemma-2-2b-it.task" file at all - that repo ships raw
-            // .safetensors weights, not a MediaPipe-converted .task bundle. This URL
-            // 404s. A correct MediaPipe .task source (e.g. a litert-community
-            // conversion) needs to be located and its license/redistribution terms
-            // checked before this entry can be pointed at it.
             notes = "Gated by Google — requires a Hugging Face token with access granted. " +
-                "BROKEN: source repo has no .task file; needs a corrected URL.",
+                "Q8 quantization; wants ~6 GB free RAM.",
+            license = "Gemma",
+            licenseUrl = "https://ai.google.dev/gemma/terms",
         ),
     )
 

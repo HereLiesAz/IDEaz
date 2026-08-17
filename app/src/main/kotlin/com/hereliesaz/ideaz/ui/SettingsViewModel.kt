@@ -163,6 +163,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         // One-shot flag: true after the app has explained the Gemini-app
         // bridge during first-run on a device that lacks Gemini Nano.
         const val KEY_BRIDGE_FIRST_RUN_SHOWN = "bridge_first_run_shown"
+        const val KEY_CRASH_REPORTING_FIRST_RUN_SHOWN = "crash_reporting_first_run_shown"
 
         const val KEY_PROJECT_TYPE = "project_type"
         const val KEY_TARGET_PACKAGE_NAME = "target_package_name"
@@ -357,6 +358,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun markBridgeFirstRunShown() {
         sharedPreferences.edit { putBoolean(KEY_BRIDGE_FIRST_RUN_SHOWN, true) }
+    }
+
+    /**
+     * Has the crash-reporting disclosure been shown? [isReportIdeErrorsEnabled]
+     * defaults to true (CrashHandler would otherwise report a crash before the
+     * user ever opens Settings and discovers the toggle exists), so this dialog
+     * is the actual point of consent - shown once, unconditionally, on first
+     * launch, explaining what gets sent to a public GitHub repo and letting the
+     * user opt out on the spot rather than after the fact.
+     */
+    fun hasShownCrashReportingFirstRun(): Boolean =
+        sharedPreferences.getBoolean(KEY_CRASH_REPORTING_FIRST_RUN_SHOWN, false)
+
+    fun markCrashReportingFirstRunShown() {
+        sharedPreferences.edit { putBoolean(KEY_CRASH_REPORTING_FIRST_RUN_SHOWN, true) }
     }
 
     fun saveAiAssignment(taskKey: String, modelId: String) = sharedPreferences.edit { putString(taskKey, modelId) }
