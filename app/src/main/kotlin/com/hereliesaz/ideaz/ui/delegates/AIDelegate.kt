@@ -3,6 +3,7 @@ package com.hereliesaz.ideaz.ui.delegates
 import com.hereliesaz.ideaz.ai.ChatMessage
 import com.hereliesaz.ideaz.ai.AgenticAiClient
 import com.hereliesaz.ideaz.ai.ConversationalAiClient
+import com.hereliesaz.ideaz.ai.local.LocalEditApprovalRequiredException
 import com.hereliesaz.ideaz.ai.local.LocalProviderException
 import com.hereliesaz.ideaz.ai.GeminiAdapter
 import com.hereliesaz.ideaz.ai.IdeTools
@@ -17,6 +18,7 @@ import com.hereliesaz.ideaz.ui.AiModels
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,6 +26,8 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 /**
  * Chat message for Jules session history.
@@ -271,6 +275,24 @@ class AIDelegate(
                 val message = e.failure.displayText()
                 onOverlayLog(message)
                 _julesError.value = message
+            } catch (e: LocalEditApprovalRequiredException) {
+                // The overlay's contextual-prompt path has no inspect/approve/undo
+                // UI of its own (that lives in the chat tab's LocalEditReviewCard,
+                // wired through StateDelegate.localEditReview) — the edit already
+                // landed on disk before this exception was thrown, so treat it as
+                // auto-approved here rather than surfacing a confusing "requires
+                // approval" error for a decision the user has no way to make from
+                // this surface. See docs/TODO.md for extending review UI here too.
+                val approval = e.approval
+                _geminiHistory.update { it + ChatMessage("model", approval.response) }
+                onOverlayLog("${model.displayName}: ${approval.response}")
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        IdeTools(File(approval.review.checkpoint.projectPath))
+                            .markEditCheckpointApproved(approval.review.checkpoint)
+                    }
+                }
+                onFilesChanged()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

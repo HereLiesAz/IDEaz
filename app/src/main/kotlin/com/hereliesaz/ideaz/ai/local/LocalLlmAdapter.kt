@@ -68,10 +68,16 @@ data class LocalProviderFailure(
 /** Exception boundary used by conversational callers without changing cloud adapters. */
 class LocalProviderException(val failure: LocalProviderFailure) : Exception(failure.message)
 
-/** Pending, validated local-model edit awaiting an explicit user decision. */
+/**
+ * Pending, validated AI edit awaiting an explicit user decision. Despite the
+ * "Local" name (this type predates cloud adapters gaining the same
+ * checkpoint/review/undo flow — see GeminiAdapter), nothing here is
+ * on-device-specific; [source] is what actually varies by provider.
+ */
 data class LocalEditApproval(
     val review: IdeEditReview,
     val response: String,
+    val source: String = "on-device",
 )
 
 /** Control-flow boundary preventing a local edit from being reloaded before approval. */

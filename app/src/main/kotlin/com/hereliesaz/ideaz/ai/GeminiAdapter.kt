@@ -9,11 +9,16 @@ import com.google.genai.types.Part
 import com.google.genai.types.Schema
 import com.google.genai.types.Tool
 import com.google.genai.types.Type
+import com.hereliesaz.ideaz.ai.local.LocalEditApproval
+import com.hereliesaz.ideaz.ai.local.LocalEditApprovalRequiredException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 
 internal const val DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
 private const val MAX_TOOL_ROUNDS = 10
+private val MUTATING_TOOLS = setOf("write_file", "apply_patch")
 
 class GeminiAdapter(
     private val apiKey: String,
@@ -27,13 +32,78 @@ class GeminiAdapter(
     override suspend fun chat(messages: List<ChatMessage>): String = withContext(Dispatchers.IO) {
         val contents = messages.map { it.toContent() }.toMutableList()
 
+        // Same checkpoint/review/approval contract LocalLlmAdapter uses, reused
+        // as-is (see LocalEditApproval's doc comment): a checkpoint is opened on
+        // the first mutating tool call in this turn and spans every round until
+        // the model stops calling tools, at which point complete() below either
+        // clears a no-op checkpoint or hands it to the UI for explicit approval
+        // instead of silently reloading unreviewed edits.
+        var editCheckpoint: IdeEditCheckpoint? = null
+        var expectedEditFingerprint: String? = null
+
+        fun restorePendingEdit(): Boolean {
+            val checkpoint = editCheckpoint ?: return true
+            val fingerprint = expectedEditFingerprint ?: return false
+            return runCatching { tools.restoreEditCheckpoint(checkpoint, fingerprint) }.isSuccess
+        }
+
+        fun complete(response: String): String {
+            val checkpoint = editCheckpoint ?: return response
+            val review = try {
+                tools.reviewEdits(checkpoint)
+            } catch (e: Exception) {
+                val restored = restorePendingEdit()
+                return if (restored) {
+                    "Error: the edit could not be validated and was restored."
+                } else {
+                    "Error: the edit could not be validated or safely restored. Review project files."
+                }
+            }
+            if (review.validationErrors.isNotEmpty()) {
+                val restored = restorePendingEdit()
+                return if (restored) {
+                    "Error: the edit failed validation and was restored."
+                } else {
+                    "Error: the edit failed validation, but later file changes prevented automatic restore."
+                }
+            }
+            if (review.changedFiles.isEmpty()) {
+                runCatching { tools.discardEditCheckpoint(checkpoint) }
+                return response
+            }
+            throw LocalEditApprovalRequiredException(LocalEditApproval(review, response, source = "Gemini"))
+        }
+
+        fun dispatchMutatingTool(name: String, stringArgs: Map<String, String?>): String {
+            val checkpoint = editCheckpoint
+                ?: tools.createEditCheckpoint("IDEaz: checkpoint before Gemini edit").also { editCheckpoint = it }
+            return try {
+                tools.captureToolEdit(checkpoint, name, stringArgs)
+                expectedEditFingerprint = tools.reviewEdits(checkpoint).contentFingerprint
+                    .also { tools.updateEditCheckpointFingerprint(checkpoint, it) }
+                tools.markEditMutationStarted(checkpoint)
+                dispatchIdeTool(name, stringArgs, tools).also {
+                    expectedEditFingerprint = tools.reviewEdits(checkpoint).contentFingerprint
+                        .also { fingerprint ->
+                            tools.updateEditCheckpointFingerprint(checkpoint, fingerprint)
+                            tools.markEditAwaitingReview(checkpoint)
+                        }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                restorePendingEdit()
+                "Error: could not complete $name: ${e.message}"
+            }
+        }
+
         var rounds = 0
         while (rounds < MAX_TOOL_ROUNDS) {
             val response = client.models.generateContent(model, contents, toolConfig)
 
             val calls = response.functionCalls()
             if (calls.isNullOrEmpty()) {
-                return@withContext response.text() ?: "No response from Gemini."
+                return@withContext complete(response.text() ?: "No response from Gemini.")
             }
 
             // Add the model's response (with function calls) to history
@@ -46,8 +116,12 @@ class GeminiAdapter(
 
             for (call in calls) {
                 val name = call.name().orElse("")
-                val args = call.args().orElse(emptyMap())
-                val output = dispatchTool(name, args)
+                val stringArgs = toStringArgs(call.args().orElse(emptyMap()))
+                val output = if (name in MUTATING_TOOLS) {
+                    withContext(NonCancellable) { dispatchMutatingTool(name, stringArgs) }
+                } else {
+                    dispatchIdeTool(name, stringArgs, tools)
+                }
                 // Build the function-response turn with the SDK's own helpers.
                 // Content.fromParts sets role "user" — which is what the google-genai
                 // SDK / Gemini API expect for function responses. The previous manual
@@ -62,15 +136,18 @@ class GeminiAdapter(
             rounds++
         }
 
+        restorePendingEdit()
         "Error: Tool-use loop exceeded $MAX_TOOL_ROUNDS rounds."
     }
 
-    internal fun dispatchTool(name: String, args: Any?): String {
+    private fun toStringArgs(args: Any?): Map<String, String?> {
         @Suppress("UNCHECKED_CAST")
         val map = (args as? Map<String, Any?>).orEmpty()
-        val stringArgs = map.mapValues { (_, v) -> v?.toString() }
-        return dispatchIdeTool(name, stringArgs, tools)
+        return map.mapValues { (_, v) -> v?.toString() }
     }
+
+    internal fun dispatchTool(name: String, args: Any?): String =
+        dispatchIdeTool(name, toStringArgs(args), tools)
 
     internal fun testDispatchTool(name: String, args: Map<String, Any?>): String =
         dispatchTool(name, args)
