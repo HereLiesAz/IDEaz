@@ -6,7 +6,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import android.os.Environment
 import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
@@ -61,9 +60,7 @@ import com.hereliesaz.aznavrail.AzTextBox
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import androidx.compose.foundation.background
 import com.hereliesaz.ideaz.utils.isAccessibilityServiceEnabled
-import com.hereliesaz.ideaz.utils.checkAndRequestStoragePermission
 import java.io.File
-import android.app.AppOpsManager
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -266,9 +263,7 @@ fun SettingsScreen(
                 Row(modifier = Modifier.fillMaxWidth()) {
                     AzButton(
                         onClick = {
-                            checkAndRequestStoragePermission(context) {
-                                exportSettingsLauncher.launch("ideaz_settings.enc")
-                            }
+                            exportSettingsLauncher.launch("ideaz_settings.enc")
                         },
                         text = "Save Settings",
                         shape = AzButtonShape.RECTANGLE,
@@ -277,9 +272,7 @@ fun SettingsScreen(
 
                     AzButton(
                         onClick = {
-                            checkAndRequestStoragePermission(context) {
-                                importSettingsLauncher.launch(arrayOf("application/octet-stream"))
-                            }
+                            importSettingsLauncher.launch(arrayOf("application/octet-stream"))
                         },
                         text = "Load Settings",
                         shape = AzButtonShape.RECTANGLE,
@@ -298,9 +291,7 @@ fun SettingsScreen(
 
                 AzButton(
                     onClick = {
-                        checkAndRequestStoragePermission(context) {
-                            keystorePickerLauncher.launch("*/*")
-                        }
+                        keystorePickerLauncher.launch("*/*")
                     },
                     text = "Select Custom Keystore",
                     shape = AzButtonShape.RECTANGLE,
@@ -595,16 +586,11 @@ fun SettingsScreen(
                 val hasAccessibility by remember(refreshTrigger) {
                     mutableStateOf(isAccessibilityServiceEnabled(context, ".services.IdeazAccessibilityService"))
                 }
-                val hasStorage by remember(refreshTrigger) {
-                    mutableStateOf(
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Environment.isExternalStorageManager()
-                        else true
-                    )
-                }
-
 
                 PermissionCheckRow(
                     name = "Draw Over Other Apps",
+                    description = "Lets Select Mode draw a tap-catching overlay on top of your " +
+                        "project preview so you can pick an element to prompt about.",
                     granted = hasOverlay,
                     onClick = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -619,6 +605,8 @@ fun SettingsScreen(
 
                 PermissionCheckRow(
                     name = "Accessibility Service",
+                    description = "Not used by the current PWA-only release. Reserved for a future " +
+                        "Android-target mode that inspects a separate app's UI tree.",
                     granted = hasAccessibility,
                     onClick = {
                         val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
@@ -628,6 +616,8 @@ fun SettingsScreen(
 
                 PermissionCheckRow(
                     name = "Post Notifications",
+                    description = "Shows build, download, and crash-report progress and results " +
+                        "outside the app.",
                     granted = hasNotify,
                     onClick = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -638,6 +628,7 @@ fun SettingsScreen(
 
                 PermissionCheckRow(
                     name = "Install Unknown Apps",
+                    description = "Needed only to install an IDEaz update you download in-app.",
                     granted = hasInstall,
                     onClick = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -654,30 +645,6 @@ fun SettingsScreen(
                 // Android target projects when entering select mode — see
                 // OverlayDelegate.isScreenCaptureEnabled(). No standing permission row is
                 // shown here because the grant is a per-session MediaProjection token.
-
-                PermissionCheckRow(
-                    name = "Manage All Files (Storage)",
-                    granted = hasStorage,
-                    onClick = {
-                        if (!hasStorage) {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                                try {
-                                    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                                    intent.addCategory("android.intent.category.DEFAULT")
-                                    intent.data = Uri.parse("package:${context.packageName}")
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-                                    context.startActivity(intent)
-                                }
-                            }
-                        } else {
-                            Toast.makeText(context, "Permission already granted", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                )
-
-
 
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -898,7 +865,8 @@ private fun GeminiAppBridgeRow(context: android.content.Context) {
 fun PermissionCheckRow(
     name: String,
     granted: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    description: String? = null
 ) {
     Row(
         modifier = Modifier
@@ -913,12 +881,20 @@ fun PermissionCheckRow(
             .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = name,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onBackground
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = name,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            if (description != null) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
         if (granted) {
             Icon(Icons.Default.Check, contentDescription = "Granted", tint = Color.Green)
         } else {

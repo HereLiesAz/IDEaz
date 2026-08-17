@@ -35,12 +35,7 @@ import kotlinx.coroutines.launch
 import com.hereliesaz.ideaz.ui.project.ProjectCloneTab
 import com.hereliesaz.ideaz.ui.project.ProjectLoadTab
 import com.hereliesaz.ideaz.ui.project.ProjectSetupTab
-import com.hereliesaz.ideaz.utils.isAccessibilityServiceEnabled
-import android.os.Build
-import android.provider.Settings
 import android.net.Uri
-import android.content.Intent
-import android.os.Environment
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.hereliesaz.ideaz.utils.ApkInstaller
@@ -153,59 +148,18 @@ fun ProjectScreen(
         return true
     }
 
-    fun checkOverlayPermissions(): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
-            requirementTitle = "Permission Required"
-            requirementMessage = "IDEaz requires 'Display over other apps' permission."
-            requirementBtnText = "Grant"
-            requirementAction = {
-                showRequirementDialog = false
-                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
-                context.startActivity(intent)
-            }
-            showRequirementDialog = true
-            return false
-        }
-        if (!isAccessibilityServiceEnabled(context, ".services.IdeazAccessibilityService")) {
-            requirementTitle = "Service Required"
-            requirementMessage = "Enable 'IDEaz Accessibility' service."
-            requirementBtnText = "Enable"
-            requirementAction = {
-                showRequirementDialog = false
-                context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-            }
-            showRequirementDialog = true
-            return false
-        }
-        return true
-    }
-
     fun checkLoadRequirements(): Boolean {
         if (!checkKeys()) return false
-        val hasStorage = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Environment.isExternalStorageManager() else true
-        if (!hasStorage) {
-            requirementTitle = "Permission Required"
-            requirementMessage = "IDEaz requires full storage access."
-            requirementBtnText = "Grant"
-            requirementAction = {
-                showRequirementDialog = false
-                try {
-                    context.startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}")))
-                } catch (e: Exception) {
-                    context.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
-                }
-            }
-            showRequirementDialog = true
-            return false
-        }
-        // Overlay and Accessibility permissions are now requested lazily when needed.
+        // Overlay and Accessibility permissions are requested lazily when needed
+        // (e.g. OverlayDelegate.toggleSelectMode); project storage lives in
+        // context.filesDir, which needs no storage permission at all.
         return true
     }
 
-    // Permission probes (ALL_FILES_ACCESS, keys check) used to fire on first
-    // composition via LaunchedEffect(Unit). That meant first-launch users got a
-    // system "Allow access to all files?" dialog before they'd done anything.
-    // checkLoadRequirements/checkKeys are still invoked at action time — Load
+    // Permission probes (keys check) used to fire on first composition via
+    // LaunchedEffect(Unit). That meant first-launch users got a system dialog
+    // before they'd done anything. checkLoadRequirements/checkKeys are still
+    // invoked at action time — Load
     // tab project-pick, SetupTab Save & Initialize / Create & Save — so the
     // user is prompted only when a path actually needs the permission/keys.
 
