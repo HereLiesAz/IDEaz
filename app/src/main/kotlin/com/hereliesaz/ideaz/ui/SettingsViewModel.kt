@@ -93,6 +93,14 @@ object AiModels {
 
     val availableModels = listOf(NANO, BRIDGE, LOCAL, GEMINI, OPENAI, ANTHROPIC, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL, JULES, CLI)
 
+    // Capability-ranked order for auto-selecting a default model: distinct from
+    // `availableModels` (that one's ordered for UI display). `defaultModelId()`
+    // walks this list and picks the first entry whose `requiredKey` is
+    // actually saved - the trailing no-key entries are kept here only so the
+    // list stays a complete provider ranking, but they're always skipped by
+    // that lookup (see its own `requiredKey.isNotEmpty()` guard).
+    val defaultRanking = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL, JULES, CLI, BRIDGE, LOCAL, NANO)
+
     fun findById(id: String?): AiModel? = availableModels.find { it.id == id }
 }
 
@@ -299,33 +307,36 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun saveJulesProjectId(projectId: String) = sharedPreferences.edit { putString(KEY_JULES_PROJECT_ID, projectId.trim()) }
     fun getJulesProjectId() = sharedPreferences.getString(KEY_JULES_PROJECT_ID, null)
 
-    fun saveApiKey(apiKey: String) {
+    fun saveApiKey(apiKey: String): Boolean {
         val trimmed = apiKey.trim()
-        saveString(KEY_API_KEY, trimmed)
+        val saved = saveString(KEY_API_KEY, trimmed)
         AuthInterceptor.apiKey = trimmed
         _apiKey.value = trimmed
+        return saved
     }
     fun getApiKey() = getApiKey(KEY_API_KEY)
     fun getApiKey(keyName: String): String? {
         if (keyName !in SECURE_CREDENTIAL_KEYS) return sharedPreferences.getString(keyName, null)
-        runCatching { credentialStore.get(keyName) }.getOrNull()?.let { secureValue ->
-            if (sharedPreferences.contains(keyName) &&
-                !sharedPreferences.edit().remove(keyName).commit()
-            ) {
-                Log.e(TAG, "Failed to remove legacy secure credential")
+        runCatching { credentialStore.get(keyName) }
+            .onFailure { Log.e(TAG, "Failed to read secure credential: $keyName", it) }
+            .getOrNull()
+            ?.let { secureValue ->
+                if (sharedPreferences.contains(keyName) &&
+                    !sharedPreferences.edit().remove(keyName).commit()
+                ) {
+                    Log.e(TAG, "Failed to remove legacy secure credential: $keyName")
+                }
+                return secureValue
             }
-            return secureValue
-        }
         val legacy = sharedPreferences.getString(keyName, null) ?: return null
-        return if (runCatching { credentialStore.put(keyName, legacy) }.isSuccess) {
-            if (!sharedPreferences.edit().remove(keyName).commit()) {
-                Log.e(TAG, "Failed to remove migrated secure credential")
+        return runCatching { credentialStore.put(keyName, legacy) }
+            .onFailure { Log.e(TAG, "Failed to migrate secure credential: $keyName", it) }
+            .onSuccess {
+                if (!sharedPreferences.edit().remove(keyName).commit()) {
+                    Log.e(TAG, "Failed to remove migrated secure credential: $keyName")
+                }
             }
-            legacy
-        } else {
-            Log.e(TAG, "Failed to migrate secure credential")
-            legacy
-        }
+            .let { legacy }
     }
 
     /**
@@ -342,7 +353,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     "Plaintext credential cleanup failed"
                 }
             }.onFailure {
-                Log.e(TAG, "Failed to store secure credential")
+                Log.e(TAG, "Failed to store secure credential: $keyName", it)
             }.isSuccess
         }
         sharedPreferences.edit { putString(keyName, value.trim()) }
@@ -377,12 +388,23 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun saveAiAssignment(taskKey: String, modelId: String) = sharedPreferences.edit { putString(taskKey, modelId) }
     fun getAiAssignment(taskKey: String): String? {
-        // Phase 1 default is Gemini (AGENTS.md). Jules is Phase 2; users opt into it
-        // explicitly via the AI assignment dropdowns in Settings.
-        val defaultModelId = sharedPreferences.getString(KEY_AI_ASSIGNMENT_DEFAULT, AiModels.GEMINI_FLASH)
+        // An explicit "Default" choice from the AI Assignments dropdown always
+        // wins; absent that, fall back to the best-ranked model the user has
+        // actually entered a key for, so a freshly installed app defaults to
+        // whichever provider the user already configured rather than an
+        // always-Gemini assumption. If no key has been entered anywhere,
+        // Gemini remains the fallback - unchanged from the prior behavior.
+        val defaultModelId = sharedPreferences.getString(KEY_AI_ASSIGNMENT_DEFAULT, null) ?: defaultModelId()
         if (taskKey == KEY_AI_ASSIGNMENT_DEFAULT) return defaultModelId
         return sharedPreferences.getString(taskKey, defaultModelId)
     }
+
+    /** Highest-ranked model in [AiModels.defaultRanking] whose required key is actually saved. */
+    private fun defaultModelId(): String =
+        AiModels.defaultRanking
+            .firstOrNull { it.requiredKey.isNotEmpty() && !getApiKey(it.requiredKey).isNullOrBlank() }
+            ?.id
+            ?: AiModels.GEMINI_FLASH
 
     // --- SIGNING ---
     fun importKeystore(context: Context, uri: Uri): String? {
@@ -401,11 +423,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             null
         }
     }
-    fun saveSigningCredentials(storePass: String, alias: String, keyPass: String) {
+    fun saveSigningCredentials(storePass: String, alias: String, keyPass: String): Boolean {
         // Alias is just a label, not a secret; the two passwords are.
-        saveString(KEY_KEYSTORE_PASS, storePass)
+        val storePassSaved = saveString(KEY_KEYSTORE_PASS, storePass)
         sharedPreferences.edit { putString(KEY_KEY_ALIAS, alias) }
-        saveString(KEY_KEY_PASS, keyPass)
+        val keyPassSaved = saveString(KEY_KEY_PASS, keyPass)
+        return storePassSaved && keyPassSaved
     }
     fun getKeystorePath() = sharedPreferences.getString(KEY_KEYSTORE_PATH, null)
     fun getKeystorePass() = getApiKey(KEY_KEYSTORE_PASS) ?: "android"
