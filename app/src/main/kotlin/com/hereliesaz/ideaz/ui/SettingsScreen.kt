@@ -70,6 +70,15 @@ import androidx.compose.foundation.selection.toggleable
 
 private const val TAG = "SettingsScreen"
 
+/**
+ * Appends the underlying exception detail (if any) to a failure toast, e.g.
+ * "Jules Key Save Failed: Credential persistence failed". Most devices this
+ * ships to have no adb/logcat access, so this is often the only diagnostic
+ * surface a real on-device credential-store failure ever gets.
+ */
+private fun withCredentialError(message: String, error: String?): String =
+    if (error != null) "$message: $error" else message
+
 @Composable
 fun SettingsScreen(
     viewModel: MainViewModel,
@@ -331,7 +340,7 @@ fun SettingsScreen(
                         val saved = settingsViewModel.saveSigningCredentials(keystorePass, keyAlias, keyPass)
                         Toast.makeText(
                             context,
-                            if (saved) "Signing config saved" else "Signing config save failed",
+                            if (saved) "Signing config saved" else withCredentialError("Signing config save failed", settingsViewModel.lastCredentialError),
                             Toast.LENGTH_SHORT,
                         ).show()
                     },
@@ -377,7 +386,7 @@ fun SettingsScreen(
                             val saved = settingsViewModel.saveApiKey(apiKey)
                             Toast.makeText(
                                 context,
-                                if (saved) "Jules Key Saved" else "Jules Key Save Failed",
+                                if (saved) "Jules Key Saved" else withCredentialError("Jules Key Save Failed", settingsViewModel.lastCredentialError),
                                 Toast.LENGTH_SHORT,
                             ).show()
                         },
@@ -412,7 +421,7 @@ fun SettingsScreen(
                             }
                             Toast.makeText(
                                 context,
-                                if (saved) "GitHub Token Saved" else "GitHub Token Save Failed",
+                                if (saved) "GitHub Token Saved" else withCredentialError("GitHub Token Save Failed", settingsViewModel.lastCredentialError),
                                 Toast.LENGTH_SHORT,
                             ).show()
                         },
@@ -445,7 +454,7 @@ fun SettingsScreen(
                             val saved = settingsViewModel.saveGoogleApiKey(googleApiKey)
                             Toast.makeText(
                                 context,
-                                if (saved) "AI Studio Key Saved Securely" else "AI Studio Key Save Failed",
+                                if (saved) "AI Studio Key Saved Securely" else withCredentialError("AI Studio Key Save Failed", settingsViewModel.lastCredentialError),
                                 Toast.LENGTH_SHORT,
                             ).show()
                         },
@@ -496,7 +505,7 @@ fun SettingsScreen(
                         val saved = settingsViewModel.saveString(SettingsViewModel.KEY_GROQ_API_KEY, it)
                         Toast.makeText(
                             context,
-                            if (saved) "Groq key saved" else "Groq key could not be saved",
+                            if (saved) "Groq key saved" else withCredentialError("Groq key could not be saved", settingsViewModel.lastCredentialError),
                             if (saved) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
                         ).show()
                     },
@@ -509,7 +518,7 @@ fun SettingsScreen(
                         val saved = settingsViewModel.saveString(SettingsViewModel.KEY_CEREBRAS_API_KEY, it)
                         Toast.makeText(
                             context,
-                            if (saved) "Cerebras key saved" else "Cerebras key could not be saved",
+                            if (saved) "Cerebras key saved" else withCredentialError("Cerebras key could not be saved", settingsViewModel.lastCredentialError),
                             if (saved) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
                         ).show()
                     },
@@ -522,7 +531,7 @@ fun SettingsScreen(
                         val saved = settingsViewModel.saveString(SettingsViewModel.KEY_HF_API_KEY, it)
                         Toast.makeText(
                             context,
-                            if (saved) "HF key saved securely" else "HF key could not be saved",
+                            if (saved) "HF key saved securely" else withCredentialError("HF key could not be saved", settingsViewModel.lastCredentialError),
                             if (saved) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
                         ).show()
                     },
@@ -535,7 +544,7 @@ fun SettingsScreen(
                         val saved = settingsViewModel.saveString(SettingsViewModel.KEY_MISTRAL_API_KEY, it)
                         Toast.makeText(
                             context,
-                            if (saved) "Mistral key saved" else "Mistral key could not be saved",
+                            if (saved) "Mistral key saved" else withCredentialError("Mistral key could not be saved", settingsViewModel.lastCredentialError),
                             if (saved) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
                         ).show()
                     },
@@ -558,7 +567,7 @@ fun SettingsScreen(
                         val saved = settingsViewModel.saveString(SettingsViewModel.KEY_OPENAI_API_KEY, it)
                         Toast.makeText(
                             context,
-                            if (saved) "OpenAI key saved" else "OpenAI key could not be saved",
+                            if (saved) "OpenAI key saved" else withCredentialError("OpenAI key could not be saved", settingsViewModel.lastCredentialError),
                             if (saved) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
                         ).show()
                     },
@@ -571,7 +580,7 @@ fun SettingsScreen(
                         val saved = settingsViewModel.saveString(SettingsViewModel.KEY_ANTHROPIC_API_KEY, it)
                         Toast.makeText(
                             context,
-                            if (saved) "Anthropic key saved" else "Anthropic key could not be saved",
+                            if (saved) "Anthropic key saved" else withCredentialError("Anthropic key could not be saved", settingsViewModel.lastCredentialError),
                             if (saved) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
                         ).show()
                     },
@@ -584,7 +593,7 @@ fun SettingsScreen(
                         val saved = settingsViewModel.saveString(SettingsViewModel.KEY_DEEPSEEK_API_KEY, it)
                         Toast.makeText(
                             context,
-                            if (saved) "DeepSeek key saved" else "DeepSeek key could not be saved",
+                            if (saved) "DeepSeek key saved" else withCredentialError("DeepSeek key could not be saved", settingsViewModel.lastCredentialError),
                             if (saved) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
                         ).show()
                     },

@@ -232,6 +232,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _apiKey = MutableStateFlow(getApiKey())
     val apiKey = _apiKey.asStateFlow()
 
+    // Set whenever a secure-credential save/read fails, so the Settings UI can
+    // show the actual underlying reason (a Keystore/SharedPreferences
+    // exception message) instead of a bare "could not be saved" - there's no
+    // adb/logcat access on most devices this ships to, so this is often the
+    // only diagnostic surface available for a real on-device failure.
+    var lastCredentialError: String? = null
+        private set
+
     private val _settingsVersion = MutableStateFlow(0)
     val settingsVersion = _settingsVersion.asStateFlow()
 
@@ -318,7 +326,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun getApiKey(keyName: String): String? {
         if (keyName !in SECURE_CREDENTIAL_KEYS) return sharedPreferences.getString(keyName, null)
         runCatching { credentialStore.get(keyName) }
-            .onFailure { Log.e(TAG, "Failed to read secure credential: $keyName", it) }
+            .onFailure {
+                Log.e(TAG, "Failed to read secure credential: $keyName", it)
+                lastCredentialError = it.message ?: it::class.simpleName
+            }
             .getOrNull()
             ?.let { secureValue ->
                 if (sharedPreferences.contains(keyName) &&
@@ -330,7 +341,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             }
         val legacy = sharedPreferences.getString(keyName, null) ?: return null
         return runCatching { credentialStore.put(keyName, legacy) }
-            .onFailure { Log.e(TAG, "Failed to migrate secure credential: $keyName", it) }
+            .onFailure {
+                Log.e(TAG, "Failed to migrate secure credential: $keyName", it)
+                lastCredentialError = it.message ?: it::class.simpleName
+            }
             .onSuccess {
                 if (!sharedPreferences.edit().remove(keyName).commit()) {
                     Log.e(TAG, "Failed to remove migrated secure credential: $keyName")
@@ -347,14 +361,20 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun saveString(keyName: String, value: String): Boolean {
         val trimmed = value.trim()
         if (keyName in SECURE_CREDENTIAL_KEYS) {
-            return runCatching {
+            // The actual credential write and the best-effort legacy-plaintext
+            // cleanup are two independent operations - a cleanup hiccup must
+            // never report the save itself as failed when the real secure
+            // write already succeeded.
+            val saved = runCatching {
                 if (trimmed.isEmpty()) credentialStore.remove(keyName) else credentialStore.put(keyName, trimmed)
-                check(sharedPreferences.edit().remove(keyName).commit()) {
-                    "Plaintext credential cleanup failed"
-                }
             }.onFailure {
                 Log.e(TAG, "Failed to store secure credential: $keyName", it)
+                lastCredentialError = it.message ?: it::class.simpleName
             }.isSuccess
+            if (saved && !sharedPreferences.edit().remove(keyName).commit()) {
+                Log.e(TAG, "Failed to remove legacy plaintext credential: $keyName")
+            }
+            return saved
         }
         sharedPreferences.edit { putString(keyName, value.trim()) }
         return true
