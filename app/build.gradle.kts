@@ -191,7 +191,8 @@ configurations.all {
         eachDependency {
             when {
                 // Jackson arrives as core/databind/annotations + datatype modules and a
-                // BOM; pin the whole family to a patched 2.18.x.
+                // BOM; pin the whole family to a patched 2.18.x. Pinned back at 2.18.7 -
+                // see the two failed bump attempts below before trying to move this again.
                 //
                 // 2026-08-16: tried bumping core/databind/annotations to 2.18.9 and Netty
                 // (below) to 4.1.137.Final together, on the mistaken belief that the java8
@@ -204,15 +205,22 @@ configurations.all {
                 // was the Jackson bump, the simultaneous Netty bump, or dependency-resolution
                 // backtracking.
                 //
-                // 2026-08-17: re-attempting with only Jackson moving (Netty below is
-                // untouched), bumped straight to 2.18.10 - the current newest 2.18.x patch,
-                // confirmed to exist for every module this project resolves. If this hangs
-                // CI again, the `Build with Gradle` step's own 12-minute JVM thread-dump
-                // watchdog (added since the last incident) should actually show what's
-                // blocked this time, instead of the silent 30-min timeout the prior attempt
-                // burned blind.
+                // 2026-08-17: re-attempted with only Jackson moving (Netty untouched),
+                // bumped straight to 2.18.10. This time the build didn't hang - it
+                // completed in ~10 min - but `:app:packageDebug` FAILED with a generic,
+                // stack-trace-free error ("A failure occurred while executing
+                // com.android.build.gradle.tasks.PackageAndroidArtifact$IncrementalSplitterRunnable").
+                // The workflow doesn't pass --stacktrace, so the actual cause (duplicate
+                // packaged entry from Jackson's newer jars? disk I/O? something else
+                // entirely) is unconfirmed. Reverted back to 2.18.7 to restore master.
+                // Before trying to move this pin again: get a real stack trace first (a
+                // side-branch workflow_dispatch run with --stacktrace added to
+                // BUILD_COMMAND, not another blind attempt against master), and consider
+                // moving one version at a time (e.g. 2.18.7 -> 2.18.8 only) rather than
+                // jumping straight to the newest patch, to narrow down which specific
+                // version introduces whatever packageDebug is choking on.
                 requested.group.startsWith("com.fasterxml.jackson") ->
-                    useVersion("2.18.10")
+                    useVersion("2.18.7")
                 // Netty arrives as ~11 modules via grpc-netty (unit-test only). Pin the
                 // io.netty group to the latest patched 4.1.x — staying off 4.2.x, which
                 // grpc-netty does not support. (netty-tcnative tracks a separate scheme.)
