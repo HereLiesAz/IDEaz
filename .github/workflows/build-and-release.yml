@@ -134,9 +134,16 @@ jobs:
         run: |
           set +e
           test -f version.properties || { echo "version.properties is required" >&2; exit 1; }
-          FILE_BUILD=$(sed -n 's/^build=//p' version.properties | tail -n 1)
+          # -PversionBuild is meant to be a value that only ever grows (see
+          # the comment on `versionBuildOverride` in app/build.gradle.kts:
+          # "CI passes git rev-list --count HEAD"). This previously read the
+          # `build` field out of version.properties instead - a value that
+          # nothing in this pipeline ever increments or commits back - so
+          # every CI build baked in the exact same versionCode/versionName
+          # regardless of how many commits/builds actually happened.
+          COMMIT_COUNT=$(git rev-list --count HEAD)
           export BUILD_NUMBER=${{ vars.BUILD_NUMBER_OVERRIDE || '' }}
-          export BUILD_NUMBER=${BUILD_NUMBER:-$FILE_BUILD}
+          export BUILD_NUMBER=${BUILD_NUMBER:-$COMMIT_COUNT}
           
           BUILD_COMMAND=${BUILD_COMMAND:-${{ vars.BUILD_COMMAND }}}
           if [ -z "$BUILD_COMMAND" ]; then
@@ -263,8 +270,11 @@ jobs:
           MAJOR=$(get_version_part major)
           MINOR=$(get_version_part minor)
           PATCH=$(get_version_part patch)
-          FILE_BUILD=$(get_version_part build)
-          BUILD_NUMBER=${BUILD_NUMBER:-${FILE_BUILD}}
+          # Same derivation as the "Build with Gradle" step above, so the
+          # artifact filename/release notes match what's actually baked into
+          # the compiled APK's versionCode/versionName.
+          BUILD_NUMBER=${{ vars.BUILD_NUMBER_OVERRIDE || '' }}
+          BUILD_NUMBER=${BUILD_NUMBER:-$(git rev-list --count HEAD)}
           for value in "$MAJOR" "$MINOR" "$PATCH" "$BUILD_NUMBER"; do
             [[ "$value" =~ ^[0-9]+$ ]] || { echo "Invalid version.properties" >&2; exit 1; }
           done

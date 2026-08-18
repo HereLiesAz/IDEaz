@@ -129,9 +129,14 @@ jobs:
         run: |
           set -e
           test -f version.properties || { echo "version.properties is required" >&2; exit 1; }
-          FILE_BUILD=$(sed -n 's/^build=//p' version.properties | tail -n 1)
+          # -PversionBuild must be a value that only ever grows - Play Store
+          # rejects any upload whose versionCode doesn't strictly increase.
+          # This previously read the static `build` field out of
+          # version.properties, which nothing in this pipeline ever
+          # increments/commits back, so every publish attempt would try to
+          # reuse the exact same versionCode as the last one.
           BUILD_NUMBER=${{ vars.BUILD_NUMBER_OVERRIDE || '' }}
-          BUILD_NUMBER=${BUILD_NUMBER:-$FILE_BUILD}
+          BUILD_NUMBER=${BUILD_NUMBER:-$(git rev-list --count HEAD)}
           [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || { echo "Invalid build component" >&2; exit 1; }
           ${{ vars.BUNDLE_COMMAND || './gradlew bundleRelease' }} -PversionBuild=$BUILD_NUMBER --build-cache
 
