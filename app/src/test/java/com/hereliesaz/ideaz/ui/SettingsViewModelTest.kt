@@ -244,7 +244,9 @@ class SettingsViewModelTest {
         }
         viewModel = SettingsViewModel(application, credentials)
 
+        assertNull(viewModel.lastCredentialError)
         assertFalse(viewModel.saveApiKey("secret_key"))
+        assertEquals("keystore unavailable", viewModel.lastCredentialError)
     }
 
     @Test
@@ -257,6 +259,25 @@ class SettingsViewModelTest {
         viewModel = SettingsViewModel(application, credentials)
 
         assertFalse(viewModel.saveSigningCredentials(storePass = "storePass", alias = "myAlias", keyPass = "keyPass"))
+        assertEquals("keystore unavailable", viewModel.lastCredentialError)
+    }
+
+    @Test
+    fun `saveString succeeds even if the best-effort legacy-plaintext cleanup would have failed`() {
+        // Regression guard: saveString previously wrapped BOTH the real secure
+        // write and the unrelated legacy-plaintext-removal bookkeeping in one
+        // runCatching block, so any hiccup in that no-op cleanup (removing a
+        // key that was never there in plaintext) reported the WHOLE save as
+        // failed even though the credential itself was already persisted
+        // correctly. There's nothing to remove here (no legacy plaintext
+        // value was ever written), which is the overwhelmingly common case in
+        // practice - and it must still report success.
+        val credentials = FakeCredentialStore()
+        viewModel = SettingsViewModel(application, credentials)
+
+        assertTrue(viewModel.saveString(SettingsViewModel.KEY_HF_API_KEY, "hf_secret"))
+        assertEquals("hf_secret", credentials.values[SettingsViewModel.KEY_HF_API_KEY])
+        assertNull(viewModel.lastCredentialError)
     }
 
     @Test
