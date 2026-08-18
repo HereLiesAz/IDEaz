@@ -4,7 +4,6 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import java.security.KeyStore
-import java.security.SecureRandom
 import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -32,11 +31,26 @@ fun readSecureOrLegacyCredential(context: Context, key: String): String? {
     return androidx.preference.PreferenceManager.getDefaultSharedPreferences(context).getString(key, null)
 }
 
-/** Encrypts one credential into a versioned AES-GCM envelope. */
+/**
+ * Encrypts one credential into a versioned AES-GCM envelope.
+ *
+ * Deliberately does NOT pass a caller-generated IV via GCMParameterSpec on
+ * encrypt: an AndroidKeyStore-backed key created with
+ * setRandomizedEncryptionRequired(true) (the default, and what secretKey()
+ * below sets explicitly) rejects that outright with
+ * InvalidAlgorithmParameterException("Caller-provided IV not permitted") -
+ * every single call, on every device, unconditionally. This was the actual
+ * cause of every "could not be saved" credential failure - invisible to
+ * this file's own unit test, which exercises a plain software AES key that
+ * has no such restriction, not a real AndroidKeyStore-backed one. The fix:
+ * initialize without an IV and let the provider generate one internally,
+ * then read the actual IV it used back via cipher.iv (the standard,
+ * required pattern for AndroidKeyStore-backed GCM encryption).
+ */
 internal fun encryptCredential(value: String, key: SecretKey, associatedData: String): String {
-    val iv = ByteArray(12).also(SecureRandom()::nextBytes)
     val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-    cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(128, iv))
+    cipher.init(Cipher.ENCRYPT_MODE, key)
+    val iv = cipher.iv
     cipher.updateAAD(associatedData.toByteArray(Charsets.UTF_8))
     val ciphertext = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
     return "v1:${Base64.getEncoder().encodeToString(iv)}:${Base64.getEncoder().encodeToString(ciphertext)}"
