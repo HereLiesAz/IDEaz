@@ -54,7 +54,7 @@ The IDEaz project's own CI (`.github/workflows/`) builds the app on every push:
 *   **Unit tests:** `./gradlew :app:testDebugUnitTest`.
 *   **Assemble debug:** `./gradlew :app:assembleDebug`.
 
-Release artifacts ship via tagged builds.
+Release artifacts ship via tagged builds — every push updates a rolling "Latest Debug Build" prerelease, while the actual "Latest Release" only updates on a manually-triggered workflow run. See [`build_pipeline.md`](build_pipeline.md) §6.0 for the tag/trigger details.
 
 The dependency-submission workflow publishes the resolved release-runtime graph for `:app` and `:webruntime`. It does not submit test, lint, Gradle, AGP, or plugin configurations as application dependencies. Those tools run only in CI and are maintained through pinned workflow/plugin versions and Dependabot; the submitted graph is the production APK/AAB software bill of materials.
 

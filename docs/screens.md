@@ -34,7 +34,7 @@
 
 ## 6. Settings Screen (`SettingsScreen.kt`)
 *   **Role:** Configuration. Opaque background.
-*   **Sections:** Build Configuration, Saved Settings & Credentials (PBKDF2-encrypted export/import), Signing Configuration, API Keys, On-device Models, AI Assignments, Permissions, Preferences/Theme/Logs/Updates/Debug. Gated Hugging Face model tokens are stored through Android Keystore and never copied into WorkManager state.
+*   **Sections:** Saved Settings & Credentials (PBKDF2-encrypted export/import), Signing Configuration, API Keys (Jules/GitHub/AI Studio plus four free-tier and three paid-tier OpenAI-compatible providers), On-device Models, AI Assignments, Permissions (with an "Open App Info" shortcut for Android's restricted-settings block on sideloaded apps), Preferences/Theme/Logs/Updates. Every provider credential and the signing passwords are stored through Android Keystore, never copied into WorkManager state. See [`auth.md`](auth.md) and [`manifest.md`](manifest.md) §V for the full detail.
 
 The Chat tab renders local-provider failures as status cards outside conversational
 history. Cards expose retry availability, whether cloud fallback could be offered
