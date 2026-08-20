@@ -50,14 +50,50 @@ The boundary is deliberate. A production SBOM must describe the production artif
 
 ---
 
-## 6. Releasing IDEaz itself to Google Play (App Bundle)
+## 6. Releasing IDEaz itself (GitHub Releases + Google Play)
 
 IDEaz can ship to the Play Console as a signed **Android App Bundle (.aab)** in
-addition to the GitHub-Release APK channel described above. The two channels coexist:
-the existing [`build-and-release.yml`](../.github/workflows/build-and-release.yml)
-still builds and publishes a signed **APK** to GitHub Releases on every push, while the
-new [`publish-play.yml`](../.github/workflows/publish-play.yml) builds and (optionally)
+addition to its GitHub-Release APK channel. The two channels coexist:
+[`build-and-release.yml`](../.github/workflows/build-and-release.yml)
+builds and publishes a signed **APK** to GitHub Releases on every push to `master`, while
+[`publish-play.yml`](../.github/workflows/publish-play.yml) builds and (optionally)
 uploads a signed **AAB** to Play on manual dispatch.
+
+### 6.0 GitHub-Release APK channel: debug builds vs. Latest Release
+
+`build-and-release.yml`'s APK channel is itself split by trigger type, so an ordinary
+push never silently becomes "the" release:
+
+| Trigger | Publish step | Tag | Release | `prerelease` |
+|---|---|---|---|---|
+| `push` to `master` (every commit/merge) | **Publish Debug Build** | `debug-v$major.$minor` | "Latest Debug Build ($tag)" | `true` |
+| `workflow_dispatch` (a human runs the workflow manually from the Actions tab) | **Publish Latest Release** | `v$major.$minor` | "Latest Release ($tag)" | `false` |
+
+Both tags are **major.minor only** — no patch or build component — so every build within
+the same minor version rolls into the same release (`gh release view $TAG` finds the
+existing release and `gh release edit`s it in place, uploading the new APK alongside
+prior ones) instead of fragmenting into one release per commit, which is what happened
+before this was fixed. Bumping `minor` in `version.properties` is what starts a fresh
+debug/release pair; see [`version.properties`](../version.properties) and its own "only
+ever bump `minor`, and only when the amount of work warrants it" convention.
+
+Getting a genuine "Latest Release" therefore requires someone to manually trigger the
+workflow — pushing to master only ever updates the debug release.
+
+### 6.0.1 Build-number derivation
+
+Both `build-and-release.yml` and `publish-play.yml` pass `-PversionBuild=$BUILD_NUMBER`
+to Gradle, where `BUILD_NUMBER` is `git rev-list --count HEAD` (total commit count),
+unless the `BUILD_NUMBER_OVERRIDE` repository variable is set, in which case that wins.
+This is a value that only ever grows, matching what `app/build.gradle.kts`'s own comment
+on `versionBuildOverride` has always documented as the intended design. Earlier versions
+of these workflows instead read the static `build` field back out of `version.properties`
+and passed that same value right back in — a circular no-op, since nothing in either
+pipeline ever increments or commits that field — so every CI-built artifact carried the
+exact same version string no matter how many commits/builds had happened. `build` in
+`version.properties` is effectively vestigial for CI now; it only matters for a purely
+local `./gradlew assembleDebug`/`bundleRelease` run made without `-PversionBuild`, where
+`IncrementBuildNumberTask` still bumps it on disk as before.
 
 ### 6.1 Build a signed AAB locally
 

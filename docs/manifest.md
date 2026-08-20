@@ -35,23 +35,34 @@
 
 * **Scrollable Column with Haze Effect**
     * Description (Looks Like): Standard vertical scrolling settings list.
+* **Saved Settings and Credentials Section**
+    * **Save Settings / Load Settings buttons**: export/import all settings (including every secure credential) as a password-protected encrypted file via `SecurityUtils`.
+* **Signing Configuration Section**
+    * **Select Custom Keystore**: SAF picker; imports a `.keystore`/`.jks` file to `filesDir/user_release.keystore`.
+    * **Keystore Password / Key Alias / Key Password** fields, a **Save** button, and **Reset to Default** (reverts to the debug keystore).
 * **API Keys Section**
-    * **GitHub Personal Access Token**: Input for the GitHub PAT used for repo management and automated issue reporting.
-    * **Jules / AI Studio Keys**: Inputs for other AI providers.
-    * **Hugging Face Token**: Stored as Android-Keystore-backed AES-GCM ciphertext for gated on-device model downloads.
+    * **Jules API Key**, **GitHub Personal Access Token**, **AI Studio API Key** (Gemini), **Google Cloud Project Number** — each with a "Get Key" link to the provider's key-issuance page. Saving the GitHub token also refreshes the Clone tab's repo list (`fetchGitHubRepos()`).
+    * **Free Providers** (Groq, Cerebras, Hugging Face, Mistral) and **Paid Providers** (OpenAI, Anthropic, DeepSeek) — one row each (`FreeProviderKeyRow`), same shape as the keys above: masked input, "Get Key" link, per-row Save.
+    * **Gemini App (Accessibility)**: status button showing whether the Gemini-app accessibility bridge is granted; tapping it when ungranted opens Accessibility settings.
+    * Every save/failure Toast in this section reports the actual underlying error (`SettingsViewModel.lastCredentialError`) on failure — see [`auth.md`](auth.md) §2 for why that matters on devices with no adb access.
+* **AI Assignments Section**
+    * One dropdown per task (Default, Project Initialization, Contextless Chat, Overlay Chat) listing every `AiModel` in `AiModels.availableModels`. An unset "Default" resolves automatically to the highest-ranked provider the user has a key for (`auth.md` §2.1), not a hardcoded model.
+* **On-device Models Section** (`OnDeviceModelsSection`)
+    * Lists locally-downloadable models, gated on AICore support / RAM-ABI requirements / a saved Hugging Face token where the model requires one.
 * **Permissions Section**
-    * ... (Overlay, Accessibility, Notification, Install checks). The Screen Capture
-      (MediaProjection) row was removed — that's a Phase-2 (Android target) feature,
-      dormant in the PWA-only product.
+    * An **"Open App Info"** button and explanatory text at the top: Android can label Accessibility/Overlay grants "restricted" for a sideloaded app until the user visits system App Info and enables them via its overflow menu — this jumps straight there.
+    * Overlay, Accessibility, Post Notifications, and Install Unknown Apps checks, each with a one-line description of why IDEaz needs it. The Screen Capture (MediaProjection) row was removed — that's a Phase-2 (Android target) feature, dormant in the PWA-only product. Broad storage permissions were removed entirely (P0.2 permission-minimization); SAF pickers cover file access instead.
 * **Preferences Section**
     * **Show Cancel Warning Checkbox**: Toggles cancellation dialog.
     * **Auto-report IDE internal errors Checkbox**: Toggles the automated GitHub issue reporting feature (`GithubIssueReporter`).
+    * **Auto-debug build failures with Jules Checkbox**.
+    * **Report IDE errors to HereLiesAz/IDEaz Checkbox**.
 * **Theme Dropdown**
     * ... (Auto, Dark, Light, System)
 * **Log Level Dropdown**
     * ... (Info, Debug, Verbose)
-* **"Clear Build Caches" Button**
-    * ...
+* **Updates Section**
+    * **Check for Experimental Updates** button; an `AlertDialog` shows update progress/prompts to install when one is found.
 
 ---
 
@@ -63,7 +74,7 @@
     * Description (Does): Centralizes application logic. Uses Delegates (`AIDelegate`, `BuildDelegate`, etc.) to handle specific domains.
     * **Implements:** `handleIdeError` to route internal crashes to the `GithubIssueReporter` (via API) while routing build failures to the AI Debugger.
 * **Class: SettingsViewModel**
-    * Description (Does): Manages settings, including the new `KEY_AUTO_REPORT_BUGS` and `KEY_GITHUB_TOKEN`.
+    * Description (Does): Manages settings, secure-credential storage (`SECURE_CREDENTIAL_KEYS`, `AndroidKeystoreCredentialStore`), the ranked default-AI-model resolution (`AiModels.defaultRanking`), and `lastCredentialError` for surfacing real save/read failures in the UI (see [`auth.md`](auth.md)).
 
 ### B. Services and Inter-Process Communication (IPC)
 
