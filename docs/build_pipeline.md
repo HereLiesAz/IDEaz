@@ -95,6 +95,19 @@ exact same version string no matter how many commits/builds had happened. `build
 local `./gradlew assembleDebug`/`bundleRelease` run made without `-PversionBuild`, where
 `IncrementBuildNumberTask` still bumps it on disk as before.
 
+### 6.0.2 Pinned unit-test JVM heap
+
+`build-and-release.yml` runs `./gradlew build`, which assembles and checks every
+variant — including release R8 minification and `lintVital` — in one Gradle daemon
+session before it reaches the debug unit tests. A CI run once crashed at
+`:app:testDebugUnitTest` with "Test process encountered an unexpected problem" and
+zero test output, 4 seconds after the task started, on a commit that had just passed
+the same test task cleanly in a lighter job — the forked test JVM's unbounded default
+heap request was competing with whatever the daemon and compiler processes still held
+on the runner by that point in the build. `app/build.gradle.kts` pins
+`tasks.withType<Test>().configureEach { maxHeapSize = "1536m" }` so that request is
+predictable instead of derived from momentary runner memory pressure.
+
 ### 6.1 Build a signed AAB locally
 
 ```bash

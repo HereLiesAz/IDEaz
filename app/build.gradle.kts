@@ -393,3 +393,10 @@ tasks.configureEach {
         dependsOn("incrementBuildNumber")
     }
 }
+
+// Pin an explicit, modest test-JVM heap instead of leaving it to the JVM's
+// own memory-derived default, which crashed the forked test executor under
+// build-and-release.yml's heavier combined release+debug build (see PR #850).
+tasks.withType<Test>().configureEach {
+    maxHeapSize = "1536m"
+}
