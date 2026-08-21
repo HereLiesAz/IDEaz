@@ -100,9 +100,11 @@ class OpenAiCompatibleAdapter(
         }
 
         fun dispatchMutatingTool(name: String, stringArgs: Map<String, String?>): String {
-            val checkpoint = editCheckpoint
-                ?: tools.createEditCheckpoint("IDEaz: checkpoint before $currentModel edit").also { editCheckpoint = it }
             return try {
+                // Creating the checkpoint used to sit outside this try, so a snapshot
+                // failure escaped as a raw exception instead of a clean tool result.
+                val checkpoint = editCheckpoint
+                    ?: tools.createEditCheckpoint("IDEaz: checkpoint before $currentModel edit").also { editCheckpoint = it }
                 tools.captureToolEdit(checkpoint, name, stringArgs)
                 expectedEditFingerprint = tools.reviewEdits(checkpoint).contentFingerprint
                     .also { tools.updateEditCheckpointFingerprint(checkpoint, it) }
@@ -124,10 +126,30 @@ class OpenAiCompatibleAdapter(
 
         var rounds = 0
         while (rounds < MAX_TOOL_ROUNDS) {
-            val response = postChatCompletion(history, currentModel)
+            val response = try {
+                postChatCompletion(history, currentModel)
+            } catch (e: CancellationException) {
+                // A mutating tool call in an earlier round may have already
+                // written to disk; without this, cancelling mid-loop left the
+                // edit applied with no review card and an orphaned checkpoint.
+                restorePendingEdit()
+                throw e
+            } catch (e: Exception) {
+                // Same failure mode for a network/API error after a successful
+                // write in an earlier round - an HTTP 429 here is common on
+                // rate-limited free-tier backends (Groq, Cerebras, HF).
+                restorePendingEdit()
+                return@withContext "Error: $currentModel request failed: ${e.message}"
+            }
             val choice = (response["choices"] as? JsonArray)?.firstOrNull() as? JsonObject
-            val message = choice?.get("message") as? JsonObject
-                ?: return@withContext "No response from $currentModel."
+            // An unexpected-but-2xx shape (no "message", e.g. a proxy emitting
+            // "delta" instead, or an empty choices array) used to return here
+            // directly, bypassing complete() - if a mutating tool already ran in
+            // an earlier round, the edit was left applied with no review.
+            val message = choice?.get("message") as? JsonObject ?: run {
+                restorePendingEdit()
+                return@withContext "Error: unexpected response shape from $currentModel."
+            }
 
             val toolCalls = (message["tool_calls"] as? JsonArray).orEmpty()
             val textContent = (message["content"] as? JsonPrimitive)?.contentOrNullSafe().orEmpty()

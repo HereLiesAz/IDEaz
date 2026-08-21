@@ -102,14 +102,40 @@ class MainViewModel(
                     IdeTools(settingsViewModel.getProjectPath(appName)).reconcileEditCheckpoints()
                 }
                 recovered.firstOrNull()?.let { review ->
+                    // createEditCheckpoint's caller-supplied message (persisted as
+                    // message.txt alongside the snapshot) already records which
+                    // adapter opened it - e.g. "IDEaz: checkpoint before Claude
+                    // edit" - reading it back gives an honest source instead of
+                    // hardcoding "on-device" for every recovered edit regardless
+                    // of which provider actually made it.
+                    val message = runCatching {
+                        java.io.File(review.checkpoint.snapshotPath, "message.txt").readText()
+                    }.getOrNull()
+                    val source = message
+                        ?.substringAfter("checkpoint before ", missingDelimiterValue = "")
+                        ?.removeSuffix(" edit")
+                        ?.takeIf { it.isNotBlank() }
+                        ?: "an interrupted session"
                     stateDelegate.setLocalEditReview(
                         LocalEditReviewState(
                             com.hereliesaz.ideaz.ai.local.LocalEditApproval(
                                 review,
-                                "Recovered an interrupted on-device edit for review.",
+                                "Recovered an edit from $source for review.",
+                                source = source,
                             )
                         )
                     )
+                    if (recovered.size > 1) {
+                        // The review UI only has one pending-review slot; the rest
+                        // aren't lost (they stay in `review` status and will
+                        // resurface here once this one is resolved and the app is
+                        // relaunched) but were previously dropped with no
+                        // indication anything else needed attention.
+                        stateDelegate.appendAiLog(
+                            "[AI] ${recovered.size - 1} more interrupted edit(s) are pending review " +
+                                "for this project - they'll appear after this one is resolved."
+                        )
+                    }
                 }
             }
         }
@@ -499,10 +525,28 @@ class MainViewModel(
                     )
                     return@launch
                 }
-                check(
-                    current.changedFiles == reviewed.changedFiles &&
-                        current.contentFingerprint == reviewed.contentFingerprint
-                ) { "Files changed after review" }
+                if (current.changedFiles != reviewed.changedFiles ||
+                    current.contentFingerprint != reviewed.contentFingerprint
+                ) {
+                    // Previously a bare check() here threw into the generic catch
+                    // below, which just restored the review to its stale PENDING
+                    // state verbatim - every future Approve attempt hit the exact
+                    // same mismatch forever, since nothing about the review ever
+                    // changed. Refreshing against `current` (as the validation-error
+                    // branches above already do) means a second Approve tap now
+                    // succeeds cleanly once the user has seen the updated diff,
+                    // instead of the card being permanently stuck.
+                    stateDelegate.setLocalEditReview(
+                        state.copy(
+                            approval = state.approval.copy(review = reviewed.refreshedFrom(current)),
+                            status = LocalEditReviewStatus.PENDING,
+                        )
+                    )
+                    stateDelegate.appendChatMessage(
+                        ChatMessage("model", "The project changed after this edit was reviewed - re-approve to continue.")
+                    )
+                    return@launch
+                }
                 withContext(Dispatchers.IO) {
                     IdeTools(File(reviewed.checkpoint.projectPath))
                         .markEditCheckpointApproved(reviewed.checkpoint)
@@ -555,6 +599,29 @@ class MainViewModel(
                 stateDelegate.setLocalEditReview(state.copy(status = targetStatus))
                 stateDelegate.triggerFileTreeReload()
                 stateDelegate.triggerWebHardReload()
+            } catch (e: IllegalStateException) {
+                // restoreEditCheckpoint's fingerprint check throws exactly this
+                // when the files changed since review (protecting against
+                // clobbering an intervening manual edit). Previously this just
+                // restored the review card to its stale PENDING/APPROVED state
+                // verbatim - since nothing about the underlying mismatch ever
+                // changes, every future Reject/Undo attempt hit the identical
+                // failure forever, permanently blocking the chat tab (a new
+                // message is refused while a review is pending). The user's
+                // intent here is unambiguous - discard this review - and doing
+                // so never writes to disk, so it's always safe: clean up the
+                // checkpoint bookkeeping and clear the card instead of leaving
+                // it stuck.
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        IdeTools(File(approval.review.checkpoint.projectPath))
+                            .discardEditCheckpoint(approval.review.checkpoint)
+                    }
+                }
+                stateDelegate.setLocalEditReview(null)
+                stateDelegate.appendChatMessage(
+                    ChatMessage("model", "Discarded: the project changed after review, so nothing was restored.")
+                )
             } catch (_: Exception) {
                 stateDelegate.setLocalEditReview(state)
                 stateDelegate.appendChatMessage(

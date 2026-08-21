@@ -454,6 +454,11 @@ class IdeTools(private val projectDir: File) {
         const val CHECKPOINT_MUTATING = "mutating"
         const val CHECKPOINT_REVIEW = "review"
         const val CHECKPOINT_APPROVED = "approved"
-        val PROTECTED_ROOTS = setOf(".git", ".ideaz-edit-checkpoints")
+        // ".ideaz-edit-checkpoints" was listed here too, but resolvedFile()
+        // already requires containment inside projectDir before this set is
+        // even checked (checkpointBase() below lives in projectDir's *parent*),
+        // so that entry could never trigger - dead defense-in-depth for a path
+        // that's already unreachable via a different check.
+        val PROTECTED_ROOTS = setOf(".git")
     }
 }

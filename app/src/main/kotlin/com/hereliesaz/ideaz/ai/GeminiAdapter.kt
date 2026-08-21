@@ -75,9 +75,13 @@ class GeminiAdapter(
         }
 
         fun dispatchMutatingTool(name: String, stringArgs: Map<String, String?>): String {
-            val checkpoint = editCheckpoint
-                ?: tools.createEditCheckpoint("IDEaz: checkpoint before Gemini edit").also { editCheckpoint = it }
             return try {
+                // Creating the checkpoint used to sit outside this try, so a snapshot
+                // failure (e.g. an unwritable checkpoint directory) escaped as a raw
+                // exception instead of the clean "Error: could not complete ..." result
+                // every other failure in this function produces.
+                val checkpoint = editCheckpoint
+                    ?: tools.createEditCheckpoint("IDEaz: checkpoint before Gemini edit").also { editCheckpoint = it }
                 tools.captureToolEdit(checkpoint, name, stringArgs)
                 expectedEditFingerprint = tools.reviewEdits(checkpoint).contentFingerprint
                     .also { tools.updateEditCheckpointFingerprint(checkpoint, it) }
@@ -99,7 +103,23 @@ class GeminiAdapter(
 
         var rounds = 0
         while (rounds < MAX_TOOL_ROUNDS) {
-            val response = client.models.generateContent(model, contents, toolConfig)
+            val response = try {
+                client.models.generateContent(model, contents, toolConfig)
+            } catch (e: CancellationException) {
+                // A mutating tool call in an earlier round may have already
+                // written to disk; without this, cancelling mid-loop (e.g. a
+                // new overlay prompt cancelling this job) left the edit applied
+                // with no review card and an orphaned checkpoint.
+                restorePendingEdit()
+                throw e
+            } catch (e: Exception) {
+                // Same failure mode for a network/API error after a successful
+                // write in an earlier round (an HTTP error here is common on
+                // rate-limited backends) - restore instead of leaving the edit
+                // applied and unreviewed.
+                restorePendingEdit()
+                return@withContext "Error: Gemini request failed: ${e.message}"
+            }
 
             val calls = response.functionCalls()
             if (calls.isNullOrEmpty()) {

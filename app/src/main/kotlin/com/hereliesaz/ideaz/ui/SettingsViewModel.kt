@@ -99,7 +99,19 @@ object AiModels {
     // actually saved - the trailing no-key entries are kept here only so the
     // list stays a complete provider ranking, but they're always skipped by
     // that lookup (see its own `requiredKey.isNotEmpty()` guard).
-    val defaultRanking = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL, JULES, CLI, BRIDGE, LOCAL, NANO)
+    //
+    // JULES is deliberately excluded: every consumer of `defaultModelId()`
+    // (ordinary chat, PromptPopup, ContextlessChatInput, checkRequiredKeys)
+    // routes the resolved id through AiAdapterFactory, which returns null for
+    // Jules - it has its own stateful session lifecycle
+    // (AIDelegate.runJulesTask), not the ConversationalAiClient contract every
+    // other entry here implements. A user whose only saved key is Jules used
+    // to get it auto-picked as "Default" and then have every chat message
+    // fail with "Jules is not supported in the chat tab." Jules can still be
+    // assigned explicitly to a task slot that actually handles it specially
+    // (see the julesAssigned checks in MainViewModel) - just never as the
+    // silently-inferred default.
+    val defaultRanking = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL, CLI, BRIDGE, LOCAL, NANO)
 
     fun findById(id: String?): AiModel? = availableModels.find { it.id == id }
 }
