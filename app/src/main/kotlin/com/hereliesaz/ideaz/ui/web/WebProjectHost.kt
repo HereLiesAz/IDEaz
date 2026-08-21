@@ -95,10 +95,11 @@ class IdeazJsInterface(private val context: Context) {
  *
  * Android projects are previewed through this same host: when
  * [WasmCompilerService] finishes compiling a project it broadcasts
- * [ACTION_WASM_COMPILE_SUCCESS], and this composable then mounts `filesDir/www`,
- * clears the WebView cache (Wasm binaries are aggressively cached and would
- * otherwise be re-instantiated from the stale copy) and hot-reloads the HTML
- * host page.
+ * [ACTION_WASM_COMPILE_SUCCESS], and this composable mounts `filesDir/www` and
+ * reloads. No cache-clear is needed for that reload to pick up the fresh
+ * .wasm - see [WebProjectPathHandler]'s no-store response headers. This does
+ * not preserve Compose UI state across a reload; the Wasm module (and
+ * everything it renders to its `<canvas>`) is fully reinstantiated each time.
  */
 // Lint's JavascriptInterface check can't resolve the annotated members of
 // IdeazJsInterface/WebViewBridge through a remember<T>-typed local (confirmed:
@@ -357,13 +358,17 @@ fun WebProjectHost(
                     val dir = intent.getStringExtra(EXTRA_WWW_DIR)
                         ?.let { File(it) }
                         ?: File(webView.context.filesDir, WasmCompilerService.WWW_DIR_NAME)
-                    // Mount the compiler's output directory, drop every cached
-                    // copy of the previous binary, then re-enter the host page so
-                    // the fresh .wasm is instantiated.
+                    // Mount the compiler's output directory, then reload. No
+                    // cache to clear: WebProjectPathHandler marks every response
+                    // no-store, so a plain reload always re-fetches the fresh
+                    // .wasm/.js pair even though their filenames (and therefore
+                    // this URL) are unchanged across recompiles. This does not
+                    // preserve UI state - the Wasm module is fully reinstantiated
+                    // - Kotlin/Wasm has no JVM-style live class redefinition to
+                    // build a true state-preserving hot reload on top of.
                     wasmPreviewDir.value = dir
                     projectDirState.value = dir
-                    webView.clearCache(true)
-                    webView.loadUrl(WebProjectUrlUtils.localProjectRootUrl())
+                    webView.reload()
                     return
                 }
 
