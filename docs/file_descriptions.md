@@ -65,10 +65,12 @@
 
 #### ai/
 *   `AiAdapterFactory.kt`: Centralized factory that maps AI models to concrete adapters.
-*   `OpenAiCompatibleAdapter.kt`: Generic adapter for OpenAI-compatible `/chat/completions` endpoints.
-*   `AnthropicAdapter.kt`: Custom adapter for Anthropic's Messages API schema.
+*   `OpenAiCompatibleAdapter.kt`: Generic adapter for OpenAI-compatible `/chat/completions` endpoints (Groq, Cerebras, Hugging Face, Mistral, OpenAI, DeepSeek). Shares `LocalLlmAdapter`'s edit-checkpoint/review/approve/undo contract (`LocalEditApproval`/`LocalEditApprovalRequiredException`, package `ai.local`) so mutating tool calls go through the same review gate as on-device models.
+*   `AnthropicAdapter.kt`: Custom adapter for Anthropic's Messages API schema. Shares the same edit-checkpoint/approve/undo contract as `OpenAiCompatibleAdapter` and `LocalLlmAdapter`.
+*   `AiEditApplier.kt`: Parses an AI's *text* reply into file edits and applies them via `IdeTools`, for backends that can't call tools directly (the Gemini app bridge), which emits changes as fenced blocks instead.
+*   `AttachmentResolver.kt`: Resolves prompt-input attachments at submit time — copies asset-mode attachments via `ProjectAssetImporter`, or loads/classifies reference-mode attachments into a `ChatPart` for the active adapter.
 *   `DynamicModelResolver.kt`: Resolves the absolute latest version of a model by querying provider endpoints.
-*   `GeminiAdapter.kt`: Uses the `google-genai` SDK for Gemini models and exposes a separate tool-less consultant that accepts only an approved bounded payload.
+*   `GeminiAdapter.kt`: Uses the `google-genai` SDK for Gemini models and exposes a separate tool-less consultant that accepts only an approved bounded payload. Shares the same edit-checkpoint/approve/undo contract as the other conversational adapters.
 *   `GeminiNanoAdapter.kt`: Specialized adapter for on-device Gemini Nano that shares the serialized, memory-pressure-aware `AiCoreRuntime` cache.
 *   `ConversationalAiClient.kt`: Base interface for AI clients (Phase 1, conversational), including the documented structured exception contract used by local providers.
 *   `AgenticAiClient.kt`: Phase-2 agentic provider interface — `dispatchTask(prompt, sourceContext): Flow<TaskEvent>`. Target-agnostic event stream (`SessionStarted`/`Message`/`Patch`/`TimedOut`) so the overlay renders Jules and Gemini the same way. Implemented by `jules/JulesAdapter`.
