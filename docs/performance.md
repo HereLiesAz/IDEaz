@@ -3,7 +3,7 @@
 ## 1. Threading & Concurrency
 *   **Main Thread:** Keep the Main Thread free. No disk I/O, no network calls, no heavy computation.
 *   **Coroutines:** Use `Dispatchers.IO` for blocking operations (File I/O, Network).
-*   **Build Service:** `BuildService` runs in a separate process (`:build_process`) at background priority (`THREAD_PRIORITY_BACKGROUND`). Post-Phase-0 it is a thin shell around `RemoteBuildManager` (poll Actions + download APK), so the workload is light.
+*   **Build Service:** `BuildService` runs in the main app process (no `android:process` attribute, and no explicit `THREAD_PRIORITY_BACKGROUND` setting - both previously claimed here). Post-Phase-0 it is a thin shell around `RemoteBuildManager` (poll Actions + download APK), so the workload is light.
 *   **Scope Management:** Use `viewModelScope` for UI-bound jobs. For long-running work that should survive configuration changes, use a bound `Service`.
 
 ## 2. Memory Management

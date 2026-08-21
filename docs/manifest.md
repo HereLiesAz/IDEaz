@@ -79,19 +79,25 @@
 ### B. Services and Inter-Process Communication (IPC)
 
 * **Class: BuildService (Service)**
-    * **Type:** `android:exported="true"`, `android:process=":build_process"`
-    * **Permissions:** `FOREGROUND_SERVICE`
+    * **Type:** `android:exported="false"`, `android:foregroundServiceType="dataSync"`. Runs in the main app process — no `android:process` attribute (a prior version of this doc claimed `:build_process`, which was never in the manifest).
     * Description (Does): Dispatches and polls a remote GitHub Actions build via `RemoteBuildManager`, then sideloads the resulting APK. (The on-device build toolchain was removed in Phase 0.)
 * **Class: IdeazOverlayService (Service)**
-    * **Type:** `android:permission="android.permission.FOREGROUND_SERVICE"`, `android:foregroundServiceType="specialUse"` (or `manifest` dependent).
-    * **Permissions:** `SYSTEM_ALERT_WINDOW`, `FOREGROUND_SERVICE`.
+    * **Type:** `android:exported="false"`, `android:foregroundServiceType="specialUse"` (with a `FOREGROUND_SERVICE_TYPE_SPECIAL_USE_DESCRIPTION` property, not a `permission` attribute — a prior version of this doc claimed one).
+    * **Permissions:** `SYSTEM_ALERT_WINDOW`.
     * Description (Does): Hosts the main UI overlay (`OverlayView`) as a system alert window.
+* **Class: ScreenshotService (Service)**
+    * **Type:** `android:exported="false"`, `android:foregroundServiceType="mediaProjection"`.
+    * Description (Does): Android-target screen capture (Phase 2), started only when `OverlayDelegate.isScreenCaptureEnabled()` - never reached on web/PWA projects.
 * **Class: IdeazAccessibilityService (AccessibilityService)**
-    * **Permissions:** `BIND_ACCESSIBILITY_SERVICE`.
-    * Description (Does): Retrieves Node Info for inspection.
+    * **Type:** `android:exported="true"`.
+    * **Permissions:** `BIND_ACCESSIBILITY_SERVICE` (system-only — an app cannot bind to another app's accessibility service without holding this itself, so `exported="true"` here does not open the service to arbitrary callers).
+    * Description (Does): Retrieves Node Info for inspection (Select-mode tap-to-inspect).
+* **Class: GeminiAppBridgeAccessibilityService (AccessibilityService)**
+    * **Type:** `android:exported="true"`, same `BIND_ACCESSIBILITY_SERVICE` gating as above.
+    * Description (Does): Drives the Gemini App Bridge - relays prompts/responses through the Gemini app's own UI via accessibility node interaction, for the "Gemini App (Accessibility)" AI provider option.
 * **Class: CrashReportingService (Service)**
-    * **Type:** `android:process=":crash_reporter"`
-    * Description (Does): Handles fatal error reporting in isolation.
+    * **Type:** `android:exported="false"`, `android:process=":crash_reporter"`.
+    * Description (Does): Handles fatal/non-fatal error reporting in an isolated process so it survives a main-process crash.
 
 ### E. Core Utilities
 

@@ -1,10 +1,22 @@
 package com.hereliesaz.ideaz.git
 
 import org.eclipse.jgit.api.Git
+import org.eclipse.jgit.api.errors.GitAPIException
+import org.eclipse.jgit.transport.RemoteRefUpdate
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import org.eclipse.jgit.lib.ProgressMonitor
 import java.io.File
 import java.io.ByteArrayInputStream
+
+/**
+ * Thrown when JGit reports a remote-side rejection or an unsuccessful merge that
+ * its own API surfaces as a normal return value rather than a thrown exception
+ * (e.g. a non-fast-forward push, or a pull whose merge/rebase step conflicts).
+ * JGit only throws [GitAPIException] for transport/auth failures - callers must
+ * still inspect [PushResult]/[PullResult] to catch a rejection, which is easy to
+ * miss and previously went unchecked here, letting a rejected push read as success.
+ */
+class GitOperationRejectedException(message: String) : Exception(message)
 
 // Git Wrapper
 /**
@@ -52,7 +64,10 @@ class GitManager(private val projectDir: File) {
      * @param username The username for authentication (optional).
      * @param token The Personal Access Token (PAT) for authentication (optional).
      * @param onProgress A callback function to report progress.
-     * @throws org.eclipse.jgit.api.errors.GitAPIException If the pull operation fails.
+     * @throws org.eclipse.jgit.api.errors.GitAPIException If the pull operation fails outright.
+     * @throws GitOperationRejectedException If the pull completes without throwing but its
+     *   merge/rebase step did not succeed (conflict, etc) - JGit reports that as a normal
+     *   [org.eclipse.jgit.api.PullResult], not an exception.
      */
     fun pull(username: String? = null, token: String? = null, onProgress: ((Int, String) -> Unit)? = null) {
         Git.open(projectDir).use { git ->
@@ -67,7 +82,16 @@ class GitManager(private val projectDir: File) {
                 cmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(user, token))
             }
 
-            cmd.call()
+            val result = cmd.call()
+            if (!result.isSuccessful) {
+                val mergeStatus = result.mergeResult?.mergeStatus
+                val rebaseStatus = result.rebaseResult?.status
+                throw GitOperationRejectedException(
+                    "Pull did not complete cleanly" +
+                        (mergeStatus?.let { " (merge: $it)" } ?: "") +
+                        (rebaseStatus?.let { " (rebase: $it)" } ?: "")
+                )
+            }
         }
     }
 
@@ -147,7 +171,11 @@ class GitManager(private val projectDir: File) {
      * @param username The username for authentication (optional).
      * @param token The Personal Access Token (PAT) for authentication (optional).
      * @param onProgress A callback function to report progress.
-     * @throws org.eclipse.jgit.api.errors.GitAPIException If the push operation fails.
+     * @throws org.eclipse.jgit.api.errors.GitAPIException If the push operation fails outright.
+     * @throws GitOperationRejectedException If every remote ref update reports success in the
+     *   transport sense but is rejected by the remote (non-fast-forward, protected branch,
+     *   etc) - JGit does not throw for this, it returns a [org.eclipse.jgit.transport.PushResult]
+     *   whose per-ref [RemoteRefUpdate.Status] must be inspected.
      */
     fun push(username: String? = null, token: String? = null, onProgress: ((Int, String) -> Unit)? = null) {
         Git.open(projectDir).use { git ->
@@ -159,7 +187,14 @@ class GitManager(private val projectDir: File) {
             if (onProgress != null) {
                 cmd.setProgressMonitor(SimpleProgressMonitor(onProgress))
             }
-            cmd.call()
+            val results = cmd.call()
+            val rejected = results.flatMap { it.remoteUpdates }
+                .filterNot { it.status == RemoteRefUpdate.Status.OK || it.status == RemoteRefUpdate.Status.UP_TO_DATE }
+            if (rejected.isNotEmpty()) {
+                val detail = rejected.joinToString("; ") { "${it.remoteName}: ${it.status}" +
+                    (it.message?.let { m -> " ($m)" } ?: "") }
+                throw GitOperationRejectedException("Push rejected: $detail")
+            }
         }
     }
 

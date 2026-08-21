@@ -67,17 +67,40 @@ object AiAdapterFactory {
                     appName = appName,
                     projectType = projectType,
                 )
-                // Silent fall-through: if the bridge can't operate (service
-                // not granted, Gemini app missing, timeout) AND a Gemini API
-                // key is set, use that path instead. The bridge handles its own
-                // repo delivery; the API fallback is tool-capable, so give *that*
-                // the standard repo-aware wrapper. Without a key, the primary
-                // error surfaces.
+                // Fall-through: if the bridge can't operate (service not granted,
+                // Gemini app missing - both throw at dispatch time) AND a Gemini
+                // API key is set, use that path instead. The bridge handles its
+                // own repo delivery; the API fallback is tool-capable, so give
+                // *that* the standard repo-aware wrapper. Without a key, the
+                // primary error surfaces.
+                //
+                // Deliberately NOT "timeout": awaitResponse's Cancel decision
+                // (the user explicitly tapping Cancel on the Wait/Cancel prompt
+                // after the bridge goes quiet) returns "Cancelled." normally
+                // rather than throwing, by design - a bare timeout should never
+                // silently reroute the user's request to a different backend
+                // that consumes their API quota without asking. Only a genuine
+                // construction/dispatch failure engages this fallback.
+                //
+                // The bridge's RepoSnapshot redacts .env/secret files before
+                // sharing (see RepoSnapshot.isSecret); the API fallback path
+                // reads project files through IdeTools.readFile with no such
+                // filter. This fallback therefore silently upgrades the model's
+                // file access when it engages - log it so that's diagnosable,
+                // even though nothing here has a user-facing surface to notify
+                // through (this factory has no chat/log callback).
                 val googleKey = settings.getGoogleApiKey().orEmpty()
                 if (googleKey.isNotBlank()) {
                     FallbackAdapter(
                         primary = primary,
                         fallback = RepoAwareClient(GeminiAdapter(googleKey, tools), tools, appName, projectType),
+                        onFallback = { e ->
+                            android.util.Log.w(
+                                "AiAdapterFactory",
+                                "Gemini App Bridge failed; falling back to the Gemini API (unredacted file access).",
+                                e,
+                            )
+                        },
                     )
                 } else {
                     primary

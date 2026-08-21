@@ -84,16 +84,41 @@ object DynamicModelResolver {
             val dataArray = json["data"] as? JsonArray
                 ?: error("No model list returned by $host: ${text.take(200)}")
 
-            val models = dataArray.filterIsInstance<JsonObject>()
-                .mapNotNull { (it["id"] as? JsonPrimitive)?.content }
-                .filter { filterRegex.containsMatchIn(it) }
+            val candidates = dataArray.filterIsInstance<JsonObject>()
+                .filter { (it["id"] as? JsonPrimitive)?.content?.let { id -> filterRegex.containsMatchIn(id) } == true }
 
-            if (models.isEmpty()) {
+            if (candidates.isEmpty()) {
                 error("$host returned no model matching '${filterRegex.pattern}'. The provider may have renamed it.")
             }
 
-            // Descending sort so the highest semantic version or date string comes first.
-            return models.sortedDescending().first()
+            // Rank by actual recency, not the model id string. A raw descending
+            // string sort is not a version comparison - e.g. for Groq's
+            // "llama.*70b" filter it picks "llama3-70b-8192" over the newer
+            // "llama-3.3-70b-versatile" (lexicographically '3' > '-'), and for a
+            // broad "gpt-4o" filter it can pick a non-chat variant like
+            // "gpt-4o-transcribe" over "gpt-4o" itself. Every OpenAI-compatible
+            // /v1/models entry carries a unix `created` timestamp, and Anthropic's
+            // carries an ISO-8601 `created_at` - both are genuine recency signals
+            // the provider itself supplies, not a guess derived from the name.
+            val ranked = candidates.map { obj ->
+                val id = (obj["id"] as? JsonPrimitive)?.content.orEmpty()
+                val createdEpochSeconds = (obj["created"] as? JsonPrimitive)?.content?.toLongOrNull()
+                    ?: (obj["created_at"] as? JsonPrimitive)?.content?.let(::parseIso8601EpochSeconds)
+                id to createdEpochSeconds
+            }
+
+            val newestByTimestamp = ranked.filter { it.second != null }.maxByOrNull { it.second!! }
+            if (newestByTimestamp != null) {
+                return newestByTimestamp.first
+            }
+
+            // No provider-supplied timestamp on any candidate - fall back to the
+            // old heuristic rather than failing outright.
+            return ranked.map { it.first }.sortedDescending().first()
         }
     }
+
+    private fun parseIso8601EpochSeconds(value: String): Long? = runCatching {
+        java.time.Instant.parse(value).epochSecond
+    }.getOrNull()
 }

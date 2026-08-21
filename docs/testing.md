@@ -4,7 +4,7 @@
 
 ## 1. Where TDD pays off (unit tests)
 
-* `OperationState`/`OperationController<T>` — the shared long-running-operation state machine (`models/OperationState.kt`, `utils/OperationController.kt`): `isRetryable`/`isTerminal` predicates, `OperationProgress` fraction bounds, Queued→Running→Succeeded/Failed/Cancelled transitions, progress reporting through the `report` callback, the "one operation at a time" guard, retryable-vs-`NonRetryableOperationException` classification, and cancellation. Existing delegates (Git fetch/pull/push/stash, clone, build, deploy, download, update) are migrated onto this incrementally, not all at once — see the type's own doc comment for why it exists.
+* `OperationState`/`OperationController<T>` — the shared long-running-operation state machine (`models/OperationState.kt`, `utils/OperationController.kt`): `isRetryable`/`isTerminal` predicates, `OperationProgress` fraction bounds, Queued→Running→Succeeded/Failed/Cancelled transitions, progress reporting through the `report` callback, the "one operation at a time" guard, retryable-vs-`NonRetryableOperationException` classification, and cancellation. **Not yet wired into any of the existing delegates** (Git fetch/pull/push/stash, clone, build, deploy, download, update all still manage their own ad hoc state) — the primitive exists and is unit-tested in isolation, but no production call site uses it yet. See `docs/ux_userflow_audit.md` for the audit that first flagged this gap.
 * `ConversationalAiClient` adapters (Phase 1 `GeminiAdapter`) — mock HTTP.
 * Local-model structured-response parsing — fenced tool calls, final responses, and malformed-output fallback.
 * Local-model file integrity — independently calculated valid digest and known-invalid digest rejection.

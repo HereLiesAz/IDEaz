@@ -18,16 +18,41 @@ val minor = versionProps.getProperty("minor", "0").toInt()
 val patch = versionProps.getProperty("patch", "0").toInt()
 
 // versionCode override for CI: pass `-PversionBuild=<n>` (CI passes
-// `git rev-list --count HEAD`, a value that only ever grows). It feeds the `build`
-// term of the SAME packed formula used locally, so the versionCode stays monotonic
-// AND well above existing file-driven builds — no INSTALL_FAILED_VERSION_DOWNGRADE
-// when switching between local and CI artifacts, and no Play rejection. When NOT
-// supplied (local builds), fall back to the historic file-driven build number so
-// `./gradlew assembleDebug` / `bundleRelease` keep working out of the box.
+// `git rev-list --count HEAD`, a value that only ever grows).
 // (findProperty returns Any?; `?.toString()` avoids a ClassCastException if a plugin
 // ever sets the property as a non-String type.)
 val versionBuildOverride = project.findProperty("versionBuild")?.toString()?.toIntOrNull()
-val buildNumber = versionBuildOverride ?: (versionProps.getProperty("build", "0").toInt() + 1)
+
+// When NOT supplied (an ordinary local `./gradlew assembleDebug`/`bundleRelease`),
+// this used to fall back to a file-driven counter (version.properties' `build` + 1)
+// that is entirely independent of CI's `git rev-list --count HEAD` - the two
+// numbers have no relationship to each other and can drift in either direction
+// (e.g. CI build 326 vs a local counter that only reached 92), so the old
+// "stays well above existing file-driven builds" comment was simply false: it
+// depended on which counter happened to be bigger that day, not on anything the
+// arithmetic guaranteed. Computing the SAME git-commit-count locally too gives
+// both lineages one real source of truth, so a local build's versionCode is
+// never lower than the latest CI build's - actually preventing
+// INSTALL_FAILED_VERSION_DOWNGRADE instead of just claiming to. Falls back to
+// the old file counter only if this checkout has no usable git history (e.g.
+// a source zip with no .git directory).
+// providers.exec (not a raw ProcessBuilder) is deliberate: the configuration
+// cache tracks external processes started this way as a proper build input,
+// so it can safely cache and re-run configuration - a bare ProcessBuilder call
+// here made configuration-cache storage fail outright ("Starting an external
+// process 'git rev-list --count HEAD' during configuration time is
+// unsupported"), breaking every build (CI's dependency-submission and check
+// jobs included) the moment configuration caching was enabled.
+val gitCommitCount = runCatching {
+    providers.exec {
+        workingDir = rootProject.projectDir
+        commandLine("git", "rev-list", "--count", "HEAD")
+        isIgnoreExitValue = true
+    }.standardOutput.asText.get().trim().toIntOrNull()
+}.getOrNull()
+val buildNumber = versionBuildOverride
+    ?: gitCommitCount
+    ?: (versionProps.getProperty("build", "0").toInt() + 1)
 
 extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
     namespace = "com.hereliesaz.ideaz"
@@ -44,10 +69,15 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
         minSdk = 30
 
         targetSdk = 37
-        // One packed formula for both local and CI builds. `buildNumber` is the CI
-        // commit count when -PversionBuild is passed, else the file build number;
-        // either way the code is monotonic and stays >= existing released codes, so it
-        // never downgrades an installed build or gets rejected by Play.
+        // One packed formula for both local and CI builds. `buildNumber` is the git
+        // commit count (either passed in via -PversionBuild by CI, or computed the
+        // same way locally above) for both lineages, so the two never diverge - the
+        // code is monotonic and never downgrades an installed build or gets rejected
+        // by Play. `buildNumber` isn't clamped to patch's 100-wide digit slot, so a
+        // large commit count spills into higher digits (e.g. patch=66, build=326 ->
+        // ...6926, not ...66326) - harmless for the arithmetic (plain addition, not
+        // string concatenation, so the total stays correctly monotonic), just not
+        // cleanly human-readable past two build digits.
         versionCode = major * 1000000 + minor * 10000 + patch * 100 + buildNumber
         versionName = "$major.$minor.$patch.$buildNumber"
 

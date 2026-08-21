@@ -83,7 +83,7 @@ object GithubIssueReporter {
         // Truncate for safety (API limit ~65k chars, URL limit 2k-8k). Keep the
         // head — the exception and app frames live at the top of a stack trace.
         val bodyContent = """
-            **Context:** $contextMessage
+            **Context:** ${sanitizeContent(contextMessage)}
             **Device:** ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})
             **App Version:** 1.0 (Development)
 

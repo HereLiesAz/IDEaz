@@ -13,13 +13,13 @@ IDEaz does **not** build user projects on-device. The on-device toolchain (`aapt
 
 ## 2. Workflow Injection
 
-On "Save & Initialize" in the Setup tab, IDEaz force-pushes a standardized set of workflow files to the project repo:
+On "Save & Initialize" in the Setup tab (web-like project types only — see `docs/workflow.md` §2.2), IDEaz force-pushes a standardized set of workflow files to the project repo. The set injected depends on project type (`ProjectConfigManager.ensureWorkflow`):
 
-* `.github/workflows/build.yml` — configurable build on pushes and pull requests.
-* `.github/workflows/release.yml` — tagged release build using configurable commands and artifact globs.
+* **Android:** `.github/workflows/build.yml` (build on pushes/PRs), `release.yml` (tagged release build), `antigravity-issue-handler.yml`, `antigravity-branch-manager.yml`.
+* **Web:** `.github/workflows/web_ci_pages.yml` (deploy to GitHub Pages), `antigravity-issue-handler.yml`, `antigravity-branch-manager.yml`.
 
 `ProjectConfigManager` owns the YAML content (hardcoded, not asset-loaded, so a missing assets directory cannot break initialization).
-All generated repositories receive a root `version.properties` containing `major`, `minor`, `patch`, and `build`. Workflows read those four values directly. CI may override only `build`; it never reconstructs semantic versions from branch names or Git history. Repository variables such as `BUILD_COMMAND`, `ARTIFACT_PATH`, `RELEASE_COMMAND`, and `RELEASE_ARTIFACT_PATH` cover nonstandard layouts without baking one module name into the workflow.
+All generated repositories receive a root `version.properties` containing `major`, `minor`, `patch`, and `build`. The injected `build.yml`/`release.yml` read `major`/`minor`/`patch` from that file and derive the build number from `git rev-list --count HEAD` at run time (matching this repo's own `build-and-release.yml`), rather than from the static `build` field, which nothing in the generated project's pipeline increments. Repository variables such as `BUILD_COMMAND`, `ARTIFACT_PATH`, `RELEASE_COMMAND`, and `RELEASE_ARTIFACT_PATH` cover nonstandard layouts without baking one module name into the workflow.
 
 
 ## 3. Build Execution (Phase 2)
@@ -213,8 +213,13 @@ IDEaz ships **no ads** and declares **no `AD_ID`** permission, so there is no ad
 disclosure to make. It does, however, send data to third parties the **Play Data
 safety** form must cover: source/prompts to **Google Gemini / generative-AI APIs** and
 **Jules**, and repository data to **GitHub**. It also requests sensitive permissions
-(`MANAGE_EXTERNAL_STORAGE`, `SYSTEM_ALERT_WINDOW`, accessibility services,
-`QUERY_ALL_PACKAGES`, `PACKAGE_USAGE_STATS`) that Play will require justification for at
-review. Keep a current **privacy policy** URL in the listing and ensure the Data safety
-declarations match what the app actually transmits before promoting beyond the internal
-track.
+that Play will require justification for at review: `SYSTEM_ALERT_WINDOW` (the Select-mode
+overlay), `REQUEST_INSTALL_PACKAGES` (sideloading remote-built APKs), and the two
+accessibility services (`GeminiAppBridgeAccessibilityService` and its screenshot
+counterpart — see `docs/manifest.md` §VII.B), each bound to the system-only
+`BIND_ACCESSIBILITY_SERVICE` permission rather than requesting a dangerous permission of
+its own. `MANAGE_EXTERNAL_STORAGE`, `QUERY_ALL_PACKAGES`, and `PACKAGE_USAGE_STATS` were
+removed during the P0.2 permissions pass (see `docs/ux_userflow_audit.md`) and are not in
+the current manifest. Keep a current **privacy policy** URL in the listing and ensure the
+Data safety declarations match what the app actually transmits before promoting beyond the
+internal track.

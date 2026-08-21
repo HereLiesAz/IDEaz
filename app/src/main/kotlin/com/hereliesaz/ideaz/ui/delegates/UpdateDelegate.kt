@@ -167,6 +167,20 @@ class UpdateDelegate(
         pendingUpdateAssetUrl = null
     }
 
+    /**
+     * Hides the "Updating..." progress dialog without cancelling the
+     * check/download/install it's tracking - none of those have a
+     * cancellation handle exposed here. Previously this dialog had no
+     * dismiss path at all: a slow/offline "Check for Experimental Updates"
+     * request locked the whole Settings screen behind it until the network
+     * call timed out on its own. The operation still finishes (or fails) in
+     * the background and clears [_updateStatus] itself when it does; this
+     * just stops blocking the screen while it does.
+     */
+    fun dismissUpdateStatus() {
+        _updateStatus.value = null
+    }
+
     private fun copyToClipboard(text: String?) {
         if (text.isNullOrBlank()) return
         try {

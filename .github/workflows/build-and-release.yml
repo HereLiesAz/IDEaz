@@ -37,7 +37,6 @@ jobs:
     permissions:
       contents: write
       issues: write
-      pull-requests: write
       checks: read
 
     steps:
@@ -98,8 +97,7 @@ jobs:
              echo "$KEYSTORE_PRIVATE" > private.key
              echo "$KEYSTORE_CHAIN" > chain.crt
 
-             # Create PKCS12 Keystore
-             # We use legacy algorithms to ensure compatibility with Java's KeyStore
+             # Create PKCS12 Keystore.
              openssl pkcs12 -export -in chain.crt -inkey private.key -out release.keystore \
                -name "$KEY_ALIAS" -passout env:KEYSTORE_PASSWORD
 
@@ -119,8 +117,18 @@ jobs:
                printf '%s\n' "$KEYSTORE_PASSWORD"
                printf '%s\n' "${DELIM}"
              } >> "$GITHUB_ENV"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+             # The human-triggered "Latest Release" path exists specifically to
+             # publish a genuinely release-signed build. Silently falling back to
+             # debug signing here (as this used to) meant a missing/expired
+             # KEYSTORE_PRIVATE/KEYSTORE_CHAIN secret would publish a debug-signed
+             # APK under the non-prerelease "Latest Release" with no indication
+             # anything was wrong - matches the hard-fail publish-play.yml already
+             # does for the same condition.
+             echo "Error: KEYSTORE_PRIVATE / KEYSTORE_CHAIN are required to sign the 'Latest Release' build (workflow_dispatch)." >&2
+             exit 1
           else
-             echo "Warning: KEYSTORE_PRIVATE or KEYSTORE_CHAIN not set. Skipping release signing setup."
+             echo "Warning: KEYSTORE_PRIVATE or KEYSTORE_CHAIN not set. Skipping release signing setup (debug signing will be used)."
           fi
 
       - name: Build with Gradle
@@ -131,6 +139,12 @@ jobs:
            KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
            KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
            # KEYSTORE_FILE is set in previous step if successful
+           # Passed as env vars rather than interpolated straight into the script
+           # below ($VAR is never re-parsed by the shell, unlike raw ${{ }} text
+           # substitution) - a repo variable containing shell metacharacters
+           # would otherwise inject commands into this step.
+           BUILD_NUMBER_OVERRIDE_VAR: ${{ vars.BUILD_NUMBER_OVERRIDE }}
+           BUILD_COMMAND_VAR: ${{ vars.BUILD_COMMAND }}
         run: |
           set +e
           test -f version.properties || { echo "version.properties is required" >&2; exit 1; }
@@ -142,10 +156,9 @@ jobs:
           # every CI build baked in the exact same versionCode/versionName
           # regardless of how many commits/builds actually happened.
           COMMIT_COUNT=$(git rev-list --count HEAD)
-          export BUILD_NUMBER=${{ vars.BUILD_NUMBER_OVERRIDE || '' }}
-          export BUILD_NUMBER=${BUILD_NUMBER:-$COMMIT_COUNT}
-          
-          BUILD_COMMAND=${BUILD_COMMAND:-${{ vars.BUILD_COMMAND }}}
+          export BUILD_NUMBER="${BUILD_NUMBER_OVERRIDE_VAR:-$COMMIT_COUNT}"
+
+          BUILD_COMMAND="${BUILD_COMMAND_VAR}"
           if [ -z "$BUILD_COMMAND" ]; then
             if [ -x ./gradlew ]; then BUILD_COMMAND="./gradlew build -PversionBuild=$BUILD_NUMBER --build-cache"
             elif [ -f package.json ]; then BUILD_COMMAND="npm ci && npm test && npm run build"
@@ -231,12 +244,18 @@ jobs:
             // rather than a label, since attaching a label that doesn't
             // already exist in the repo would make issue creation itself
             // fail.
-            const { data: existing } = await github.rest.issues.listForRepo({
+            // listForRepo returns pull requests alongside issues, and without
+            // per_page/pagination only checked the first (default) page - both
+            // silently correct only by accident of this repo's current low
+            // issue+PR count. Filter out PRs and paginate explicitly so dedup
+            // keeps working once that count grows.
+            const existing = await github.paginate(github.rest.issues.listForRepo, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'open',
+              per_page: 100,
             });
-            const match = existing.find((issue) => issue.title === title);
+            const match = existing.find((issue) => !issue.pull_request && issue.title === title);
             const body = `The configured build failed.\n\n**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n**Log tail:**\n\`\`\`text\n${logTail}\n\`\`\``;
 
             if (match) {
@@ -263,6 +282,11 @@ jobs:
         if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == github.event.repository.default_branch
         id: release_vars
         shell: bash
+        env:
+          # See the "Build with Gradle" step above for why these ride in via
+          # env: rather than direct ${{ }} interpolation into the script.
+          BUILD_NUMBER_OVERRIDE_VAR: ${{ vars.BUILD_NUMBER_OVERRIDE }}
+          RELEASE_ARTIFACT_PATH_VAR: ${{ vars.RELEASE_ARTIFACT_PATH }}
         run: |
           set -euo pipefail
           test -f version.properties || { echo "version.properties is required" >&2; exit 1; }
@@ -273,8 +297,7 @@ jobs:
           # Same derivation as the "Build with Gradle" step above, so the
           # artifact filename/release notes match what's actually baked into
           # the compiled APK's versionCode/versionName.
-          BUILD_NUMBER=${{ vars.BUILD_NUMBER_OVERRIDE || '' }}
-          BUILD_NUMBER=${BUILD_NUMBER:-$(git rev-list --count HEAD)}
+          BUILD_NUMBER="${BUILD_NUMBER_OVERRIDE_VAR:-$(git rev-list --count HEAD)}"
           for value in "$MAJOR" "$MINOR" "$PATCH" "$BUILD_NUMBER"; do
             [[ "$value" =~ ^[0-9]+$ ]] || { echo "Invalid version.properties" >&2; exit 1; }
           done
@@ -286,11 +309,27 @@ jobs:
           DEBUG_TAG_NAME="debug-v$MAJOR.$MINOR"
           RELEASE_TAG_NAME="v$MAJOR.$MINOR"
           REPOSITORY_NAME="${GITHUB_REPOSITORY##*/}"
-          ARTIFACT_GLOB=${{ vars.RELEASE_ARTIFACT_PATH || '' }}
+          ARTIFACT_GLOB="${RELEASE_ARTIFACT_PATH_VAR}"
           if [ -n "$ARTIFACT_GLOB" ]; then
             ARTIFACT=$(find . -path "$ARTIFACT_GLOB" -type f | sort | head -n 1)
           else
-            ARTIFACT=$(find . -type f \( -path '*/build/outputs/*' -o -path '*/build/libs/*' -o -path '*/dist/*' -o -path '*/target/*' \) \( -name '*.apk' -o -name '*.aab' -o -name '*.jar' -o -name '*.zip' \) | sort | head -n 1)
+            # A plain glob+sort over both build variants picks whichever path
+            # sorts first alphabetically - 'debug' < 'release' - regardless of
+            # which one this trigger is about to publish. That silently shipped
+            # a debug-signed, unminified APK as the human-triggered, non-
+            # prerelease "Latest Release". Prefer the variant this trigger
+            # actually publishes (debug on push, release on workflow_dispatch);
+            # only fall back to the broad search for non-Android build types
+            # (npm/python/etc) that have no debug/release split.
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              PREFERRED_PATH='*/release/*'
+            else
+              PREFERRED_PATH='*/debug/*'
+            fi
+            ARTIFACT=$(find . -path "$PREFERRED_PATH" -type f \( -name '*.apk' -o -name '*.aab' \) | sort | head -n 1)
+            if [ -z "$ARTIFACT" ]; then
+              ARTIFACT=$(find . -type f \( -path '*/build/outputs/*' -o -path '*/build/libs/*' -o -path '*/dist/*' -o -path '*/target/*' \) \( -name '*.apk' -o -name '*.aab' -o -name '*.jar' -o -name '*.zip' \) | sort | head -n 1)
+            fi
           fi
           test -n "$ARTIFACT" || { echo "No releasable artifact found" >&2; exit 1; }
           EXTENSION="${ARTIFACT##*.}"

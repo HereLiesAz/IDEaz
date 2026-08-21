@@ -185,30 +185,70 @@ class GitDelegate(
 
     /**
      * Stashes current changes to a temporary storage stack.
+     *
+     * @return true if a stash was actually created, false if there was no project
+     *   loaded or the underlying stash call failed.
      */
-    suspend fun stash(message: String?) = withContext(Dispatchers.IO) {
-        getGitManager()?.stash(message)
-        refreshGitData()
-        onLog("[GIT] Stashed changes.\n")
+    suspend fun stash(message: String?): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val git = getGitManager() ?: run {
+                onLog("[GIT] Stash Error: no project loaded.\n")
+                return@withContext false
+            }
+            git.stash(message)
+            refreshGitData()
+            onLog("[GIT] Stashed changes.\n")
+            true
+        } catch (e: Exception) {
+            onLog("[GIT] Stash Error: ${e.message}\n")
+            false
+        }
     }
 
     /**
      * Applies the latest stash from the stack.
+     *
+     * @return true if a stash was actually applied, false if there was no project
+     *   loaded, no stash to apply, or a conflict/error occurred.
      */
-    suspend fun unstash() = withContext(Dispatchers.IO) {
-        getGitManager()?.unstash()
-        refreshGitData()
-        onLog("[GIT] Unstashed changes.\n")
+    suspend fun unstash(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val git = getGitManager() ?: run {
+                onLog("[GIT] Unstash Error: no project loaded.\n")
+                return@withContext false
+            }
+            git.unstash()
+            refreshGitData()
+            onLog("[GIT] Unstashed changes.\n")
+            true
+        } catch (e: Exception) {
+            onLog("[GIT] Unstash Error: ${e.message}\n")
+            false
+        }
     }
 
     /**
      * Switches to the specified branch.
+     *
+     * @return true if the checkout actually ran, false if there was no project
+     *   loaded or the checkout failed (in which case the branch-name preference
+     *   is left untouched rather than optimistically updated).
      */
-    suspend fun switchBranch(branch: String) = withContext(Dispatchers.IO) {
-        getGitManager()?.checkout(branch)
-        settingsViewModel.saveBranchName(branch)
-        refreshGitData()
-        onLog("[GIT] Switched to $branch.\n")
+    suspend fun switchBranch(branch: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val git = getGitManager() ?: run {
+                onLog("[GIT] Switch Branch Error: no project loaded.\n")
+                return@withContext false
+            }
+            git.checkout(branch)
+            settingsViewModel.saveBranchName(branch)
+            refreshGitData()
+            onLog("[GIT] Switched to $branch.\n")
+            true
+        } catch (e: Exception) {
+            onLog("[GIT] Switch Branch Error: ${e.message}\n")
+            false
+        }
     }
 
     /**

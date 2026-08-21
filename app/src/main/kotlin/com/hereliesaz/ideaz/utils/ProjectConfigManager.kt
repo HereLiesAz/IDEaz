@@ -82,6 +82,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v7
+      with:
+        # Needed for `git rev-list --count HEAD` below to see full history -
+        # the default shallow (depth-1) checkout would always report 1.
+        fetch-depth: 0
     - name: set up JDK 21
       uses: actions/setup-java@v5
       with:
@@ -94,12 +98,18 @@ jobs:
       run: |
         test -f version.properties
         cat version.properties >> "${'$'}GITHUB_ENV"
+        # `build` above is a static field nothing in this pipeline ever
+        # increments or commits back, so every CI run would otherwise bake in
+        # the exact same versionCode/artifact name forever. git rev-list
+        # --count only ever grows, matching how IDEaz's own release pipeline
+        # derives it.
+        echo "BUILD_NUMBER=${'$'}(git rev-list --count HEAD)" >> "${'$'}GITHUB_ENV"
     - name: Build
-      run: ${'$'}{{ vars.BUILD_COMMAND || './gradlew assembleDebug' }}
+      run: ${'$'}{{ vars.BUILD_COMMAND || './gradlew assembleDebug' }} -PversionBuild=${'$'}{{ env.BUILD_NUMBER }}
     - name: Upload artifact
       uses: actions/upload-artifact@v7
       with:
-        name: ${'$'}{{ github.event.repository.name }}-${'$'}{{ env.major }}.${'$'}{{ env.minor }}.${'$'}{{ env.patch }}.${'$'}{{ env.build }}
+        name: ${'$'}{{ github.event.repository.name }}-${'$'}{{ env.major }}.${'$'}{{ env.minor }}.${'$'}{{ env.patch }}.${'$'}{{ env.BUILD_NUMBER }}
         path: ${'$'}{{ vars.ARTIFACT_PATH || '**/build/outputs/**/*.apk' }}
 """.trimIndent()
 
@@ -116,6 +126,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v7
+      with:
+        # Needed for `git rev-list --count HEAD` below to see full history -
+        # the default shallow (depth-1) checkout would always report 1.
+        fetch-depth: 0
     - name: set up JDK 21
       uses: actions/setup-java@v5
       with:
@@ -127,8 +141,9 @@ jobs:
       run: |
         test -f version.properties
         cat version.properties >> "${'$'}GITHUB_ENV"
+        echo "BUILD_NUMBER=${'$'}(git rev-list --count HEAD)" >> "${'$'}GITHUB_ENV"
     - name: Build release
-      run: ${'$'}{{ vars.RELEASE_COMMAND || './gradlew assembleRelease' }}
+      run: ${'$'}{{ vars.RELEASE_COMMAND || './gradlew assembleRelease' }} -PversionBuild=${'$'}{{ env.BUILD_NUMBER }}
     - name: Create release
       uses: softprops/action-gh-release@v2
       with:

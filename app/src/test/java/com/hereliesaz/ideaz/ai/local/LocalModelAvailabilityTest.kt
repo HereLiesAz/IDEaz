@@ -212,6 +212,12 @@ class LocalModelAvailabilityTest {
         assertFalse(isRetryableModelDownloadFailure("Download failed for model: HTTP 404"))
         assertFalse(isRetryableModelDownloadFailure("SHA-256 mismatch for model.task"))
         assertFalse(isRetryableModelDownloadFailure("Not enough storage for model download"))
+        // A genuine mid-download disk-full condition throws a raw OS IOException
+        // ("No space left on device" is ENOSPC's Linux strerror text), not this
+        // app's own "Not enough storage..." preflight message - retrying would
+        // just refill the disk again rather than recover.
+        assertFalse(isRetryableModelDownloadFailure("java.io.IOException: No space left on device"))
+        assertFalse(isRetryableModelDownloadFailure("write failed: ENOSPC (No space left on device)"))
     }
 
     @Test

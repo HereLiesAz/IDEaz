@@ -43,7 +43,7 @@ The interaction model revolves around the **Live App** and the **IDE Overlay**.
 
 ### 2. The Pull-Up Bottom Card (Console)
 A versatile bottom sheet that provides visibility into the background processes.
-*   **Tabs:** Build, Git, AI, All.
+*   **Tabs (in order, `IdeBottomSheet.kt`'s `tabs` list):** All, Build, Git, AI, System, Chat. See `docs/screens.md` §3 for what each tab shows.
 *   **Content:** Log output from respective sources.
 *   **Empty State:** Displays context-aware messages (e.g., "No build logs yet") when no logs are available for the selected tab.
 *   **Theming:** High contrast (Dark Grey/White in Dark Mode, Light Grey/Black in Light Mode).
@@ -73,11 +73,11 @@ A versatile bottom sheet that provides visibility into the background processes.
 ## Common UI Patterns
 *   **`AzButton`:** Standard button.
 *   **`AzTextBox`:** Standard input field.
-*   **`LiveOutputBottomCard`:** Floating status card above the bottom sheet.
+*   **`LiveOutputBottomCard`:** A defined composable with no caller anywhere in the app — not actually wired into the live screen despite being listed here in earlier versions of this file. See `docs/screens.md` §1.
 
 ## Accessibility
 *   **Content Descriptions:** All icons and images must have content descriptions.
-*   **Touch Targets:** Minimum 48dp touch targets. Group related elements (e.g. Label + Switch) into a single toggleable row.
+*   **Touch Targets:** The target is a minimum 48dp, and every `IconButton` gets it for free from Material 3's default sizing. It is not enforced everywhere, though: several plain `Text` rows use `clickable`/`combinedClickable` with no minimum-size modifier, so their actual tap area is just the text bounds plus whatever padding was added — well under 48dp. Known offenders: `GitScreen.kt`'s `BranchNodeView` branch-name row (no padding at all around the clickable text), `FileExplorerScreen.kt`'s file/folder list rows (`vertical = 8.dp` padding on a `bodyMedium`/default-style row, roughly 36dp tall), and `IdeBottomSheet.kt`'s `LogRow` (`vertical = 2.dp` padding on `bodySmall` text, closer to 20dp tall). Group related elements (e.g. Label + Switch) into a single toggleable row.
 *   **Semantics:** Use `heading()` semantics for section titles.
 
 ## Layout Rule: AzNavRail Owns Top-Level Layout

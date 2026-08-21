@@ -16,6 +16,14 @@
         <!-- Exclude build artifacts -->
         <exclude domain="file" path="web_dist"/>
 
+        <!-- The user's imported release-signing keystore (written to
+             filesDir/user_release.keystore by SettingsViewModel.importKeystore).
+             Whoever holds this file can sign updates that Play/Android trust as
+             coming from this app - it must never ride along in a backup. This is
+             the file that data-extraction-rules.xml (API 31+, i.e. this app's
+             actual minSdk) governs; backup_rules.xml only applies below API 31. -->
+        <exclude domain="file" path="user_release.keystore"/>
+
         <!-- Default-shared-prefs file holds GitHub PATs, Google API keys,
              Jules API keys, and keystore passwords. Excluded from cloud backup
              so they don't ride along with Auto Backup. -->
@@ -29,6 +37,7 @@
         <include domain="sharedpref" path="."/>
         <exclude domain="file" path="cache"/>
         <exclude domain="file" path="web_dist"/>
+        <exclude domain="file" path="user_release.keystore"/>
         <exclude domain="sharedpref" path="com.hereliesaz.ideaz_preferences.xml"/>
         <exclude domain="sharedpref" path="ideaz_secure_credentials.xml"/>
     </device-transfer>

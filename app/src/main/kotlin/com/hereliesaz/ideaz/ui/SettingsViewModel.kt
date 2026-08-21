@@ -99,7 +99,19 @@ object AiModels {
     // actually saved - the trailing no-key entries are kept here only so the
     // list stays a complete provider ranking, but they're always skipped by
     // that lookup (see its own `requiredKey.isNotEmpty()` guard).
-    val defaultRanking = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL, JULES, CLI, BRIDGE, LOCAL, NANO)
+    //
+    // JULES is deliberately excluded: every consumer of `defaultModelId()`
+    // (ordinary chat, PromptPopup, ContextlessChatInput, checkRequiredKeys)
+    // routes the resolved id through AiAdapterFactory, which returns null for
+    // Jules - it has its own stateful session lifecycle
+    // (AIDelegate.runJulesTask), not the ConversationalAiClient contract every
+    // other entry here implements. A user whose only saved key is Jules used
+    // to get it auto-picked as "Default" and then have every chat message
+    // fail with "Jules is not supported in the chat tab." Jules can still be
+    // assigned explicitly to a task slot that actually handles it specially
+    // (see the julesAssigned checks in MainViewModel) - just never as the
+    // silently-inferred default.
+    val defaultRanking = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL, CLI, BRIDGE, LOCAL, NANO)
 
     fun findById(id: String?): AiModel? = availableModels.find { it.id == id }
 }
@@ -183,12 +195,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_PR_REQUIRED = "pr_required"
 
         const val KEY_AI_ASSIGNMENT_DEFAULT = "ai_assignment_default"
-        const val KEY_AI_ASSIGNMENT_INIT = "ai_assignment_init"
+        // Only ever consulted as an isJulesAssigned() yes/no check for the AI
+        // rail's Prompt popup (see MainViewModel.sendPrompt) - never used to
+        // pick a model the way "Default"/"Overlay Chat" are. Renamed from
+        // "Contextless Chat" (which implied a full model choice, with the
+        // picked model actually ignored for anything but Jules) to describe
+        // what it really does.
         const val KEY_AI_ASSIGNMENT_CONTEXTLESS = "ai_assignment_contextless"
         const val KEY_AI_ASSIGNMENT_OVERLAY = "ai_assignment_overlay"
 
         const val KEY_SHOW_CANCEL_WARNING = "show_cancel_warning"
-        const val KEY_AUTO_REPORT_BUGS = "auto_report_bugs"
         const val KEY_AUTO_DEBUG_BUILDS = "auto_debug_builds"
         const val KEY_REPORT_IDE_ERRORS = "report_ide_errors"
 
@@ -209,10 +225,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_KEY_PASS = "key_pass"
         const val KEY_LAST_PROMPT = "last_prompt"
 
+        // "Project Initialization" was removed from this list: it had no
+        // effect anywhere in the app (its stored value was read only as an
+        // "is Jules assigned to *something*" membership check, never to
+        // route project-init work through a specific model - there is no
+        // project-init AI flow this app routes by model choice at all).
         val aiTasks = mapOf(
             KEY_AI_ASSIGNMENT_DEFAULT to "Default",
-            KEY_AI_ASSIGNMENT_INIT to "Project Initialization",
-            KEY_AI_ASSIGNMENT_CONTEXTLESS to "Contextless Chat",
+            KEY_AI_ASSIGNMENT_CONTEXTLESS to "Prompt Popup (Jules routing)",
             KEY_AI_ASSIGNMENT_OVERLAY to "Overlay Chat"
         )
     }
@@ -272,23 +292,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         sharedPreferences.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
     }
 
-    // --- KEYS CHECK ---
-    fun checkRequiredKeys(): List<String> {
-        val missing = mutableListOf<String>()
-        if (getApiKey().isNullOrBlank()) missing.add("Jules API Key")
-        if (getGithubToken().isNullOrBlank()) missing.add("GitHub Token")
-        return missing
-    }
-
     // --- GETTERS/SETTERS ---
 
     fun getShowCancelWarning() = sharedPreferences.getBoolean(KEY_SHOW_CANCEL_WARNING, true)
     fun setShowCancelWarning(show: Boolean) = sharedPreferences.edit { putBoolean(KEY_SHOW_CANCEL_WARNING, show) }
 
-    fun getAutoReportBugs() = sharedPreferences.getBoolean(KEY_AUTO_REPORT_BUGS, true)
-    fun setAutoReportBugs(enabled: Boolean) = sharedPreferences.edit { putBoolean(KEY_AUTO_REPORT_BUGS, enabled) }
-
-    fun isAutoDebugBuildsEnabled() = sharedPreferences.getBoolean(KEY_AUTO_DEBUG_BUILDS, true)
+    // Defaults to off: this sends the full build log (file paths, code
+    // excerpts) to whichever provider is the "Default" AI assignment - not
+    // necessarily Jules, despite what this setting used to be labelled - with
+    // no per-event confirmation. That should be something the user turns on
+    // deliberately, not a silent default every project inherits.
+    fun isAutoDebugBuildsEnabled() = sharedPreferences.getBoolean(KEY_AUTO_DEBUG_BUILDS, false)
     fun setAutoDebugBuildsEnabled(enabled: Boolean) = sharedPreferences.edit { putBoolean(KEY_AUTO_DEBUG_BUILDS, enabled) }
 
     fun isReportIdeErrorsEnabled() = sharedPreferences.getBoolean(KEY_REPORT_IDE_ERRORS, true)
@@ -458,6 +472,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         sharedPreferences.edit { remove(KEY_KEYSTORE_PATH).remove(KEY_KEY_ALIAS) }
         runCatching { credentialStore.remove(KEY_KEYSTORE_PASS) }
         runCatching { credentialStore.remove(KEY_KEY_PASS) }
+        // The keystore itself (imported into filesDir by importKeystore) is the
+        // release signing key - clearing the prefs that point at it must not
+        // leave the actual key file behind on disk indefinitely.
+        runCatching { File(getApplication<Application>().filesDir, "user_release.keystore").delete() }
     }
 
     // --- EXPORT/IMPORT ---

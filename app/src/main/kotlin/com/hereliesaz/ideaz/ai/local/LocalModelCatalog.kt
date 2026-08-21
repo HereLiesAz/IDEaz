@@ -167,20 +167,52 @@ object LocalModelCatalog {
                 name = "Phi-3.5 Mini Instruct (ONNX GenAI · CPU int4)",
                 runtimeId = "onnx",
                 url = base + onnxFile,
-                approxSizeBytes = 52_176_615,
+                // The total across all 6 downloadable files (52,176,615 +
+                // 2,728,144,896 + 1,580 + 1,844,436 + 3,364 + 569), not just the
+                // primary .onnx file. Previously this was 52_176_615 - only the
+                // primary file - which fed preflightStorage's fallback estimate
+                // whenever any file below was missing expectedSizeBytes (see
+                // that function: it only trusts the manifest-sum total once
+                // EVERY file has one). A device with ~500 MB free would pass
+                // that preflight check, then fill the disk mid-download of the
+                // real ~2.78 GB total.
+                approxSizeBytes = 2_782_171_460,
                 fileName = onnxFile,
                 expectedSizeBytes = 52_176_615,
                 sha256 = "c4f05e6ef52f2588df181e566afbf5e8eeba097fece2fc8246770473a10225fd",
+                // expectedSizeBytes/sha256 for the four small files below are
+                // verified directly: size from the Hugging Face Hub tree API,
+                // sha256 computed locally after downloading each file (the Hub
+                // API only exposes a real sha256 for LFS-tracked files - these
+                // four are small enough to be stored as plain git blobs, so
+                // their Hub API "oid" is a git blob SHA-1, not the file's own
+                // SHA-256 this catalog's integrity check needs).
                 additionalFiles = listOf(
                     LocalModelFile(
                         base + "$onnxFile.data", "$onnxFile.data",
                         expectedSizeBytes = 2_728_144_896,
                         sha256 = "3351fe9cc669eba43e07fb3cec436078629d5145531a28bc36fe6d5ad7683eb8",
                     ),
-                    LocalModelFile(base + "genai_config.json", "genai_config.json"),
-                    LocalModelFile(base + "tokenizer.json", "tokenizer.json"),
-                    LocalModelFile(base + "tokenizer_config.json", "tokenizer_config.json"),
-                    LocalModelFile(base + "special_tokens_map.json", "special_tokens_map.json"),
+                    LocalModelFile(
+                        base + "genai_config.json", "genai_config.json",
+                        expectedSizeBytes = 1_580,
+                        sha256 = "d1036a44e904c816c864931b961483eccf18e985dbd6797eecb33e01b626f580",
+                    ),
+                    LocalModelFile(
+                        base + "tokenizer.json", "tokenizer.json",
+                        expectedSizeBytes = 1_844_436,
+                        sha256 = "d0f067e1e15cd0a36ebef3668024882cb67a80b86fb4b7b4b128481f0d474db7",
+                    ),
+                    LocalModelFile(
+                        base + "tokenizer_config.json", "tokenizer_config.json",
+                        expectedSizeBytes = 3_364,
+                        sha256 = "a12badd3fb56adb29bc7cfe03cf6fa7e3e19dd3d7602b85ce6ed63d424f5f222",
+                    ),
+                    LocalModelFile(
+                        base + "special_tokens_map.json", "special_tokens_map.json",
+                        expectedSizeBytes = 569,
+                        sha256 = "474d699677e264edd3851559548cbbb61801ad8da6b249c81455007602313c34",
+                    ),
                 ),
                 minRamBytes = 4_000_000_000,
                 requiredAbi = "arm64-v8a",

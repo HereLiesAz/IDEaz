@@ -51,6 +51,10 @@ internal fun encryptCredential(value: String, key: SecretKey, associatedData: St
     val cipher = Cipher.getInstance("AES/GCM/NoPadding")
     cipher.init(Cipher.ENCRYPT_MODE, key)
     val iv = cipher.iv
+    // decryptCredential requires a 12-byte IV (the GCM standard, and what every
+    // provider observed in practice returns). Fail loudly here, at write time,
+    // rather than writing an envelope that would throw on every future read.
+    require(iv.size == 12) { "Provider returned a ${iv.size}-byte IV, expected 12" }
     cipher.updateAAD(associatedData.toByteArray(Charsets.UTF_8))
     val ciphertext = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
     return "v1:${Base64.getEncoder().encodeToString(iv)}:${Base64.getEncoder().encodeToString(ciphertext)}"
@@ -97,11 +101,18 @@ class AndroidKeystoreCredentialStore(context: Context) : CredentialStore {
         check(preferences.edit().remove(storageKey(key)).commit()) { "Credential deletion failed" }
     }
 
-    @Synchronized
-    private fun secretKey(): SecretKey {
+    // A per-instance @Synchronized lock is worthless here: readSecureOrLegacyCredential
+    // constructs a fresh AndroidKeystoreCredentialStore on every call, so it never shares
+    // a monitor with SettingsViewModel's long-lived instance. Locking on the companion
+    // object at least serializes every caller within this process. It cannot serialize
+    // against CrashReportingService, which runs in a separate ":crash_reporter" process -
+    // no JVM monitor spans processes - but AndroidKeyStore's own keystore daemon
+    // serializes concurrent generateKey() calls for the same alias, so the worst case
+    // there is redundant (not corrupting) key generation, not two divergent keys.
+    private fun secretKey(): SecretKey = synchronized(keyGenerationLock) {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
-        (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
-        return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE).run {
+        (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return@synchronized it }
+        KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE).run {
             init(
                 KeyGenParameterSpec.Builder(
                     KEY_ALIAS,
@@ -123,5 +134,6 @@ class AndroidKeystoreCredentialStore(context: Context) : CredentialStore {
         const val PREFERENCES_FILE = "ideaz_secure_credentials.xml"
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         private const val KEY_ALIAS = "ideaz_credentials_v1"
+        private val keyGenerationLock = Any()
     }
 }

@@ -46,6 +46,19 @@ jobs:
       contents: read
 
     steps:
+      - name: Guard publish against non-default branch
+        # Play rejects any upload whose versionCode doesn't strictly increase,
+        # and this workflow derives versionCode from git rev-list --count HEAD -
+        # a feature-branch dispatch with publish=true can burn versionCodes
+        # ahead of master, permanently locking master out of Play until enough
+        # further commits land to exceed what the branch already claimed.
+        # build-and-release.yml already guards its release publish the same
+        # way; this workflow had no equivalent check.
+        if: ${{ inputs.publish && github.ref_name != github.event.repository.default_branch }}
+        run: |
+          echo "Error: publish=true is only allowed when dispatched from the default branch (got '${{ github.ref_name }}')." >&2
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@v7
         with:
@@ -78,8 +91,14 @@ jobs:
 
       - name: Read package name from build config
         id: pkg
+        env:
+          # Passed via env: rather than interpolated straight into the script -
+          # $VAR is never re-parsed by the shell, unlike raw ${{ }} text
+          # substitution, which would let a repo variable containing shell
+          # metacharacters inject commands into this step.
+          ANDROID_BUILD_FILE_VAR: ${{ vars.ANDROID_BUILD_FILE }}
         run: |
-          BUILD_FILE=${{ vars.ANDROID_BUILD_FILE || 'app/build.gradle.kts' }}
+          BUILD_FILE="${ANDROID_BUILD_FILE_VAR:-app/build.gradle.kts}"
           APPLICATION_ID=$(grep -m1 'applicationId *=' "$BUILD_FILE" | sed -E 's/.*"(.*)".*/\1/')
           if [ -z "$APPLICATION_ID" ]; then
             echo "Could not read applicationId from configured Android build file" >&2
@@ -104,7 +123,7 @@ jobs:
           echo "$KEYSTORE_PRIVATE" > private.key
           echo "$KEYSTORE_CHAIN" > chain.crt
 
-          # Create PKCS12 keystore (legacy algorithms for Java KeyStore compatibility).
+          # Create PKCS12 keystore.
           openssl pkcs12 -export -in chain.crt -inkey private.key -out release.keystore \
             -name "$KEY_ALIAS" -passout env:KEYSTORE_PASSWORD
 
@@ -126,6 +145,10 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           # KEYSTORE_FILE / KEY_PASSWORD also exported into GITHUB_ENV above.
+          # See "Read package name from build config" above for why these ride
+          # in via env: rather than direct ${{ }} interpolation.
+          BUILD_NUMBER_OVERRIDE_VAR: ${{ vars.BUILD_NUMBER_OVERRIDE }}
+          BUNDLE_COMMAND_VAR: ${{ vars.BUNDLE_COMMAND }}
         run: |
           set -e
           test -f version.properties || { echo "version.properties is required" >&2; exit 1; }
@@ -135,10 +158,10 @@ jobs:
           # version.properties, which nothing in this pipeline ever
           # increments/commits back, so every publish attempt would try to
           # reuse the exact same versionCode as the last one.
-          BUILD_NUMBER=${{ vars.BUILD_NUMBER_OVERRIDE || '' }}
-          BUILD_NUMBER=${BUILD_NUMBER:-$(git rev-list --count HEAD)}
+          BUILD_NUMBER="${BUILD_NUMBER_OVERRIDE_VAR:-$(git rev-list --count HEAD)}"
           [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || { echo "Invalid build component" >&2; exit 1; }
-          ${{ vars.BUNDLE_COMMAND || './gradlew bundleRelease' }} -PversionBuild=$BUILD_NUMBER --build-cache
+          BUNDLE_COMMAND="${BUNDLE_COMMAND_VAR:-./gradlew bundleRelease}"
+          $BUNDLE_COMMAND -PversionBuild=$BUILD_NUMBER --build-cache
 
       - name: Locate AAB
         id: aab
