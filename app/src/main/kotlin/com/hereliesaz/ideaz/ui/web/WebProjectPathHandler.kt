@@ -104,14 +104,22 @@ class WebProjectPathHandler(
     private fun serveRuntimeAsset(name: String): WebResourceResponse {
         if (name.isEmpty() || name.contains("..")) return notFound()
         return try {
-            response(mimeFor(name.substringAfterLast('.', "").lowercase()),
-                context.assets.open("$RUNTIME_ASSET_DIR/$name"))
+            // Unlike project content below, this is bundled with the app itself
+            // (not user-editable) and identical for the app's whole lifetime
+            // between updates - safe, and worth letting the WebView cache: it's
+            // ~4.5MB (the Babel bundle alone is ~3MB) that a no-store project
+            // reload has no reason to force a re-transfer of.
+            response(
+                mimeFor(name.substringAfterLast('.', "").lowercase()),
+                context.assets.open("$RUNTIME_ASSET_DIR/$name"),
+                cacheable = true,
+            )
         } catch (e: IOException) {
             notFound()
         }
     }
 
-    private fun response(mime: String, stream: java.io.InputStream): WebResourceResponse {
+    private fun response(mime: String, stream: java.io.InputStream, cacheable: Boolean = false): WebResourceResponse {
         val encoding = if (mime.startsWith("text/") || mime.endsWith("javascript") ||
             mime.endsWith("json") || mime.endsWith("xml") || mime == "image/svg+xml"
         ) "utf-8" else null
@@ -124,9 +132,10 @@ class WebProjectPathHandler(
         // non-HTTPS/non-data schemes for the resource types that matter, and a
         // pinned base-uri/frame-ancestors to close off some injection/embedding
         // vectors that cost nothing to block.
+        val cacheHeaders = if (cacheable) RUNTIME_ASSET_CACHE_HEADERS else NO_CACHE_HEADERS
         return WebResourceResponse(
             mime, encoding, 200, "OK",
-            mapOf("Content-Security-Policy" to CONTENT_SECURITY_POLICY) + NO_CACHE_HEADERS,
+            mapOf("Content-Security-Policy" to CONTENT_SECURITY_POLICY) + cacheHeaders,
             stream,
         )
     }
@@ -147,19 +156,26 @@ class WebProjectPathHandler(
         // this lookup is unchanged from when they were bundled directly in :app.
         private const val RUNTIME_ASSET_DIR = "ideaz-runtime"
 
-        // Every response from this handler serves a project's *current* on-disk
-        // content, re-read on every request - it is never safe for the WebView's
-        // HTTP cache to reuse a prior response for the same URL. Output filenames
-        // are stable across recompiles (WasmCompilerService always writes
-        // `app.wasm`/`app.js`; a project's own index.html keeps its name too), so
-        // without this the WebView previously had to be told to nuke its *entire*
-        // cache (WebProjectHost.clearCache(true)) on every reload just to avoid
+        // Project responses serve a project's *current* on-disk content, re-read
+        // on every request - it is never safe for the WebView's HTTP cache to
+        // reuse a prior response for the same URL. Output filenames are stable
+        // across recompiles (WasmCompilerService always writes `app.wasm`/
+        // `app.js`; a project's own index.html keeps its name too), so without
+        // this the WebView previously had to be told to nuke its *entire* cache
+        // (WebProjectHost.clearCache(true)) on every reload just to avoid
         // re-instantiating a stale Wasm binary under an unchanged URL. Declaring
-        // every response here as never-cacheable makes that whole-cache wipe
+        // project responses never-cacheable makes that whole-cache wipe
         // unnecessary - a plain reload always re-fetches fresh bytes.
         private val NO_CACHE_HEADERS = mapOf(
             "Cache-Control" to "no-store, no-cache, must-revalidate",
             "Pragma" to "no-cache",
+        )
+
+        // The bundled /__ideaz__/ runtime is the opposite case: static per app
+        // version, not project content, and worth actually letting the WebView
+        // cache (see serveRuntimeAsset).
+        private val RUNTIME_ASSET_CACHE_HEADERS = mapOf(
+            "Cache-Control" to "public, max-age=86400",
         )
 
         /** See the comment on [response] for what this does and doesn't restrict. */

@@ -148,7 +148,7 @@
 
 #### ui/web/
 *   `WebProjectHost.kt`: Embeds Web/PWA projects via WebView through `WebViewAssetLoader`, with per-project storage isolation on project switch, a CSP-bearing response handler, and the injected `Ideaz`/`IdeazBridge` JS interfaces scoped to the asset-loader origin.
-*   `WebProjectPathHandler.kt`: `WebViewAssetLoader.PathHandler` serving the active project at the asset-loader origin root, plus the bundled in-browser runtime under `/__ideaz__/`.
+*   `WebProjectPathHandler.kt`: `WebViewAssetLoader.PathHandler` serving the active project at the asset-loader origin root, plus the bundled in-browser runtime under `/__ideaz__/`. Project responses are `Cache-Control: no-store` — project content is re-read from disk on every request and must never be served stale after an edit or recompile. The bundled `/__ideaz__/` runtime is the opposite case (static per app version, ~4.5MB) and stays cacheable (`Cache-Control: public, max-age=86400`).
 *   `WebProjectUrlUtils.kt`: URL helpers for the asset-loader origin (`localProjectRootUrl()`).
 *   `WebViewBridge.kt`: The `IdeazBridge` JS interface backing tap-to-select element inspection.
 
