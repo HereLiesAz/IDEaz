@@ -88,8 +88,16 @@ class RepoDelegate(
                      try {
                          val response = JulesApiClient.listSources()
                          val mappedRepos = response.sources?.mapNotNull { RepoMapper.mapSourceToRepoResponse(it) } ?: emptyList()
-                         _ownedRepos.value = mappedRepos
-                         return@launch
+                         if (mappedRepos.isNotEmpty()) {
+                             _ownedRepos.value = mappedRepos
+                             return@launch
+                         }
+                         // An empty Jules source list isn't proof the account has no
+                         // repos - it just means Jules has no sources configured for
+                         // this project ID. Fall through to the GitHub API rather than
+                         // reporting "no repositories found" forever for a perfectly
+                         // valid PAT that never gets used.
+                         onOverlayLog("Jules returned no sources; falling back to GitHub.")
                      } catch (e: Exception) {
                          onOverlayLog("Jules API Error: ${e.message}. Falling back to GitHub.")
                      }
@@ -114,6 +122,11 @@ class RepoDelegate(
                 // state as someone who really has none, with no retry affordance
                 // beyond the generic refresh icon.
                 _repoFetchError.value = e.message ?: "Could not load repositories."
+                // CloneTab only renders the error/retry state when ownedRepos is
+                // empty - leaving a stale list in place (e.g. after a token is
+                // revoked and the next fetch throws 401) silently hid this error
+                // behind the last-known-good list.
+                _ownedRepos.value = emptyList()
             } finally {
                 onLoadingProgress(null)
             }
@@ -251,7 +264,17 @@ class RepoDelegate(
                 }
                 attempt++
             }
-            if (!success) onOverlayLog("Clone failed after retries: ${lastError?.message}")
+            if (!success) {
+                val msg = "Clone failed after retries: ${lastError?.message}"
+                onOverlayLog(msg)
+                // Previously this only logged and returned normally, so both call
+                // sites went straight on to report "Repository created" / invoke
+                // onSuccess and proceed to saveAndInitialize against what is still
+                // an empty directory - a repo/fork that visibly exists on GitHub
+                // but was never actually pulled down. Throwing routes into the
+                // callers' existing catch blocks instead.
+                throw IllegalStateException(msg, lastError)
+            }
         }
     }
 
@@ -512,15 +535,14 @@ class RepoDelegate(
                 settingsViewModel.getApiKey(SettingsViewModel.KEY_GOOGLE_API_KEY)?.let { secrets["GOOGLE_API_KEY"] = it }
                 settingsViewModel.getJulesProjectId()?.let { secrets["JULES_PROJECT_ID"] = it }
 
-                val keystorePath = settingsViewModel.getKeystorePath()
-                if (keystorePath != null && File(keystorePath).exists()) {
-                    val ksBytes = File(keystorePath).readBytes()
-                    secrets["IDEAZ_DEBUG_KEYSTORE_BASE64"] =
-                        android.util.Base64.encodeToString(ksBytes, android.util.Base64.NO_WRAP)
-                }
-                secrets["IDEAZ_DEBUG_KEYSTORE_PASSWORD"] = settingsViewModel.getKeystorePass()
-                secrets["IDEAZ_DEBUG_KEY_ALIAS"] = settingsViewModel.getKeyAlias()
-                secrets["IDEAZ_DEBUG_KEY_PASSWORD"] = settingsViewModel.getKeyPass()
+                // Deliberately does NOT upload the release-signing keystore or its
+                // passwords: no injected workflow reads them (grep for
+                // IDEAZ_DEBUG_KEYSTORE_* turns up nothing but this file), the
+                // target repo isn't necessarily one the user owns (it can be any
+                // repo they merely collaborate on), and there's no consent prompt
+                // before this runs. Uploading the app's most sensitive artifact
+                // to every collaborator with repo-secret read access for no
+                // consumer was a straight information leak - removed.
 
                 // 3. Seal each value for the public key and upload it.
                 var uploaded = 0

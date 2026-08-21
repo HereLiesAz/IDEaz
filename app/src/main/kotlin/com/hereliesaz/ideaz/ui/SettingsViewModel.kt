@@ -458,6 +458,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         sharedPreferences.edit { remove(KEY_KEYSTORE_PATH).remove(KEY_KEY_ALIAS) }
         runCatching { credentialStore.remove(KEY_KEYSTORE_PASS) }
         runCatching { credentialStore.remove(KEY_KEY_PASS) }
+        // The keystore itself (imported into filesDir by importKeystore) is the
+        // release signing key - clearing the prefs that point at it must not
+        // leave the actual key file behind on disk indefinitely.
+        runCatching { File(getApplication<Application>().filesDir, "user_release.keystore").delete() }
     }
 
     // --- EXPORT/IMPORT ---
