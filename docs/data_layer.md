@@ -18,9 +18,9 @@ Nearly every credential-shaped value is the exception, not just Gemini/Hugging F
 `AndroidKeystoreCredentialStore` stores AES-GCM ciphertext for each key in
 `SettingsViewModel.SECURE_CREDENTIAL_KEYS` in a dedicated private preferences file,
 backed by a non-exportable Android Keystore key. That set covers the GitHub PAT,
-every AI provider key (Gemini, Hugging Face, Groq, Cerebras, Mistral, OpenAI,
-Anthropic, DeepSeek), and the keystore/key-signing passwords — see `docs/auth.md`
-§2 for the full accounting. Both credential-bearing preference files are excluded
+every AI provider key (Jules, Gemini, Hugging Face, Groq, Cerebras, Mistral, OpenAI,
+Anthropic, DeepSeek), and the keystore/key-signing passwords — 12 keys total, see
+`docs/auth.md` §2 for the full accounting. Both credential-bearing preference files are excluded
 from backup and device transfer.
 *   **File:** Default shared preferences (values in `SECURE_CREDENTIAL_KEYS` instead live in the separate `ideaz_secure_credentials` file).
 *   **Key Constants:** Defined in `SettingsViewModel`.

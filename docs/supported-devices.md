@@ -18,9 +18,13 @@ none; the honest state is "not yet measured," not "measured and fast."
 
 ## Requirements by model
 
-All entries require the `arm64-v8a` CPU ABI (every on-device runtime is
-native/JIT-compiled for ARM64; the app hides a model entirely on a device
-that doesn't report this ABI, rather than letting it fail at load time).
+Every downloadable entry requires the `arm64-v8a` CPU ABI (each of those
+runtimes is native/JIT-compiled for ARM64; the app hides the model entirely
+on a device that doesn't report this ABI, rather than letting it fail at
+load time). Gemini Nano is the one exception: it has no `requiredAbi` set in
+the catalog, since it isn't a downloaded native binary at all — availability
+is instead probed against the system AICore service itself (see the AICore
+section below).
 
 | Model | Runtime | Min RAM | Approx. download | License | Gated? |
 | --- | --- | --- | --- | --- | --- |

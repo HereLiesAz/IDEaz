@@ -25,11 +25,15 @@
 ### app/src/main/kotlin/com/hereliesaz/ideaz/
 *   `MainActivity.kt`: The main entry point and UI host.
 *   `MainApplication.kt`: Application subclass for global initialization and memory-pressure release of cached local inference engines.
+
+### app/src/main/aidl/com/hereliesaz/ideaz/
 *   `IBuildService.aidl`: IPC interface for the Build Service.
 *   `IBuildCallback.aidl`: IPC interface for Build Service callbacks.
+*   `IAIOverlay.aidl`: IPC interface for the AI overlay service.
+*   `IAIOverlayCallback.aidl`: IPC interface for AI overlay callbacks.
+*   `IUIInspectionCallback.aidl`: IPC interface for UI-inspection (Select-mode tap) callbacks.
 
 #### api/
-*   `ApiClient.kt`: Retrofit client builder.
 *   `GeminiApiClient.kt`: HTTP client for Gemini API. Phase 1 wraps this in a `ConversationalAiClient` adapter.
 *   `GithubApiClient.kt`: Client for GitHub API.
 *   `models.kt`: Data classes for API responses.
@@ -51,13 +55,14 @@
 *   `GitManager.kt`: Wrapper around JGit for version control operations.
 
 #### models/
-*   `Project.kt`: Project metadata model.
 *   `ProjectType.kt`: Project-type enum and production selection gate. PWA is the sole selectable target; other types remain detectable without being routed into incomplete loops.
 *   `IdeazProjectConfig.kt`: Configuration model.
 *   `ProjectHistory.kt`: History tracking model.
+*   `OperationState.kt`: Shared long-running-operation state machine (see `docs/testing.md`) - defined and unit-tested, not yet wired into any production delegate.
+*   `CredentialsExport.kt`: Serialization shape for the encrypted settings export/import - referenced only by `SettingsViewModel.exportSettings`/`importSettings`.
 
 #### services/
-*   `BuildService.kt`: Foreground service in `:build_process`. Post-Phase-0 it is a thin shell around `RemoteBuildManager`.
+*   `BuildService.kt`: Foreground service (`dataSync` type), main app process - not a separate `:build_process`. Post-Phase-0 it is a thin shell around `RemoteBuildManager`.
 *   `IdeazAccessibilityService.kt`: Accessibility Service that captures tapped elements in the sideloaded target app — resolves the tapped node's `viewIdResourceName` + screen bounds (→ source file/line context) and reports the target app's window bounds to the overlay.
 *   `IdeazOverlayService.kt`: System Alert Window overlay for Phase 2 (wired but inert until Phase 2).
 *   `CrashReportingService.kt`: Service for fatal error reporting in `:crash_reporter`.
@@ -97,17 +102,14 @@
 *   `MainViewModel.kt`: Coordinator. Logic delegated to `ui/delegates/`; chat recovery validates diagnostics, recovers interrupted local edit reviews, and resumes consented or declined local-model cloud consultations without duplicate transmission.
 *   `AiChatTab.kt`: Conversational history UI with separate provider-failure, cloud-consultation consent, and changed-file review cards plus retry and edit approve/reject/undo controls.
 *   `IdeBottomSheet.kt`: Global console/chat sheet; wires conversational history and structured provider-failure state into the Chat tab.
-*   `SettingsViewModel.kt`: Manages user preferences, routes Gemini and gated Hugging Face credentials through the secure store, migrates legacy plaintext, and includes credentials only in explicit password-encrypted export/import.
+*   `SettingsViewModel.kt`: Manages user preferences; routes all 12 `SECURE_CREDENTIAL_KEYS` (every AI provider key, the GitHub token, and the two keystore signing passwords - not just Gemini/Hugging Face) through the secure store; also defines the `AiModels` object (provider catalog, `defaultRanking`) - there is no separate `AiModels.kt` file. Migrates legacy plaintext, and includes credentials only in explicit password-encrypted export/import.
 *   `MainScreen.kt`: The main Compose screen.
 *   `ProjectScreen.kt`: Project management UI (Setup / Load / Clone tabs); delegates release-scope enforcement to Setup and `MainViewModel.loadProject`.
-*   `IdeBottomSheet.kt`: Console / chat bottom sheet.
 *   `IdeNavRail.kt`: Navigation component.
-*   `AiModels.kt`: AI model selection.
 *   `GitScreen.kt`: Git management UI.
 *   `SettingsScreen.kt`: Settings UI, including secure Hugging Face token feedback and minimum-password validation for credential-bearing exports.
 *   `FileExplorerScreen.kt`: Read/write file explorer (escape hatch).
 *   `FileContentScreen.kt`: File viewer/editor (escape hatch).
-*   `LibrariesScreen.kt`: Dependency management UI.
 *   `CodeEditor.kt`: Compose component for code display.
 *   `PromptPopup.kt`: Simple dialog for text input.
 *   `OnDeviceModelsSection.kt`: Settings UI for managing on-device LLMs.
@@ -125,14 +127,13 @@
 *   `BuildDelegate.kt`: BuildService binding; remote build dispatch + poll + install.
 *   `GitDelegate.kt`: Git operations and state.
 *   `OverlayDelegate.kt`: Visual overlay and selection mode. `isScreenCaptureEnabled()` gates MediaProjection capture to Android target projects (web/PWA never prompt).
-*   `RepoDelegate.kt`: GitHub repo fetch / create. `uploadProjectSecrets` is currently a no-op stub — see `docs/plans/phase-0-followups.md`.
-*   `StateDelegate.kt`: Centralized shared UI state.
+*   `RepoDelegate.kt`: GitHub repo fetch / create / fork. `uploadProjectSecrets` seals and uploads the Jules/Gemini/Google/GitHub secrets a generated project's injected workflow needs as GitHub Actions repository secrets (via `GithubSecretBox`, matching `crypto_box_seal`) — it is a real implementation, not a stub.
 *   `SystemEventDelegate.kt`: BroadcastReceivers for system events.
 *   `UpdateDelegate.kt`: Application self-updates.
 
 #### ui/editor/
 *   `EditorSetup.kt`: Initializes the Rosemoe Sora editor engine.
-*   `JavaAnalyzer.kt`: Java syntax analysis helper.
+*   `EditorViewModel.kt`: Editor state/content management.
 
 #### ui/inspection/
 *   `InspectionEvents.kt`: Events for UI inspection.
@@ -143,8 +144,13 @@
 *   `LoadTab.kt`: Project loading UI.
 *   `CloneTab.kt`: Project cloning UI.
 *   `SetupTab.kt`: Project creation and setup UI.
-*   `WebProjectHost.kt`: Embeds Web/PWA projects via WebView. Promoted to primary host in the design; Phase 1 will add `WebViewAssetLoader` + DOM bridge.
 *   (Phase 2 will reintroduce a host for the Android target on top of `IdeazOverlayService` rather than `VirtualDisplay`.)
+
+#### ui/web/
+*   `WebProjectHost.kt`: Embeds Web/PWA projects via WebView through `WebViewAssetLoader`, with per-project storage isolation on project switch, a CSP-bearing response handler, and the injected `Ideaz`/`IdeazBridge` JS interfaces scoped to the asset-loader origin.
+*   `WebProjectPathHandler.kt`: `WebViewAssetLoader.PathHandler` serving the active project at the asset-loader origin root, plus the bundled in-browser runtime under `/__ideaz__/`.
+*   `WebProjectUrlUtils.kt`: URL helpers for the asset-loader origin (`localProjectRootUrl()`).
+*   `WebViewBridge.kt`: The `IdeazBridge` JS interface backing tap-to-select element inspection.
 
 #### utils/
 *   `TemplateManager.kt`: Project template copying and customization.
@@ -158,8 +164,7 @@
 *   `CrashHandler.kt`: JVM uncaught exception handler.
 *   `GithubIssueReporter.kt`: Posts GitHub issues for IDE-internal errors.
 *   `SecurityUtils.kt`: PBKDF2 encryption helpers for credentials.
-*   `AndroidKeystoreCredentialStore.kt`: AES-GCM credential persistence backed by a non-exportable Android Keystore key; used for Gemini and gated Hugging Face credentials.
-*   `PermissionUtils.kt`: Permission check/request helpers.
+*   `AndroidKeystoreCredentialStore.kt`: AES-GCM credential persistence backed by a non-exportable Android Keystore key; backs all 12 `SECURE_CREDENTIAL_KEYS` (every AI provider key, the GitHub token, and the two keystore signing passwords), not just Gemini/Hugging Face.
 *   `ComposeLifecycleHelper.kt`: Helper for ComposeView lifecycle in Services.
 *   `EnvironmentSetup.kt`: Setup script constants.
 *   `BackupManager.kt`: Project backup logic.

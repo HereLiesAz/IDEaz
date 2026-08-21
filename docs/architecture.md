@@ -37,7 +37,7 @@ Git is the source of truth. The shipped APK is never built on-device — that bu
 
 ## 4. Services
 
-* **`BuildService`** (`:build_process`): foreground service. Post-Phase-0 it is a thin shell around `RemoteBuildManager` — dispatches a remote build, polls GitHub Releases, downloads the artifact.
+* **`BuildService`**: foreground service (`foregroundServiceType="dataSync"`), runs in the main app process — not a separate `:build_process` (that claim was never true of the manifest declaration). Post-Phase-0 it is a thin shell around `RemoteBuildManager` — dispatches a remote build, polls GitHub Releases, downloads the artifact.
 * **`IdeazOverlayService`**: `TYPE_APPLICATION_OVERLAY` window for Phase 2 element-tap on the sideloaded target app. Wired but inert until Phase 2.
 * **`IdeazAccessibilityService`**: `AccessibilityNodeInfo` walk for Phase 2 element capture. Wired but inert until Phase 2.
 * **`CrashReportingService`** (`:crash_reporter`): isolated process so crashes still report.

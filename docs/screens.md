@@ -3,26 +3,29 @@
 ## 1. Main Host Screen (`MainScreen.kt`)
 *   **Role:** Container for the IDE management UI and the embedded target host.
 *   **Components:**
-    *   `IdeNavRail`: Navigation (Project, Git, Settings, Files, Libs).
+    *   `IdeNavRail`: Navigation rail items are **Project, Git, Files, Settings** (no "Libs" — no dependency-manager screen exists in this release).
     *   `IdeBottomSheet`: Console / chat / AI log.
-    *   `LiveOutputBottomCard`: Floating status indicator.
     *   `WebProjectHost`: Hosts the PWA target in a WebView (the daily-driver loop).
     *   Phase-2 Android-target host placeholder (the real overlay-based path arrives in Phase 2).
+    *   `LiveOutputBottomCard` is a defined composable with no caller anywhere in the app — not actually part of the live screen despite being documented here in earlier versions of this file.
 
 ## 2. Project Screen (`ProjectScreen.kt`)
 *   **Role:** Entry point for project selection and creation.
 *   **Tabs (in this order):**
-    *   **Setup:** Initialization + workflow injection. "Save & Initialize" force-pushes the standardized `android_ci.yml` / `release.yml` and starts the first remote build.
+    *   **Setup:** Initialization + workflow injection. "Save & Initialize" only runs for web-like project types (see `docs/workflow.md` §2.2); it force-pushes `web_ci_pages.yml` plus the two `antigravity-*.yml` automation workflows (Android projects would instead get `build.yml`/`release.yml`, but Setup does not offer Android initialization in this release — see §7 below) and starts the first remote build.
     *   **Load:** Open an existing local project; transitions to Setup tab.
     *   **Clone:** Clone from a GitHub URL; transitions to Setup tab.
 
 ## 3. The Global Console (`IdeBottomSheet`)
 *   **Role:** Visibility into background processes.
-*   **Tabs (Phase 1 will add `AiChatTab`):**
-    *   **Git Terminal:** Output from `GitManager`.
-    *   **Build Log:** Live stream from `BuildService` (post-Phase-0, this is the remote-build poller).
-    *   **AI Log:** Activity stream from Gemini (Phase 1) / Jules (Phase 2).
-    *   **Debug Chat:** Contextless prompt input.
+*   **Tabs (in this order, `IdeBottomSheet.kt`'s `tabs` list):**
+    *   **All:** Every log line, unfiltered.
+    *   **Build:** Live stream from `BuildService` (post-Phase-0, this is the remote-build poller).
+    *   **Git:** Output from `GitManager`.
+    *   **AI:** Activity stream from the active AI provider.
+    *   **System:** System/lifecycle events.
+    *   **Chat:** Conversational history (`AiChatTab`).
+    *   The prompt input (`ContextlessChatInput`) is rendered under every tab, not just Chat — sending from a non-Chat tab now switches to Chat automatically so the reply is visible (see `docs/ux_userflow_audit.md`).
 
 ## 4. Git Screen (`GitScreen.kt`)
 *   **Role:** Branch tree, commit history, stash controls, force-update workflow files.
@@ -30,7 +33,6 @@
 ## 5. Developer Tools (Auxiliary / Escape Hatches)
 *   **File Explorer (`FileExplorerScreen.kt`):** Direct filesystem access to project directory.
 *   **File Viewer (`FileContentScreen.kt`):** View / edit file content.
-*   **Dependency Manager (`LibrariesScreen.kt`):** View installed libraries; failed-dependency errors.
 
 ## 6. Settings Screen (`SettingsScreen.kt`)
 *   **Role:** Configuration. Opaque background.

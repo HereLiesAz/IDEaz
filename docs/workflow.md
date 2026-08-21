@@ -19,12 +19,12 @@ The on-device toolchain (`aapt2`, `d8`, `kotlinc`, Maven Aether) was removed in 
 *   **Note:** Loading does *not* start a build.
 
 ### 2.2 Initialization (Activation)
-*   **Trigger:** User clicks **Save & Initialize** on the Setup tab.
+*   **Trigger:** User clicks **Save & Initialize** on the Setup tab. Only runs for web-like project types (`ProjectType.isWebLike()`) — see `MainViewModel`'s force-update path.
 *   **Actions:**
-    1.  **Inject Workflows.** Force-push to `.github/workflows/`:
-        *   `build.yml` — configurable build on pushes and pull requests.
-        *   `release.yml` — configurable tagged release build; artifact paths come from repository variables.
-        *   `codeql.yml` — security scanning (optional).
+    1.  **Inject Workflows.** `ProjectConfigManager.ensureWorkflow` force-pushes to `.github/workflows/`, set differs by project type:
+        *   **Android:** `build.yml`, `release.yml`, `antigravity-issue-handler.yml`, `antigravity-branch-manager.yml`.
+        *   **Web:** `web_ci_pages.yml`, `antigravity-issue-handler.yml`, `antigravity-branch-manager.yml`.
+        *   There is no `codeql.yml` injection — the two `antigravity-*.yml` files (issue-triage and branch-management automation, §6) are injected into every generated project instead.
     2.  **Inject Environment.** Force-push `setup_env.sh` and `AGENTS_SETUP.md` to repo root.
     3.  **Start Build (Android only):** Tag and push; `RemoteBuildManager` polls.
 
