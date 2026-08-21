@@ -1579,14 +1579,30 @@ class MainViewModel(
      * Returns the list of credentials the user still needs to configure before any
      * project flow (Create / Save & Initialize / Clone-select) can succeed.
      *
-     * Phase 1 default is Gemini, so the Google API key is the AI credential that
-     * gates these flows. The Jules API key is only required if the user has
-     * explicitly assigned Jules to one of the AI task slots (Phase 2 territory).
+     * The AI credential checked here follows whichever model the "Default" AI
+     * Assignment actually resolves to (SettingsViewModel.getAiAssignment ranks
+     * providers by which key the user has saved - see AiModels.defaultRanking),
+     * not a hardcoded Gemini assumption. A model with no required key (on-device,
+     * the Gemini app bridge) needs nothing here at all. Previously this always
+     * demanded a Google AI Studio key even for a user who'd configured a
+     * different provider entirely (or none, and only wanted GitHub/manual use).
+     * The Jules API key is only required if the user has explicitly assigned
+     * Jules to one of the AI task slots (Phase 2 territory).
      */
     fun checkRequiredKeys(): List<String> {
         val missing = mutableListOf<String>()
-        if (settingsViewModel.getGoogleApiKey().isNullOrBlank()) missing.add("Google AI Studio API Key")
         if (settingsViewModel.getGithubToken().isNullOrBlank()) missing.add("GitHub Token")
+
+        val defaultModel = AiModels.findById(
+            settingsViewModel.getAiAssignment(SettingsViewModel.KEY_AI_ASSIGNMENT_DEFAULT)
+        )
+        if (defaultModel != null &&
+            defaultModel.id != AiModels.JULES_DEFAULT &&
+            defaultModel.requiredKey.isNotEmpty() &&
+            settingsViewModel.getApiKey(defaultModel.requiredKey).isNullOrBlank()
+        ) {
+            missing.add("${defaultModel.displayName} API Key")
+        }
 
         // Only flag the Jules key as missing if Jules is actually assigned to a task.
         val julesAssigned = listOf(
