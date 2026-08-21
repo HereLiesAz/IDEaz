@@ -126,13 +126,13 @@ class WebProjectPathHandler(
         // vectors that cost nothing to block.
         return WebResourceResponse(
             mime, encoding, 200, "OK",
-            mapOf("Content-Security-Policy" to CONTENT_SECURITY_POLICY),
+            mapOf("Content-Security-Policy" to CONTENT_SECURITY_POLICY) + NO_CACHE_HEADERS,
             stream,
         )
     }
 
     private fun notFound(): WebResourceResponse = WebResourceResponse(
-        "text/plain", "utf-8", 404, "Not Found", emptyMap(),
+        "text/plain", "utf-8", 404, "Not Found", NO_CACHE_HEADERS,
         ByteArrayInputStream(ByteArray(0))
     )
 
@@ -146,6 +146,21 @@ class WebProjectPathHandler(
         // and fused, its assets stay reachable through the base AssetManager, so
         // this lookup is unchanged from when they were bundled directly in :app.
         private const val RUNTIME_ASSET_DIR = "ideaz-runtime"
+
+        // Every response from this handler serves a project's *current* on-disk
+        // content, re-read on every request - it is never safe for the WebView's
+        // HTTP cache to reuse a prior response for the same URL. Output filenames
+        // are stable across recompiles (WasmCompilerService always writes
+        // `app.wasm`/`app.js`; a project's own index.html keeps its name too), so
+        // without this the WebView previously had to be told to nuke its *entire*
+        // cache (WebProjectHost.clearCache(true)) on every reload just to avoid
+        // re-instantiating a stale Wasm binary under an unchanged URL. Declaring
+        // every response here as never-cacheable makes that whole-cache wipe
+        // unnecessary - a plain reload always re-fetches fresh bytes.
+        private val NO_CACHE_HEADERS = mapOf(
+            "Cache-Control" to "no-store, no-cache, must-revalidate",
+            "Pragma" to "no-cache",
+        )
 
         /** See the comment on [response] for what this does and doesn't restrict. */
         private const val CONTENT_SECURITY_POLICY =
