@@ -3,6 +3,7 @@ package com.hereliesaz.ideaz.ui.web
 import android.content.Context
 import android.webkit.WebResourceResponse
 import androidx.webkit.WebViewAssetLoader
+import com.hereliesaz.ideaz.BuildConfig
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.IOException
@@ -146,10 +147,19 @@ class WebProjectPathHandler(
     )
 
     companion object {
+        // Runtime assets are now cacheable (see NO_CACHE_HEADERS below) for the
+        // lifetime of an app version, but the WebView's HTTP cache is keyed
+        // purely by URL and knows nothing about app updates - without a version
+        // in the path, upgrading IDEaz to a build with different runtime JS
+        // would leave old cached bytes serving under the same URL for up to
+        // RUNTIME_ASSET_CACHE_HEADERS' max-age, mixing new project/wasm output
+        // with a stale runtime. Folding the version code into the path makes an
+        // app upgrade a clean cache miss instead: the old cached entries are
+        // simply never requested again.
         /** URL prefix for runtime assets (used in injected HTML). */
-        const val RUNTIME_PREFIX = "/__ideaz__/"
+        val RUNTIME_PREFIX = "/__ideaz__/${BuildConfig.VERSION_CODE}/"
         /** Same prefix as seen by [handle] after WebViewAssetLoader strips "/". */
-        private const val RUNTIME_DIR = "__ideaz__/"
+        private val RUNTIME_DIR = RUNTIME_PREFIX.removePrefix("/")
         // These assets physically live in the :webruntime install-time dynamic
         // feature module (settings.gradle.kts). Because that module is install-time
         // and fused, its assets stay reachable through the base AssetManager, so
@@ -200,14 +210,20 @@ class WebProjectPathHandler(
             return lower.contains("type=\"module\"") || lower.contains("type='module'")
         }
 
-        /** The runtime + import map injected into the `<head>` of module-based HTML. */
+        /**
+         * The runtime + import map injected into the `<head>` of module-based
+         * HTML. Written against the unversioned `/__ideaz__/` prefix and
+         * rewritten to the real (version-segmented) [RUNTIME_PREFIX] below -
+         * keeps this template readable instead of repeating the version
+         * segment at ~20 call sites.
+         */
         private val INJECTION = """
             |<script type="importmap">{"imports":{"react":"/__ideaz__/react.js","react-dom":"/__ideaz__/react-dom.js","react-dom/client":"/__ideaz__/react-dom-client.js","react/jsx-runtime":"/__ideaz__/jsx-runtime.js","react/jsx-dev-runtime":"/__ideaz__/jsx-runtime.js","react-router":"/__ideaz__/react-router.js","react-router/dom":"/__ideaz__/react-router-dom-entry.js","react-router-dom":"/__ideaz__/react-router-dom-entry.js","zustand":"/__ideaz__/zustand.js","zustand/middleware":"/__ideaz__/zustand-middleware.js","zustand/shallow":"/__ideaz__/zustand-shallow.js","@reduxjs/toolkit":"/__ideaz__/reduxjs-toolkit.js","react-redux":"/__ideaz__/react-redux.js","axios":"/__ideaz__/axios.js","@tanstack/react-query":"/__ideaz__/tanstack-react-query.js","styled-components":"/__ideaz__/styled-components.js","@emotion/react":"/__ideaz__/emotion-react.js","@emotion/styled":"/__ideaz__/emotion-styled.js"}}</script>
             |<script src="/__ideaz__/react.umd.js"></script>
             |<script src="/__ideaz__/react-dom.umd.js"></script>
             |<script src="/__ideaz__/babel.min.js"></script>
             |<script src="/__ideaz__/ideaz-loader.js"></script>
-        """.trimMargin()
+        """.trimMargin().replace("/__ideaz__/", RUNTIME_PREFIX)
 
         /**
          * Injects the runtime into `<head>` and rewrites `<script type="module">`
@@ -215,7 +231,7 @@ class WebProjectPathHandler(
          * (the loader picks these up and transpiles them). Idempotent.
          */
         fun injectRuntime(html: String): String {
-            if (html.contains("/__ideaz__/ideaz-loader.js")) return html
+            if (html.contains("${RUNTIME_PREFIX}ideaz-loader.js")) return html
 
             val lower = html.lowercase()
             val headIdx = lower.indexOf("<head")

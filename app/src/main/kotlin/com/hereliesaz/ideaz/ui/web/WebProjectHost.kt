@@ -374,6 +374,15 @@ fun WebProjectHost(
                     // top of.
                     wasmPreviewDir.value = dir
                     projectDirState.value = dir
+                    // If the page most recently navigated away from this app's
+                    // own origin (e.g. a top-level link tap), onPageStarted
+                    // below already stripped the Ideaz/IdeazBridge interfaces.
+                    // The LaunchedEffect(projectDir, url) that normally re-adds
+                    // them only fires on a project/url *switch*, not on this
+                    // broadcast-driven navigation - re-add them here too, since
+                    // the target is always this app's trusted origin.
+                    webView.addJavascriptInterface(ideazJsInterface, "Ideaz")
+                    webView.addJavascriptInterface(ideazBridge, "IdeazBridge")
                     webView.loadUrl(WebProjectUrlUtils.localProjectRootUrl())
                     return
                 }
