@@ -200,6 +200,29 @@ fun WebProjectHost(
                     bridgeJs?.let { js -> view?.evaluateJavascript(js, null) }
                 }
 
+                // The LaunchedEffect(projectDir, url) below only reacts to Compose
+                // state changes, so a page that navigates itself away from the
+                // asset-loader origin - `location.href = 'https://evil.com'`, or
+                // just a same-page top-level link - never triggered that effect and
+                // kept the privileged Ideaz/IdeazBridge interfaces live on whatever
+                // origin the page moved to. onPageStarted fires on every committed
+                // navigation (redirects included), so re-check here too.
+                // Known residual gap: addJavascriptInterface has no per-frame
+                // origin scoping in WebView - an iframe to a different origin still
+                // gets the same interfaces as the top-level page, since the API
+                // binds at the WebView level, not per-frame. Closing that
+                // completely needs migrating off addJavascriptInterface onto
+                // WebViewCompat.addWebMessageListener's origin allowlisting, which
+                // is a bigger change (touches ideaz-bridge.js's calling convention
+                // too) tracked separately, not attempted here.
+                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                    super.onPageStarted(view, url, favicon)
+                    if (url != null && !url.startsWith(WebProjectUrlUtils.ASSET_ROOT_URL)) {
+                        view?.removeJavascriptInterface("Ideaz")
+                        view?.removeJavascriptInterface("IdeazBridge")
+                    }
+                }
+
                 // Surface HTTP errors (e.g. 404 for a missing asset/module served
                 // by WebProjectPathHandler). These don't trigger onReceivedError,
                 // so without this a missing file fails silently.
@@ -240,12 +263,33 @@ fun WebProjectHost(
             // page's own document/subresource loads. Without this separate hook, a
             // project's `sw.js` registration against the WebViewAssetLoader virtual
             // origin fails with "An unknown error occurred when fetching the
-            // script", since nothing services that request. ServiceWorkerController
-            // is a process-wide singleton, not tied to this WebView instance, but
-            // re-registering the same assetLoader-backed client here is idempotent.
+            // script", since nothing services that request.
+            //
+            // ServiceWorkerControllerCompat.getInstance() is a process-wide
+            // singleton, NOT tied to this WebView instance - re-registering here is
+            // NOT idempotent (that was previously claimed but wrong): each
+            // `remember { WebView(...) }` call installs a fresh anonymous client
+            // capturing this composition's own `assetLoader`, last-writer-wins.
+            // Left unmanaged, a destroyed composition's client (closing over a
+            // dead assetLoader/context) could keep serving the singleton after
+            // this WebView is gone. The onDispose below nulls it back out.
             if (WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_BASIC_USAGE) &&
                 WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_SHOULD_INTERCEPT_REQUEST)
             ) {
+                // The main WebView's settings above deliberately disable
+                // allowFileAccess/allowContentAccess - the Service Worker context
+                // has its own, separate settings object that was never touched and
+                // defaults to allowing both, silently reopening the exact access
+                // the main settings were hardened to close (just from a service
+                // worker's fetch handler instead of a page script).
+                if (WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_FILE_ACCESS) &&
+                    WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_CONTENT_ACCESS)
+                ) {
+                    ServiceWorkerControllerCompat.getInstance().serviceWorkerWebSettings.apply {
+                        allowFileAccess = false
+                        allowContentAccess = false
+                    }
+                }
                 ServiceWorkerControllerCompat.getInstance().setServiceWorkerClient(object : ServiceWorkerClientCompat() {
                     override fun shouldInterceptRequest(request: WebResourceRequest): WebResourceResponse? =
                         assetLoader.shouldInterceptRequest(request.url)
@@ -343,6 +387,24 @@ fun WebProjectHost(
         wasmPreviewDir.value = null
         projectDirState.value = projectDir
         if (!isWebViewDestroyed.value) {
+            // Every local project is served from the SAME origin
+            // (WebProjectUrlUtils.ASSET_ROOT_URL) with nothing else scoping
+            // storage per project. Previously switching projects only cleared
+            // the HTTP cache (the hardReloadTrigger effect above) - a service
+            // worker registered by project A survived into project B (and past
+            // app restarts), able to intercept B's requests and read/serve
+            // stale content for it. Tear down everything the outgoing page
+            // could have left behind before loading the next one.
+            if (webView.url?.startsWith(WebProjectUrlUtils.ASSET_ROOT_URL) == true) {
+                webView.evaluateJavascript(
+                    "if (navigator.serviceWorker) { navigator.serviceWorker.getRegistrations()" +
+                        ".then(rs => rs.forEach(r => r.unregister())); }",
+                    null,
+                )
+            }
+            android.webkit.CookieManager.getInstance().removeAllCookies(null)
+            android.webkit.WebStorage.getInstance().deleteOrigin(WebProjectUrlUtils.ASSET_ROOT_URL)
+
             val target = if (projectDir != null) WebProjectUrlUtils.localProjectRootUrl() else url
             // Only expose the privileged bridge when we're actually loading
             // this app's own asset-loader origin - a remote URL (the "passed
@@ -376,6 +438,14 @@ fun WebProjectHost(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             isWebViewDestroyed.value = true
+            // See the comment where this client is installed above: the
+            // controller is a process-wide singleton, so a destroyed
+            // composition's client (closing over this now-dead assetLoader)
+            // must not keep serving Service Worker requests after this WebView
+            // is gone.
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_BASIC_USAGE)) {
+                ServiceWorkerControllerCompat.getInstance().setServiceWorkerClient(null)
+            }
             webView.destroy()
         }
     }

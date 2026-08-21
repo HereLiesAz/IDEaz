@@ -115,7 +115,20 @@ class WebProjectPathHandler(
         val encoding = if (mime.startsWith("text/") || mime.endsWith("javascript") ||
             mime.endsWith("json") || mime.endsWith("xml") || mime == "image/svg+xml"
         ) "utf-8" else null
-        return WebResourceResponse(mime, encoding, stream)
+        // Previously no response from this handler carried a CSP at all - untrusted
+        // AI-generated/imported project JS had unrestricted network egress. This is
+        // deliberately not a full lockdown: the injected runtime's Babel-based
+        // transpiler (ideaz-loader.js) needs 'unsafe-eval' to work at all, and
+        // real projects legitimately call external HTTPS APIs, so script-src and
+        // connect-src stay broad. What it does add: no plugins (object-src), no
+        // non-HTTPS/non-data schemes for the resource types that matter, and a
+        // pinned base-uri/frame-ancestors to close off some injection/embedding
+        // vectors that cost nothing to block.
+        return WebResourceResponse(
+            mime, encoding, 200, "OK",
+            mapOf("Content-Security-Policy" to CONTENT_SECURITY_POLICY),
+            stream,
+        )
     }
 
     private fun notFound(): WebResourceResponse = WebResourceResponse(
@@ -133,6 +146,18 @@ class WebProjectPathHandler(
         // and fused, its assets stay reachable through the base AssetManager, so
         // this lookup is unchanged from when they were bundled directly in :app.
         private const val RUNTIME_ASSET_DIR = "ideaz-runtime"
+
+        /** See the comment on [response] for what this does and doesn't restrict. */
+        private const val CONTENT_SECURITY_POLICY =
+            "default-src 'self' https: ${WebProjectUrlUtils.ASSET_DOMAIN}; " +
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: ${WebProjectUrlUtils.ASSET_DOMAIN}; " +
+                "style-src 'self' 'unsafe-inline' https: ${WebProjectUrlUtils.ASSET_DOMAIN}; " +
+                "img-src 'self' data: https: ${WebProjectUrlUtils.ASSET_DOMAIN}; " +
+                "font-src 'self' data: https: ${WebProjectUrlUtils.ASSET_DOMAIN}; " +
+                "connect-src 'self' https: wss: ${WebProjectUrlUtils.ASSET_DOMAIN}; " +
+                "object-src 'none'; " +
+                "base-uri 'self'; " +
+                "frame-ancestors 'self'"
 
         /**
          * Runtime is injected only for module-based projects (Vite/React/ESM).

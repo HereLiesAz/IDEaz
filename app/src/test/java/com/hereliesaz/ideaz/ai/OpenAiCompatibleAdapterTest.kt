@@ -1,13 +1,14 @@
 package com.hereliesaz.ideaz.ai
 
+import com.hereliesaz.ideaz.ai.local.LocalEditApprovalRequiredException
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -81,13 +82,20 @@ class OpenAiCompatibleAdapterTest {
     """.trimIndent()
 
     @Test
-    fun `successful round trip applies the edit and returns the final text`() = runBlocking {
+    fun `successful round trip applies the edit and requires review, not a silent reload`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(200).setBody(toolCallResponse))
         server.enqueue(MockResponse().setResponseCode(200).setBody(finalTextResponse))
 
-        val reply = adapter().chat(listOf(ChatMessage("user", "add a console.log")))
-
-        assertEquals("Done.", reply)
+        // A completed edit is never returned as plain reply text - chat() throws
+        // LocalEditApprovalRequiredException so the caller (MainViewModel) shows
+        // a review card instead of silently reloading an unreviewed change.
+        try {
+            adapter().chat(listOf(ChatMessage("user", "add a console.log")))
+            fail("Expected LocalEditApprovalRequiredException")
+        } catch (e: LocalEditApprovalRequiredException) {
+            assertEquals("Done.", e.approval.response)
+            assertEquals(listOf("app.js"), e.approval.review.changedFiles)
+        }
         assertEquals("changed by AI", File(tempFolder.root, "app.js").readText())
     }
 
@@ -109,11 +117,20 @@ class OpenAiCompatibleAdapterTest {
             "original content",
             File(tempFolder.root, "app.js").readText(),
         )
-        // No leftover checkpoint directory once restored.
+        // No leftover checkpoint directory for *this* project once restored.
+        // JUnit's TemporaryFolder rule creates each test's root under a shared
+        // parent, so a sibling test's own (intentionally un-discarded, pending
+        // review) checkpoint can otherwise still be sitting in the same
+        // .ideaz-edit-checkpoints base - filter by project path, the same way
+        // IdeTools.reconcileEditCheckpoints does, rather than asserting the
+        // whole shared directory is empty.
         val checkpointBase = File(tempFolder.root.parentFile, ".ideaz-edit-checkpoints")
-        assertFalse(
-            "restorePendingEdit deletes the checkpoint dir on success",
-            checkpointBase.exists() && checkpointBase.listFiles()?.isNotEmpty() == true,
+        val thisProjectsCheckpoints = checkpointBase.listFiles()?.filter { dir ->
+            File(dir, "project-path.txt").let { it.exists() && it.readText() == tempFolder.root.canonicalPath }
+        }.orEmpty()
+        assertTrue(
+            "restorePendingEdit deletes this test's checkpoint dir on success, found: $thisProjectsCheckpoints",
+            thisProjectsCheckpoints.isEmpty(),
         )
     }
 

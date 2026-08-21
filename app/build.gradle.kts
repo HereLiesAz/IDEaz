@@ -36,13 +36,19 @@ val versionBuildOverride = project.findProperty("versionBuild")?.toString()?.toI
 // INSTALL_FAILED_VERSION_DOWNGRADE instead of just claiming to. Falls back to
 // the old file counter only if this checkout has no usable git history (e.g.
 // a source zip with no .git directory).
+// providers.exec (not a raw ProcessBuilder) is deliberate: the configuration
+// cache tracks external processes started this way as a proper build input,
+// so it can safely cache and re-run configuration - a bare ProcessBuilder call
+// here made configuration-cache storage fail outright ("Starting an external
+// process 'git rev-list --count HEAD' during configuration time is
+// unsupported"), breaking every build (CI's dependency-submission and check
+// jobs included) the moment configuration caching was enabled.
 val gitCommitCount = runCatching {
-    val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
-        .directory(rootProject.projectDir)
-        .redirectErrorStream(true)
-        .start()
-    val output = process.inputStream.bufferedReader().readText().trim()
-    if (process.waitFor() == 0) output.toIntOrNull() else null
+    providers.exec {
+        workingDir = rootProject.projectDir
+        commandLine("git", "rev-list", "--count", "HEAD")
+        isIgnoreExitValue = true
+    }.standardOutput.asText.get().trim().toIntOrNull()
 }.getOrNull()
 val buildNumber = versionBuildOverride
     ?: gitCommitCount
