@@ -262,7 +262,7 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 val response = client.chat(stateDelegate.chatMessages.value)
-                stateDelegate.appendChatMessage(ChatMessage("model", response))
+                stateDelegate.appendChatMessage(ChatMessage("model", response, model.displayName))
                 stateDelegate.triggerWebHardReload()
             } catch (e: LocalEditApprovalRequiredException) {
                 stateDelegate.setLocalEditReview(LocalEditReviewState(e.approval))
@@ -302,7 +302,7 @@ class MainViewModel(
         if (editStatus == LocalEditReviewStatus.PENDING || editStatus == LocalEditReviewStatus.PROCESSING) return
         val appName = settingsViewModel.getAppName()
         if (appName == null) {
-            stateDelegate.appendChatMessage(ChatMessage("model", "Error: No project open."))
+            stateDelegate.appendChatMessage(ChatMessage.error("Error: No project open."))
             return
         }
 
@@ -326,7 +326,7 @@ class MainViewModel(
                 else ->
                     "Error: No API key set for ${model.displayName}. Go to Settings → AI Providers."
             }
-            stateDelegate.appendChatMessage(ChatMessage("model", msg))
+            stateDelegate.appendChatMessage(ChatMessage.error(msg))
             return
         }
 
@@ -341,7 +341,7 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 val response = client.chat(stateDelegate.chatMessages.value)
-                stateDelegate.appendChatMessage(ChatMessage("model", response))
+                stateDelegate.appendChatMessage(ChatMessage("model", response, model.displayName))
                 // Any file writes have already happened inside the tool-use loop;
                 // hard-reload so the WebView picks up the changes immediately.
                 stateDelegate.triggerWebHardReload()
@@ -367,7 +367,7 @@ class MainViewModel(
                 throw e
             } catch (e: Exception) {
                 stateDelegate.appendChatMessage(
-                    ChatMessage("model", "Error: ${e.message}")
+                    ChatMessage.error("Error: ${e.message}")
                 )
             } finally {
                 stateDelegate.setChatLoading(false)
@@ -469,7 +469,7 @@ class MainViewModel(
         )
         try {
             val response = localClient.chat(messages + ephemeralResult)
-            stateDelegate.appendChatMessage(ChatMessage("model", response))
+            stateDelegate.appendChatMessage(ChatMessage("model", response, AiModels.LOCAL.displayName))
             stateDelegate.setLocalCloudConsult(null)
         } catch (e: LocalEditApprovalRequiredException) {
             stateDelegate.setLocalEditReview(LocalEditReviewState(e.approval))
@@ -543,7 +543,7 @@ class MainViewModel(
                         )
                     )
                     stateDelegate.appendChatMessage(
-                        ChatMessage("model", "The project changed after this edit was reviewed - re-approve to continue.")
+                        ChatMessage.error("The project changed after this edit was reviewed - re-approve to continue.")
                     )
                     return@launch
                 }
@@ -552,13 +552,13 @@ class MainViewModel(
                         .markEditCheckpointApproved(reviewed.checkpoint)
                 }
                 stateDelegate.setLocalEditReview(state.copy(status = LocalEditReviewStatus.APPROVED))
-                stateDelegate.appendChatMessage(ChatMessage("model", state.approval.response))
+                stateDelegate.appendChatMessage(ChatMessage("model", state.approval.response, state.approval.source))
                 stateDelegate.triggerFileTreeReload()
                 stateDelegate.triggerWebHardReload()
             } catch (_: Exception) {
                 stateDelegate.setLocalEditReview(state)
                 stateDelegate.appendChatMessage(
-                    ChatMessage("model", "Approval stopped: the project changed after review.")
+                    ChatMessage.error("Approval stopped: the project changed after review.")
                 )
             } finally {
                 stateDelegate.setChatLoading(false)
@@ -620,12 +620,12 @@ class MainViewModel(
                 }
                 stateDelegate.setLocalEditReview(null)
                 stateDelegate.appendChatMessage(
-                    ChatMessage("model", "Discarded: the project changed after review, so nothing was restored.")
+                    ChatMessage.error("Discarded: the project changed after review, so nothing was restored.")
                 )
             } catch (_: Exception) {
                 stateDelegate.setLocalEditReview(state)
                 stateDelegate.appendChatMessage(
-                    ChatMessage("model", "Restore stopped: the project changed after review.")
+                    ChatMessage.error("Restore stopped: the project changed after review.")
                 )
             } finally {
                 stateDelegate.setChatLoading(false)
@@ -754,6 +754,18 @@ class MainViewModel(
 
     fun dismissArtifactDialog() { _artifactCheckResult.value = null }
 
+    /**
+     * Hides the global "Working..." dialog without cancelling whatever
+     * operation is actually running - that operation has no cancellation
+     * handle exposed to the UI today. This previously had no dismiss path at
+     * all: opening the Clone tab on a slow or offline connection locked the
+     * entire app behind an unresponsive modal until the underlying network
+     * call timed out on its own. The operation still completes (or fails) in
+     * the background and updates its own state normally; this just stops
+     * blocking the screen while it does.
+     */
+    fun dismissLoadingDialog() = stateDelegate.setLoadingProgress(null)
+
     // --- File Observation ---
 
     private var fileObserver: ProjectFileObserver? = null
@@ -810,7 +822,11 @@ class MainViewModel(
             val githubUser = settingsViewModel.getGithubUser() ?: "Unknown"
             val reportToGithub = settingsViewModel.isReportIdeErrorsEnabled()
 
-            if (!apiKey.isNullOrBlank()) {
+            // See CrashHandler.handleCrash for why this can't require the
+            // Jules key alone - a GitHub-only reporting user needs neither it
+            // nor a Jules project ID.
+            val canReportToGithub = reportToGithub && !githubToken.isNullOrBlank()
+            if (!apiKey.isNullOrBlank() || canReportToGithub) {
                 val intent = Intent(getApplication(), CrashReportingService::class.java).apply {
                     action = CrashReportingService.ACTION_REPORT_NON_FATAL
                     putExtra(CrashReportingService.EXTRA_API_KEY, apiKey)
@@ -1444,10 +1460,18 @@ class MainViewModel(
                 // crash-reporting code for a project type this release doesn't support.
                 if (projectType !in ProjectType.selectable) {
                     destDir.deleteRecursively()
-                    logHandler.onOverlayLog(
-                        "${projectType.displayName} projects are not available in this release. " +
-                            "The imported folder was not kept."
-                    )
+                    val message = "${projectType.displayName} projects are not available in this release. " +
+                        "The imported folder was not kept."
+                    logHandler.onOverlayLog(message)
+                    // The log line alone previously landed only in the AI Log
+                    // tab of a collapsed bottom sheet - from the user's seat,
+                    // "Add External Project" appeared to silently do nothing
+                    // (no dialog, no toast, the Load tab list unchanged) while
+                    // it had actually copied, inspected, and then deleted
+                    // their folder.
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(getApplication(), message, Toast.LENGTH_LONG).show()
+                    }
                     return@launch
                 }
                 val packageName = com.hereliesaz.ideaz.utils.ProjectAnalyzer.detectPackageName(destDir)
@@ -1564,6 +1588,7 @@ class MainViewModel(
     fun checkForExperimentalUpdates() = updateDelegate.checkForExperimentalUpdates()
     fun confirmUpdate() = updateDelegate.confirmUpdate()
     fun dismissUpdateWarning() = updateDelegate.dismissUpdateWarning()
+    fun dismissUpdateStatus() = updateDelegate.dismissUpdateStatus()
 
     // MISC
 
@@ -1674,7 +1699,6 @@ class MainViewModel(
         // Only flag the Jules key as missing if Jules is actually assigned to a task.
         val julesAssigned = listOf(
             SettingsViewModel.KEY_AI_ASSIGNMENT_DEFAULT,
-            SettingsViewModel.KEY_AI_ASSIGNMENT_INIT,
             SettingsViewModel.KEY_AI_ASSIGNMENT_CONTEXTLESS,
             SettingsViewModel.KEY_AI_ASSIGNMENT_OVERLAY,
         ).any { settingsViewModel.getAiAssignment(it) == AiModels.JULES_DEFAULT }

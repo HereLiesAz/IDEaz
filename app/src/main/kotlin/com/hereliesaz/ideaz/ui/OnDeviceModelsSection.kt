@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
@@ -78,6 +79,11 @@ fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
     var activeId by remember { mutableStateOf(store.activeModelId) }
     var refresh by remember { mutableIntStateOf(0) }
     var showUnavailable by remember { mutableStateOf(false) }
+    // Which model's Delete button was tapped, awaiting confirmation. A
+    // multi-GB downloaded model previously deleted instantly on a single tap
+    // with no confirmation at all - deleting a single text file elsewhere in
+    // this app asks first; an hour-long download did not.
+    var modelPendingDelete by remember { mutableStateOf<LocalModel?>(null) }
 
     // Static device signals (read once).
     val totalRam = remember { DeviceCapabilities.totalRamBytes(context) }
@@ -264,15 +270,7 @@ fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
                         }
                         downloaded -> {
                             AzButton(
-                                onClick = {
-                                    LocalModelDownloadWorker.cancel(context, model.id)
-                                    downloads.delete(model)
-                                    if (activeId == model.id) {
-                                        activeId = null
-                                        store.activeModelId = null
-                                    }
-                                    refresh++
-                                },
+                                onClick = { modelPendingDelete = model },
                                 text = "Delete",
                                 shape = AzButtonShape.RECTANGLE,
                             )
@@ -317,4 +315,31 @@ fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
     }
 
     Spacer(Modifier.height(24.dp))
+
+    modelPendingDelete?.let { target ->
+        AlertDialog(
+            onDismissRequest = { modelPendingDelete = null },
+            title = { Text("Delete ${target.name}?") },
+            text = { Text("This deletes the downloaded model file(s) (${humanSize(target.approxSizeBytes)}) from this device. You'll need to download it again to use it.") },
+            confirmButton = {
+                AzButton(
+                    onClick = {
+                        LocalModelDownloadWorker.cancel(context, target.id)
+                        downloads.delete(target)
+                        if (activeId == target.id) {
+                            activeId = null
+                            store.activeModelId = null
+                        }
+                        refresh++
+                        modelPendingDelete = null
+                    },
+                    text = "Delete",
+                    shape = AzButtonShape.RECTANGLE,
+                )
+            },
+            dismissButton = {
+                AzButton(onClick = { modelPendingDelete = null }, text = "Cancel", shape = AzButtonShape.NONE)
+            }
+        )
+    }
 }

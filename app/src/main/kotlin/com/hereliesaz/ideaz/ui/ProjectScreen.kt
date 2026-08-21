@@ -176,10 +176,17 @@ fun ProjectScreen(
 
     if (loadingProgress != null) {
         AlertDialog(
-            onDismissRequest = {},
+            onDismissRequest = { viewModel.dismissLoadingDialog() },
             title = { Text("Working...") },
             text = { Column { LinearProgressIndicator(progress = { (loadingProgress ?: 0) / 100f }); Text("$loadingProgress%") } },
-            confirmButton = {}
+            confirmButton = {},
+            // Previously this dialog had no dismiss path at all (empty
+            // onDismissRequest, no buttons) - a slow or offline network call
+            // (e.g. the Clone tab's initial repo fetch) locked the entire
+            // screen behind it until the request timed out on its own.
+            // Dismissing only hides the dialog; the operation keeps running
+            // and still updates its own state when it finishes.
+            dismissButton = { TextButton(onClick = { viewModel.dismissLoadingDialog() }) { Text("Dismiss") } }
         )
     }
 

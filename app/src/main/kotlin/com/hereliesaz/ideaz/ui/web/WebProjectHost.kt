@@ -33,6 +33,30 @@ import com.hereliesaz.ideaz.models.EXTRA_WWW_DIR
 import com.hereliesaz.ideaz.services.WasmCompilerService
 import java.io.File
 
+/**
+ * Translates a WebView/Chromium net-error description into a plain-language
+ * explanation with an actionable next step, falling back to the raw text for
+ * anything not recognized. Previously a page load failure surfaced the
+ * verbatim Chromium string (e.g. "net::ERR_CLEARTEXT_NOT_PERMITTED") directly
+ * in a Toast with no translation - meaningless to a user who isn't debugging
+ * a WebView.
+ */
+private fun humanizeWebError(description: String?): String {
+    val raw = description.orEmpty()
+    val explanation = when {
+        raw.contains("ERR_CLEARTEXT_NOT_PERMITTED") ->
+            "This project tried to load an insecure (http://) resource, which isn't allowed. Use https:// instead."
+        raw.contains("ERR_NAME_NOT_RESOLVED") || raw.contains("ERR_INTERNET_DISCONNECTED") ->
+            "Couldn't reach the network. Check your connection."
+        raw.contains("ERR_CONNECTION_REFUSED") || raw.contains("ERR_CONNECTION_TIMED_OUT") ->
+            "The server didn't respond. It may be down or unreachable."
+        raw.contains("ERR_CERT_") ->
+            "This site's security certificate couldn't be verified."
+        else -> null
+    }
+    return if (explanation != null) "$explanation ($raw)" else "Error: $raw"
+}
+
 class IdeazJsInterface(private val context: Context) {
     @JavascriptInterface
     fun onInspectResult(resourceId: String) {
@@ -248,7 +272,7 @@ fun WebProjectHost(
                     // Only show the user-visible Toast for main-frame failures; sub-resource
                     // errors (images, fonts, scripts) are logged but not surfaced as toasts.
                     if (request?.isForMainFrame == true) {
-                        Toast.makeText(context, "Error: ${error?.description}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, humanizeWebError(error?.description?.toString()), Toast.LENGTH_LONG).show()
                     }
                     val intent = Intent(ACTION_AI_LOG).apply {
                         putExtra(EXTRA_MESSAGE, msg)

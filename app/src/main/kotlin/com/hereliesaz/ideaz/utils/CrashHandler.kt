@@ -42,7 +42,15 @@ object CrashHandler {
             val githubUser = prefs.getString(SettingsViewModel.KEY_GITHUB_USER, "Unknown")
             val reportToGithub = prefs.getBoolean(SettingsViewModel.KEY_REPORT_IDE_ERRORS, true)
 
-            if (!apiKey.isNullOrBlank()) {
+            // The first-run "Report crashes to help fix bugs?" consent dialog
+            // promises crash reporting in general, not specifically a Jules AI
+            // session - but this gate previously required the Jules API key
+            // regardless of whether the user only wanted GitHub issue
+            // reporting (which CrashReportingService can do without Jules at
+            // all - see its own reportToGithub branch). A user who said yes
+            // and configured only a GitHub token got silent no-op reporting.
+            val canReportToGithub = reportToGithub && !githubToken.isNullOrBlank()
+            if (!apiKey.isNullOrBlank() || canReportToGithub) {
                 val intent = Intent(context, CrashReportingService::class.java).apply {
                     putExtra(CrashReportingService.EXTRA_API_KEY, apiKey)
                     putExtra(CrashReportingService.EXTRA_JULES_PROJECT_ID, projectId)

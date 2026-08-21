@@ -83,8 +83,17 @@ class CrashReportingService : Service() {
         val reportToGithub = intent.getBooleanExtra(EXTRA_REPORT_TO_GITHUB, true)
         val isFatal = intent.action != ACTION_REPORT_NON_FATAL
 
-        if (apiKey.isNullOrBlank() || rawErrorData.isNullOrBlank() || projectId.isNullOrBlank()) {
-            Log.w(TAG, "Missing API key, Project ID, or error data. Aborting report.")
+        // Reporting to GitHub (below, "Option A") needs only rawErrorData and a
+        // GitHub token - it never touches Jules. The Jules key/project ID are
+        // only required for "Option B", the direct-to-Jules-agent path. This
+        // used to require all three unconditionally, so a user who only
+        // wanted GitHub issue reporting (and never configured Jules at all)
+        // got every report silently dropped here.
+        val usingGithub = reportToGithub && !githubToken.isNullOrBlank()
+        if (rawErrorData.isNullOrBlank() ||
+            (!usingGithub && (apiKey.isNullOrBlank() || projectId.isNullOrBlank()))
+        ) {
+            Log.w(TAG, "Missing required credentials or error data for the selected report path. Aborting.")
             stopSelf()
             return START_NOT_STICKY
         }

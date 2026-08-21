@@ -18,6 +18,22 @@ import java.util.concurrent.TimeUnit
 private const val DOWNLOAD_STORAGE_RESERVE_BYTES = 256L * 1024L * 1024L
 private const val PART_METADATA_SUFFIX = ".part.meta"
 
+/**
+ * Appends a plain-language hint to a bare HTTP status code shown to the user.
+ * A user with a genuinely valid Hugging Face token but who hasn't accepted a
+ * gated model's license on huggingface.co (a separate step from having a
+ * token at all) previously just saw "HTTP 403" with nothing pointing at what
+ * to actually do about it.
+ */
+internal fun httpErrorHint(code: Int): String = when (code) {
+    401 -> " (missing or invalid provider token - check it in Settings)"
+    403 -> " (access denied - if this model is gated, visit its page on huggingface.co and accept the license, or your token may need explicit access granted)"
+    404 -> " (not found - the model may have been moved or removed upstream)"
+    429 -> " (rate limited - wait a bit and try again)"
+    in 500..599 -> " (server error - try again later)"
+    else -> ""
+}
+
 /** Stable catalog identity persisted beside an interrupted partial download. */
 internal fun partialDownloadFingerprint(spec: LocalModelFile): String {
     val manifest = listOf(
@@ -343,7 +359,7 @@ class ModelDownloadManager(
                 metadata.delete()
                 throw IOException("Server rejected stale resume data for ${f.fileName}")
             }
-            if (!resp.isSuccessful) throw IOException("Download failed for ${f.fileName}: HTTP ${resp.code}")
+            if (!resp.isSuccessful) throw IOException("Download failed for ${f.fileName}: HTTP ${resp.code}${httpErrorHint(resp.code)}")
             val body = resp.body
             val resuming = resp.code == 206
             if (resuming && !contentRangeMatches(

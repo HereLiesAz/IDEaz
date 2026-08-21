@@ -103,10 +103,6 @@ fun SettingsScreen(
         mutableStateOf(settingsViewModel.getShowCancelWarning())
     }
 
-    var autoReportBugs by remember(settingsVersion) {
-        mutableStateOf(settingsViewModel.getAutoReportBugs())
-    }
-
     var autoDebugBuilds by remember(settingsVersion) {
         mutableStateOf(settingsViewModel.isAutoDebugBuildsEnabled())
     }
@@ -124,6 +120,7 @@ fun SettingsScreen(
     // --- Export/Import State (Encrypted) ---
     var showExportPasswordDialog by remember { mutableStateOf(false) }
     var showImportPasswordDialog by remember { mutableStateOf(false) }
+    var showKeystoreResetConfirm by remember { mutableStateOf(false) }
     var exportUri by remember { mutableStateOf<Uri?>(null) }
     var importUri by remember { mutableStateOf<Uri?>(null) }
 
@@ -218,6 +215,32 @@ fun SettingsScreen(
     )
 
     // --- Dialogs ---
+
+    if (showKeystoreResetConfirm) {
+        AlertDialog(
+            onDismissRequest = { showKeystoreResetConfirm = false },
+            title = { Text("Reset signing config?") },
+            text = { Text("This permanently deletes the imported release keystore file and both signing passwords from this device. This cannot be undone - you'll need to re-import the keystore to sign a release build again.") },
+            confirmButton = {
+                AzButton(
+                    onClick = {
+                        showKeystoreResetConfirm = false
+                        settingsViewModel.clearSigningConfig()
+                        keystorePath = "Default (debug.keystore)"
+                        keystorePass = "android"
+                        keyAlias = "androiddebugkey"
+                        keyPass = "android"
+                        Toast.makeText(context, "Reset to default debug keystore", Toast.LENGTH_SHORT).show()
+                    },
+                    text = "Reset",
+                    shape = AzButtonShape.RECTANGLE,
+                )
+            },
+            dismissButton = {
+                AzButton(onClick = { showKeystoreResetConfirm = false }, text = "Cancel", shape = AzButtonShape.NONE)
+            }
+        )
+    }
 
     if (showExportPasswordDialog) {
         PasswordDialog(
@@ -348,14 +371,14 @@ fun SettingsScreen(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 AzButton(
-                    onClick = {
-                        settingsViewModel.clearSigningConfig()
-                        keystorePath = "Default (debug.keystore)"
-                        keystorePass = "android"
-                        keyAlias = "androiddebugkey"
-                        keyPass = "android"
-                        Toast.makeText(context, "Reset to default debug keystore", Toast.LENGTH_SHORT).show()
-                    },
+                    // clearSigningConfig() permanently deletes the imported
+                    // release keystore file and both signing passwords - an
+                    // unrecoverable action that previously ran on a single
+                    // tap with no confirmation, directly below the password
+                    // fields the user was just typing into. Deleting a single
+                    // project file elsewhere in this app asks first; this,
+                    // the app's release signing key, did not.
+                    onClick = { showKeystoreResetConfirm = true },
                     text = "Reset to Default",
                     shape = AzButtonShape.NONE,
                     modifier = Modifier.align(Alignment.End)
@@ -752,27 +775,6 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .toggleable(
-                            value = autoReportBugs,
-                            onValueChange = {
-                                autoReportBugs = it
-                                settingsViewModel.setAutoReportBugs(it)
-                            },
-                            role = Role.Checkbox
-                        )
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(
-                        checked = autoReportBugs,
-                        onCheckedChange = null
-                    )
-                    Text("Auto-report IDE internal errors to GitHub", color = MaterialTheme.colorScheme.onBackground)
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .toggleable(
                             value = autoDebugBuilds,
                             onValueChange = {
                                 autoDebugBuilds = it
@@ -787,7 +789,13 @@ fun SettingsScreen(
                         checked = autoDebugBuilds,
                         onCheckedChange = null
                     )
-                    Text("Auto-debug build failures with Jules", color = MaterialTheme.colorScheme.onBackground)
+                    // handleBuildFailure sends the full build log to Jules
+                    // ONLY if Jules is the "Default" AI assignment - otherwise
+                    // it goes to whatever cloud provider Default actually is,
+                    // with no separate consent for that. The old label
+                    // implied Jules-specific behavior regardless of what's
+                    // actually configured.
+                    Text("Auto-send build failures to your default AI to fix", color = MaterialTheme.colorScheme.onBackground)
                 }
 
                 Row(
@@ -837,7 +845,7 @@ fun SettingsScreen(
 
                 if (updateStatus != null) {
                     AlertDialog(
-                        onDismissRequest = { },
+                        onDismissRequest = { viewModel.dismissUpdateStatus() },
                         title = { Text("Updating") },
                         text = {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -846,7 +854,10 @@ fun SettingsScreen(
                                 Text(updateStatus!!)
                             }
                         },
-                        confirmButton = {}
+                        confirmButton = {},
+                        dismissButton = {
+                            AzButton(onClick = { viewModel.dismissUpdateStatus() }, text = "Dismiss", shape = AzButtonShape.NONE)
+                        }
                     )
                 }
 

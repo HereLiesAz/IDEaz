@@ -274,8 +274,18 @@ private fun LocalEditReviewCard(state: LocalEditReviewState, viewModel: MainView
 }
 
 @Composable
-private fun ChatBubble(msg: ChatMessage, providerDisplayName: String) {
+private fun ChatBubble(msg: ChatMessage, fallbackProviderDisplayName: String) {
     val isUser = msg.role == "user"
+    // msg.provider is set at the point each reply was actually produced, so
+    // switching the "Default" AI assignment mid-conversation no longer
+    // relabels every earlier reply as having come from the new provider.
+    // Older/synthetic messages that predate that field fall back to the
+    // current provider name, same as before this existed.
+    val label = when {
+        isUser -> "You"
+        msg.isError -> "Error"
+        else -> msg.provider ?: fallbackProviderDisplayName
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
@@ -285,15 +295,19 @@ private fun ChatBubble(msg: ChatMessage, providerDisplayName: String) {
             horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
         ) {
             Text(
-                text = if (isUser) "You" else providerDisplayName,
+                text = label,
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                color = if (msg.isError) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                }
             )
             Text(
                 text = msg.content,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface
+                color = if (msg.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
             )
         }
     }

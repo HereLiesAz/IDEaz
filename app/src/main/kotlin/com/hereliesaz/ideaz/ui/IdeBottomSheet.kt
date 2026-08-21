@@ -412,6 +412,15 @@ private fun ExpandedContent(
         ContextlessChatInput(
             modifier = Modifier.fillMaxWidth(),
             viewModel = viewModel,
+            // This input renders under every tab, not just Chat (index 5) -
+            // but replies only ever render there (see the `selectedTab == 5`
+            // branch above). Sending from, say, the Build tab previously left
+            // the reply invisible: the user saw their prompt box do nothing
+            // and had no way to know a message-shaped input box beneath a log
+            // view controls a completely different tab's content. Switch to
+            // Chat automatically so the reply the user just asked for is
+            // actually where they're looking.
+            onMessageSent = { if (selectedTab != 5) onSelectTab(5) },
         )
 
         Spacer(modifier = Modifier.height(bottomBufferHeight))

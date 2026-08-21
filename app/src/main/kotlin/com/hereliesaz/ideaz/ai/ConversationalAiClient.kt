@@ -53,7 +53,31 @@ sealed interface ChatPart {
  * Note: See also [com.hereliesaz.ideaz.ui.delegates.Message] which serves the same purpose
  * for the Jules provider. These will be unified in Phase 3.
  */
-data class ChatMessage(val role: String, val parts: List<ChatPart>) {
+data class ChatMessage(
+    val role: String,
+    val parts: List<ChatPart>,
+    /**
+     * Which provider actually produced this "model" turn (e.g. "Gemini 2.0
+     * Flash", "Claude Sonnet", "On-device model") - null for user turns, and
+     * for older/synthetic messages that predate this field. The chat UI
+     * previously applied one provider label to the entire displayed history,
+     * computed from whatever the CURRENT "Default" AI assignment is - so
+     * switching providers mid-conversation silently relabeled every earlier
+     * reply as having come from the new one. This is set once, at the point
+     * each reply is actually produced, and never changes afterward. Purely a
+     * display hint - never sent to any provider (each adapter builds its own
+     * wire format from role/parts only, never serializes this field).
+     */
+    val provider: String? = null,
+    /**
+     * True for a synthetic "Error: ..." string appended as a "model" turn
+     * (no API key set, no project open, a request that failed, etc) - never
+     * true for genuine model output. The chat UI previously had no way to
+     * tell these apart from a real reply, so a raw error string rendered
+     * with the same provider attribution and styling as an actual answer.
+     */
+    val isError: Boolean = false,
+) {
     /** Joined text from every [ChatPart.Text] in [parts]. Empty if no text parts. */
     val content: String
         get() = parts.filterIsInstance<ChatPart.Text>().joinToString("\n") { it.text }
@@ -66,5 +90,13 @@ data class ChatMessage(val role: String, val parts: List<ChatPart>) {
          */
         operator fun invoke(role: String, content: String): ChatMessage =
             ChatMessage(role, listOf(ChatPart.Text(content)))
+
+        /** Same shim, additionally tagging which provider produced this reply. */
+        operator fun invoke(role: String, content: String, provider: String?): ChatMessage =
+            ChatMessage(role, listOf(ChatPart.Text(content)), provider = provider)
+
+        /** Builds a synthetic error turn - see [isError]. */
+        fun error(content: String): ChatMessage =
+            ChatMessage(role = "model", parts = listOf(ChatPart.Text(content)), isError = true)
     }
 }
