@@ -28,7 +28,16 @@ internal fun isRetryableModelDownloadFailure(message: String): Boolean =
         !message.startsWith("Model catalog") &&
         !message.contains("mismatch") &&
         !message.startsWith("Invalid ") &&
-        !Regex("HTTP 4\\d\\d").containsMatchIn(message)
+        !Regex("HTTP 4\\d\\d").containsMatchIn(message) &&
+        // "Not enough storage..." above only covers this app's own upfront
+        // preflight rejection. A genuine mid-download disk-full condition
+        // instead throws a raw OS-level IOException ("No space left on
+        // device" is ENOSPC's strerror text on Linux) that previously matched
+        // none of these patterns, so it retried like a transient network
+        // error - refilling the disk on every attempt instead of failing
+        // once. Retrying will not free space that didn't get freed on its own.
+        !message.contains("No space left on device", ignoreCase = true) &&
+        !message.contains("ENOSPC", ignoreCase = true)
 
 /**
  * Durable, unique download job for one catalog model.

@@ -179,6 +179,18 @@ class ModelDownloadManager(
 ) {
     private val root = File(context.filesDir, "local-models").apply { mkdirs() }
 
+    companion object {
+        // Two concurrent downloads (WorkManager runs distinct model IDs in
+        // parallel - enqueueUniqueWork is only unique per model) previously
+        // each ran preflightStorage independently against the same
+        // root.usableSpace snapshot, so e.g. two ~3GB downloads could each see
+        // enough free space on their own and both pass, then jointly exceed
+        // what was actually available. This tracks bytes every in-flight
+        // download in this process has already claimed, so a later download's
+        // preflight check accounts for space earlier ones are already using.
+        private val reservedBytes = java.util.concurrent.atomic.AtomicLong(0L)
+    }
+
     /** The directory all of [model]'s files live in. */
     fun modelDir(model: LocalModel): File = File(root, model.id)
 
@@ -219,30 +231,37 @@ class ModelDownloadManager(
         onProgress: (downloaded: Long, total: Long) -> Unit = { _, _ -> },
     ): File = withContext(Dispatchers.IO) {
         val mdir = modelDir(model).apply { mkdirs() }
-        preflightStorage(model, mdir)
-        val approxTotal = if (model.approxSizeBytes > 0) model.approxSizeBytes else -1L
-        var cumulative = 0L
+        val reserved = preflightStorage(model, mdir)
+        try {
+            val approxTotal = if (model.approxSizeBytes > 0) model.approxSizeBytes else -1L
+            var cumulative = 0L
 
-        for (f in filesOf(model)) {
-            val target = File(mdir, f.fileName)
-            if (target.isFile && target.length() > 0) {
-                val valid = runCatching { verifyDownloadedFile(target, f) }.isSuccess
-                if (valid) {
-                    writeVerificationMarker(f, target)
-                    cumulative += target.length()
-                    onProgress(cumulative, approxTotal)
-                    File(mdir, f.fileName + ".part").delete()
-                    File(mdir, f.fileName + PART_METADATA_SUFFIX).delete()
-                    continue
+            for (f in filesOf(model)) {
+                val target = File(mdir, f.fileName)
+                if (target.isFile && target.length() > 0) {
+                    val valid = runCatching { verifyDownloadedFile(target, f) }.isSuccess
+                    if (valid) {
+                        writeVerificationMarker(f, target)
+                        cumulative += target.length()
+                        onProgress(cumulative, approxTotal)
+                        File(mdir, f.fileName + ".part").delete()
+                        File(mdir, f.fileName + PART_METADATA_SUFFIX).delete()
+                        continue
+                    }
+                    target.delete()
+                    File(mdir, f.fileName + ".verified").delete()
                 }
-                target.delete()
-                File(mdir, f.fileName + ".verified").delete()
+                val base = cumulative
+                downloadOne(f, mdir, authToken) { soFar -> onProgress(base + soFar, approxTotal) }
+                cumulative += target.length()
             }
-            val base = cumulative
-            downloadOne(f, mdir, authToken) { soFar -> onProgress(base + soFar, approxTotal) }
-            cumulative += target.length()
+            fileFor(model)
+        } finally {
+            // Release regardless of success, failure, or cancellation - an
+            // unreleased reservation would permanently overstate storage
+            // pressure for every later download in this process.
+            reservedBytes.addAndGet(-reserved)
         }
-        fileFor(model)
     }
 
     /**
@@ -250,8 +269,14 @@ class ModelDownloadManager(
      * sizes win when every file has one; otherwise the catalog's conservative total
      * estimate is used. Existing final and partial bytes reduce the requirement
      * because activation is a same-filesystem rename, not a second full copy.
+     *
+     * Also accounts for - and reserves - bytes any other concurrent download in
+     * this process has already claimed but not yet written, so two downloads
+     * started at once can't each independently see the same free space and both
+     * pass. Returns the amount reserved; the caller must release it (see
+     * [download]'s `finally`) once this download finishes, however it finishes.
      */
-    private fun preflightStorage(model: LocalModel, mdir: File) {
+    private fun preflightStorage(model: LocalModel, mdir: File): Long {
         val specs = filesOf(model)
         val manifestTotal = specs
             .takeIf { entries -> entries.all { it.expectedSizeBytes != null } }
@@ -277,10 +302,14 @@ class ModelDownloadManager(
             }
             if (accumulated > Long.MAX_VALUE - size) Long.MAX_VALUE else accumulated + size
         }.coerceAtMost(total)
-        requireDownloadStorage(
-            availableBytes = root.usableSpace,
-            remainingDownloadBytes = (total - existing).coerceAtLeast(0L),
-        )
+        val remaining = (total - existing).coerceAtLeast(0L)
+        synchronized(reservedBytes) {
+            val alreadyReserved = reservedBytes.get()
+            val combined = if (remaining > Long.MAX_VALUE - alreadyReserved) Long.MAX_VALUE else remaining + alreadyReserved
+            requireDownloadStorage(availableBytes = root.usableSpace, remainingDownloadBytes = combined)
+            reservedBytes.addAndGet(remaining)
+        }
+        return remaining
     }
 
     private suspend fun downloadOne(

@@ -115,7 +115,15 @@ fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
     )
     Spacer(Modifier.height(8.dp))
 
-    val hasToken = !settingsViewModel.getApiKey(SettingsViewModel.KEY_HF_API_KEY).isNullOrBlank()
+    // getApiKey is a Keystore-backed decrypt (KEY_HF_API_KEY is in
+    // SECURE_CREDENTIAL_KEYS), not a cheap pref read. This composable's progress
+    // LiveData (below, via observeAsState) recomposes roughly once a second
+    // during any active download, so leaving this as a bare call re-ran that
+    // decrypt on the main thread on every tick. Cached against the same
+    // `refresh` key already used for per-card download state.
+    val hasToken = remember(refresh) {
+        !settingsViewModel.getApiKey(SettingsViewModel.KEY_HF_API_KEY).isNullOrBlank()
+    }
 
     @Suppress("UNUSED_EXPRESSION") refresh // re-read per-card download state when bumped
 
