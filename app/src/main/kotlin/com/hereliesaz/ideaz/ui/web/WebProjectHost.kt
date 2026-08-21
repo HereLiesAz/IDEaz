@@ -22,7 +22,10 @@ import kotlinx.coroutines.launch
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.webkit.ServiceWorkerClientCompat
+import androidx.webkit.ServiceWorkerControllerCompat
 import androidx.webkit.WebViewAssetLoader
+import androidx.webkit.WebViewFeature
 import com.hereliesaz.ideaz.models.ACTION_AI_LOG
 import com.hereliesaz.ideaz.models.ACTION_WASM_COMPILE_SUCCESS
 import com.hereliesaz.ideaz.models.EXTRA_MESSAGE
@@ -230,6 +233,23 @@ fun WebProjectHost(
                     }
                     context.sendBroadcast(intent)
                 }
+            }
+
+            // Service Worker requests (registration, fetch, etc.) do NOT go through
+            // WebViewClient.shouldInterceptRequest above - that only covers the
+            // page's own document/subresource loads. Without this separate hook, a
+            // project's `sw.js` registration against the WebViewAssetLoader virtual
+            // origin fails with "An unknown error occurred when fetching the
+            // script", since nothing services that request. ServiceWorkerController
+            // is a process-wide singleton, not tied to this WebView instance, but
+            // re-registering the same assetLoader-backed client here is idempotent.
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_BASIC_USAGE) &&
+                WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_SHOULD_INTERCEPT_REQUEST)
+            ) {
+                ServiceWorkerControllerCompat.getInstance().setServiceWorkerClient(object : ServiceWorkerClientCompat() {
+                    override fun shouldInterceptRequest(request: WebResourceRequest): WebResourceResponse? =
+                        assetLoader.shouldInterceptRequest(request.url)
+                })
             }
         }
     }
