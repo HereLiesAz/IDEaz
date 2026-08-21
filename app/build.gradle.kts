@@ -394,16 +394,9 @@ tasks.configureEach {
     }
 }
 
-// build-and-release.yml's `./gradlew build` runs the full release variant (R8,
-// lintVital) and the debug variant (including this test task) in one Gradle
-// daemon session, so by the time the forked unit-test JVM starts, an unbounded
-// heap request competes with whatever the daemon/compiler processes still hold.
-// A CI run on the unchanged code that had just passed the same test task in a
-// lighter job crashed here with "Test process encountered an unexpected
-// problem... Process 'Gradle Test Executor 1' finished with non-zero exit
-// value 1" and zero test output - consistent with the forked JVM failing to
-// even start. Pin an explicit, modest heap so the request is predictable
-// instead of derived from momentary runner memory pressure.
+// Pin an explicit, modest test-JVM heap instead of leaving it to the JVM's
+// own memory-derived default, which crashed the forked test executor under
+// build-and-release.yml's heavier combined release+debug build (see PR #850).
 tasks.withType<Test>().configureEach {
     maxHeapSize = "1536m"
 }
