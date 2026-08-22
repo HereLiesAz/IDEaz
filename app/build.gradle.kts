@@ -250,7 +250,7 @@ configurations.all {
                 // jumping straight to the newest patch, to narrow down which specific
                 // version introduces whatever packageDebug is choking on.
                 requested.group.startsWith("com.fasterxml.jackson") ->
-                    useVersion("2.18.7")
+                    useVersion("2.18.10")
                 // Netty arrives as ~11 modules via grpc-netty (unit-test only). Pin the
                 // io.netty group to the latest patched 4.1.x — staying off 4.2.x, which
                 // grpc-netty does not support. (netty-tcnative tracks a separate scheme.)
