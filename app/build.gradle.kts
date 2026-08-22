@@ -221,34 +221,22 @@ configurations.all {
         eachDependency {
             when {
                 // Jackson arrives as core/databind/annotations + datatype modules and a
-                // BOM; pin the whole family to a patched 2.18.x. Pinned back at 2.18.7 -
-                // see the two failed bump attempts below before trying to move this again.
+                // BOM; pin the whole family to a patched 2.18.x - currently 2.18.10, the
+                // latest patch in that line, closing 9 Dependabot alerts (CVE-2026-54512/
+                // 54514/54515/59889 and siblings; see docs/TODO.md's Production Readiness
+                // section for the full list).
                 //
-                // 2026-08-16: tried bumping core/databind/annotations to 2.18.9 and Netty
-                // (below) to 4.1.137.Final together, on the mistaken belief that the java8
-                // datatype modules (jackson-datatype-jdk8/jsr310) didn't publish past 2.18.7
-                // (they do - verified directly against Maven Central, every Jackson module
-                // this project uses publishes through 2.18.10). The CI build against that
-                // combination hung indefinitely on `Build with Gradle` (30+ min against a
-                // ~7 min baseline, no error, no completion) and had to be reverted
-                // sight-unseen - no log access to an in-progress job to pin down whether it
-                // was the Jackson bump, the simultaneous Netty bump, or dependency-resolution
-                // backtracking.
-                //
-                // 2026-08-17: re-attempted with only Jackson moving (Netty untouched),
-                // bumped straight to 2.18.10. This time the build didn't hang - it
-                // completed in ~10 min - but `:app:packageDebug` FAILED with a generic,
-                // stack-trace-free error ("A failure occurred while executing
-                // com.android.build.gradle.tasks.PackageAndroidArtifact$IncrementalSplitterRunnable").
-                // The workflow doesn't pass --stacktrace, so the actual cause (duplicate
-                // packaged entry from Jackson's newer jars? disk I/O? something else
-                // entirely) is unconfirmed. Reverted back to 2.18.7 to restore master.
-                // Before trying to move this pin again: get a real stack trace first (a
-                // side-branch workflow_dispatch run with --stacktrace added to
-                // BUILD_COMMAND, not another blind attempt against master), and consider
-                // moving one version at a time (e.g. 2.18.7 -> 2.18.8 only) rather than
-                // jumping straight to the newest patch, to narrow down which specific
-                // version introduces whatever packageDebug is choking on.
+                // Two earlier attempts (2026-08-16, 2026-08-17) reverted this same move -
+                // a simultaneous Netty bump hanging CI, then an opaque, stack-trace-free
+                // `:app:packageDebug` failure with nothing to diagnose from the CI log
+                // alone. This attempt (2026-08-21) reproduced neither locally, with
+                // `--stacktrace` on: `:app:packageDebug`, `:app:checkDebugDuplicateClasses`,
+                // and a full `./gradlew build` all pass clean at 2.18.10, and
+                // `:app:dependencies --configuration debugRuntimeClasspath` confirms every
+                // Jackson module resolves to 2.18.10 with no conflicts. Whatever caused the
+                // prior failure looks CI-runner-specific rather than a real incompatibility
+                // - if `packageDebug` fails again in CI at this exact pin, that's the signal
+                // it's worth chasing as an environment issue, not a Jackson one.
                 requested.group.startsWith("com.fasterxml.jackson") ->
                     useVersion("2.18.10")
                 // Netty arrives as ~11 modules via grpc-netty (unit-test only). Pin the
