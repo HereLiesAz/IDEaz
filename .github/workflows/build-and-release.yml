@@ -181,11 +181,17 @@ jobs:
             else echo "Set the BUILD_COMMAND repository variable" >&2; exit 1
             fi
           fi
-          # Always requested regardless of where BUILD_COMMAND came from - the
-          # IncrementalSplitterRunnable failure above has now happened three
-          # times with nothing more diagnostic than its bare class name, since
-          # this step never asked Gradle for one.
-          BUILD_COMMAND="$BUILD_COMMAND --stacktrace"
+          # Requested regardless of where BUILD_COMMAND came from (default or
+          # the repo variable override) - the IncrementalSplitterRunnable
+          # failure above has now happened three times with nothing more
+          # diagnostic than its bare class name, since this step never asked
+          # Gradle for one. --stacktrace is Gradle-only: appending it
+          # unconditionally would break the npm/python fallback branches
+          # above, and any non-Gradle BUILD_COMMAND override, with an
+          # unrecognized-option failure instead of an actual build.
+          case "$BUILD_COMMAND" in
+            *gradlew*) BUILD_COMMAND="$BUILD_COMMAND --stacktrace" ;;
+          esac
           echo "Running configured build command"
           # Stream to the console live via `tee` (not just to build.log) and bound
           # runtime with `timeout`: a wedged build previously produced ZERO visible
