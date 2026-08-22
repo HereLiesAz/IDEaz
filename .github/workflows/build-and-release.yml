@@ -160,12 +160,38 @@ jobs:
 
           BUILD_COMMAND="${BUILD_COMMAND_VAR}"
           if [ -z "$BUILD_COMMAND" ]; then
-            if [ -x ./gradlew ]; then BUILD_COMMAND="./gradlew build -PversionBuild=$BUILD_NUMBER --build-cache"
+            # No --build-cache here (unlike other workflows' Gradle invocations):
+            # this is the one workflow that runs :app:packageRelease, and three
+            # separate merges now (all Jackson-family dependency bumps, most
+            # recently PR #853) have hit an opaque, stack-trace-free
+            # `PackageAndroidArtifact$IncrementalSplitterRunnable` failure here
+            # that never reproduces locally with --stacktrace on, nor in
+            # pr-check.yml's `check` job (which never runs packageRelease at
+            # all). setup-gradle's cache-provider persists Gradle's own
+            # local task-output build cache across runs via GitHub's cache
+            # backend - a bump touching this many dependency jars at once is a
+            # plausible way for a stale cached task output to go undetected by
+            # its own cache key and feed inconsistent input to packaging. This
+            # doesn't skip the dependency-jar cache (still fast, unaffected),
+            # only the specific mechanism most likely to be the actual carrier
+            # of stale state across runs.
+            if [ -x ./gradlew ]; then BUILD_COMMAND="./gradlew build -PversionBuild=$BUILD_NUMBER"
             elif [ -f package.json ]; then BUILD_COMMAND="npm ci && npm test && npm run build"
             elif [ -f pyproject.toml ]; then BUILD_COMMAND="python -m build"
             else echo "Set the BUILD_COMMAND repository variable" >&2; exit 1
             fi
           fi
+          # Requested regardless of where BUILD_COMMAND came from (default or
+          # the repo variable override) - the IncrementalSplitterRunnable
+          # failure above has now happened three times with nothing more
+          # diagnostic than its bare class name, since this step never asked
+          # Gradle for one. --stacktrace is Gradle-only: appending it
+          # unconditionally would break the npm/python fallback branches
+          # above, and any non-Gradle BUILD_COMMAND override, with an
+          # unrecognized-option failure instead of an actual build.
+          case "$BUILD_COMMAND" in
+            *gradlew*) BUILD_COMMAND="$BUILD_COMMAND --stacktrace" ;;
+          esac
           echo "Running configured build command"
           # Stream to the console live via `tee` (not just to build.log) and bound
           # runtime with `timeout`: a wedged build previously produced ZERO visible

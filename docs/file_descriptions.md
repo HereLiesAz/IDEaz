@@ -16,6 +16,7 @@
 *   `.gitignore`: Git ignore rules.
 *   `.github/workflows/antigravity-*.yml`: Antigravity CLI dispatch, invocation, review, and issue-triage automation.
 *   `.github/workflows/dependency-submission.yml`: Submits the resolved `:app` and `:webruntime` release-runtime dependency graph to GitHub; intentionally excludes test, lint, Gradle, AGP, plugin, and other build-tool configurations from the production SBOM.
+*   `.github/workflows/build-and-release.yml`: "Merged Build & Release" — runs on every push to `master` (a PR merge included) plus manual `workflow_dispatch`. Builds via `./gradlew build` (no `--build-cache`, since `setup-gradle`'s persisted task-output cache is the leading suspect behind a recurring, stack-trace-free `PackageAndroidArtifact$IncrementalSplitterRunnable` failure at `:app:packageRelease`/`:app:packageDebug` — see `docs/TODO.md`'s Production Readiness section), then publishes a prerelease "Latest Debug Build" on every push or the real, non-prerelease "Latest Release" on manual dispatch. See `docs/build_pipeline.md` §6 for the full publishing contract.
 
 ## app/
 *   `build.gradle.kts`: App module build script.
