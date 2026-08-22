@@ -358,17 +358,32 @@ fun WebProjectHost(
                     val dir = intent.getStringExtra(EXTRA_WWW_DIR)
                         ?.let { File(it) }
                         ?: File(webView.context.filesDir, WasmCompilerService.WWW_DIR_NAME)
-                    // Mount the compiler's output directory, then reload. No
-                    // cache to clear: WebProjectPathHandler marks every response
-                    // no-store, so a plain reload always re-fetches the fresh
-                    // .wasm/.js pair even though their filenames (and therefore
-                    // this URL) are unchanged across recompiles. This does not
-                    // preserve UI state - the Wasm module is fully reinstantiated
-                    // - Kotlin/Wasm has no JVM-style live class redefinition to
-                    // build a true state-preserving hot reload on top of.
+                    // Mount the compiler's output directory, then re-enter the
+                    // host page at its root - not a plain reload(), which would
+                    // re-request whatever URL the page is currently on. A CMP
+                    // app can push its own History API entries (client-side
+                    // routing), so the WebView may no longer be sitting at the
+                    // freshly-mounted output's root by the time this fires.
+                    // No cache to clear first: WebProjectPathHandler marks
+                    // every project response no-store, so this always re-fetches
+                    // the fresh .wasm/.js pair even though their filenames (and
+                    // therefore this URL) are unchanged across recompiles. This
+                    // does not preserve UI state - the Wasm module is fully
+                    // reinstantiated - Kotlin/Wasm has no JVM-style live class
+                    // redefinition to build a true state-preserving hot reload on
+                    // top of.
                     wasmPreviewDir.value = dir
                     projectDirState.value = dir
-                    webView.reload()
+                    // If the page most recently navigated away from this app's
+                    // own origin (e.g. a top-level link tap), onPageStarted
+                    // below already stripped the Ideaz/IdeazBridge interfaces.
+                    // The LaunchedEffect(projectDir, url) that normally re-adds
+                    // them only fires on a project/url *switch*, not on this
+                    // broadcast-driven navigation - re-add them here too, since
+                    // the target is always this app's trusted origin.
+                    webView.addJavascriptInterface(ideazJsInterface, "Ideaz")
+                    webView.addJavascriptInterface(ideazBridge, "IdeazBridge")
+                    webView.loadUrl(WebProjectUrlUtils.localProjectRootUrl())
                     return
                 }
 

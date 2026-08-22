@@ -3,6 +3,7 @@ package com.hereliesaz.ideaz.ui.web
 import android.content.Context
 import android.webkit.WebResourceResponse
 import androidx.webkit.WebViewAssetLoader
+import com.hereliesaz.ideaz.BuildConfig
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.IOException
@@ -104,14 +105,22 @@ class WebProjectPathHandler(
     private fun serveRuntimeAsset(name: String): WebResourceResponse {
         if (name.isEmpty() || name.contains("..")) return notFound()
         return try {
-            response(mimeFor(name.substringAfterLast('.', "").lowercase()),
-                context.assets.open("$RUNTIME_ASSET_DIR/$name"))
+            // Unlike project content below, this is bundled with the app itself
+            // (not user-editable) and identical for the app's whole lifetime
+            // between updates - safe, and worth letting the WebView cache: it's
+            // ~4.5MB (the Babel bundle alone is ~3MB) that a no-store project
+            // reload has no reason to force a re-transfer of.
+            response(
+                mimeFor(name.substringAfterLast('.', "").lowercase()),
+                context.assets.open("$RUNTIME_ASSET_DIR/$name"),
+                cacheable = true,
+            )
         } catch (e: IOException) {
             notFound()
         }
     }
 
-    private fun response(mime: String, stream: java.io.InputStream): WebResourceResponse {
+    private fun response(mime: String, stream: java.io.InputStream, cacheable: Boolean = false): WebResourceResponse {
         val encoding = if (mime.startsWith("text/") || mime.endsWith("javascript") ||
             mime.endsWith("json") || mime.endsWith("xml") || mime == "image/svg+xml"
         ) "utf-8" else null
@@ -124,9 +133,10 @@ class WebProjectPathHandler(
         // non-HTTPS/non-data schemes for the resource types that matter, and a
         // pinned base-uri/frame-ancestors to close off some injection/embedding
         // vectors that cost nothing to block.
+        val cacheHeaders = if (cacheable) RUNTIME_ASSET_CACHE_HEADERS else NO_CACHE_HEADERS
         return WebResourceResponse(
             mime, encoding, 200, "OK",
-            mapOf("Content-Security-Policy" to CONTENT_SECURITY_POLICY) + NO_CACHE_HEADERS,
+            mapOf("Content-Security-Policy" to CONTENT_SECURITY_POLICY) + cacheHeaders,
             stream,
         )
     }
@@ -137,29 +147,45 @@ class WebProjectPathHandler(
     )
 
     companion object {
+        // Runtime assets are now cacheable (see NO_CACHE_HEADERS below) for the
+        // lifetime of an app version, but the WebView's HTTP cache is keyed
+        // purely by URL and knows nothing about app updates - without a version
+        // in the path, upgrading IDEaz to a build with different runtime JS
+        // would leave old cached bytes serving under the same URL for up to
+        // RUNTIME_ASSET_CACHE_HEADERS' max-age, mixing new project/wasm output
+        // with a stale runtime. Folding the version code into the path makes an
+        // app upgrade a clean cache miss instead: the old cached entries are
+        // simply never requested again.
         /** URL prefix for runtime assets (used in injected HTML). */
-        const val RUNTIME_PREFIX = "/__ideaz__/"
+        val RUNTIME_PREFIX = "/__ideaz__/${BuildConfig.VERSION_CODE}/"
         /** Same prefix as seen by [handle] after WebViewAssetLoader strips "/". */
-        private const val RUNTIME_DIR = "__ideaz__/"
+        private val RUNTIME_DIR = RUNTIME_PREFIX.removePrefix("/")
         // These assets physically live in the :webruntime install-time dynamic
         // feature module (settings.gradle.kts). Because that module is install-time
         // and fused, its assets stay reachable through the base AssetManager, so
         // this lookup is unchanged from when they were bundled directly in :app.
         private const val RUNTIME_ASSET_DIR = "ideaz-runtime"
 
-        // Every response from this handler serves a project's *current* on-disk
-        // content, re-read on every request - it is never safe for the WebView's
-        // HTTP cache to reuse a prior response for the same URL. Output filenames
-        // are stable across recompiles (WasmCompilerService always writes
-        // `app.wasm`/`app.js`; a project's own index.html keeps its name too), so
-        // without this the WebView previously had to be told to nuke its *entire*
-        // cache (WebProjectHost.clearCache(true)) on every reload just to avoid
+        // Project responses serve a project's *current* on-disk content, re-read
+        // on every request - it is never safe for the WebView's HTTP cache to
+        // reuse a prior response for the same URL. Output filenames are stable
+        // across recompiles (WasmCompilerService always writes `app.wasm`/
+        // `app.js`; a project's own index.html keeps its name too), so without
+        // this the WebView previously had to be told to nuke its *entire* cache
+        // (WebProjectHost.clearCache(true)) on every reload just to avoid
         // re-instantiating a stale Wasm binary under an unchanged URL. Declaring
-        // every response here as never-cacheable makes that whole-cache wipe
+        // project responses never-cacheable makes that whole-cache wipe
         // unnecessary - a plain reload always re-fetches fresh bytes.
         private val NO_CACHE_HEADERS = mapOf(
             "Cache-Control" to "no-store, no-cache, must-revalidate",
             "Pragma" to "no-cache",
+        )
+
+        // The bundled /__ideaz__/ runtime is the opposite case: static per app
+        // version, not project content, and worth actually letting the WebView
+        // cache (see serveRuntimeAsset).
+        private val RUNTIME_ASSET_CACHE_HEADERS = mapOf(
+            "Cache-Control" to "public, max-age=86400",
         )
 
         /** See the comment on [response] for what this does and doesn't restrict. */
@@ -184,14 +210,20 @@ class WebProjectPathHandler(
             return lower.contains("type=\"module\"") || lower.contains("type='module'")
         }
 
-        /** The runtime + import map injected into the `<head>` of module-based HTML. */
+        /**
+         * The runtime + import map injected into the `<head>` of module-based
+         * HTML. Written against the unversioned `/__ideaz__/` prefix and
+         * rewritten to the real (version-segmented) [RUNTIME_PREFIX] below -
+         * keeps this template readable instead of repeating the version
+         * segment at ~20 call sites.
+         */
         private val INJECTION = """
             |<script type="importmap">{"imports":{"react":"/__ideaz__/react.js","react-dom":"/__ideaz__/react-dom.js","react-dom/client":"/__ideaz__/react-dom-client.js","react/jsx-runtime":"/__ideaz__/jsx-runtime.js","react/jsx-dev-runtime":"/__ideaz__/jsx-runtime.js","react-router":"/__ideaz__/react-router.js","react-router/dom":"/__ideaz__/react-router-dom-entry.js","react-router-dom":"/__ideaz__/react-router-dom-entry.js","zustand":"/__ideaz__/zustand.js","zustand/middleware":"/__ideaz__/zustand-middleware.js","zustand/shallow":"/__ideaz__/zustand-shallow.js","@reduxjs/toolkit":"/__ideaz__/reduxjs-toolkit.js","react-redux":"/__ideaz__/react-redux.js","axios":"/__ideaz__/axios.js","@tanstack/react-query":"/__ideaz__/tanstack-react-query.js","styled-components":"/__ideaz__/styled-components.js","@emotion/react":"/__ideaz__/emotion-react.js","@emotion/styled":"/__ideaz__/emotion-styled.js"}}</script>
             |<script src="/__ideaz__/react.umd.js"></script>
             |<script src="/__ideaz__/react-dom.umd.js"></script>
             |<script src="/__ideaz__/babel.min.js"></script>
             |<script src="/__ideaz__/ideaz-loader.js"></script>
-        """.trimMargin()
+        """.trimMargin().replace("/__ideaz__/", RUNTIME_PREFIX)
 
         /**
          * Injects the runtime into `<head>` and rewrites `<script type="module">`
@@ -199,7 +231,7 @@ class WebProjectPathHandler(
          * (the loader picks these up and transpiles them). Idempotent.
          */
         fun injectRuntime(html: String): String {
-            if (html.contains("/__ideaz__/ideaz-loader.js")) return html
+            if (html.contains("${RUNTIME_PREFIX}ideaz-loader.js")) return html
 
             val lower = html.lowercase()
             val headIdx = lower.indexOf("<head")
