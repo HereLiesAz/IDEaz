@@ -34,12 +34,13 @@ class ProjectAnalyzerTest {
 
 
     @Test
-    fun detectWebProject() {
+    fun detectWebProject_indexHtmlAloneIsPreviewable() {
         val projectDir = tempFolder.newFolder("web_project")
         File(projectDir, "index.html").createNewFile()
 
-        val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals(ProjectType.WEB, type)
+        // No webmanifest, no service worker. It still has an entry point IDEaz
+        // can mount, which is the only thing that decides whether it is usable.
+        assertEquals(ProjectType.PWA, ProjectAnalyzer.detectProjectType(projectDir))
     }
 
     @Test
@@ -48,8 +49,7 @@ class ProjectAnalyzerTest {
         File(projectDir, "package.json").createNewFile()
         File(projectDir, "index.html").createNewFile()
 
-        val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals(ProjectType.WEB, type)
+        assertEquals(ProjectType.PWA, ProjectAnalyzer.detectProjectType(projectDir))
     }
 
     @Test
@@ -156,13 +156,33 @@ class ProjectAnalyzerTest {
         assertEquals(ProjectType.PWA, type)
     }
 
+    /**
+     * The case that used to be impossible: IDEaz could not open the React
+     * template IDEaz itself ships, because it has no webmanifest.
+     */
     @Test
-    fun detectWebProject_indexHtmlOnly_remainsWEB() {
-        val projectDir = tempFolder.newFolder("web_only")
+    fun detectViteReactProject_isSelectable() {
+        val projectDir = tempFolder.newFolder("vite_react")
         File(projectDir, "index.html").createNewFile()
+        File(projectDir, "package.json").createNewFile()
+        File(projectDir, "vite.config.js").createNewFile()
+        File(projectDir, "src").mkdirs()
+        File(projectDir, "src/App.jsx").createNewFile()
 
         val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals(ProjectType.WEB, type)
+        assertEquals(ProjectType.PWA, type)
+        assertTrue(type in ProjectType.selectable)
+    }
+
+    /** Entry points are not always at the repo root. */
+    @Test
+    fun detectWebProject_entryPointUnderPublic() {
+        val projectDir = tempFolder.newFolder("nested_entry")
+        File(projectDir, "public").mkdirs()
+        File(projectDir, "public/index.html").createNewFile()
+
+        assertEquals(ProjectType.PWA, ProjectAnalyzer.detectProjectType(projectDir))
+        assertEquals("public/index.html", ProjectAnalyzer.findWebEntryPoint(projectDir))
     }
 
     @Test
@@ -215,13 +235,18 @@ class ProjectAnalyzerTest {
     }
 
     @Test
-    fun releaseGate_rejectsDetectedPlainWebProject() {
-        val projectDir = tempFolder.newFolder("gate_web")
-        File(projectDir, "index.html").createNewFile()
+    fun releaseGate_rejectsProjectWithNoEntryPoint() {
+        // This used to assert that a bare index.html detected as WEB and was
+        // therefore refused. That gate was the bug, not the feature: it is
+        // exactly what made a React/Vite app - and IDEaz's own template -
+        // unopenable. What should actually be refused is a project with nothing
+        // to preview at all.
+        val projectDir = tempFolder.newFolder("gate_no_entry")
+        File(projectDir, "README.md").createNewFile()
 
         val detected = ProjectAnalyzer.detectProjectType(projectDir)
 
-        assertEquals(ProjectType.WEB, detected)
+        assertEquals(ProjectType.OTHER, detected)
         assertFalse(detected in ProjectType.selectable)
     }
 }

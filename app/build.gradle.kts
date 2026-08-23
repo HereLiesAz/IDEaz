@@ -117,6 +117,11 @@ kotlin {
 
         // Robolectric and Mockito need the Android classpath, so these stay on
         // the Android unit-test source set rather than commonTest.
+        // Existing tests live under src/androidUnitTest/java; KMP only looks in
+        // .../kotlin by default, so the task ran with no sources and reported
+        // success while executing nothing.
+        getByName("androidUnitTest").kotlin.srcDir("src/androidUnitTest/java")
+
         getByName("androidUnitTest").dependencies {
             implementation(libs.junit)
             implementation(libs.org.json)

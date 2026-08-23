@@ -5,35 +5,62 @@ import java.io.File
 
 object ProjectAnalyzer {
 
+    /** Where a web entry point realistically lives, in priority order. */
+    private val ENTRY_DIRS = listOf("", "public/", "src/", "app/", "www/", "docs/", "site/")
+
+    /**
+     * Classifies a project by what IDEaz can actually do with it.
+     *
+     * The old rule was "index.html at the repo root, PLUS one of four PWA marker
+     * files". That encoded an assumption from the original design - that a "PWA"
+     * is hand-written HTML where the DOM you tap *is* the source you edit - which
+     * almost no real web project satisfies. Two consequences followed:
+     *
+     *  - A standard React/Vite app resolved to WEB, which is not selectable, so
+     *    it could not be opened at all. That included IDEaz's own bundled React
+     *    template, which has index.html, package.json and vite.config.js but no
+     *    web manifest.
+     *  - The 4.5 MB React/Babel runtime IDEaz ships to preview exactly those
+     *    projects was therefore unreachable for them.
+     *
+     * The question that actually matters is "is there a JS/HTML entry point we
+     * can mount and transpile in-browser?" - not "did someone remember to write a
+     * webmanifest". Anything web-like that has one is previewable, so it reports
+     * PWA, the selectable type. The marker files still matter for nothing but
+     * accuracy of the label, so they are gone.
+     */
     fun detectProjectType(projectDir: File): ProjectType {
         if (!projectDir.exists()) return ProjectType.OTHER
 
-        // PWA: must have index.html PLUS at least one PWA marker
-        val hasIndex = File(projectDir, "index.html").exists()
-        if (hasIndex) {
-            val isPwa = File(projectDir, "manifest.webmanifest").exists() ||
-                File(projectDir, "service-worker.js").exists() ||
-                File(projectDir, "sw.js").exists() ||
-                run {
-                    val manifestJson = File(projectDir, "manifest.json")
-                    // Read at most 32 lines to avoid loading large/malformed files.
-                    manifestJson.exists() && manifestJson.bufferedReader().use { reader ->
-                        reader.lineSequence().take(32).any { it.contains("\"display\"") }
-                    }
-                }
-            return if (isPwa) ProjectType.PWA else ProjectType.WEB
-        }
+        if (findWebEntryPoint(projectDir) != null) return ProjectType.PWA
 
-        // Check for Android
+        // A package.json with a web-ish entry is enough on its own: a Vite/Next
+        // project may keep index.html somewhere this doesn't look, and the loader
+        // resolves the real entry at mount time anyway.
+        if (File(projectDir, "package.json").isFile) return ProjectType.PWA
+
         if (File(projectDir, "build.gradle.kts").exists() ||
             File(projectDir, "build.gradle").exists() ||
             File(projectDir, "app/build.gradle.kts").exists() ||
-            File(projectDir, "app/build.gradle").exists()) {
+            File(projectDir, "app/build.gradle").exists()
+        ) {
             return ProjectType.ANDROID
         }
 
         return ProjectType.OTHER
     }
+
+    /**
+     * The project-relative path of the HTML entry point, or null.
+     *
+     * Checked against a short list of conventional locations rather than the repo
+     * root alone, and never by walking the whole tree - on a phone, over a large
+     * clone, that would be a visible stall on every project open.
+     */
+    fun findWebEntryPoint(projectDir: File): String? =
+        ENTRY_DIRS.firstNotNullOfOrNull { dir ->
+            "${dir}index.html".takeIf { File(projectDir, it).isFile }
+        }
 
     fun detectPackageName(projectDir: File): String? {
         // 1. Check AndroidManifest.xml in standard locations
