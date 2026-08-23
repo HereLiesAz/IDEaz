@@ -133,6 +133,24 @@ resolve to a file and line — and the one bundled starter is a React/Vite app.
 Plain HTML still previews; it falls back to `data-ideaz-source`, then to a
 selector, and the AI's preamble says which it is getting.
 
+## 8. GitHub is optional until you publish
+
+Create, scaffold, edit, preview, approve and commit all work with no account and
+no network. `checkRequiredKeys` asks for an AI key and nothing else.
+
+This was not true until recently, and the README said it was. **Create & Save**
+was hard-gated on a token because it made the repository on GitHub *first*
+(`generateFromTemplate`) and cloned it back down. The local path existed but was
+unreachable for a named project, because the App Name field is read-only outside
+Create mode — so a user without an account could only ever have a project called
+`IDEazProject`.
+
+Creating is now local: scaffold from the bundled starter, `git init`, initial
+commit. `RepoDelegate.ensureRemoteRepository` runs on the first **Deploy**,
+creates the repository if `origin` is missing, and reuses an existing one rather
+than making a second. Deploy is also the only place that reports a missing token,
+and it says so in a toast rather than only in a log tab that may be collapsed.
+
 ## 8. Out of scope
 
 React Native, Flutter, Python, the on-device APK toolchain, VirtualDisplay

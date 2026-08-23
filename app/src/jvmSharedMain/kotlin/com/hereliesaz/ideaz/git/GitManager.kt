@@ -163,7 +163,21 @@ class GitManager(private val projectDir: File) {
     fun commit(message: String, allowEmpty: Boolean = false) {
         configureUser()
         Git.open(projectDir).use { git ->
-            git.commit().setMessage(message).setAllowEmpty(allowEmpty).call()
+            // setSign(false) is not a style preference. JGit reads the ambient
+            // git config, so on any machine with `commit.gpgsign = true` every
+            // commit here threw - and with `gpg.format = ssh` it threw
+            // UnsupportedSigningFormatException ("No signer for ssh signatures")
+            // rather than anything that names the real problem. IDEaz has no
+            // signing key and no way to prompt for a passphrase, so it must
+            // opt out explicitly rather than inherit the user's setting.
+            //
+            // IdeTools.checkpoint already did this; this path did not, so the
+            // AI's checkpoints committed fine while the user's own commits,
+            // Deploy, and the initial commit of a new project all failed. Most
+            // visible on the desktop target, where a developer's global config
+            // is right there - CI runners have no signing configured, which is
+            // why CI never caught it.
+            git.commit().setMessage(message).setAllowEmpty(allowEmpty).setSign(false).call()
         }
     }
 
@@ -392,6 +406,19 @@ class GitManager(private val projectDir: File) {
      */
     fun isRepo(): Boolean {
         return File(projectDir, ".git").exists()
+    }
+
+    /**
+     * The configured URL of remote [name], or null when no such remote exists.
+     *
+     * Used to decide whether a project has ever been published: a locally
+     * created project has no `origin` until the first Deploy creates one.
+     */
+    fun remoteUrl(name: String): String? {
+        if (!isRepo()) return null
+        return Git.open(projectDir).use { git ->
+            git.repository.config.getString("remote", name, "url")?.takeIf { it.isNotBlank() }
+        }
     }
 
     /**

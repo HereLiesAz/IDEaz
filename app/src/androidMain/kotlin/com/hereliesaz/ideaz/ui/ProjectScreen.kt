@@ -46,7 +46,6 @@ fun ProjectScreen(
     navController: NavController
 ) {
     val context = LocalContext.current
-    val hasToken = !settingsViewModel.getGithubToken().isNullOrBlank()
     val loadingProgress by viewModel.loadingProgress.collectAsState()
 
     // --- TABS LOGIC ---
@@ -200,7 +199,6 @@ fun ProjectScreen(
                         val idx = tabs.indexOf(tabName)
                         if (idx != -1) tabIndex = idx
                     },
-                    onNavigateToSettings = { navController.navigate("settings") },
                 )
                 "Clone" -> ProjectCloneTab(
                     viewModel,

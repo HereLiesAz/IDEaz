@@ -144,6 +144,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         private const val TAG = "SettingsViewModel"
         const val KEY_API_KEY = "api_key" // Jules
         const val KEY_APP_NAME = "app_name"
+        const val KEY_REPO_DESCRIPTION = "repo_description"
         const val KEY_GITHUB_USER = "github_user"
         const val KEY_BRANCH_NAME = "branch_name"
         const val KEY_PROJECT_LIST = "project_list"
@@ -647,6 +648,19 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         if (appName.isNotBlank()) addProject(appName)
     }
     fun getAppName() = sharedPreferences.getString(KEY_APP_NAME, null)
+
+    /**
+     * Description for the project's GitHub repository, captured in Create mode
+     * and used later by the first Deploy — which is when the repository is
+     * actually made. Create is local and offline, so there is nothing to attach
+     * it to at the time the user types it.
+     */
+    fun saveRepoDescription(description: String) =
+        sharedPreferences.edit { putString(KEY_REPO_DESCRIPTION, description) }
+
+    fun getRepoDescription() =
+        sharedPreferences.getString(KEY_REPO_DESCRIPTION, null)?.takeIf { it.isNotBlank() }
+            ?: "Created with IDEaz"
     fun setAppName(appName: String) {
         sharedPreferences.edit { putString(KEY_APP_NAME, appName) }
         _currentAppName.value = appName
