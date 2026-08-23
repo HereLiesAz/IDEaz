@@ -1,5 +1,7 @@
 package com.hereliesaz.ideaz.ai
 
+import com.hereliesaz.ideaz.platform.Platform
+
 import com.hereliesaz.ideaz.ai.AiEditApproval
 import com.hereliesaz.ideaz.ai.AiEditApprovalRequiredException
 import kotlinx.coroutines.CancellationException
@@ -243,7 +245,7 @@ class AnthropicAdapter(
                             put("text", part.text)
                         })
                         is ChatPart.Image -> {
-                            val b64 = android.util.Base64.encodeToString(part.bytes, android.util.Base64.NO_WRAP)
+                            val b64 = Platform.base64Encode(part.bytes)
                             add(buildJsonObject {
                                 put("type", "image")
                                 putJsonObject("source") {

@@ -1,5 +1,7 @@
 package com.hereliesaz.ideaz.git
 
+import com.hereliesaz.ideaz.platform.Platform
+
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.errors.GitAPIException
 import org.eclipse.jgit.transport.RemoteRefUpdate
@@ -343,7 +345,7 @@ class GitManager(private val projectDir: File) {
                 }
             }
         } catch (e: Exception) {
-            android.util.Log.w("GitManager", "isAhead($branch, $base) failed", e)
+            Platform.logWarn("GitManager", "isAhead($branch, $base) failed", e)
             false
         }
     }
@@ -420,7 +422,7 @@ class GitManager(private val projectDir: File) {
             // Log the error (if we had a logger) or at least don't swallow it silently without a trace.
             // Since this class doesn't have a logger, we rely on the caller to handle the false return.
             // But we should print stack trace for debugging purposes as requested.
-            android.util.Log.w("GitManager", "Git operation failed", e)
+            Platform.logWarn("GitManager", "Git operation failed", e)
             false
         }
     }

@@ -1,6 +1,6 @@
 package com.hereliesaz.ideaz.api
 
-import com.hereliesaz.ideaz.BuildConfig
+import com.hereliesaz.ideaz.platform.Platform
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -384,7 +384,7 @@ object GitHubApiClient {
             // See JulesApiClient for why this is gated: BODY logging in a
             // release build writes every request/response body to logcat,
             // which header redaction alone doesn't cover.
-            level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY else HttpLoggingInterceptor.Level.NONE
+            level = if (Platform.isDebugBuild) HttpLoggingInterceptor.Level.BODY else HttpLoggingInterceptor.Level.NONE
             redactHeader("Authorization")
         }
 

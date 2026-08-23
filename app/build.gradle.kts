@@ -42,7 +42,36 @@ kotlin {
 
     jvmToolchain(21)
 
+    // Both targets are JVM, but commonMain still compiles to platform-agnostic
+    // metadata and so cannot touch java.* - which rules out almost everything
+    // real here (java.io.File, JGit, OkHttp). jvmSharedMain sits between them:
+    // shared by android and desktop, and free to use the JVM stdlib. This is
+    // where the bulk of IDEaz's logic lives.
+    //
+    //   commonMain            - platform-agnostic (Compose UI, pure Kotlin)
+    //     └── jvmSharedMain   - + the JVM stdlib, JGit, OkHttp, Retrofit
+    //           ├── androidMain
+    //           └── desktopMain
+    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi::class)
+    applyDefaultHierarchyTemplate()
+
     sourceSets {
+        val jvmShared = create("jvmSharedMain") { dependsOn(getByName("commonMain")) }
+        getByName("androidMain").dependsOn(jvmShared)
+        getByName("desktopMain").dependsOn(jvmShared)
+
+        jvmShared.dependencies {
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.okhttp)
+            implementation(libs.okhttp.logging.interceptor)
+            implementation(libs.retrofit)
+            implementation(libs.retrofit2.kotlinx.serialization.converter)
+            implementation(libs.org.eclipse.jgit)
+            implementation(libs.slf4j.api)
+            implementation(libs.bouncycastle.bcprov)
+        }
+
         commonMain.dependencies {
             implementation(compose.runtime)
             implementation(compose.foundation)
@@ -56,13 +85,6 @@ kotlin {
             implementation(libs.cmp.navigation.compose)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
-            implementation(libs.okhttp)
-            implementation(libs.okhttp.logging.interceptor)
-            implementation(libs.retrofit)
-            implementation(libs.retrofit2.kotlinx.serialization.converter)
-            implementation(libs.org.eclipse.jgit)
-            implementation(libs.slf4j.api)
-            implementation(libs.bouncycastle.bcprov)
         }
 
         androidMain.dependencies {

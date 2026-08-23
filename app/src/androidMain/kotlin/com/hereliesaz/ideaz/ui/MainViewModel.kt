@@ -390,7 +390,7 @@ class MainViewModel(
         }
     }
 
-    val selectionDelegate = SelectionDelegate(settingsViewModel, viewModelScope, logHandler::onAiLog)
+    val selectionDelegate = SelectionDelegate(logHandler::onAiLog)
 
     val gitDelegate = GitDelegate(settingsViewModel, viewModelScope, logHandler::onBuildLog, logHandler::onProgress)
 

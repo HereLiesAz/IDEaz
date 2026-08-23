@@ -1,7 +1,5 @@
 package com.hereliesaz.ideaz.ui.delegates
 
-import com.hereliesaz.ideaz.ui.SettingsViewModel
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -26,8 +24,6 @@ import kotlinx.coroutines.flow.asStateFlow
  *    dangerous permission.
  */
 class SelectionDelegate(
-    private val settingsViewModel: SettingsViewModel,
-    private val scope: CoroutineScope,
     private val onLog: (String) -> Unit,
 ) {
 

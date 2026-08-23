@@ -1,5 +1,7 @@
 package com.hereliesaz.ideaz.ai
 
+import com.hereliesaz.ideaz.platform.Platform
+
 import com.hereliesaz.ideaz.ai.AiEditApproval
 import com.hereliesaz.ideaz.ai.AiEditApprovalRequiredException
 import kotlinx.coroutines.CancellationException
@@ -265,7 +267,7 @@ private fun ChatMessage.toOpenAiMessage(): JsonObject = buildJsonObject {
                         put("text", part.text)
                     })
                     is ChatPart.Image -> {
-                        val b64 = android.util.Base64.encodeToString(part.bytes, android.util.Base64.NO_WRAP)
+                        val b64 = Platform.base64Encode(part.bytes)
                         add(buildJsonObject {
                             put("type", "image_url")
                             putJsonObject("image_url") {
@@ -315,7 +317,7 @@ private fun AiToolSpec.toOpenAiTool(): JsonElement = buildJsonObject {
 private fun parseToolArgs(raw: String): Map<String, String?> {
     if (raw.isBlank()) return emptyMap()
     val element = runCatching { OpenAiCompatibleAdapter.JSON.parseToJsonElement(raw) }
-        .onFailure { android.util.Log.w("OpenAiCompatibleAdapter", "Malformed tool-call arguments JSON; dispatching with no args", it) }
+        .onFailure { Platform.logWarn("OpenAiCompatibleAdapter", "Malformed tool-call arguments JSON; dispatching with no args", it) }
         .getOrNull()
         ?: return emptyMap()
     val obj = element as? JsonObject ?: return emptyMap()
