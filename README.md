@@ -69,15 +69,7 @@ asks for a token, and it creates the repository for you on first publish. That i
 the only place in the app where a token has an obvious purpose, so it is the only
 place that asks.
 
-**Building**
 
-```
-./gradlew :app:assembleDebug      # Android APK
-./gradlew :app:run                # desktop app
-./gradlew :app:testDebugUnitTest  # unit tests
-```
-
-JDK 21.
 
 ---
 
