@@ -9,10 +9,28 @@ if (!React) {
 
 export const Fragment = React.Fragment;
 
-function jsxImpl(type, props, key) {
+/**
+ * @param source  For jsxDEV only: { fileName, lineNumber, columnNumber }, emitted
+ *                by @babel/plugin-transform-react-jsx-source. Forwarded as
+ *                `__source`, which React 18's createElement lifts to
+ *                `element._source`, which react-dom then records on the fiber as
+ *                `_debugSource`. That is the chain ideaz-bridge.js reads to answer
+ *                "which file and line produced the element the user just tapped" -
+ *                the whole reason IDEaz can edit the right file.
+ *
+ *                This used to be declared `jsxImpl(type, props, key)` with a
+ *                comment saying the extra arguments were ignored. They were, so
+ *                enabling Babel's jsx-source transform produced metadata that this
+ *                function silently dropped one call later: no crash, no warning,
+ *                and source resolution that always returned null.
+ * @param self    For jsxDEV only; forwarded as `__self` for React's own warnings.
+ */
+function jsxImpl(type, props, key, isStaticChildren, source, self) {
     const config = Object.assign({}, props);
     delete config.children;
     if (key !== undefined) config.key = key;
+    if (source !== undefined) config.__source = source;
+    if (self !== undefined) config.__self = self;
     const children = props ? props.children : undefined;
     if (children === undefined) {
         return React.createElement(type, config);
@@ -25,5 +43,5 @@ function jsxImpl(type, props, key) {
 
 export const jsx = jsxImpl;
 export const jsxs = jsxImpl;
-// jsxDEV(type, props, key, isStaticChildren, source, self) — extra args ignored.
+// jsxDEV(type, props, key, isStaticChildren, source, self)
 export const jsxDEV = jsxImpl;
