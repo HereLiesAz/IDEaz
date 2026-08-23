@@ -330,11 +330,20 @@ androidComponents.onVariants { variant ->
 // concurrent-futures(-ktx) 1.2.0-alpha03 while AndroidX test deps pull in 1.2.0,
 // producing a strict-version conflict during lint's androidTest model generation.
 // Pin both modules to the alpha version that matches runtime to break the deadlock.
-configurations.all {
-    // google-genai drags in full protobuf-java; Android cannot host both it and
-    // protobuf-javalite. Excluded here because the KMP sourceSet DSL has no
-    // inline exclude form.
+// google-genai drags in full protobuf-java, and Android cannot host both it and
+// protobuf-javalite. This was a dependency-level exclude on google-genai itself
+// before the KMP move; the sourceSet DSL has no inline exclude form, so it is
+// applied to the source set's own declarable configuration instead.
+//
+// NOT configurations.all. That also strips protobuf from lint's tool classpath,
+// where GooglePlaySdkIndex needs it to parse the Play SDK index - lintAnalyzeDebug
+// then dies with NoClassDefFoundError in its static initializer, from a stack
+// that names GradleDetector and looks nothing like a dependency problem.
+configurations.named("androidMainImplementation") {
     exclude(group = "com.google.protobuf", module = "protobuf-java")
+}
+
+configurations.all {
     resolutionStrategy {
         force("androidx.concurrent:concurrent-futures:1.3.0")
         force("androidx.concurrent:concurrent-futures-ktx:1.3.0")
