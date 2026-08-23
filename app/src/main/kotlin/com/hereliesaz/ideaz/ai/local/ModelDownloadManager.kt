@@ -34,6 +34,15 @@ internal fun httpErrorHint(code: Int): String = when (code) {
     else -> ""
 }
 
+/**
+ * The Hugging Face repo page a `resolve/<revision>/<path>` download URL belongs to -
+ * the page carrying the actual "Agree and access repository" gate a 403 on a gated
+ * model is telling the user to go visit. Null for any URL that isn't a Hugging Face
+ * file link, so callers can skip the link instead of pointing at a dead page.
+ */
+internal fun huggingFaceRepoPageUrl(url: String): String? =
+    Regex("^(https://huggingface\\.co/[^/]+/[^/]+)/resolve/").find(url)?.groupValues?.get(1)
+
 /** Stable catalog identity persisted beside an interrupted partial download. */
 internal fun partialDownloadFingerprint(spec: LocalModelFile): String {
     val manifest = listOf(

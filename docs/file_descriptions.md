@@ -90,7 +90,7 @@
 *   `DeviceCapabilities.kt`: Reads device RAM (`ActivityManager.MemoryInfo`) and supported CPU ABIs (`Build.SUPPORTED_ABIS`).
 *   `LocalModelAvailability.kt`: Pure, unit-tested logic deciding whether a model is usable on this device/build (backend present, RAM, ABI, token) — drives the Settings list filtering.
 *   `LocalModelStore.kt`: Persists the selected on-device model and requests cached-engine release when that selection changes.
-*   `ModelDownloadManager.kt`: Downloads model files with authentication and strict range resume; copies cancellable chunks through a JVM-tested staging primitive, reconciles interrupted partials through catalog-bound sidecars, preflights remaining bytes plus a safety reserve, validates trusted exact sizes/SHA-256 values before atomic activation, and records manifest-bound verification markers.
+*   `ModelDownloadManager.kt`: Downloads model files with authentication and strict range resume; copies cancellable chunks through a JVM-tested staging primitive, reconciles interrupted partials through catalog-bound sidecars, preflights remaining bytes plus a safety reserve, validates trusted exact sizes/SHA-256 values before atomic activation, and records manifest-bound verification markers. Also exposes `huggingFaceRepoPageUrl()`, deriving a gated model's Hugging Face repo page from its download URL so a 403 failure can link straight to where the license actually needs accepting.
 *   `LocalModelDownloadWorker.kt`: Unique WorkManager foreground job for durable model downloads with connected-network constraints, progress, cancellation, bounded retry/backoff, and token-safe input data.
 
 #### ai/bridge/
