@@ -1,24 +1,74 @@
 <h1 style="text-align:center"><b>[</b>oo<b>]</b> <br>IDEaz</h1>
 
-This isn't no-code. This is not vibe coding. And this sure as hell ain't straight-up coding.      
+This isn't no-code. This is not vibe coding. And this sure as hell ain't straight-up coding.
 This is what every emulator, visual preview, drag and drop WYSIWYG environment was leading up to.
 
-### Development that feels like it's just you and your IDEaz -- The Post-Code IDE for Android.
+### Development that feels like it's just you and your IDEaz — The Post-Code IDE.
 
-**Philosophy:**
-IDEaz adopts a "Post-Code" philosophy. The primary workflow is visual: Interact with your running app, select what you want to change, and prompt the AI to make it happen. The IDE handles the code generation, git operations, and build process in the background.
+**Philosophy**
 
-*   **Primary Workflow (Post-Code):** Run App -> Visual Select -> AI Prompt -> AI Edit -> Compile -> Run.
-*   **Auxiliary Tools (Escape Hatches):** While the goal is to never touch code, we acknowledge reality. A full **File Explorer** and **Code Editor** are included for debugging, verification, or manual intervention when the AI gets stuck. These are tools, not the workspace.
+IDEaz adopts a "Post-Code" philosophy. The primary workflow is visual: interact
+with your running app, tap what you want to change, and prompt the AI to make it
+happen. The IDE handles the code, the git operations, and the reload.
 
-**Architecture:**
-IDEaz targets two project shapes:
-*   **PWA (Phase 1, daily driver):** the project renders in `WebProjectHost` (a WebView). Edits are conversational with **Gemini** (BYO-key, tool-use); reload is sub-second.
-*   **Android app (Phase 2, heavy artillery):** the project is sideloaded onto the device. IDEaz observes via a System Alert Window overlay (`IdeazOverlayService`) and routes element-tap context to **Jules**, which opens PRs that auto-build via GitHub Actions.
+```
+Open project → preview it → tap an element → describe the change
+             → AI edits the source → review the diff → approve → reload
+```
 
-**Key Features:**
-*   **Repository-Based:** Every project is a GitHub repository. Git is the source of truth.
-*   **Remote Builds:** Android builds happen on GitHub Actions. There is no on-device toolchain. PWAs need no build step at all.
-*   **AI Integrated:** Phase 1 — Gemini (conversational). Phase 2 — Jules (agentic). Phase 3+ — pluggable adapters for Claude, OpenAI, etc.
+A **File Explorer** and **Code Editor** are included for debugging, verification,
+and manual intervention when the AI gets stuck. They are tools, not the
+workspace.
 
-See [`docs/plans/2026-05-01-ideaz-revival-design.md`](docs/plans/2026-05-01-ideaz-revival-design.md) for the active design.
+**How tapping an element finds the right file**
+
+This is the hard part of the whole idea, and it falls out of the preview
+pipeline. IDEaz has no bundler on-device, so it transpiles your project's source
+in the browser with Babel — and does so with `jsx-source` enabled, which stamps
+every element with the file and line that produced it. Tap a button, and the AI
+is handed `src/App.jsx:42` instead of a CSS selector and a guess.
+
+**Targets**
+
+IDEaz is a Kotlin/Compose Multiplatform app:
+
+* **Android** — the phone IDE. The original idea, and still the point.
+* **Desktop (JVM)** — the same app on a laptop, via `./gradlew :app:run`. This is
+  not a second product. It exists so the app can actually be run and tested
+  without a handset.
+
+**Editable projects**
+
+Any web project with an entry point IDEaz can mount and transpile: plain HTML,
+PWAs, React/Vite apps. Detection asks "can we preview this?", not "did you
+remember to write a webmanifest".
+
+**AI**
+
+Bring your own key. Eight providers behind three adapters — Gemini, Claude, and
+one OpenAI-compatible client covering OpenAI, DeepSeek, Groq, Cerebras, Hugging
+Face and Mistral. Model ids are pinned and overridable in Settings.
+
+Every provider goes through the same contract: the AI writes behind a checkpoint,
+you see what changed, and nothing reaches the preview until you approve it.
+
+**Git**
+
+Every project is a git repository and git is the source of truth. You do **not**
+need a GitHub account to start — scaffold a project, edit it, and see it running
+entirely locally. Connecting GitHub is the *publish* step, which is where a token
+has an obvious purpose.
+
+**Building**
+
+```
+./gradlew :app:assembleDebug      # Android APK
+./gradlew :app:run                # desktop app
+./gradlew :app:testDebugUnitTest  # unit tests
+```
+
+JDK 21.
+
+---
+
+See [`docs/architecture.md`](docs/architecture.md) for how it fits together.

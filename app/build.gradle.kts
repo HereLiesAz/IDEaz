@@ -10,6 +10,7 @@
 
 import java.util.Properties
 import java.io.FileInputStream
+import java.time.Duration
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -302,7 +303,10 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
         resources {
             excludes.add("META-INF/DEPENDENCIES")
             excludes.add("META-INF/LICENSE")
+            excludes.add("META-INF/LICENSE.md")
+            excludes.add("META-INF/LICENSE-notice.md")
             excludes.add("META-INF/NOTICE")
+            excludes.add("META-INF/NOTICE.md")
             excludes.add("META-INF/INDEX.LIST")
             pickFirsts.add("**/*.kotlin_builtins")
             pickFirsts.add("**/*.kotlin_module")
@@ -456,6 +460,22 @@ tasks.configureEach {
 // build-and-release.yml's heavier combined release+debug build (see PR #850).
 tasks.withType<Test>().configureEach {
     maxHeapSize = "1536m"
+
+    // Every CI hang in this project's history was fixed by patching the one bad
+    // test - a leaked CoroutineScope, a Dispatchers.Main post under Robolectric's
+    // PAUSED looper - while the property that let a single bad test take down the
+    // entire build was never touched: one forked JVM for the whole module, no
+    // per-test timeout. So the next leak cost another 20-minute red build and
+    // another round of thread-dump forensics.
+    //
+    // forkEvery bounds the blast radius to one worker. The timeout turns a hang
+    // into a named failing test instead of a silent wall-clock timeout with no
+    // output. Together they are what should make the permanently-armed jcmd
+    // watchdog in the workflows deletable - which is the real measure of whether
+    // this suite is healthy.
+    forkEvery = 40
+    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
+    timeout.set(Duration.ofMinutes(10))
 }
 
 // Desktop packaging. `./gradlew :app:run` launches the IDE on the JVM - the

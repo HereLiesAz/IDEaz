@@ -10,6 +10,8 @@ import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -88,6 +90,7 @@ fun SettingsScreen(
     Log.d(TAG, "SettingsScreen: Composing")
 
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
 
     val settingsVersion by settingsViewModel.settingsVersion.collectAsState()
@@ -142,6 +145,26 @@ fun SettingsScreen(
         if (uri != null) {
             exportUri = uri
             showExportPasswordDialog = true
+        }
+    }
+
+    // Every project's source lives in filesDir. Until now the only way to get it
+    // off the phone was `git push`, so an uninstall, a dead handset or a clone
+    // that broke mid-transfer took the working tree with it. BackupManager has
+    // always been able to write this archive - it just had no caller anywhere in
+    // the app.
+    val exportProjectsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                val ok = com.hereliesaz.ideaz.utils.BackupManager.exportData(context, uri)
+                Toast.makeText(
+                    context,
+                    if (ok) "Projects exported." else "Export failed. Check the console for details.",
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
         }
     }
 
@@ -318,6 +341,27 @@ fun SettingsScreen(
                         modifier = Modifier.weight(1f).padding(start = 8.dp)
                     )
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    "Back up your projects",
+                    color = MaterialTheme.colorScheme.onBackground,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    "Writes every project on this device to a .zip you choose. " +
+                        "Uncommitted work only exists here until you do.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                AzButton(
+                    onClick = { exportProjectsLauncher.launch("ideaz-projects.zip") },
+                    text = "Export Projects",
+                    shape = AzButtonShape.RECTANGLE,
+                    modifier = Modifier.fillMaxWidth(),
+                )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
