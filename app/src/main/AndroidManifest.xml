@@ -3,37 +3,20 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-        aicore requires minSdk 31 (Android 12), but IDEaz still supports
-        Android 11 (minSdk 30). Override the merger and let GeminiNanoAdapter's
-        runtime availability check (which falls through to other providers)
-        handle the unsupported case.
+        The core loop - render the project, tap an element, prompt the AI, reload -
+        happens entirely inside this app's own WebView and needs no permissions at
+        all. POST_NOTIFICATIONS is the only one left, and only so long-running work
+        (clone, deploy) can report progress while the app is backgrounded.
+
+        Deliberately removed, and not to be re-added without a target that needs them:
+          SYSTEM_ALERT_WINDOW                 - select mode is an in-app Compose layer
+          FOREGROUND_SERVICE_MEDIA_PROJECTION - screenshots were Android-target only
+          FOREGROUND_SERVICE_SPECIAL_USE      - was the overlay service
+          REQUEST_INSTALL_PACKAGES            - was in-app APK sideload / self-update
+          BIND_ACCESSIBILITY_SERVICE (x2)     - element inspection + Gemini app bridge
+          <queries>                           - only the accessibility bridge needed it
     -->
-    <uses-sdk tools:overrideLibrary="com.google.ai.edge.aicore" />
-
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <!-- Android target screen capture (Phase 2). Gated at runtime to Android target
-         projects via OverlayDelegate.isScreenCaptureEnabled(); web/PWA projects never
-         start the mediaProjection service or raise the consent dialog. -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-
-    <!-- Named-package lookup only (GeminiAppBridgeAdapter.resolveGeminiPackage checks
-         for two specific packages) - the broad QUERY_ALL_PACKAGES permission this used
-         to require is a Play-Store-restricted declared-use liability with no benefit
-         here; this <queries> block gives package-visibility for exactly those two. -->
-    <queries>
-        <intent>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="android.intent.category.LAUNCHER" />
-        </intent>
-        <package android:name="com.google.android.apps.bard" />
-        <package android:name="com.google.android.googlequicksearchbox" />
-    </queries>
 
     <application
         android:name=".MainApplication"
@@ -59,76 +42,10 @@
             </intent-filter>
         </activity>
 
-        <service
-            android:name=".services.BuildService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync">
-            <intent-filter>
-                <action android:name="com.hereliesaz.ideaz.BUILD_SERVICE" />
-            </intent-filter>
-        </service>
-
-        <!-- WorkManager's SystemForegroundService backs LocalModelDownloadWorker's
-             setForeground(dataSync). Android 14+ requires every foreground service
-             type used at runtime to be declared in the manifest; WorkManager's own
-             manifest entry declares none, so override it here. -->
-        <service
-            android:name="androidx.work.impl.foreground.SystemForegroundService"
-            android:foregroundServiceType="dataSync"
-            tools:node="merge" />
-
-        <service
-            android:name=".services.IdeazAccessibilityService"
-            android:exported="true"
-            android:label="@string/accessibility_service_label"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service>
-
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/provider_paths" />
-        </provider>
-
-        <service
-            android:name=".ai.bridge.GeminiAppBridgeAccessibilityService"
-            android:exported="true"
-            android:label="@string/gemini_bridge_service_label"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/gemini_bridge_accessibility_config" />
-        </service>
-
-        <!-- Android target screen capture (Phase 2). Started only for Android target
-             projects (OverlayDelegate.isScreenCaptureEnabled()); never reached on
-             web/PWA, so the mediaProjection FGS can't be started there. -->
-        <service
-            android:name=".services.ScreenshotService"
-            android:exported="false"
-            android:foregroundServiceType="mediaProjection" />
-
-        <service
-            android:name=".services.IdeazOverlayService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property android:name="android.app.property.FOREGROUND_SERVICE_TYPE_SPECIAL_USE_DESCRIPTION"
-                      android:value="Used to display an interactive overlay for UI inspection and selection." />
-        </service>
-
+        <!--
+            Isolated process so a crash in the main process can still be reported.
+            Opt-in: CrashHandler only starts it after the first-run disclosure.
+        -->
         <service
             android:name=".services.CrashReportingService"
             android:exported="false"

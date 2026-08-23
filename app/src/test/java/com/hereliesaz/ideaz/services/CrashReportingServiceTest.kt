@@ -22,16 +22,14 @@ class CrashReportingServiceTest {
         val service = controller.create().get()
 
         val intent = Intent().apply {
-            putExtra(CrashReportingService.EXTRA_API_KEY, "test_api_key")
-            putExtra(CrashReportingService.EXTRA_JULES_PROJECT_ID, "test_project_id")
+            putExtra(CrashReportingService.EXTRA_GITHUB_TOKEN, "test_github_token")
             putExtra(CrashReportingService.EXTRA_STACK_TRACE, "Exception: Boom")
             putExtra(CrashReportingService.EXTRA_GITHUB_USER, "TestUser")
         }
 
         service.onStartCommand(intent, 0, 1)
 
-        // Verify API key was set
-        assertEquals("test_api_key", AuthInterceptor.apiKey)
+        // The service accepted the intent and scheduled the report.
 
         // Since the service launches a coroutine, we can't easily verify the network call
         // without complex mocking of the JulesApiClient singleton (which is an object).

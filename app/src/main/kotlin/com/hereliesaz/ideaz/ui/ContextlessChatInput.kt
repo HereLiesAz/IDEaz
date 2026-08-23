@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.hereliesaz.aznavrail.AzTextBox
 import com.hereliesaz.ideaz.ai.AttachmentResolver
 import com.hereliesaz.ideaz.models.ProjectType
-import com.hereliesaz.ideaz.ui.delegates.LocalEditReviewStatus
+import com.hereliesaz.ideaz.ui.delegates.EditReviewStatus
 import com.hereliesaz.ideaz.ui.widget.Attachment
 import com.hereliesaz.ideaz.ui.widget.PromptInputAttachmentRow
 import kotlinx.coroutines.launch
@@ -39,16 +39,11 @@ fun ContextlessChatInput(
     val defaultModel = AiModels.findById(defaultModelId) ?: AiModels.GEMINI
     val providerSupportsImages = defaultModel.supportsImages
 
-    // sendChatMessage silently no-ops while a review/cloud-consult card is
-    // pending (see MainViewModel.sendChatMessage) - previously nothing here
-    // reflected that, so a message typed and submitted while blocked just
-    // vanished with no toast, no disabled state, no explanation. Mirror the
-    // same condition here so the input visibly can't be submitted instead.
-    val localCloudConsult by viewModel.stateDelegate.localCloudConsult.collectAsState()
-    val localEditReview by viewModel.stateDelegate.localEditReview.collectAsState()
-    val isBlocked = localCloudConsult != null ||
-        localEditReview?.status == LocalEditReviewStatus.PENDING ||
-        localEditReview?.status == LocalEditReviewStatus.PROCESSING
+    // An edit awaiting review blocks sending. Reflect that in the input itself
+    // rather than letting a submit silently vanish.
+    val editReview by viewModel.stateDelegate.editReview.collectAsState()
+    val isBlocked = editReview?.status == EditReviewStatus.PENDING ||
+        editReview?.status == EditReviewStatus.PROCESSING
 
     Column(modifier = modifier.fillMaxWidth()) {
         AzTextBox(

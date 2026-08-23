@@ -21,11 +21,8 @@ import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ProjectFileObserver
 import com.hereliesaz.ideaz.utils.VersionUtils
 import com.hereliesaz.ideaz.ai.AiAdapterFactory
-import com.hereliesaz.ideaz.ai.local.LocalProviderException
-import com.hereliesaz.ideaz.ai.local.LocalEditApprovalRequiredException
-import com.hereliesaz.ideaz.ai.local.LocalCloudConsultApprovalRequiredException
-import com.hereliesaz.ideaz.ai.local.CLOUD_CONSULT_USED_MARKER
-import com.hereliesaz.ideaz.ai.local.LocalRecoveryAction
+import com.hereliesaz.ideaz.ai.AiEditApproval
+import com.hereliesaz.ideaz.ai.AiEditApprovalRequiredException
 import com.hereliesaz.ideaz.ai.ChatMessage
 import com.hereliesaz.ideaz.ai.GeminiAdapter
 import com.hereliesaz.ideaz.ai.GeminiConsultant
@@ -116,9 +113,9 @@ class MainViewModel(
                         ?.removeSuffix(" edit")
                         ?.takeIf { it.isNotBlank() }
                         ?: "an interrupted session"
-                    stateDelegate.setLocalEditReview(
-                        LocalEditReviewState(
-                            com.hereliesaz.ideaz.ai.local.LocalEditApproval(
+                    stateDelegate.setEditReview(
+                        EditReviewState(
+                            AiEditApproval(
                                 review,
                                 "Recovered an edit from $source for review.",
                                 source = source,
@@ -151,14 +148,12 @@ class MainViewModel(
     private val logHandler = object : LogHandler {
         override fun onBuildLog(msg: String) { stateDelegate.appendBuildLog(msg) }
 
-        override fun onAiLog(msg: String) {
-            stateDelegate.appendAiLog(msg)
-            // Broadcast for the Overlay UI (which runs in a separate Service process/context)
-            application.sendBroadcast(Intent("com.hereliesaz.ideaz.AI_LOG").apply {
-                putExtra("MESSAGE", msg)
-                setPackage(application.packageName)
-            })
-        }
+        // Was also re-broadcasting every line as ACTION_AI_LOG "for the Overlay UI
+        // (which runs in a separate Service process)". It never ran in another
+        // process, and SystemEventDelegate received the broadcast in-process and
+        // appended it a second time - so every AI line appeared twice and also
+        // leaked into the Build tab. One append, one destination.
+        override fun onAiLog(msg: String) { stateDelegate.appendAiLog(msg) }
 
         override fun onProgress(p: Int?) { stateDelegate.setLoadingProgress(p) }
 
@@ -174,132 +169,21 @@ class MainViewModel(
 
     // --- Delegate Initialization ---
 
-    val aiDelegate = AIDelegate(
-        settingsViewModel,
-        viewModelScope,
-        logHandler::onAiLog,
-        { diff -> applyUnidiffPatchInternal(diff) },
-        geminiAdapterFactory = { apiKey, appName -> geminiAdapterFor(apiKey, appName) },
-        // Just nudge the file tree — the WebView already reloads via
-        // ProjectFileObserver when files actually change on disk, so a
-        // hard reload here would be redundant work for every prompt.
-        onFilesChanged = { stateDelegate.triggerFileTreeReload() },
-        aiClientProvider = { model ->
-            val appName = settingsViewModel.getAppName() ?: return@AIDelegate null
-            AiAdapterFactory.create(
-                model = model,
-                context = getApplication(),
-                tools = IdeTools(settingsViewModel.getProjectPath(appName)),
-                settings = settingsViewModel,
-            )
-        },
-        // PR-based Android loop: when Jules opens a PR, auto-merge it and rebuild +
-        // re-sideload the APK. buildDelegate is declared below; the lambda reads the
-        // property at call time, so the forward reference is fine.
-        onAgentPullRequest = { url -> buildDelegate.installFromMergedPr(url) },
-    )
-
-    /**
-     * Send a user message to the conversational AI chat.
-     *
-     * Creates a [GeminiAdapter] on demand (reads API key and project path at call time
-     * so the user can set the key after app launch). Appends the user message and the
-     * model's response to [stateDelegate.chatMessages]. Triggers a hard WebView reload
-     * after each response in case Gemini wrote files.
-     */
-    // Cache the GeminiAdapter keyed by (apiKey, appName). Recreating it per message
-    // throws away the lazy-init google-genai Client; on a long conversation that's
-    // dozens of redundant builder calls. The adapter is rebuilt only when the user
-    // changes their API key or switches projects.
-    private var cachedGeminiAdapter: GeminiAdapter? = null
-    private var cachedGeminiKey: Pair<String, String>? = null
-
-    private fun geminiAdapterFor(apiKey: String, appName: String): GeminiAdapter {
-        val key = apiKey to appName
-        val existing = cachedGeminiAdapter
-        if (existing != null && cachedGeminiKey == key) return existing
-        val projectDir = settingsViewModel.getProjectPath(appName)
-        val fresh = GeminiAdapter(apiKey = apiKey, tools = IdeTools(projectDir))
-        cachedGeminiAdapter = fresh
-        cachedGeminiKey = key
-        return fresh
-    }
-
     fun sendChatMessage(text: String) = sendChatMessage(text, emptyList())
 
-    /** True when the one-shot fallback button can construct the approved Gemini client. */
-    fun hasCloudFallbackCredential(): Boolean =
-        !settingsViewModel.getApiKey(SettingsViewModel.KEY_GOOGLE_API_KEY).isNullOrBlank()
-
-    /** Replays the existing conversation against the local provider without adding another user turn. */
-    fun retryLocalFailure(diagnosticId: String) {
-        recoverFromLocalFailure(diagnosticId, useCloud = false)
-    }
-
-    /**
-     * One-shot, user-approved Gemini fallback. Nothing is transmitted until this
-     * method is called from the explicit disclosure button in [AiChatTab].
-     */
-    fun approveCloudFallback(diagnosticId: String) {
-        recoverFromLocalFailure(diagnosticId, useCloud = true)
-    }
-
-    private fun recoverFromLocalFailure(diagnosticId: String, useCloud: Boolean) {
-        val failure = stateDelegate.chatFailure.value ?: return
-        val action = if (useCloud) LocalRecoveryAction.CLOUD_ONCE else LocalRecoveryAction.RETRY_LOCAL
-        if (!failure.permits(action, diagnosticId, hasCloudFallbackCredential())) return
-        val appName = settingsViewModel.getAppName() ?: return
-        val model = if (useCloud) AiModels.GEMINI else AiModels.LOCAL
-        val client = AiAdapterFactory.create(
-            model = model,
-            context = getApplication(),
-            tools = IdeTools(settingsViewModel.getProjectPath(appName)),
-            settings = settingsViewModel,
-        ) ?: return
-
-        stateDelegate.setChatFailure(null)
-        stateDelegate.setChatLoading(true)
-        viewModelScope.launch {
-            try {
-                val response = client.chat(stateDelegate.chatMessages.value)
-                stateDelegate.appendChatMessage(ChatMessage("model", response, model.displayName))
-                stateDelegate.triggerWebHardReload()
-            } catch (e: LocalEditApprovalRequiredException) {
-                stateDelegate.setLocalEditReview(LocalEditReviewState(e.approval))
-            } catch (e: LocalCloudConsultApprovalRequiredException) {
-                stateDelegate.setLocalCloudConsult(
-                    LocalCloudConsultState(e.request.boundTo(stateDelegate.chatMessages.value))
-                )
-            } catch (e: LocalProviderException) {
-                stateDelegate.setChatFailure(e.failure)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                if (useCloud) {
-                    val id = com.hereliesaz.ideaz.ai.local.LocalProviderDiagnostics.record(
-                        kind = com.hereliesaz.ideaz.ai.local.LocalProviderFailureKind.GENERATION_FAILED,
-                        runtimeId = "gemini-cloud",
-                        cause = e,
-                    )
-                    stateDelegate.setChatFailure(
-                        failure.copy(
-                            message = "Gemini fallback failed. ${failure.message}",
-                            diagnosticId = id,
-                        )
-                    )
-                } else {
-                    stateDelegate.setChatFailure(failure)
-                }
-            } finally {
-                stateDelegate.setChatLoading(false)
-            }
-        }
-    }
 
     fun sendChatMessage(text: String, referenceParts: List<com.hereliesaz.ideaz.ai.ChatPart>) {
-        if (stateDelegate.localCloudConsult.value != null) return
-        val editStatus = stateDelegate.localEditReview.value?.status
-        if (editStatus == LocalEditReviewStatus.PENDING || editStatus == LocalEditReviewStatus.PROCESSING) return
+        // An edit is waiting on the user. Previously this returned silently, so the
+        // send button kept working and kept doing nothing - the single worst bug in
+        // the visual-select loop. Say so instead, in the conversation, where the
+        // user is already looking.
+        val editStatus = stateDelegate.editReview.value?.status
+        if (editStatus == EditReviewStatus.PENDING || editStatus == EditReviewStatus.PROCESSING) {
+            stateDelegate.setChatFailure(
+                "There's an edit waiting for your review. Approve or reject it, then send this."
+            )
+            return
+        }
         val appName = settingsViewModel.getAppName()
         if (appName == null) {
             stateDelegate.appendChatMessage(ChatMessage.error("Error: No project open."))
@@ -320,13 +204,9 @@ class MainViewModel(
             settings = settingsViewModel,
         )
         if (client == null) {
-            val msg = when (model.id) {
-                AiModels.JULES_DEFAULT ->
-                    "Error: Jules is not supported in the chat tab. Pick a different provider in Settings."
-                else ->
-                    "Error: No API key set for ${model.displayName}. Go to Settings → AI Providers."
-            }
-            stateDelegate.appendChatMessage(ChatMessage.error(msg))
+            stateDelegate.appendChatMessage(
+                ChatMessage.error("Error: No API key set for ${model.displayName}. Go to Settings → AI Providers.")
+            )
             return
         }
 
@@ -345,9 +225,9 @@ class MainViewModel(
                 // Any file writes have already happened inside the tool-use loop;
                 // hard-reload so the WebView picks up the changes immediately.
                 stateDelegate.triggerWebHardReload()
-            } catch (e: LocalEditApprovalRequiredException) {
-                stateDelegate.localEditReview.value
-                    ?.takeIf { it.status == LocalEditReviewStatus.APPROVED }
+            } catch (e: AiEditApprovalRequiredException) {
+                stateDelegate.editReview.value
+                    ?.takeIf { it.status == EditReviewStatus.APPROVED }
                     ?.approval?.review?.checkpoint
                     ?.let { previous ->
                         withContext(Dispatchers.IO) {
@@ -356,13 +236,7 @@ class MainViewModel(
                             }
                         }
                     }
-                stateDelegate.setLocalEditReview(LocalEditReviewState(e.approval))
-            } catch (e: LocalCloudConsultApprovalRequiredException) {
-                stateDelegate.setLocalCloudConsult(
-                    LocalCloudConsultState(e.request.boundTo(stateDelegate.chatMessages.value))
-                )
-            } catch (e: LocalProviderException) {
-                stateDelegate.setChatFailure(e.failure)
+                stateDelegate.setEditReview(EditReviewState(e.approval))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -375,131 +249,14 @@ class MainViewModel(
         }
     }
 
-    /** Performs the exact previewed, tool-less Gemini request after one-shot consent. */
-    fun approveLocalCloudConsult(requestId: String) {
-        val pending = stateDelegate.localCloudConsult.value ?: return
-        if (pending.status != LocalCloudConsultStatus.PENDING) return
-        val request = pending.request
-        val appName = settingsViewModel.getAppName() ?: return
-        val projectPath = settingsViewModel.getProjectPath(appName).canonicalPath
-        val messages = stateDelegate.chatMessages.value
-        if (!request.matches(requestId, projectPath, messages)) return
-        val apiKey = settingsViewModel.getGoogleApiKey().orEmpty()
-        if (apiKey.isBlank() && pending.advice == null) {
-            stateDelegate.setLocalCloudConsult(pending.copy(error = "Add a Gemini API key in Settings."))
-            return
-        }
-        stateDelegate.setLocalCloudConsult(pending.copy(status = LocalCloudConsultStatus.PROCESSING, error = null))
-        stateDelegate.setChatLoading(true)
-        viewModelScope.launch {
-            var advice = pending.advice
-            try {
-                if (advice == null) {
-                    advice = GeminiConsultant(apiKey, request.model).consult(request.prompt)
-                    stateDelegate.setLocalCloudConsult(
-                        pending.copy(status = LocalCloudConsultStatus.PROCESSING, error = null, advice = advice)
-                    )
-                }
-                resumeLocalAfterCloudConsult(requestId, checkNotNull(advice))
-            } catch (e: CancellationException) {
-                stateDelegate.setLocalCloudConsult(pending.copy(advice = advice))
-                throw e
-            } catch (_: Exception) {
-                stateDelegate.setLocalCloudConsult(
-                    pending.copy(
-                        error = if (advice == null) {
-                            "Gemini consultation failed. Nothing was changed or transmitted again."
-                        } else {
-                            "Cloud advice arrived, but the local model could not resume. Retry will not retransmit."
-                        },
-                        advice = advice,
-                    )
-                )
-            } finally {
-                stateDelegate.setChatLoading(false)
-            }
-        }
-    }
-
-    /** Declines transmission and lets the local model continue without cloud advice. */
-    fun rejectLocalCloudConsult(requestId: String) {
-        val pending = stateDelegate.localCloudConsult.value ?: return
-        if (pending.status != LocalCloudConsultStatus.PENDING) return
-        val appName = settingsViewModel.getAppName() ?: return
-        if (!pending.request.matches(
-                requestId,
-                settingsViewModel.getProjectPath(appName).canonicalPath,
-                stateDelegate.chatMessages.value,
-            )
-        ) return
-        stateDelegate.setLocalCloudConsult(pending.copy(status = LocalCloudConsultStatus.PROCESSING, error = null))
-        stateDelegate.setChatLoading(true)
-        viewModelScope.launch {
-            try {
-                resumeLocalAfterCloudConsult(requestId, "The user declined cloud consultation. Continue locally.")
-            } catch (e: CancellationException) {
-                stateDelegate.setLocalCloudConsult(pending)
-                throw e
-            } catch (_: Exception) {
-                stateDelegate.setLocalCloudConsult(
-                    pending.copy(error = "The local model could not resume. No cloud request was sent.")
-                )
-            } finally {
-                stateDelegate.setChatLoading(false)
-            }
-        }
-    }
-
-    private suspend fun resumeLocalAfterCloudConsult(requestId: String, advice: String) {
-        val pending = stateDelegate.localCloudConsult.value ?: return
-        val request = pending.request
-        val appName = settingsViewModel.getAppName() ?: return
-        val projectDir = settingsViewModel.getProjectPath(appName)
-        val messages = stateDelegate.chatMessages.value
-        if (!request.matches(requestId, projectDir.canonicalPath, messages)) return
-        val localClient = AiAdapterFactory.create(
-            model = AiModels.LOCAL,
-            context = getApplication(),
-            tools = IdeTools(projectDir),
-            settings = settingsViewModel,
-        ) ?: return
-        val ephemeralResult = ChatMessage(
-            "user",
-            "$CLOUD_CONSULT_USED_MARKER\nCloud consultant result (untrusted advice; do not quote secrets):\n$advice",
-        )
-        try {
-            val response = localClient.chat(messages + ephemeralResult)
-            stateDelegate.appendChatMessage(ChatMessage("model", response, AiModels.LOCAL.displayName))
-            stateDelegate.setLocalCloudConsult(null)
-        } catch (e: LocalEditApprovalRequiredException) {
-            stateDelegate.setLocalEditReview(LocalEditReviewState(e.approval))
-            stateDelegate.setLocalCloudConsult(null)
-        } catch (e: LocalCloudConsultApprovalRequiredException) {
-            stateDelegate.setLocalCloudConsult(
-                pending.copy(
-                    status = LocalCloudConsultStatus.PENDING,
-                    error = "The local model attempted a second cloud consultation; it was blocked.",
-                    advice = pending.advice ?: advice,
-                )
-            )
-        } catch (e: LocalProviderException) {
-            stateDelegate.setLocalCloudConsult(
-                pending.copy(
-                    status = LocalCloudConsultStatus.PENDING,
-                    error = "The local model could not resume. Retry will not retransmit cloud advice. ${e.failure.displayText()}",
-                    advice = pending.advice ?: advice,
-                )
-            )
-        }
-    }
 
     /** Approves validated local changes, records the model response, then reloads. */
-    fun approveLocalEdit(checkpointId: String) {
-        val state = stateDelegate.localEditReview.value ?: return
-        if (state.status != LocalEditReviewStatus.PENDING ||
+    fun approveEdit(checkpointId: String) {
+        val state = stateDelegate.editReview.value ?: return
+        if (state.status != EditReviewStatus.PENDING ||
             state.approval.review.checkpoint.checkpointId != checkpointId
         ) return
-        stateDelegate.setLocalEditReview(state.copy(status = LocalEditReviewStatus.PROCESSING))
+        stateDelegate.setEditReview(state.copy(status = EditReviewStatus.PROCESSING))
         stateDelegate.setChatLoading(true)
         viewModelScope.launch {
             try {
@@ -508,19 +265,19 @@ class MainViewModel(
                     IdeTools(File(reviewed.checkpoint.projectPath)).reviewEdits(reviewed.checkpoint)
                 }
                 if (reviewed.validationErrors.isNotEmpty()) {
-                    stateDelegate.setLocalEditReview(
+                    stateDelegate.setEditReview(
                         state.copy(
                             approval = state.approval.copy(review = reviewed.refreshedFrom(current)),
-                            status = LocalEditReviewStatus.PENDING,
+                            status = EditReviewStatus.PENDING,
                         )
                     )
                     return@launch
                 }
                 if (current.validationErrors.isNotEmpty()) {
-                    stateDelegate.setLocalEditReview(
+                    stateDelegate.setEditReview(
                         state.copy(
                             approval = state.approval.copy(review = reviewed.refreshedFrom(current)),
-                            status = LocalEditReviewStatus.PENDING,
+                            status = EditReviewStatus.PENDING,
                         )
                     )
                     return@launch
@@ -536,10 +293,10 @@ class MainViewModel(
                     // branches above already do) means a second Approve tap now
                     // succeeds cleanly once the user has seen the updated diff,
                     // instead of the card being permanently stuck.
-                    stateDelegate.setLocalEditReview(
+                    stateDelegate.setEditReview(
                         state.copy(
                             approval = state.approval.copy(review = reviewed.refreshedFrom(current)),
-                            status = LocalEditReviewStatus.PENDING,
+                            status = EditReviewStatus.PENDING,
                         )
                     )
                     stateDelegate.appendChatMessage(
@@ -551,12 +308,12 @@ class MainViewModel(
                     IdeTools(File(reviewed.checkpoint.projectPath))
                         .markEditCheckpointApproved(reviewed.checkpoint)
                 }
-                stateDelegate.setLocalEditReview(state.copy(status = LocalEditReviewStatus.APPROVED))
+                stateDelegate.setEditReview(state.copy(status = EditReviewStatus.APPROVED))
                 stateDelegate.appendChatMessage(ChatMessage("model", state.approval.response, state.approval.source))
                 stateDelegate.triggerFileTreeReload()
                 stateDelegate.triggerWebHardReload()
             } catch (_: Exception) {
-                stateDelegate.setLocalEditReview(state)
+                stateDelegate.setEditReview(state)
                 stateDelegate.appendChatMessage(
                     ChatMessage.error("Approval stopped: the project changed after review.")
                 )
@@ -567,26 +324,26 @@ class MainViewModel(
     }
 
     /** Rejects pending changes and restores their pre-edit checkpoint. */
-    fun rejectLocalEdit(checkpointId: String) {
-        restoreLocalEdit(checkpointId, LocalEditReviewStatus.REJECTED)
+    fun rejectEdit(checkpointId: String) {
+        restoreEdit(checkpointId, EditReviewStatus.REJECTED)
     }
 
     /** Undoes an approved edit only while its changed-file set remains untouched. */
-    fun undoLocalEdit(checkpointId: String) {
-        restoreLocalEdit(checkpointId, LocalEditReviewStatus.UNDONE)
+    fun undoEdit(checkpointId: String) {
+        restoreEdit(checkpointId, EditReviewStatus.UNDONE)
     }
 
-    private fun restoreLocalEdit(
+    private fun restoreEdit(
         checkpointId: String,
-        targetStatus: LocalEditReviewStatus,
+        targetStatus: EditReviewStatus,
     ) {
-        val state = stateDelegate.localEditReview.value ?: return
+        val state = stateDelegate.editReview.value ?: return
         val approval = state.approval
         if (approval.review.checkpoint.checkpointId != checkpointId) return
-        if (targetStatus == LocalEditReviewStatus.REJECTED && state.status != LocalEditReviewStatus.PENDING) return
-        if (targetStatus == LocalEditReviewStatus.UNDONE && state.status != LocalEditReviewStatus.APPROVED) return
+        if (targetStatus == EditReviewStatus.REJECTED && state.status != EditReviewStatus.PENDING) return
+        if (targetStatus == EditReviewStatus.UNDONE && state.status != EditReviewStatus.APPROVED) return
         if (!approval.review.rollbackAllowed) return
-        stateDelegate.setLocalEditReview(state.copy(status = LocalEditReviewStatus.PROCESSING))
+        stateDelegate.setEditReview(state.copy(status = EditReviewStatus.PROCESSING))
         stateDelegate.setChatLoading(true)
         viewModelScope.launch {
             try {
@@ -596,7 +353,7 @@ class MainViewModel(
                         approval.review.contentFingerprint,
                     )
                 }
-                stateDelegate.setLocalEditReview(state.copy(status = targetStatus))
+                stateDelegate.setEditReview(state.copy(status = targetStatus))
                 stateDelegate.triggerFileTreeReload()
                 stateDelegate.triggerWebHardReload()
             } catch (e: IllegalStateException) {
@@ -618,12 +375,12 @@ class MainViewModel(
                             .discardEditCheckpoint(approval.review.checkpoint)
                     }
                 }
-                stateDelegate.setLocalEditReview(null)
+                stateDelegate.setEditReview(null)
                 stateDelegate.appendChatMessage(
                     ChatMessage.error("Discarded: the project changed after review, so nothing was restored.")
                 )
             } catch (_: Exception) {
-                stateDelegate.setLocalEditReview(state)
+                stateDelegate.setEditReview(state)
                 stateDelegate.appendChatMessage(
                     ChatMessage.error("Restore stopped: the project changed after review.")
                 )
@@ -633,55 +390,9 @@ class MainViewModel(
         }
     }
 
-    val overlayDelegate = OverlayDelegate(application, settingsViewModel, viewModelScope, logHandler::onAiLog)
+    val selectionDelegate = SelectionDelegate(settingsViewModel, viewModelScope, logHandler::onAiLog)
 
     val gitDelegate = GitDelegate(settingsViewModel, viewModelScope, logHandler::onBuildLog, logHandler::onProgress)
-
-    val buildDelegate = BuildDelegate(
-        application,
-        settingsViewModel,
-        viewModelScope,
-        logHandler::onBuildLog,
-        logHandler::onAiLog,
-        { log -> handleBuildFailure(log) },
-        { path ->
-            // Web Build Success Callback. `path` is the project's index.html, so its
-            // parent is the project root. The project is mounted at the asset-loader
-            // root (see WebProjectPathHandler) and loaded from there.
-            val projectDir = File(path).parentFile
-            stateDelegate.setCurrentWebProjectDir(projectDir)
-            stateDelegate.setCurrentWebUrl(WebProjectUrlUtils.localProjectRootUrl())
-            stateDelegate.setTargetAppVisible(true) // Switch to "App View"
-
-            // Update EditorViewModel with project context for file browsing
-            if (projectDir != null) {
-                editorViewModel.setProjectDir(projectDir)
-            }
-        },
-        {
-            // Android Build Success Callback
-            // Notify System that update is ready (if applicable) or just launch
-            val intent = Intent("com.hereliesaz.ideaz.SHOW_UPDATE_POPUP").apply {
-                setPackage(application.packageName)
-                if (lastPrompt != null) {
-                    putExtra("PROMPT", lastPrompt)
-                }
-            }
-            application.sendBroadcast(intent)
-            launchTargetApp(application)
-        },
-        gitDelegate,
-        { wwwDir ->
-            // Wasm Preview Ready Callback. The compiled binary lives in
-            // filesDir/www and is mounted at the asset-loader root; switching to
-            // "App View" puts WebProjectHost on screen, which then hot-reloads on
-            // every subsequent compile. The editor keeps pointing at the project
-            // sources — www holds build output, not editable files.
-            stateDelegate.setCurrentWebProjectDir(wwwDir)
-            stateDelegate.setCurrentWebUrl(WebProjectUrlUtils.localProjectRootUrl())
-            stateDelegate.setTargetAppVisible(true)
-        }
-    )
 
     val repoDelegate = RepoDelegate(
         application,
@@ -693,15 +404,6 @@ class MainViewModel(
         logHandler::onGitProgress
     )
 
-    val updateDelegate = UpdateDelegate(application, settingsViewModel, viewModelScope, logHandler::onAiLog)
-
-    // Handle System Events (Broadcasts)
-    val systemEventDelegate = SystemEventDelegate(
-        application,
-        aiDelegate,
-        overlayDelegate,
-        stateDelegate
-    )
 
     // --- Public State Exposure (Delegated) ---
 
@@ -716,29 +418,17 @@ class MainViewModel(
     val webReloadTrigger = stateDelegate.webReloadTrigger
     val webHardReloadTrigger = stateDelegate.webHardReloadTrigger
 
-    val isSelectMode = overlayDelegate.isSelectMode
-    val activeSelectionRect = overlayDelegate.activeSelectionRect
-    val isContextualChatVisible = overlayDelegate.isContextualChatVisible
-    val requestScreenCapture = overlayDelegate.requestScreenCapture
+    val isSelectMode = selectionDelegate.isSelectMode
+    val isContextualChatVisible = selectionDelegate.isContextualChatVisible
 
     // Track the last user prompt to restore context after an app restart
     private var lastPrompt: String? = null
 
     val ownedRepos = repoDelegate.ownedRepos
     val repoFetchError = repoDelegate.repoFetchError
-    val sessions = aiDelegate.sessions
     val commitHistory = gitDelegate.commitHistory
     val branches = gitDelegate.branches
     val gitStatus = gitDelegate.gitStatus
-    val updateStatus = updateDelegate.updateStatus
-    val updateVersion = updateDelegate.updateVersion
-    val showUpdateWarning = updateDelegate.showUpdateWarning
-    val updateMessage = updateDelegate.updateMessage
-    val julesResponse = aiDelegate.julesResponse
-    val julesHistory = aiDelegate.julesHistory
-    val isLoadingJulesResponse = aiDelegate.isLoadingJulesResponse
-    val julesError = aiDelegate.julesError
-    val currentJulesSessionId = aiDelegate.currentJulesSessionId
 
     // --- Artifact Check State ---
 
@@ -787,8 +477,6 @@ class MainViewModel(
     override fun onCleared() {
         super.onCleared()
         fileObserver?.stopWatching()
-        buildDelegate.unbindService(getApplication())
-        systemEventDelegate.cleanup()
     }
 
     /**
@@ -829,12 +517,9 @@ class MainViewModel(
             if (!apiKey.isNullOrBlank() || canReportToGithub) {
                 val intent = Intent(getApplication(), CrashReportingService::class.java).apply {
                     action = CrashReportingService.ACTION_REPORT_NON_FATAL
-                    putExtra(CrashReportingService.EXTRA_API_KEY, apiKey)
-                    putExtra(CrashReportingService.EXTRA_JULES_PROJECT_ID, settingsViewModel.getJulesProjectId())
                     putExtra(CrashReportingService.EXTRA_GITHUB_TOKEN, githubToken)
                     putExtra(CrashReportingService.EXTRA_STACK_TRACE, errors)
                     putExtra(CrashReportingService.EXTRA_GITHUB_USER, githubUser)
-                    putExtra(CrashReportingService.EXTRA_REPORT_TO_GITHUB, reportToGithub)
                 }
                 getApplication<Application>().startService(intent)
             }
@@ -843,25 +528,34 @@ class MainViewModel(
 
     // --- Proxy Methods (Forwarding calls to Delegates) ---
 
-    // BUILD Operations
-    fun bindBuildService(c: Context) = buildDelegate.bindService(c)
-    fun unbindBuildService(c: Context) = buildDelegate.unbindService(c)
-    fun startBuild(c: Context, p: File? = null) = buildDelegate.startBuild(p)
+    // PREVIEW
 
     /**
-     * Rail "Build" action: (re)build the current project and switch to its
-     * preview. Web-like projects verify `index.html` and the build-success
-     * callback flips to the WebView preview; Android kicks the remote build,
-     * whose success callback launches the app view (`launchTargetApp`). No-ops
-     * with a log line when no project is loaded, so the button never silently
-     * does nothing.
+     * Rail "Run" action: mount the current project in the WebView preview.
+     *
+     * For a web project there is nothing to build - the working tree *is* the
+     * app. Previously this went through a BuildDelegate that also owned the
+     * remote-APK pipeline and an on-device Wasm compiler; both are gone, and
+     * what is left is what actually happened for the only supported project
+     * type: point the preview at the project and show it.
      */
-    fun startBuild() {
-        if (settingsViewModel.getAppName().isNullOrBlank()) {
-            logHandler.onBuildLog("[IDE] Build skipped: no project loaded. Open or create a project first.\n")
+    fun openPreview() {
+        val appName = settingsViewModel.getAppName()
+        if (appName.isNullOrBlank()) {
+            logHandler.onBuildLog("[IDE] No project loaded. Open or create one first.\n")
             return
         }
-        buildDelegate.startBuild()
+        val projectDir = settingsViewModel.getProjectPath(appName)
+        if (!File(projectDir, "index.html").isFile) {
+            logHandler.onBuildLog(
+                "[IDE] $appName has no index.html at its root, so there is nothing to preview.\n"
+            )
+            return
+        }
+        stateDelegate.setCurrentWebProjectDir(projectDir)
+        stateDelegate.setCurrentWebUrl(WebProjectUrlUtils.localProjectRootUrl())
+        stateDelegate.setTargetAppVisible(true)
+        editorViewModel.setProjectDir(projectDir)
     }
 
     // GIT Operations
@@ -986,102 +680,66 @@ class MainViewModel(
     // Phase 1 default: every prompt entry point routes through [sendChatMessage] so
     // the GeminiAdapter conversational/tool-use path drives all AI work. The legacy
     // [AIDelegate.startContextualAITask] (Jules + Gemini one-shot) is invoked only
-    // when the user has explicitly assigned Jules to a task slot. Without this
-    // unification, the rail's Prompt popup, the bottom-sheet log-tab input, and the
-    // contextual chat overlay each ran on different code paths with different
-    // capabilities (text-only vs tool-using) — a surprise documented in the
-    // userflow audit.
-    private fun isJulesAssigned(taskKey: String): Boolean =
-        settingsViewModel.getAiAssignment(taskKey) == AiModels.JULES_DEFAULT
-
     fun sendPrompt(p: String?) = sendPrompt(p, emptyList())
 
     fun sendPrompt(p: String?, referenceParts: List<com.hereliesaz.ideaz.ai.ChatPart>) {
         if (p.isNullOrBlank() && referenceParts.isEmpty()) return
         val text = p.orEmpty()
         lastPrompt = text
-        if (isJulesAssigned(SettingsViewModel.KEY_AI_ASSIGNMENT_CONTEXTLESS)) {
-            // Jules path can't carry binary parts — it polls for unidiff
-            // patches via a GitHub session. Reference parts are dropped here
-            // with a note; the chat tab + factory-routed contextual path
-            // both handle them correctly.
-            val notice = if (referenceParts.isNotEmpty()) {
-                "\n\n[${referenceParts.size} reference attachment(s) dropped — Jules can't accept inline files.]"
-            } else ""
-            aiDelegate.startContextualAITask(text + notice)
-        } else {
-            sendChatMessage(text, referenceParts)
-        }
+        sendChatMessage(text, referenceParts)
     }
 
     fun submitContextualPrompt(p: String) {
         lastPrompt = p
-        val context = overlayDelegate.pendingContextInfo ?: "No context"
-        val richPrompt = "$context\n\n$p"
-        if (isJulesAssigned(SettingsViewModel.KEY_AI_ASSIGNMENT_OVERLAY)) {
-            // Phase 2: Jules path retains screenshot attachment when available.
-            val base64 = overlayDelegate.pendingBase64Screenshot
-            val julesPrompt = if (base64 != null) {
-                "$richPrompt\n\n[IMAGE: data:image/png;base64,$base64]"
-            } else {
-                richPrompt
-            }
-            aiDelegate.startContextualAITask(julesPrompt)
-        } else {
-            // Conversational/bridge path. Carry the highlighted screenshot too —
-            // ChatMessage supports image parts, and the bridge forwards them.
-            val base64 = overlayDelegate.pendingBase64Screenshot
-            val parts = if (!base64.isNullOrBlank()) {
-                runCatching {
-                    val bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
-                    listOf<com.hereliesaz.ideaz.ai.ChatPart>(
-                        com.hereliesaz.ideaz.ai.ChatPart.Image(bytes, "image/png")
-                    )
-                }.getOrDefault(emptyList())
-            } else emptyList()
-            sendChatMessage(richPrompt, parts)
-        }
+        val context = selectionDelegate.pendingContextInfo
+        val richPrompt = if (context != null) {
+            // Labelled, so the model can tell the element apart from the request.
+            // AiRepoContext.systemPreamble tells it how to read this block - in
+            // particular to jump straight to `source` when the bridge resolved one.
+            "ELEMENT CONTEXT:\n$context\n\nREQUEST:\n$p"
+        } else p
+        sendChatMessage(richPrompt, emptyList())
     }
 
-    fun resumeSession(id: String) = aiDelegate.resumeSession(id)
-    fun fetchSessionsForRepo(r: String) = aiDelegate.fetchSessionsForRepo(r)
 
-    // OVERLAY Operations
-    fun toggleSelectMode(b: Boolean) = overlayDelegate.toggleSelectMode(b)
+    // SELECT MODE
 
-    fun handleSelection(rect: android.graphics.Rect) {
-        overlayDelegate.onSelectionMade(rect)
-        // Broadcast specifically for Web inspection if active
-        if (stateDelegate.currentWebUrl.value != null) {
-            val intent = Intent("com.hereliesaz.ideaz.INSPECT_WEB").apply {
-                putExtra("X", rect.centerX().toFloat())
-                putExtra("Y", rect.centerY().toFloat())
-                setPackage(getApplication<Application>().packageName)
-            }
-            getApplication<Application>().sendBroadcast(intent)
+    fun toggleSelectMode(b: Boolean) = selectionDelegate.toggleSelectMode(b)
+
+    /**
+     * The user tapped at [x],[y] (device px, relative to the preview) while in
+     * select mode. Asks the WebView to identify the element there; the answer
+     * comes back through [handleWebElementContext].
+     */
+    fun handleSelection(x: Float, y: Float) {
+        if (stateDelegate.currentWebUrl.value == null) {
+            selectionDelegate.onSelectionMissed()
+            return
         }
+        val intent = Intent("com.hereliesaz.ideaz.INSPECT_WEB").apply {
+            putExtra("X", x)
+            putExtra("Y", y)
+            setPackage(getApplication<Application>().packageName)
+        }
+        getApplication<Application>().sendBroadcast(intent)
     }
 
     /**
      * Receives DOM context JSON from the web bridge when the user taps an element
      * in Select Mode while a PWA/Web project is shown.
      *
-     * Logs the raw JSON to the AI console and routes it to [OverlayDelegate] so
-     * [isContextualChatVisible] becomes true.
+     * Routes it to [SelectionDelegate] so the prompt panel opens with the
+     * element attached.
      *
      * @param json  Raw JSON from [WebViewBridge.onElementTapped].
      */
     fun handleWebElementContext(json: String) {
         stateDelegate.appendAiLog("[WEB-ELEMENT] $json")
-        overlayDelegate.onWebElementContext(json)
+        selectionDelegate.onWebElementContext(json)
     }
 
-    fun clearSelection() = overlayDelegate.clearSelection()
-    fun closeContextualChat() = overlayDelegate.clearSelection()
-    fun requestScreenCapturePermission() = overlayDelegate.requestScreenCapturePermission()
-    fun screenCaptureRequestHandled() = overlayDelegate.screenCaptureRequestHandled()
-    fun setScreenCapturePermission(c: Int, d: Intent?) = overlayDelegate.setScreenCapturePermission(c, d)
-    fun hasScreenCapturePermission() = overlayDelegate.hasScreenCapturePermission()
+    fun clearSelection() = selectionDelegate.clearContext()
+    fun closeContextualChat() = selectionDelegate.dismissContextualChat()
     fun setPendingRoute(r: String?) = stateDelegate.setPendingRoute(r)
 
     /** Triggers a soft reload of the WebView (no cache bust). */
@@ -1095,8 +753,6 @@ class MainViewModel(
     fun scanLocalProjects() = repoDelegate.scanLocalProjects()
     fun getLocalProjectsWithMetadata() = repoDelegate.getLocalProjectsWithMetadata()
     fun forceUpdateInitFiles() = repoDelegate.forceUpdateInitFiles()
-    fun uploadProjectSecrets(o: String, r: String) = repoDelegate.uploadProjectSecrets(o, r)
-
     /** Creates a new repo and initializes the project. */
     fun createGitHubRepository(name: String, desc: String, priv: Boolean, type: ProjectType, pkg: String, ctx: Context, initialPrompt: String? = null, onSuccess: () -> Unit) {
         repoDelegate.createGitHubRepository(name, desc, priv, type, pkg, ctx) { owner, branch ->
@@ -1115,8 +771,6 @@ class MainViewModel(
     /** Selects a repo and prepares it for use. */
     fun selectRepositoryForSetup(repo: GitHubRepoResponse, onSuccess: () -> Unit) {
         repoDelegate.selectRepositoryForSetup(repo) { owner, branch ->
-            repoDelegate.uploadProjectSecrets(owner, repo.name)
-            aiDelegate.fetchSessionsForRepo(repo.fullName)
             repoDelegate.forceUpdateInitFiles()
             onSuccess()
         }
@@ -1128,7 +782,6 @@ class MainViewModel(
      */
     fun saveAndInitialize(appName: String, user: String, branch: String, pkg: String, type: ProjectType, context: Context, initialPrompt: String? = null) {
         viewModelScope.launch {
-            aiDelegate.clearSession()
             settingsViewModel.saveProjectConfig(appName, user, branch)
             settingsViewModel.saveTargetPackageName(pkg)
             settingsViewModel.setProjectType(type.name)
@@ -1152,11 +805,10 @@ class MainViewModel(
             // Deploy item / deployWebProject(). For Android, init still pushes
             // GitHub Actions workflows because there's no on-device toolchain.
             if (!type.isWebLike()) {
-                repoDelegate.uploadProjectSecrets(user, appName)
                 repoDelegate.forceUpdateInitFiles()
             }
 
-            buildDelegate.startBuild(projectDir)
+            openPreview()
 
             // Check for remote artifacts if it's an Android project
             if (type == ProjectType.ANDROID) {
@@ -1327,7 +979,6 @@ class MainViewModel(
 
     fun loadProject(name: String, context: Context, onSuccess: () -> Unit) {
         viewModelScope.launch {
-            aiDelegate.clearSession()
             stateDelegate.clearChatHistory()
             settingsViewModel.setAppName(name)
             // Sync the saved branch name to whatever the local repo is actually on.
@@ -1364,11 +1015,7 @@ class MainViewModel(
 
             val user = settingsViewModel.getGithubUser()
             if (!user.isNullOrBlank()) {
-                repoDelegate.uploadProjectSecrets(user, name)
-                // Restore prior AI sessions for this repo. The clone/select flow
                 // (selectRepositoryForSetup) does this; loading a local project
-                // must too, or the Setup tab shows no resumable sessions.
-                aiDelegate.fetchSessionsForRepo("$user/$name")
             }
 
             // Re-mount only after the release-scope gate above has accepted the
@@ -1395,8 +1042,6 @@ class MainViewModel(
 
         repoDelegate.forkRepository(owner, repo) { newOwner, newRepo, _ ->
             viewModelScope.launch {
-                repoDelegate.uploadProjectSecrets(newOwner, newRepo)
-                aiDelegate.fetchSessionsForRepo("$newOwner/$newRepo")
                 repoDelegate.forceUpdateInitFiles()
                 onSuccess()
             }
@@ -1585,10 +1230,6 @@ class MainViewModel(
     }
 
     // UPDATE Operations
-    fun checkForExperimentalUpdates() = updateDelegate.checkForExperimentalUpdates()
-    fun confirmUpdate() = updateDelegate.confirmUpdate()
-    fun dismissUpdateWarning() = updateDelegate.dismissUpdateWarning()
-    fun dismissUpdateStatus() = updateDelegate.dismissUpdateStatus()
 
     // MISC
 
@@ -1683,27 +1324,18 @@ class MainViewModel(
      */
     fun checkRequiredKeys(): List<String> {
         val missing = mutableListOf<String>()
-        if (settingsViewModel.getGithubToken().isNullOrBlank()) missing.add("GitHub Token")
+        // A GitHub token is deliberately NOT required here. You can scaffold a
+        // project, edit it with the AI, and see it running with no GitHub account
+        // at all; the token is only needed to publish (see deployWebProject).
 
         val defaultModel = AiModels.findById(
             settingsViewModel.getAiAssignment(SettingsViewModel.KEY_AI_ASSIGNMENT_DEFAULT)
         )
         if (defaultModel != null &&
-            defaultModel.id != AiModels.JULES_DEFAULT &&
             defaultModel.requiredKey.isNotEmpty() &&
             settingsViewModel.getApiKey(defaultModel.requiredKey).isNullOrBlank()
         ) {
             missing.add("${defaultModel.displayName} API Key")
-        }
-
-        // Only flag the Jules key as missing if Jules is actually assigned to a task.
-        val julesAssigned = listOf(
-            SettingsViewModel.KEY_AI_ASSIGNMENT_DEFAULT,
-            SettingsViewModel.KEY_AI_ASSIGNMENT_CONTEXTLESS,
-            SettingsViewModel.KEY_AI_ASSIGNMENT_OVERLAY,
-        ).any { settingsViewModel.getAiAssignment(it) == AiModels.JULES_DEFAULT }
-        if (julesAssigned && settingsViewModel.getApiKey().isNullOrBlank()) {
-            missing.add("Jules API Key")
         }
 
         return missing
@@ -1793,11 +1425,7 @@ class MainViewModel(
             // provider (e.g. the Gemini app bridge) so it gets the log and can
             // fix the build automatically.
             val prompt = "Build failed. Fix this:\n$log"
-            if (isJulesAssigned(SettingsViewModel.KEY_AI_ASSIGNMENT_DEFAULT)) {
-                aiDelegate.startContextualAITask(prompt)
-            } else {
-                sendChatMessage(prompt)
-            }
+            sendChatMessage(prompt)
         }
     }
 }

@@ -92,7 +92,6 @@ fun SettingsScreen(
 
     val settingsVersion by settingsViewModel.settingsVersion.collectAsState()
     val appVersion = remember { settingsViewModel.getAppVersion() }
-    val updateVersion by viewModel.updateVersion.collectAsState()
 
     var apiKey by remember(settingsVersion) { mutableStateOf(settingsViewModel.getApiKey() ?: "") }
     var googleApiKey by remember(settingsVersion) { mutableStateOf(settingsViewModel.getGoogleApiKey() ?: "") }
@@ -623,15 +622,13 @@ fun SettingsScreen(
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
-                GeminiAppBridgeRow(context = context)
-
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Text("AI Assignments", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
 
                 SettingsViewModel.aiTasks.forEach { (taskKey, taskName) ->
                     var currentModelId by remember(taskKey) {
-                        mutableStateOf(settingsViewModel.getAiAssignment(taskKey) ?: AiModels.JULES_DEFAULT)
+                        mutableStateOf(settingsViewModel.getAiAssignment(taskKey) ?: AiModels.GEMINI.id)
                     }
 
                     AiAssignmentDropdown(
@@ -647,8 +644,6 @@ fun SettingsScreen(
 
 
                 Spacer(modifier = Modifier.height(24.dp))
-
-                OnDeviceModelsSection(settingsViewModel = settingsViewModel)
 
                 Text("Permissions", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
                 Spacer(modifier = Modifier.height(8.dp))
@@ -834,53 +829,6 @@ fun SettingsScreen(
                     settingsViewModel = settingsViewModel
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Text("Updates", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
-                Spacer(modifier = Modifier.height(16.dp))
-
-                val updateStatus by viewModel.updateStatus.collectAsState()
-                val showUpdateWarning by viewModel.showUpdateWarning.collectAsState()
-                val updateMessage by viewModel.updateMessage.collectAsState()
-
-                if (updateStatus != null) {
-                    AlertDialog(
-                        onDismissRequest = { viewModel.dismissUpdateStatus() },
-                        title = { Text("Updating") },
-                        text = {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator()
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(updateStatus!!)
-                            }
-                        },
-                        confirmButton = {},
-                        dismissButton = {
-                            AzButton(onClick = { viewModel.dismissUpdateStatus() }, text = "Dismiss", shape = AzButtonShape.NONE)
-                        }
-                    )
-                }
-
-                if (showUpdateWarning) {
-                    AlertDialog(
-                        onDismissRequest = { viewModel.dismissUpdateWarning() },
-                        title = { Text("Update Ready") },
-                        text = { Text(updateMessage ?: "An update is available. Install?") },
-                        confirmButton = {
-                            AzButton(onClick = { viewModel.confirmUpdate() }, text = "Install")
-                        },
-                        dismissButton = {
-                            AzButton(onClick = { viewModel.dismissUpdateWarning() }, text = "Cancel", shape = AzButtonShape.NONE)
-                        }
-                    )
-                }
-
-                AzButton(
-                    onClick = { viewModel.checkForExperimentalUpdates() },
-                    text = "Check for Experimental Updates",
-                    shape = AzButtonShape.RECTANGLE,
-                    modifier = Modifier.fillMaxWidth()
-                )
         }
     }
 }
@@ -913,38 +861,6 @@ private fun FreeProviderKeyRow(
                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(signupUrl)))
             },
             text = "Get Key",
-            shape = AzButtonShape.NONE,
-        )
-    }
-}
-
-@Composable
-private fun GeminiAppBridgeRow(context: android.content.Context) {
-    val enabled = remember(context) {
-        com.hereliesaz.ideaz.ai.bridge.GeminiAppBridgeAdapter
-            .isAccessibilityServiceEnabled(context)
-    }
-    val statusText = if (enabled) "Service enabled" else "Service not granted — tap to enable"
-    Spacer(modifier = Modifier.height(8.dp))
-    Text(
-        "Gemini App (Accessibility)",
-        color = MaterialTheme.colorScheme.onBackground,
-        style = MaterialTheme.typography.labelSmall,
-    )
-    Text(
-        "Routes prompts through the Gemini app you already have installed. Requires Accessibility permission. " +
-            "Only reads the Gemini app's window, only while a prompt is in flight.",
-        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-        style = MaterialTheme.typography.bodySmall,
-    )
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        AzButton(
-            onClick = {
-                context.startActivity(
-                    com.hereliesaz.ideaz.ai.bridge.GeminiAppBridgeAdapter.openAccessibilitySettingsIntent()
-                )
-            },
-            text = statusText,
             shape = AzButtonShape.NONE,
         )
     }
@@ -1000,7 +916,7 @@ fun AiAssignmentDropdown(
     onModelSelected: (AiModel) -> Unit
 ) {
     var isExpanded by remember { mutableStateOf(false) }
-    val selectedModel = AiModels.findById(selectedModelId) ?: AiModels.JULES
+    val selectedModel = AiModels.findById(selectedModelId) ?: AiModels.GEMINI
 
     ExposedDropdownMenuBox(
         expanded = isExpanded,

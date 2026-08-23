@@ -53,8 +53,7 @@ fun IdeBottomSheet(
     val systemLogMessages by viewModel.stateDelegate.systemLog.collectAsState()
     val chatMessages by viewModel.stateDelegate.chatMessages.collectAsState()
     val chatFailure by viewModel.stateDelegate.chatFailure.collectAsState()
-    val localEditReview by viewModel.stateDelegate.localEditReview.collectAsState()
-    val localCloudConsult by viewModel.stateDelegate.localCloudConsult.collectAsState()
+    val editReview by viewModel.stateDelegate.editReview.collectAsState()
     val isChatLoading by viewModel.stateDelegate.isChatLoading.collectAsState()
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
@@ -110,8 +109,7 @@ fun IdeBottomSheet(
                     baseMessages = baseMessages,
                     chatMessages = chatMessages,
                     chatFailure = chatFailure,
-                    localEditReview = localEditReview,
-                    localCloudConsult = localCloudConsult,
+                    editReview = editReview,
                     isChatLoading = isChatLoading,
                     onClearLog = { viewModel.clearLog() },
                     onSendPrompt = onSendPrompt,
@@ -157,9 +155,8 @@ private fun ExpandedContent(
     tabs: List<String>,
     baseMessages: List<String>,
     chatMessages: List<com.hereliesaz.ideaz.ai.ChatMessage>,
-    chatFailure: com.hereliesaz.ideaz.ai.local.LocalProviderFailure?,
-    localEditReview: com.hereliesaz.ideaz.ui.delegates.LocalEditReviewState?,
-    localCloudConsult: com.hereliesaz.ideaz.ui.delegates.LocalCloudConsultState?,
+    chatFailure: String?,
+    editReview: com.hereliesaz.ideaz.ui.delegates.EditReviewState?,
     isChatLoading: Boolean,
     onClearLog: () -> Unit,
     onSendPrompt: (String) -> Unit,
@@ -256,8 +253,7 @@ private fun ExpandedContent(
             AiChatTab(
                 messages = chatMessages,
                 failure = chatFailure,
-                editReview = localEditReview,
-                cloudConsult = localCloudConsult,
+                editReview = editReview,
                 isLoading = isChatLoading,
                 viewModel = viewModel,
                 modifier = Modifier.weight(1f)

@@ -1,7 +1,7 @@
 package com.hereliesaz.ideaz.ai
 
-import com.hereliesaz.ideaz.ai.local.LocalEditApproval
-import com.hereliesaz.ideaz.ai.local.LocalEditApprovalRequiredException
+import com.hereliesaz.ideaz.ai.AiEditApproval
+import com.hereliesaz.ideaz.ai.AiEditApprovalRequiredException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -62,7 +62,7 @@ class OpenAiCompatibleAdapter(
         val history = messages.map { it.toOpenAiMessage() }.toMutableList()
 
         // Same checkpoint/review/approval contract LocalLlmAdapter, GeminiAdapter,
-        // and AnthropicAdapter use — see LocalEditApproval's doc comment.
+        // and AnthropicAdapter use — see AiEditApproval's doc comment.
         var editCheckpoint: IdeEditCheckpoint? = null
         var expectedEditFingerprint: String? = null
 
@@ -96,7 +96,7 @@ class OpenAiCompatibleAdapter(
                 runCatching { tools.discardEditCheckpoint(checkpoint) }
                 return response
             }
-            throw LocalEditApprovalRequiredException(LocalEditApproval(review, response, source = currentModel))
+            throw AiEditApprovalRequiredException(AiEditApproval(review, response, source = currentModel))
         }
 
         fun dispatchMutatingTool(name: String, stringArgs: Map<String, String?>): String {

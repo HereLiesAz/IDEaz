@@ -27,8 +27,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.currentBackStackEntryAsState
-import com.hereliesaz.ideaz.ai.GeminiNanoAdapter
-import com.hereliesaz.ideaz.ai.bridge.GeminiAppBridgeAdapter
 import com.hereliesaz.ideaz.ui.web.WebProjectHost
 import androidx.compose.ui.platform.LocalConfiguration
 import com.hereliesaz.aznavrail.AzHostActivityLayout
@@ -41,11 +39,7 @@ const val Z_INDEX_OVERLAY = 200f
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(
-    viewModel: MainViewModel,
-    onRequestScreenCapture: () -> Unit,
-    onThemeToggle: (Boolean) -> Unit
-) {
+fun MainScreen(viewModel: MainViewModel) {
     val navController = rememberNavController()
     val config = LocalConfiguration.current
     val screenHeight = config.screenHeightDp.dp
@@ -62,33 +56,15 @@ fun MainScreen(
     val webHardReloadTrigger by viewModel.webHardReloadTrigger.collectAsState()
 
     val isContextualChatVisible by viewModel.isContextualChatVisible.collectAsState()
-    val activeSelectionRect by viewModel.activeSelectionRect.collectAsState()
     val isSelectMode by viewModel.isSelectMode.collectAsState()
 
     var isPromptPopupVisible by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
-    var showBridgeFirstRun by remember { mutableStateOf(false) }
     var showCrashReportingFirstRun by remember { mutableStateOf(false) }
 
-    // First-run check: if Nano isn't available and the user hasn't seen the
-    // bridge explainer yet, suggest the Gemini-app bridge as a zero-key path.
     val settingsViewModel = viewModel.settingsViewModel
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-
-    // Called explicitly from every exit path of the crash-reporting dialog
-    // below (never from a second LaunchedEffect keyed on its visibility flag)
-    // so the two first-run dialogs are deterministically sequenced - a
-    // genuinely first launch shows the bridge explainer only after the crash-
-    // reporting one closes, never both stacked at once.
-    suspend fun maybeShowBridgeFirstRun() {
-        if (!settingsViewModel.hasShownBridgeFirstRun() &&
-            GeminiAppBridgeAdapter.resolveGeminiPackage(context) != null &&
-            !GeminiNanoAdapter.isAvailable(context)
-        ) {
-            showBridgeFirstRun = true
-        }
-    }
 
     LaunchedEffect(Unit) {
         // isReportIdeErrorsEnabled() defaults to true, so without this a crash
@@ -97,7 +73,6 @@ fun MainScreen(
         if (!settingsViewModel.hasShownCrashReportingFirstRun()) {
             showCrashReportingFirstRun = true
         } else {
-            maybeShowBridgeFirstRun()
         }
     }
 
@@ -106,7 +81,6 @@ fun MainScreen(
             onDismissRequest = {
                 settingsViewModel.markCrashReportingFirstRunShown()
                 showCrashReportingFirstRun = false
-                coroutineScope.launch { maybeShowBridgeFirstRun() }
             },
             title = { Text("Report crashes to help fix bugs?") },
             text = {
@@ -123,7 +97,6 @@ fun MainScreen(
                     settingsViewModel.setReportIdeErrorsEnabled(true)
                     settingsViewModel.markCrashReportingFirstRunShown()
                     showCrashReportingFirstRun = false
-                    coroutineScope.launch { maybeShowBridgeFirstRun() }
                 }) { Text("Allow") }
             },
             dismissButton = {
@@ -131,51 +104,11 @@ fun MainScreen(
                     settingsViewModel.setReportIdeErrorsEnabled(false)
                     settingsViewModel.markCrashReportingFirstRunShown()
                     showCrashReportingFirstRun = false
-                    coroutineScope.launch { maybeShowBridgeFirstRun() }
                 }) { Text("Don't allow") }
             },
         )
     }
 
-    if (showBridgeFirstRun) {
-        AlertDialog(
-            onDismissRequest = {
-                settingsViewModel.markBridgeFirstRunShown()
-                showBridgeFirstRun = false
-            },
-            title = { Text("Use Gemini for free?") },
-            text = {
-                Text(
-                    "Your device doesn't ship Gemini Nano, but you have the Gemini " +
-                        "app installed. IDEaz can route prompts through it — no API " +
-                        "key needed. Requires the Accessibility permission. Only " +
-                        "reads the Gemini app's window, only while a prompt is in " +
-                        "flight."
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    settingsViewModel.markBridgeFirstRunShown()
-                    settingsViewModel.saveAiAssignment(
-                        SettingsViewModel.KEY_AI_ASSIGNMENT_DEFAULT,
-                        AiModels.GEMINI_APP_BRIDGE,
-                    )
-                    settingsViewModel.saveAiAssignment(
-                        SettingsViewModel.KEY_AI_ASSIGNMENT_OVERLAY,
-                        AiModels.GEMINI_APP_BRIDGE,
-                    )
-                    context.startActivity(GeminiAppBridgeAdapter.openAccessibilitySettingsIntent())
-                    showBridgeFirstRun = false
-                }) { Text("Enable bridge") }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    settingsViewModel.markBridgeFirstRunShown()
-                    showBridgeFirstRun = false
-                }) { Text("Use an API key instead") }
-            },
-        )
-    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -249,15 +182,22 @@ fun MainScreen(
                             navController = navController,
                             viewModel = viewModel,
                             settingsViewModel = viewModel.settingsViewModel,
-                            onThemeToggle = onThemeToggle
+                            // The live theme comes from settingsViewModel.themeMode,
+                            // which MainActivity collects at the root; this callback
+                            // has always been a no-op and stays one.
+                            onThemeToggle = {},
                         )
                     }
 
                     // LAYER 3: Contextual Chat Overlay
-                    if (isContextualChatVisible && activeSelectionRect != null) {
-                        Box(modifier = Modifier.fillMaxSize().zIndex(Z_INDEX_OVERLAY)) {
+                    if (isContextualChatVisible) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .zIndex(Z_INDEX_OVERLAY),
+                            contentAlignment = androidx.compose.ui.Alignment.BottomCenter,
+                        ) {
                             ContextualChatOverlay(
-                                rect = activeSelectionRect!!,
                                 viewModel = viewModel,
                                 onClose = { viewModel.closeContextualChat() }
                             )
@@ -278,10 +218,11 @@ fun MainScreen(
             // bars stay reachable while drag-to-select is active.
             onscreen {
                 if (isSelectMode) {
-                    SelectionOverlay(
-                        onTap = { x, y -> viewModel.handleSelection(android.graphics.Rect(x.toInt(), y.toInt(), x.toInt()+1, y.toInt()+1)) },
-                        onDragEnd = { rect -> viewModel.handleSelection(rect) }
-                    )
+                    // A tap is the whole gesture. The old drag-to-select produced a
+                    // rect that was immediately collapsed to its centre point anyway,
+                    // and a horizontal drag was silently discarded because the
+                    // threshold required movement on both axes.
+                    SelectionOverlay(onTap = { x, y -> viewModel.handleSelection(x, y) })
                 }
             }
 

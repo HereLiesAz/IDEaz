@@ -9,8 +9,8 @@ import com.google.genai.types.Part
 import com.google.genai.types.Schema
 import com.google.genai.types.Tool
 import com.google.genai.types.Type
-import com.hereliesaz.ideaz.ai.local.LocalEditApproval
-import com.hereliesaz.ideaz.ai.local.LocalEditApprovalRequiredException
+import com.hereliesaz.ideaz.ai.AiEditApproval
+import com.hereliesaz.ideaz.ai.AiEditApprovalRequiredException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -33,7 +33,7 @@ class GeminiAdapter(
         val contents = messages.map { it.toContent() }.toMutableList()
 
         // Same checkpoint/review/approval contract LocalLlmAdapter uses, reused
-        // as-is (see LocalEditApproval's doc comment): a checkpoint is opened on
+        // as-is (see AiEditApproval's doc comment): a checkpoint is opened on
         // the first mutating tool call in this turn and spans every round until
         // the model stops calling tools, at which point complete() below either
         // clears a no-op checkpoint or hands it to the UI for explicit approval
@@ -71,7 +71,7 @@ class GeminiAdapter(
                 runCatching { tools.discardEditCheckpoint(checkpoint) }
                 return response
             }
-            throw LocalEditApprovalRequiredException(LocalEditApproval(review, response, source = "Gemini"))
+            throw AiEditApprovalRequiredException(AiEditApproval(review, response, source = "Gemini"))
         }
 
         fun dispatchMutatingTool(name: String, stringArgs: Map<String, String?>): String {

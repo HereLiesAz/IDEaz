@@ -9,7 +9,6 @@ import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.api.GitHubRepoResponse
 import com.hereliesaz.ideaz.api.GitHubPermissions
 import com.hereliesaz.ideaz.api.Source
-import com.hereliesaz.ideaz.jules.JulesApiClient
 import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.AiModels
@@ -81,35 +80,12 @@ class RepoDelegate(
             onLoadingProgress(0)
             _repoFetchError.value = null
             try {
-                val julesProjectId = settingsViewModel.getJulesProjectId()
-
-                // 1. Jules API Path
-                if (!julesProjectId.isNullOrBlank()) {
-                     try {
-                         val response = JulesApiClient.listSources()
-                         val mappedRepos = response.sources?.mapNotNull { RepoMapper.mapSourceToRepoResponse(it) } ?: emptyList()
-                         if (mappedRepos.isNotEmpty()) {
-                             _ownedRepos.value = mappedRepos
-                             return@launch
-                         }
-                         // An empty Jules source list isn't proof the account has no
-                         // repos - it just means Jules has no sources configured for
-                         // this project ID. Fall through to the GitHub API rather than
-                         // reporting "no repositories found" forever for a perfectly
-                         // valid PAT that never gets used.
-                         onOverlayLog("Jules returned no sources; falling back to GitHub.")
-                     } catch (e: Exception) {
-                         onOverlayLog("Jules API Error: ${e.message}. Falling back to GitHub.")
-                     }
-                }
-
                 val token = settingsViewModel.getGithubToken()
                 if (token.isNullOrBlank()) {
                     onOverlayLog("Error: No GitHub Token found.")
                     return@launch
                 }
 
-                // 2. Fallback Path (Direct GitHub)
                 val service = GitHubApiClient.createService(token)
                 val repos = service.listRepos()
                 _ownedRepos.value = repos
@@ -487,90 +463,6 @@ class RepoDelegate(
                 }
             } catch (e: Exception) {
                 onOverlayLog("Error pushing init files: ${e.message}")
-            }
-        }
-    }
-
-    /**
-     * Encrypts and uploads project secrets (API keys, keystore) to the repo's
-     * GitHub Actions secrets.
-     *
-     * Each value is sealed for the repository's Actions public key using
-     * [GithubSecretBox] (libsodium-compatible `crypto_box_seal`) and PUT via the
-     * Actions secrets API. Failures are surfaced per-secret to the build log
-     * rather than failing silently.
-     */
-    fun uploadProjectSecrets(owner: String, repo: String) {
-        // Blocking GitHub network calls — must run on IO, not the CPU-bound
-        // Default pool (which has only ~#cores threads and would be starved).
-        scope.launch(Dispatchers.IO) {
-            try {
-                onLog("Uploading project secrets to GitHub...")
-                val token = settingsViewModel.getGithubToken()
-                if (token.isNullOrBlank()) {
-                    onLog("Error: GitHub Token not found. Cannot upload secrets.")
-                    return@launch
-                }
-
-                val service = GitHubApiClient.createService(token)
-
-                // 1. Fetch the repository's Actions public key.
-                val publicKey = try {
-                    service.getRepoPublicKey(owner, repo)
-                } catch (e: Exception) {
-                    onLog("Error fetching public key: ${e.message}")
-                    return@launch
-                }
-                val publicKeyBytes = android.util.Base64.decode(publicKey.key, android.util.Base64.NO_WRAP)
-
-                // 2. Collect the secrets to publish.
-                val secrets = mutableMapOf<String, String>()
-                settingsViewModel.getApiKey()?.let { secrets["JULES_API_KEY"] = it }
-                settingsViewModel.getApiKey(AiModels.GEMINI.requiredKey)?.let { secrets["GEMINI_API_KEY"] = it }
-                // Was looking up the literal string "GOOGLE_API_KEY" (uppercase),
-                // but the actual preference key is lowercase (KEY_GOOGLE_API_KEY =
-                // "google_api_key") - this always returned null, so the secret was
-                // silently never uploaded and the "(uploaded/size)" warning below
-                // could never fire for it.
-                settingsViewModel.getApiKey(SettingsViewModel.KEY_GOOGLE_API_KEY)?.let { secrets["GOOGLE_API_KEY"] = it }
-                settingsViewModel.getJulesProjectId()?.let { secrets["JULES_PROJECT_ID"] = it }
-
-                // Deliberately does NOT upload the release-signing keystore or its
-                // passwords: no injected workflow reads them (grep for
-                // IDEAZ_DEBUG_KEYSTORE_* turns up nothing but this file), the
-                // target repo isn't necessarily one the user owns (it can be any
-                // repo they merely collaborate on), and there's no consent prompt
-                // before this runs. Uploading the app's most sensitive artifact
-                // to every collaborator with repo-secret read access for no
-                // consumer was a straight information leak - removed.
-
-                // 3. Seal each value for the public key and upload it.
-                var uploaded = 0
-                secrets.forEach { (name, value) ->
-                    try {
-                        val sealed = GithubSecretBox.seal(value.toByteArray(Charsets.UTF_8), publicKeyBytes)
-                        val encryptedBase64 = android.util.Base64.encodeToString(sealed, android.util.Base64.NO_WRAP)
-                        val resp = service.createSecret(
-                            owner, repo, name, CreateSecretRequest(encryptedBase64, publicKey.keyId)
-                        )
-                        if (resp.isSuccessful) uploaded++ else onLog("Failed to upload $name: HTTP ${resp.code()}")
-                    } catch (e: Exception) {
-                        onLog("Error encrypting/uploading $name: ${e.message}")
-                    }
-                }
-                val msg = "Secrets uploaded ($uploaded/${secrets.size}) to $owner/$repo."
-                onLog(msg)
-                onOverlayLog(msg)
-                if (uploaded < secrets.size) {
-                    // Don't let a partial upload look like success — a missing
-                    // secret makes the remote Actions build fail later with an
-                    // obscure "env var not set" error.
-                    val warn = "WARNING: ${secrets.size - uploaded} secret(s) failed to upload. The remote build may fail without them."
-                    onLog(warn)
-                    onOverlayLog(warn)
-                }
-            } catch (e: Throwable) {
-                onLog("Error uploading secrets: ${e.message}")
             }
         }
     }

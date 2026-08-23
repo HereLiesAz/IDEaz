@@ -36,28 +36,17 @@ object CrashHandler {
             val stackTrace = sw.toString()
 
             val prefs = PreferenceManager.getDefaultSharedPreferences(context)
-            val apiKey = readSecureOrLegacyCredential(context, SettingsViewModel.KEY_API_KEY)
-            val projectId = prefs.getString(SettingsViewModel.KEY_JULES_PROJECT_ID, null)
             val githubToken = readSecureOrLegacyCredential(context, SettingsViewModel.KEY_GITHUB_TOKEN)
             val githubUser = prefs.getString(SettingsViewModel.KEY_GITHUB_USER, "Unknown")
             val reportToGithub = prefs.getBoolean(SettingsViewModel.KEY_REPORT_IDE_ERRORS, true)
 
-            // The first-run "Report crashes to help fix bugs?" consent dialog
-            // promises crash reporting in general, not specifically a Jules AI
-            // session - but this gate previously required the Jules API key
-            // regardless of whether the user only wanted GitHub issue
-            // reporting (which CrashReportingService can do without Jules at
-            // all - see its own reportToGithub branch). A user who said yes
-            // and configured only a GitHub token got silent no-op reporting.
-            val canReportToGithub = reportToGithub && !githubToken.isNullOrBlank()
-            if (!apiKey.isNullOrBlank() || canReportToGithub) {
+            // Reporting needs the user's first-run consent and a GitHub token to
+            // file the issue with. Without both there is nowhere to send it.
+            if (reportToGithub && !githubToken.isNullOrBlank()) {
                 val intent = Intent(context, CrashReportingService::class.java).apply {
-                    putExtra(CrashReportingService.EXTRA_API_KEY, apiKey)
-                    putExtra(CrashReportingService.EXTRA_JULES_PROJECT_ID, projectId)
                     putExtra(CrashReportingService.EXTRA_GITHUB_TOKEN, githubToken)
                     putExtra(CrashReportingService.EXTRA_STACK_TRACE, stackTrace)
                     putExtra(CrashReportingService.EXTRA_GITHUB_USER, githubUser)
-                    putExtra(CrashReportingService.EXTRA_REPORT_TO_GITHUB, reportToGithub)
                 }
                 context.startService(intent)
             }

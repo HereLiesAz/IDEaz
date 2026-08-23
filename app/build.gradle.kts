@@ -287,11 +287,9 @@ dependencies {
     implementation(libs.google.genai) {
         exclude(group = "com.google.protobuf", module = "protobuf-java")
     }
-    implementation(libs.google.ai.edge.aicore)
-    implementation(libs.mediapipe.tasks.genai) {
-        exclude(group = "com.google.protobuf", module = "protobuf-javalite")
-    }
-    implementation(libs.androidx.localbroadcastmanager)
+    // removed with the on-device model / overlay subsystems
+    // removed with the on-device model subsystem
+    // removed with the on-device model / overlay subsystems
     implementation(libs.aznavrail) {
         exclude(group = "com.github.HereLiesAz.AzNavRail", module = "aznavrail-cmp-wasm-js")
         exclude(group = "com.github.HereLiesAz.AzNavRail", module = "aznavrail-cmp-desktop")
@@ -331,20 +329,8 @@ dependencies {
 
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.webkit)
-    implementation(libs.androidx.work.runtime.ktx)
+    // removed with the on-device model / overlay subsystems
 
-    // On-device GGUF backend: the :llama-cpp-module NDK library is only on the
-    // classpath when its llama.cpp submodule is present (matched in settings.gradle.kts),
-    // so the app builds without the NDK toolchain. LlamaCppRuntime detects it by name.
-    if (rootProject.file("llama-cpp-module/llama.cpp").exists()) {
-        implementation(project(":llama-cpp-module"))
-    }
-
-    // On-device ONNX GenAI backend (OnnxGenAiRuntime). The GenAI Android AAR is NOT
-    // on Maven Central — vendor it from the onnxruntime-genai GitHub releases (see
-    // docs/on-device-runtimes.md), then OnnxGenAiRuntime detects it by name:
-    //   implementation(files("libs/onnxruntime-genai-android-<ver>.aar"))
-    //   implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
 }
 
 abstract class IncrementBuildNumberTask : DefaultTask() {

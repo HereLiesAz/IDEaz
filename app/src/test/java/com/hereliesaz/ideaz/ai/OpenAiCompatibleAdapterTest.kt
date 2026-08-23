@@ -1,6 +1,6 @@
 package com.hereliesaz.ideaz.ai
 
-import com.hereliesaz.ideaz.ai.local.LocalEditApprovalRequiredException
+import com.hereliesaz.ideaz.ai.AiEditApprovalRequiredException
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
@@ -87,12 +87,12 @@ class OpenAiCompatibleAdapterTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(finalTextResponse))
 
         // A completed edit is never returned as plain reply text - chat() throws
-        // LocalEditApprovalRequiredException so the caller (MainViewModel) shows
+        // AiEditApprovalRequiredException so the caller (MainViewModel) shows
         // a review card instead of silently reloading an unreviewed change.
         try {
             adapter().chat(listOf(ChatMessage("user", "add a console.log")))
-            fail("Expected LocalEditApprovalRequiredException")
-        } catch (e: LocalEditApprovalRequiredException) {
+            fail("Expected AiEditApprovalRequiredException")
+        } catch (e: AiEditApprovalRequiredException) {
             assertEquals("Done.", e.approval.response)
             assertEquals(listOf("app.js"), e.approval.review.changedFiles)
         }

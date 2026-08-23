@@ -99,8 +99,21 @@
         throw new Error("Cannot resolve module: " + inputUrl);
     }
 
+    // `development: true` is load-bearing, not a debug convenience. It enables
+    // @babel/plugin-transform-react-jsx-source, which stamps every JSX element
+    // with __source = { fileName, lineNumber, columnNumber }. React exposes that
+    // on the fiber as _debugSource, and ideaz-bridge.js reads it when the user
+    // taps an element.
+    //
+    // That is the whole reason IDEaz can work. The product's hard problem is
+    // mapping a rendered DOM node back to the source that produced it; with this
+    // off, the AI got a CSS selector and had to grep its way to the right file
+    // across up to ten tool rounds. With it on, it gets src/App.jsx:42.
+    //
+    // `filename` here is already the project-relative path (pathnameOf(realUrl)),
+    // so fileName lands as a path the AI's read_file tool can open directly.
     function reactPresets(filename) {
-        var presets = [["react", { runtime: "automatic", development: false }]];
+        var presets = [["react", { runtime: "automatic", development: true }]];
         var ext = extOf(filename);
         if (ext === "ts" || ext === "tsx") presets.push("typescript");
         return presets;

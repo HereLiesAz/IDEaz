@@ -38,7 +38,6 @@ fun ProjectSetupTab(
     onNavigateToSettings: () -> Unit,
 ) {
     val currentAppNameState by settingsViewModel.currentAppName.collectAsState()
-    val sessions by viewModel.sessions.collectAsState()
     val loadingProgress by viewModel.loadingProgress.collectAsState()
 
     // Explicit state for Token Popup
@@ -80,7 +79,6 @@ fun ProjectSetupTab(
             selectedType = ProjectType.fromString(settingsViewModel.readProjectType())
                 .takeUnless { it == ProjectType.OTHER || it == ProjectType.UNKNOWN }
                 ?: ProjectType.PWA
-            if (appName.isNotBlank()) viewModel.fetchSessionsForRepo(appName)
         } else {
             if (appName == "IDEazProject") appName = ""
             selectedType = ProjectType.PWA
@@ -306,7 +304,6 @@ fun ProjectSetupTab(
                                 appName, repoDescription, false, selectedType, packageName, context,
                                 initialPrompt = initialPrompt.takeIf { it.isNotBlank() }
                             ) {
-                                viewModel.uploadProjectSecrets(githubUser, appName)
                                 onCreateModeChanged(false)
                             }
                         }
@@ -359,33 +356,5 @@ fun ProjectSetupTab(
             }
         }
 
-        if (!isCreateMode && sessions.isNotEmpty()) {
-            item {
-                Spacer(Modifier.height(24.dp))
-                Text("Available Sessions", style = MaterialTheme.typography.headlineSmall)
-                Spacer(Modifier.height(8.dp))
-            }
-            items(sessions) { session ->
-                Card(
-                    modifier = Modifier
-                        .padding(bottom = 8.dp)
-                        .fillMaxWidth()
-                        .clickable {
-                            viewModel.resumeSession(session.id)
-                            Toast.makeText(context, "Resumed: ${session.id}", Toast.LENGTH_SHORT).show()
-                        },
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        contentColor = MaterialTheme.colorScheme.onSurface
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Session: ${session.id}", style = MaterialTheme.typography.bodyLarge)
-                        Text("Prompt: ${session.prompt.take(50)}...", style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            }
-        }
     }
 }

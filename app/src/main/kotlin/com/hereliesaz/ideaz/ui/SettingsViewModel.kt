@@ -40,16 +40,27 @@ data class AiModel(
     val id: String,
     val displayName: String,
     val requiredKey: String,
+    /** Wire model id sent to the provider. Overridable per-provider in Settings. */
+    val defaultWireModel: String,
     val supportsImages: Boolean = false,
 )
 
+/**
+ * The registered cloud providers.
+ *
+ * Every entry here is BYO-key and speaks one of three adapters: [GeminiAdapter],
+ * [AnthropicAdapter], or the single [OpenAiCompatibleAdapter] that serves every
+ * `/chat/completions` provider.
+ *
+ * Wire model ids are **pinned**, not discovered. An earlier design resolved them
+ * at runtime by regex-matching the provider's `/models` listing and taking the
+ * newest by publish date, which made the model choice nondeterministic and, for
+ * OpenAI, routinely selected a non-chat variant (`gpt-4o-transcribe`,
+ * `gpt-4o-audio-preview`) because the filter matched those too. Pin a known-good
+ * id and let the user override it in Settings when they want something else.
+ */
 object AiModels {
-    const val JULES_DEFAULT = "JULES_DEFAULT"
     const val GEMINI_FLASH = "GEMINI_FLASH"
-    const val GEMINI_PRO = "GEMINI_PRO"
-    const val GEMINI_CLI = "GEMINI_CLI"
-    const val GEMINI_NANO = "GEMINI_NANO"
-    const val GEMINI_APP_BRIDGE = "GEMINI_APP_BRIDGE"
     const val GROQ_LLAMA = "GROQ_LLAMA"
     const val CEREBRAS_LLAMA = "CEREBRAS_LLAMA"
     const val HF_INFERENCE = "HF_INFERENCE"
@@ -57,61 +68,48 @@ object AiModels {
     const val OPENAI_GPT4O = "OPENAI_GPT4O"
     const val ANTHROPIC_CLAUDE = "ANTHROPIC_CLAUDE"
     const val DEEPSEEK_CODER = "DEEPSEEK_CODER"
-    const val LOCAL_MODEL = "LOCAL_MODEL"
 
-    val JULES = AiModel(JULES_DEFAULT, "Jules", SettingsViewModel.KEY_API_KEY)
-    // Display name tracks the actual model id used in GeminiAdapter (currently
-    // "gemini-2.0-flash"). The id constant GEMINI_FLASH is kept stable for
-    // backward compatibility with stored AI assignments. Gemini 2.0 Flash is
-    // vision-capable.
-    val GEMINI = AiModel(GEMINI_FLASH, "Gemini 2.0 Flash", SettingsViewModel.KEY_GOOGLE_API_KEY, supportsImages = true)
-    val CLI = AiModel(GEMINI_CLI, "Gemini CLI", SettingsViewModel.KEY_GOOGLE_API_KEY, supportsImages = true)
+    val GEMINI = AiModel(
+        GEMINI_FLASH, "Gemini 2.0 Flash", SettingsViewModel.KEY_GOOGLE_API_KEY,
+        defaultWireModel = "gemini-2.0-flash", supportsImages = true,
+    )
+    val ANTHROPIC = AiModel(
+        ANTHROPIC_CLAUDE, "Anthropic · Claude Sonnet", SettingsViewModel.KEY_ANTHROPIC_API_KEY,
+        defaultWireModel = "claude-sonnet-4-20250514", supportsImages = true,
+    )
+    val OPENAI = AiModel(
+        OPENAI_GPT4O, "OpenAI · GPT-4o", SettingsViewModel.KEY_OPENAI_API_KEY,
+        defaultWireModel = "gpt-4o", supportsImages = true,
+    )
+    val DEEPSEEK = AiModel(
+        DEEPSEEK_CODER, "DeepSeek · Chat", SettingsViewModel.KEY_DEEPSEEK_API_KEY,
+        defaultWireModel = "deepseek-chat",
+    )
+    val GROQ = AiModel(
+        GROQ_LLAMA, "Groq · Llama 3.3 70B", SettingsViewModel.KEY_GROQ_API_KEY,
+        defaultWireModel = "llama-3.3-70b-versatile",
+    )
+    val CEREBRAS = AiModel(
+        CEREBRAS_LLAMA, "Cerebras · Llama 3.3 70B", SettingsViewModel.KEY_CEREBRAS_API_KEY,
+        defaultWireModel = "llama-3.3-70b",
+    )
+    val HF = AiModel(
+        HF_INFERENCE, "Hugging Face · Llama 3.3 70B", SettingsViewModel.KEY_HF_API_KEY,
+        defaultWireModel = "meta-llama/Llama-3.3-70B-Instruct",
+    )
+    val MISTRAL = AiModel(
+        MISTRAL_SMALL, "Mistral Small", SettingsViewModel.KEY_MISTRAL_API_KEY,
+        defaultWireModel = "mistral-small-latest",
+    )
 
-    // On-device, no key. requiredKey = "" is the sentinel meaning "no key needed".
-    val NANO = AiModel(GEMINI_NANO, "Gemini Nano (on-device)", "")
-    // Routes prompts through the user's installed Gemini app via the
-    // GeminiAppBridgeAccessibilityService. No API key; requires the user to
-    // grant the IDEaz accessibility service. Forwards one image at a time
-    // via the share intent's EXTRA_STREAM.
-    val BRIDGE = AiModel(GEMINI_APP_BRIDGE, "Gemini App (Accessibility)", "", supportsImages = true)
+    /** UI display order. */
+    val availableModels = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL)
 
-    // Free-tier hosted, OpenAI-compatible. The default Llama models on Groq /
-    // Cerebras and Mistral Small (free) are NOT vision-capable; HF Inference
-    // depends on the served model. Mark all conservatively as text-only.
-    // Users who add a key for a vision model can override per-call later.
-    val GROQ      = AiModel(GROQ_LLAMA,      "Groq · Llama 70B (Latest)",       SettingsViewModel.KEY_GROQ_API_KEY)
-    val CEREBRAS  = AiModel(CEREBRAS_LLAMA,  "Cerebras · Llama 70B (Latest)",   SettingsViewModel.KEY_CEREBRAS_API_KEY)
-    val HF        = AiModel(HF_INFERENCE,    "Hugging Face Llama (Latest)",     SettingsViewModel.KEY_HF_API_KEY)
-    val MISTRAL   = AiModel(MISTRAL_SMALL,   "Mistral Small (Latest)",          SettingsViewModel.KEY_MISTRAL_API_KEY)
-    val OPENAI    = AiModel(OPENAI_GPT4O,    "OpenAI · GPT-4o (Latest)",        SettingsViewModel.KEY_OPENAI_API_KEY, supportsImages = true)
-    val ANTHROPIC = AiModel(ANTHROPIC_CLAUDE,"Anthropic · Claude Sonnet (Latest)", SettingsViewModel.KEY_ANTHROPIC_API_KEY, supportsImages = true)
-    val DEEPSEEK  = AiModel(DEEPSEEK_CODER,  "DeepSeek · Coder (Latest)",       SettingsViewModel.KEY_DEEPSEEK_API_KEY)
-
-    // User-downloaded / system-managed on-device model. No API key; the active
-    // model + runtime are chosen under Settings → On-device models.
-    val LOCAL     = AiModel(LOCAL_MODEL,     "On-device model",            "")
-
-    val availableModels = listOf(NANO, BRIDGE, LOCAL, GEMINI, OPENAI, ANTHROPIC, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL, JULES, CLI)
-
-    // Capability-ranked order for auto-selecting a default model: distinct from
-    // `availableModels` (that one's ordered for UI display). `defaultModelId()`
-    // walks this list and picks the first entry whose `requiredKey` is
-    // actually saved - the trailing no-key entries are kept here only so the
-    // list stays a complete provider ranking, but they're always skipped by
-    // that lookup (see its own `requiredKey.isNotEmpty()` guard).
-    //
-    // JULES is deliberately excluded: every consumer of `defaultModelId()`
-    // (ordinary chat, PromptPopup, ContextlessChatInput, checkRequiredKeys)
-    // routes the resolved id through AiAdapterFactory, which returns null for
-    // Jules - it has its own stateful session lifecycle
-    // (AIDelegate.runJulesTask), not the ConversationalAiClient contract every
-    // other entry here implements. A user whose only saved key is Jules used
-    // to get it auto-picked as "Default" and then have every chat message
-    // fail with "Jules is not supported in the chat tab." Jules can still be
-    // assigned explicitly to a task slot that actually handles it specially
-    // (see the julesAssigned checks in MainViewModel) - just never as the
-    // silently-inferred default.
-    val defaultRanking = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL, CLI, BRIDGE, LOCAL, NANO)
+    /**
+     * Capability-ranked order for auto-selecting a default. `defaultModelId()`
+     * walks this and picks the first entry whose `requiredKey` is actually saved.
+     */
+    val defaultRanking = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL)
 
     fun findById(id: String?): AiModel? = availableModels.find { it.id == id }
 }
@@ -336,6 +334,23 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _apiKey.value = trimmed
         return saved
     }
+    /**
+     * Per-provider override for the wire model id sent to the API, or null to use
+     * the pinned default in [AiModels]. Lets a user point a provider at a newer or
+     * cheaper model without an app update, while keeping the default deterministic.
+     */
+    fun getWireModelOverride(modelId: String): String? =
+        sharedPreferences.getString(wireModelKey(modelId), null)?.takeIf { it.isNotBlank() }
+
+    fun setWireModelOverride(modelId: String, wireModel: String?) {
+        sharedPreferences.edit().apply {
+            if (wireModel.isNullOrBlank()) remove(wireModelKey(modelId))
+            else putString(wireModelKey(modelId), wireModel.trim())
+        }.apply()
+    }
+
+    private fun wireModelKey(modelId: String) = "wire_model_$modelId"
+
     fun getApiKey() = getApiKey(KEY_API_KEY)
     fun getApiKey(keyName: String): String? {
         if (keyName !in SECURE_CREDENTIAL_KEYS) return sharedPreferences.getString(keyName, null)

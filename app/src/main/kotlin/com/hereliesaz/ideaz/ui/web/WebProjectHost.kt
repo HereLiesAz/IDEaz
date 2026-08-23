@@ -30,7 +30,6 @@ import com.hereliesaz.ideaz.models.ACTION_AI_LOG
 import com.hereliesaz.ideaz.models.ACTION_WASM_COMPILE_SUCCESS
 import com.hereliesaz.ideaz.models.EXTRA_MESSAGE
 import com.hereliesaz.ideaz.models.EXTRA_WWW_DIR
-import com.hereliesaz.ideaz.services.WasmCompilerService
 import java.io.File
 
 /**
@@ -357,7 +356,7 @@ fun WebProjectHost(
                     if (isWebViewDestroyed.value) return
                     val dir = intent.getStringExtra(EXTRA_WWW_DIR)
                         ?.let { File(it) }
-                        ?: File(webView.context.filesDir, WasmCompilerService.WWW_DIR_NAME)
+                        ?: return
                     // Mount the compiler's output directory, then re-enter the
                     // host page at its root - not a plain reload(), which would
                     // re-request whatever URL the page is currently on. A CMP

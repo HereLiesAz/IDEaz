@@ -101,7 +101,7 @@ fun AzNavHostScope.ideNavRail(
                 // Actually trigger the build (web → verify index.html + show
                 // preview via the build-success callback; Android → remote build).
                 // Previously this only opened the sheet and did nothing else.
-                viewModel.startBuild()
+                viewModel.openPreview()
                 sheetController.snapTo(AzSheetDetent.HALF)
             }
         }
