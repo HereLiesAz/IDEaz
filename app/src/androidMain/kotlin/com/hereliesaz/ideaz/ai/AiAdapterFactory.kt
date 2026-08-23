@@ -31,8 +31,7 @@ object AiAdapterFactory {
     ): ConversationalAiClient? {
         val base = createRaw(model, tools, settings) ?: return null
         val appName = settings.getAppName()?.takeIf { it.isNotBlank() } ?: "this project"
-        val projectType = settings.readProjectType()
-        return RepoAwareClient(base, tools, appName, projectType)
+        return RepoAwareClient(base, tools, appName)
     }
 
     private fun createRaw(
@@ -83,11 +82,10 @@ private class RepoAwareClient(
     private val delegate: ConversationalAiClient,
     private val tools: IdeTools,
     private val appName: String,
-    private val projectType: String,
 ) : ConversationalAiClient {
     override suspend fun chat(messages: List<ChatMessage>): String {
         val preamble = withContext(Dispatchers.IO) {
-            AiRepoContext.systemPreamble(appName, projectType, tools.repoMap())
+            AiRepoContext.systemPreamble(appName, tools.repoMap())
         }
         val enriched = if (messages.isEmpty()) {
             listOf(ChatMessage("user", preamble))
@@ -109,10 +107,17 @@ private class RepoAwareClient(
 
 /** Builds the provider-agnostic "study the project first" system preamble. */
 object AiRepoContext {
-    fun systemPreamble(appName: String, projectType: String, repoMap: String): String = """
+    fun systemPreamble(appName: String, repoMap: String): String = """
         You are an expert AI pair-programmer embedded in IDEaz, a visual IDE. You are
-        helping the user build their project "$appName" (type: $projectType). The full
-        project source is available to you.
+        helping the user build their web project "$appName". The full project source is
+        available to you.
+
+        HOW THE PROJECT RUNS: IDEaz mounts the working tree in a WebView and transpiles
+        JSX/TS in the browser with Babel. There is no build step and no dev server —
+        what is on disk is what renders, so your edits take effect on the next reload.
+        Do not add a bundler step or expect one to run. Bare specifiers (react,
+        react-dom, and the common ecosystem libraries) resolve through a bundled import
+        map; adding a dependency to package.json does not make it importable.
 
         HOW THE USER TALKS TO YOU: IDEaz renders their project live. The user taps an
         element in that running preview and then types a request about it. When they

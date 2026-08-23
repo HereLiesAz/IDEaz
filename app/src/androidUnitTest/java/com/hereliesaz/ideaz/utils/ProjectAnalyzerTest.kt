@@ -1,167 +1,55 @@
 package com.hereliesaz.ideaz.utils
 
-import com.hereliesaz.ideaz.models.ProjectType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 
+/**
+ * These used to assert a six-value `ProjectType` taxonomy and a release gate
+ * (`detected in ProjectType.selectable`) that admitted exactly one of them.
+ * There is one kind of project now, so the only question left is the one the
+ * gate was a proxy for: is there something IDEaz can mount and preview?
+ */
 class ProjectAnalyzerTest {
 
     @get:Rule
     val tempFolder = TemporaryFolder()
 
     @Test
-    fun detectAndroidProject_buildGradle() {
-        val projectDir = tempFolder.newFolder("android_project")
-        File(projectDir, "build.gradle").createNewFile()
-
-        val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals(ProjectType.ANDROID, type)
-    }
-
-    @Test
-    fun detectAndroidProject_buildGradleKts() {
-        val projectDir = tempFolder.newFolder("android_kts_project")
-        File(projectDir, "build.gradle.kts").createNewFile()
-
-        val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals(ProjectType.ANDROID, type)
-    }
-
-
-    @Test
-    fun detectWebProject_indexHtmlAloneIsPreviewable() {
+    fun indexHtmlAloneIsPreviewable() {
         val projectDir = tempFolder.newFolder("web_project")
         File(projectDir, "index.html").createNewFile()
 
         // No webmanifest, no service worker. It still has an entry point IDEaz
         // can mount, which is the only thing that decides whether it is usable.
-        assertEquals(ProjectType.PWA, ProjectAnalyzer.detectProjectType(projectDir))
+        assertTrue(ProjectAnalyzer.isPreviewable(projectDir))
     }
 
     @Test
-    fun detectWebProject_withPackageJson() {
+    fun packageJsonAloneIsPreviewable() {
+        // A Vite/Next project may keep index.html somewhere findWebEntryPoint
+        // doesn't look; the loader resolves the real entry at mount time.
         val projectDir = tempFolder.newFolder("web_npm_project")
         File(projectDir, "package.json").createNewFile()
-        File(projectDir, "index.html").createNewFile()
 
-        assertEquals(ProjectType.PWA, ProjectAnalyzer.detectProjectType(projectDir))
-    }
-
-    @Test
-    fun detectOtherProject() {
-        val projectDir = tempFolder.newFolder("unknown_project")
-        File(projectDir, "readme.md").createNewFile()
-
-        val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals(ProjectType.OTHER, type)
-    }
-
-    @Test
-    fun detectPackageName_fromManifest() {
-        val projectDir = tempFolder.newFolder("manifest_project")
-        val manifestDir = File(projectDir, "app/src/main").apply { mkdirs() }
-        File(manifestDir, "AndroidManifest.xml").writeText("""
-            <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-                package="com.example.manifest">
-            </manifest>
-        """.trimIndent())
-
-        val packageName = ProjectAnalyzer.detectPackageName(projectDir)
-        assertEquals("com.example.manifest", packageName)
-    }
-
-    @Test
-    fun detectPackageName_fromGradleApplicationId() {
-        val projectDir = tempFolder.newFolder("gradle_appid_project")
-        val appDir = File(projectDir, "app").apply { mkdirs() }
-        File(appDir, "build.gradle").writeText("""
-            android {
-                defaultConfig {
-                    applicationId "com.example.gradle.appid"
-                }
-            }
-        """.trimIndent())
-
-        val packageName = ProjectAnalyzer.detectPackageName(projectDir)
-        assertEquals("com.example.gradle.appid", packageName)
-    }
-
-    @Test
-    fun detectPackageName_fromGradleNamespace() {
-        val projectDir = tempFolder.newFolder("gradle_namespace_project")
-        val appDir = File(projectDir, "app").apply { mkdirs() }
-        File(appDir, "build.gradle.kts").writeText("""
-            android {
-                namespace = "com.example.gradle.namespace"
-            }
-        """.trimIndent())
-
-        val packageName = ProjectAnalyzer.detectPackageName(projectDir)
-        assertEquals("com.example.gradle.namespace", packageName)
-    }
-
-    @Test
-    fun detectPackageName_fallbackToSourceDir() {
-        val projectDir = tempFolder.newFolder("source_fallback_project")
-        // Create directory structure: app/src/main/java/com/example/source
-        val sourceDir = File(projectDir, "app/src/main/java/com/example/source").apply { mkdirs() }
-        File(sourceDir, "Main.kt").createNewFile()
-
-        val packageName = ProjectAnalyzer.detectPackageName(projectDir)
-        assertEquals("com.example.source", packageName)
-    }
-
-    @Test
-    fun detectPwaProject_withManifestWebmanifest() {
-        val projectDir = tempFolder.newFolder("pwa_manifest")
-        File(projectDir, "index.html").createNewFile()
-        File(projectDir, "manifest.webmanifest").createNewFile()
-
-        val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals(ProjectType.PWA, type)
-    }
-
-    @Test
-    fun detectPwaProject_withServiceWorker() {
-        val projectDir = tempFolder.newFolder("pwa_sw")
-        File(projectDir, "index.html").createNewFile()
-        File(projectDir, "service-worker.js").createNewFile()
-
-        val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals(ProjectType.PWA, type)
-    }
-
-    @Test
-    fun detectPwaProject_withSwJs() {
-        val projectDir = tempFolder.newFolder("pwa_sw_js")
-        File(projectDir, "index.html").createNewFile()
-        File(projectDir, "sw.js").createNewFile()
-
-        val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals(ProjectType.PWA, type)
-    }
-
-    @Test
-    fun detectPwaProject_withManifestJsonContainingDisplay() {
-        val projectDir = tempFolder.newFolder("pwa_manifest_json")
-        File(projectDir, "index.html").createNewFile()
-        File(projectDir, "manifest.json").writeText("""{"display": "standalone"}""")
-
-        val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals(ProjectType.PWA, type)
+        assertTrue(ProjectAnalyzer.isPreviewable(projectDir))
+        assertNull(ProjectAnalyzer.findWebEntryPoint(projectDir))
     }
 
     /**
      * The case that used to be impossible: IDEaz could not open the React
-     * template IDEaz itself ships, because it has no webmanifest.
+     * template IDEaz itself ships, because it has no webmanifest. Detection
+     * resolved it to `WEB`, which was not in `selectable`, so the 4.5 MB
+     * React/Babel runtime bundled to preview exactly this shape of project was
+     * unreachable for it.
      */
     @Test
-    fun detectViteReactProject_isSelectable() {
+    fun viteReactProjectIsPreviewable() {
         val projectDir = tempFolder.newFolder("vite_react")
         File(projectDir, "index.html").createNewFile()
         File(projectDir, "package.json").createNewFile()
@@ -169,84 +57,54 @@ class ProjectAnalyzerTest {
         File(projectDir, "src").mkdirs()
         File(projectDir, "src/App.jsx").createNewFile()
 
-        val type = ProjectAnalyzer.detectProjectType(projectDir)
-        assertEquals(ProjectType.PWA, type)
-        assertTrue(type in ProjectType.selectable)
+        assertTrue(ProjectAnalyzer.isPreviewable(projectDir))
     }
 
     /** Entry points are not always at the repo root. */
     @Test
-    fun detectWebProject_entryPointUnderPublic() {
+    fun entryPointUnderPublicIsFound() {
         val projectDir = tempFolder.newFolder("nested_entry")
         File(projectDir, "public").mkdirs()
         File(projectDir, "public/index.html").createNewFile()
 
-        assertEquals(ProjectType.PWA, ProjectAnalyzer.detectProjectType(projectDir))
+        assertTrue(ProjectAnalyzer.isPreviewable(projectDir))
         assertEquals("public/index.html", ProjectAnalyzer.findWebEntryPoint(projectDir))
     }
 
     @Test
-    fun projectTypePwaFromString() {
-        assertEquals(ProjectType.PWA, ProjectType.fromString("PWA"))
+    fun rootEntryPointWinsOverNestedOne() {
+        val projectDir = tempFolder.newFolder("both_entries")
+        File(projectDir, "index.html").createNewFile()
+        File(projectDir, "src").mkdirs()
+        File(projectDir, "src/index.html").createNewFile()
+
+        assertEquals("index.html", ProjectAnalyzer.findWebEntryPoint(projectDir))
     }
 
     @Test
-    fun detectPackageName_fallbackToFolderName() {
-        val projectDir = tempFolder.newFolder("My-Project_123")
-        // No manifest, no gradle, no source
+    fun projectWithNothingToPreviewIsRejected() {
+        val projectDir = tempFolder.newFolder("no_entry")
+        File(projectDir, "README.md").createNewFile()
 
-        val packageName = ProjectAnalyzer.detectPackageName(projectDir)
-
-        // Should sanitize "My-Project_123" to something valid.
-        // Assuming format: "com.ideaz.generated.myproject123"
-        assertEquals("com.ideaz.generated.myproject123", packageName)
+        assertFalse(ProjectAnalyzer.isPreviewable(projectDir))
+        assertNull(ProjectAnalyzer.findWebEntryPoint(projectDir))
     }
 
     /**
-     * ProjectTypeTemplateTest.selectable_excludesIncompleteAndInternalProjectTypes
-     * only checks the [ProjectType.selectable] *declaration* against a literal list -
-     * it can't catch a bug in how that declaration is actually applied to a project
-     * on disk. These drive the real detector (the same one every release-gate call
-     * site - MainViewModel.loadProject/registerExternalProject,
-     * RepoDelegate.selectRepositoryForSetup - calls before checking `!in selectable`)
-     * to prove the two actually agree on real project layouts, not just in theory.
+     * A Gradle project used to detect as ANDROID and be refused by the release
+     * gate. It is still refused, for the honest reason: there is no entry point
+     * to mount.
      */
     @Test
-    fun releaseGate_admitsDetectedPwaProject() {
-        val projectDir = tempFolder.newFolder("gate_pwa")
-        File(projectDir, "index.html").createNewFile()
-        File(projectDir, "manifest.webmanifest").createNewFile()
-
-        val detected = ProjectAnalyzer.detectProjectType(projectDir)
-
-        assertEquals(ProjectType.PWA, detected)
-        assertTrue(detected in ProjectType.selectable)
-    }
-
-    @Test
-    fun releaseGate_rejectsDetectedAndroidProject() {
-        val projectDir = tempFolder.newFolder("gate_android")
+    fun gradleProjectWithNoWebEntryPointIsRejected() {
+        val projectDir = tempFolder.newFolder("gradle_project")
         File(projectDir, "build.gradle.kts").createNewFile()
 
-        val detected = ProjectAnalyzer.detectProjectType(projectDir)
-
-        assertEquals(ProjectType.ANDROID, detected)
-        assertFalse(detected in ProjectType.selectable)
+        assertFalse(ProjectAnalyzer.isPreviewable(projectDir))
     }
 
     @Test
-    fun releaseGate_rejectsProjectWithNoEntryPoint() {
-        // This used to assert that a bare index.html detected as WEB and was
-        // therefore refused. That gate was the bug, not the feature: it is
-        // exactly what made a React/Vite app - and IDEaz's own template -
-        // unopenable. What should actually be refused is a project with nothing
-        // to preview at all.
-        val projectDir = tempFolder.newFolder("gate_no_entry")
-        File(projectDir, "README.md").createNewFile()
-
-        val detected = ProjectAnalyzer.detectProjectType(projectDir)
-
-        assertEquals(ProjectType.OTHER, detected)
-        assertFalse(detected in ProjectType.selectable)
+    fun missingDirectoryIsRejected() {
+        assertFalse(ProjectAnalyzer.isPreviewable(File(tempFolder.root, "does_not_exist")))
     }
 }

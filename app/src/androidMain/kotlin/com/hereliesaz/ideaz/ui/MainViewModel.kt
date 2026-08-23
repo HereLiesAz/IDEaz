@@ -10,7 +10,6 @@ import androidx.lifecycle.viewModelScope
 import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.api.GitHubRepoResponse
 import com.hereliesaz.ideaz.git.GitManager
-import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.services.CrashReportingService
 import com.hereliesaz.ideaz.ui.delegates.*
 import com.hereliesaz.ideaz.ui.editor.EditorViewModel
@@ -430,20 +429,6 @@ class MainViewModel(
     val branches = gitDelegate.branches
     val gitStatus = gitDelegate.gitStatus
 
-    // --- Artifact Check State ---
-
-    data class ArtifactCheckResult(
-        val remoteVersion: String,
-        val downloadUrl: String,
-        val localVersion: String?,
-        val isRemoteNewer: Boolean
-    )
-    private val _artifactCheckResult = MutableStateFlow<ArtifactCheckResult?>(null)
-    /** Holds the result of a check for remote GitHub artifacts (APKs). */
-    val artifactCheckResult = _artifactCheckResult.asStateFlow()
-
-    fun dismissArtifactDialog() { _artifactCheckResult.value = null }
-
     /**
      * Hides the global "Working..." dialog without cancelling whatever
      * operation is actually running - that operation has no cancellation
@@ -562,20 +547,7 @@ class MainViewModel(
     fun refreshGitData() { viewModelScope.launch { gitDelegate.refreshGitData() } }
     fun gitFetch() { viewModelScope.launch { gitDelegate.fetch() } }
     fun gitPull() { viewModelScope.launch { gitDelegate.pull() } }
-    fun gitPush() {
-        viewModelScope.launch(Dispatchers.IO) {
-            gitDelegate.push()
-            // After pushing, start polling for artifacts if it's an app that produces them
-            val appName = settingsViewModel.getAppName()
-            val user = settingsViewModel.getGithubUser()
-            if (!appName.isNullOrBlank() && !user.isNullOrBlank()) {
-                val type = ProjectType.fromString(settingsViewModel.readProjectType())
-                if (type == ProjectType.ANDROID) {
-                    startArtifactPolling(user, appName)
-                }
-            }
-        }
-    }
+    fun gitPush() { viewModelScope.launch(Dispatchers.IO) { gitDelegate.push() } }
     fun gitStash(m: String?) { viewModelScope.launch { gitDelegate.stash(m) } }
     fun gitUnstash() { viewModelScope.launch { gitDelegate.unstash() } }
     fun switchBranch(b: String) { viewModelScope.launch { gitDelegate.switchBranch(b) } }
@@ -589,10 +561,6 @@ class MainViewModel(
      */
     fun deployWebProject() {
         val appName = settingsViewModel.getAppName()
-        val projectTypeStr = settingsViewModel.readProjectType()
-        val projectType = ProjectType.fromString(projectTypeStr)
-        if (!projectType.isWebLike()) return
-
         viewModelScope.launch {
             logHandler.onBuildLog("Deploying Web Project (Push to GitHub)...")
             try {
@@ -622,6 +590,8 @@ class MainViewModel(
             }
         }
     }
+
+    private var pollingJob: Job? = null
 
     private fun startWebDeploymentPolling(user: String, repo: String) {
         pollingJob?.cancel()
@@ -754,8 +724,8 @@ class MainViewModel(
     fun getLocalProjectsWithMetadata() = repoDelegate.getLocalProjectsWithMetadata()
     fun forceUpdateInitFiles() = repoDelegate.forceUpdateInitFiles()
     /** Creates a new repo and initializes the project. */
-    fun createGitHubRepository(name: String, desc: String, priv: Boolean, type: ProjectType, pkg: String, ctx: Context, initialPrompt: String? = null, onSuccess: () -> Unit) {
-        repoDelegate.createGitHubRepository(name, desc, priv, type, pkg, ctx) { owner, branch ->
+    fun createGitHubRepository(name: String, desc: String, priv: Boolean, ctx: Context, initialPrompt: String? = null, onSuccess: () -> Unit) {
+        repoDelegate.createGitHubRepository(name, desc, priv, ctx) { owner, branch ->
             // Local content is either cloned from the template repo (generate
             // flow, handled in RepoDelegate) or scaffolded from the bundled
             // template by saveAndInitialize's ensureTemplate when the directory
@@ -763,7 +733,7 @@ class MainViewModel(
             // once files are present, so we don't copy here. The initial prompt
             // is dispatched by saveAndInitialize AFTER scaffolding, so the AI
             // never runs against an empty project.
-            saveAndInitialize(name, owner, branch, pkg, type, ctx, initialPrompt)
+            saveAndInitialize(name, owner, branch, ctx, initialPrompt)
             onSuccess()
         }
     }
@@ -777,202 +747,37 @@ class MainViewModel(
     }
 
     /**
-     * Saves configuration and triggers initial build.
+     * Saves configuration and opens the preview.
      * Common exit path for Setup/Clone/Load flows.
      */
-    fun saveAndInitialize(appName: String, user: String, branch: String, pkg: String, type: ProjectType, context: Context, initialPrompt: String? = null) {
+    fun saveAndInitialize(appName: String, user: String, branch: String, context: Context, initialPrompt: String? = null) {
         viewModelScope.launch {
             settingsViewModel.saveProjectConfig(appName, user, branch)
-            settingsViewModel.saveTargetPackageName(pkg)
-            settingsViewModel.setProjectType(type.name)
 
-            // Scaffold the project directory from the bundled template if it
-            // doesn't already contain a recognisable project. Makes Save &
-            // Initialize work for brand-new projects without the user having
-            // to populate index.html (PWA) or build.gradle.kts (Android)
-            // first.
+            // Scaffold the project directory from the bundled React starter if
+            // it doesn't already contain something previewable. Makes Save &
+            // Initialize work for brand-new projects without the user having to
+            // write an index.html first.
             val projectDir = context.filesDir.resolve(appName)
             withContext(Dispatchers.IO) {
                 projectDir.mkdirs()
-                com.hereliesaz.ideaz.utils.TemplateManager.ensureTemplate(
-                    context, type, projectDir, pkg, appName
-                )
+                com.hereliesaz.ideaz.utils.TemplateManager.ensureTemplate(context, projectDir)
             }
 
-            // Web/PWA projects live entirely on-device for the edit loop. No
-            // GitHub upload, no Actions workflow scaffold, no Pages deploy.
-            // The user explicitly triggers remote hosting via the rail's
-            // Deploy item / deployWebProject(). For Android, init still pushes
-            // GitHub Actions workflows because there's no on-device toolchain.
-            if (!type.isWebLike()) {
-                repoDelegate.forceUpdateInitFiles()
-            }
+            // Projects live entirely on-device for the edit loop. No GitHub
+            // upload, no Actions workflow scaffold, no Pages deploy - the user
+            // explicitly triggers remote hosting via the rail's Deploy item
+            // (deployWebProject). This used to be an `if (!type.isWebLike())`
+            // guard around forceUpdateInitFiles(); with one project type the
+            // guard is always true, so the call is simply gone.
 
             openPreview()
 
-            // Check for remote artifacts if it's an Android project
-            if (type == ProjectType.ANDROID) {
-                startArtifactPolling(user, appName)
-            }
-
-            // Dispatch the initial prompt only now — the project is scaffolded and
-            // the build kicked off, so the AI runs against real files (fixes the
-            // race where the prompt fired before scaffolding finished).
+            // Dispatch the initial prompt only now - the project is scaffolded,
+            // so the AI runs against real files (fixes the race where the prompt
+            // fired before scaffolding finished).
             if (!initialPrompt.isNullOrBlank()) {
                 sendPrompt(initialPrompt)
-            }
-        }
-    }
-
-    private var pollingJob: Job? = null
-
-    private fun startArtifactPolling(user: String, repo: String) {
-        pollingJob?.cancel()
-        pollingJob = viewModelScope.launch {
-            val startTime = System.currentTimeMillis()
-            val timeout = 10 * 60 * 1000L // 10 minutes
-
-            while (System.currentTimeMillis() - startTime < timeout) {
-                checkForRemoteArtifact(user, repo, getApplication())
-
-                if (_artifactCheckResult.value?.isRemoteNewer == true) {
-                    break
-                }
-                delay(30_000) // 30 seconds
-            }
-        }
-    }
-
-    /**
-     * Checks if a remote artifact (APK) exists and is newer than local.
-     */
-    private suspend fun checkForRemoteArtifact(user: String, repo: String, context: Context) {
-        val token = settingsViewModel.getGithubToken()
-        if (token.isNullOrBlank()) return
-
-        try {
-            val service = GitHubApiClient.createService(token)
-            val releases = withContext(Dispatchers.IO) { service.getReleases(user, repo) }
-
-            // Find valid release
-            val release = releases.firstOrNull { r ->
-                r.prerelease && r.assets.any { it.name.endsWith(".apk") }
-            } ?: releases.firstOrNull { r -> r.assets.any { it.name.endsWith(".apk") } } ?: return
-
-            val validAssets = release.assets.filter {
-                it.name.endsWith(".apk") && VersionUtils.extractVersionFromFilename(it.name) != null
-            }
-
-            val bestAsset = validAssets.sortedWith { a1, a2 ->
-                val v1 = VersionUtils.extractVersionFromFilename(a1.name) ?: "0"
-                val v2 = VersionUtils.extractVersionFromFilename(a2.name) ?: "0"
-                VersionUtils.compareVersions(v1, v2)
-            }.lastOrNull() ?: return
-
-            val remoteVersion = VersionUtils.extractVersionFromFilename(bestAsset.name) ?: return
-
-            // Check Local Version
-            val projectDir = context.filesDir.resolve(repo)
-            val possibleDirs = listOf(
-                File(projectDir, "app/build/outputs/apk/debug"),
-                File(projectDir, "android/app/build/outputs/apk/debug")
-            )
-
-            val localApk = possibleDirs.asSequence()
-                .flatMap { it.walk() }
-                .filter { it.extension == "apk" }
-                .firstOrNull()
-
-            var localVersion: String? = null
-            if (localApk != null) {
-                val pm = context.packageManager
-                val info = pm.getPackageArchiveInfo(localApk.absolutePath, 0)
-                localVersion = info?.versionName
-            }
-
-            val isNewer = if (localVersion == null) true else {
-                VersionUtils.compareVersions(remoteVersion, localVersion) > 0
-            }
-
-            _artifactCheckResult.value = ArtifactCheckResult(
-                remoteVersion = remoteVersion,
-                downloadUrl = bestAsset.browserDownloadUrl,
-                localVersion = localVersion,
-                isRemoteNewer = isNewer
-            )
-
-        } catch (e: Exception) {
-            android.util.Log.w("MainViewModel", "Operation failed", e)
-        }
-    }
-
-    /** Downloads the artifact selected by the user. */
-    fun downloadLatestArtifact(url: String, onSuccess: (File) -> Unit) {
-        viewModelScope.launch {
-            stateDelegate.setLoadingProgress(0)
-            stateDelegate.setBottomSheetState(com.hereliesaz.aznavrail.model.AzSheetDetent.FULL) // Expand logs
-            logHandler.onBuildLog("Downloading latest artifact from $url...")
-
-            val destFile = File(getApplication<Application>().cacheDir, "downloaded_project.apk")
-            val success = downloadFile(url, destFile) { progress ->
-                stateDelegate.setLoadingProgress(progress)
-            }
-
-            if (success) {
-                logHandler.onBuildLog("Download complete. Installing/Loading...")
-                onSuccess(destFile)
-            } else {
-                logHandler.onBuildLog("Download failed.")
-            }
-            stateDelegate.setLoadingProgress(null)
-        }
-    }
-
-    /**
-     * Checks if the local APK selected by URI is older than the remote version.
-     * Returns "downgrade", "upgrade", or "same".
-     */
-    suspend fun checkLocalApkVersion(uri: Uri, remoteVersion: String): String {
-        return withContext(Dispatchers.IO) {
-            try {
-                val context = getApplication<Application>()
-                val tempFile = File(context.cacheDir, "temp_check.apk")
-                context.contentResolver.openInputStream(uri)?.use { input ->
-                    tempFile.outputStream().use { output ->
-                        input.copyTo(output)
-                    }
-                }
-
-                val pm = context.packageManager
-                val info = pm.getPackageArchiveInfo(tempFile.absolutePath, 0)
-                val localVersion = info?.versionName ?: return@withContext "unknown"
-                val localPackage = info.packageName
-
-                val targetPackage = settingsViewModel.targetPackageName.value
-                if (!targetPackage.isNullOrBlank() && localPackage != targetPackage) {
-                    logHandler.onOverlayLog("Error: Selected APK package '$localPackage' does not match project '$targetPackage'.")
-                    tempFile.delete()
-                    return@withContext "mismatch"
-                }
-
-                tempFile.delete()
-
-                if (localVersion == remoteVersion) return@withContext "same"
-
-                val rParts = remoteVersion.split(".").mapNotNull { it.toIntOrNull() }
-                val lParts = localVersion.split(".").mapNotNull { it.toIntOrNull() }
-
-                for (i in 0 until maxOf(rParts.size, lParts.size)) {
-                    val r = rParts.getOrElse(i) { 0 }
-                    val l = lParts.getOrElse(i) { 0 }
-                    if (l < r) return@withContext "downgrade"
-                    if (l > r) return@withContext "upgrade"
-                }
-                "same"
-
-            } catch (e: Exception) {
-                android.util.Log.w("MainViewModel", "Operation failed", e)
-                "unknown"
             }
         }
     }
@@ -989,28 +794,22 @@ class MainViewModel(
                 settingsViewModel.saveBranchName(actualBranch)
             }
 
-            // Project type & target package are GLOBAL settings, so re-derive them
-            // from the project on disk. Without this, a loaded project inherits the
-            // previously-open project's type and gets routed down the wrong
-            // build/preview path (and a loaded web project never shows a preview).
+            // Whether a project is previewable is a property of what is on
+            // disk, so re-derive it on every load. This used to also re-derive a
+            // ProjectType and a target Java package into global settings, then
+            // refuse anything outside `ProjectType.selectable` - a list with one
+            // entry on it.
             val projectDir = settingsViewModel.getProjectPath(name)
-            val detectedType = withContext(Dispatchers.IO) {
-                ProjectAnalyzer.detectProjectType(projectDir)
-            }
-            settingsViewModel.setProjectType(detectedType.name)
-            if (detectedType !in ProjectType.selectable) {
+            val previewable = withContext(Dispatchers.IO) { ProjectAnalyzer.isPreviewable(projectDir) }
+            if (!previewable) {
                 stateDelegate.setCurrentWebUrl(null)
                 stateDelegate.setTargetAppVisible(false)
                 logHandler.onOverlayLog(
-                    "${detectedType.displayName} projects are not available in this release. " +
+                    "$name has no index.html or package.json, so there is nothing to preview. " +
                         "The project was not modified."
                 )
                 onSuccess()
                 return@launch
-            }
-            if (!detectedType.isWebLike()) {
-                withContext(Dispatchers.IO) { ProjectAnalyzer.detectPackageName(projectDir) }
-                    ?.let { settingsViewModel.saveTargetPackageName(it) }
             }
 
             val user = settingsViewModel.getGithubUser()
@@ -1018,10 +817,9 @@ class MainViewModel(
                 // (selectRepositoryForSetup) does this; loading a local project
             }
 
-            // Re-mount only after the release-scope gate above has accepted the
-            // detected project type.
+            // Re-mount only after the previewable check above has passed.
             stateDelegate.setCurrentWebUrl(null)
-            launchTargetApp(context)
+            launchTargetApp()
             onSuccess()
         }
     }
@@ -1096,17 +894,14 @@ class MainViewModel(
                 logHandler.onOverlayLog("Import complete.")
                 logHandler.onProgress(null)
 
-                // Analyze and Load
-                val projectType = com.hereliesaz.ideaz.utils.ProjectAnalyzer.detectProjectType(destDir)
-                // Same release gate loadProject() enforces: an imported folder can be
-                // any project type ProjectAnalyzer recognizes, but only ProjectType.selectable
-                // is release-ready. Without this check, importing an Android or plain-web
-                // folder fully initialized it anyway - pushing CI workflows and injecting
-                // crash-reporting code for a project type this release doesn't support.
-                if (projectType !in ProjectType.selectable) {
+                // Same check loadProject() enforces. Without it, importing a
+                // folder IDEaz cannot preview used to fully initialize it anyway -
+                // pushing CI workflows and injecting crash-reporting code for a
+                // project type this app no longer edits.
+                if (!com.hereliesaz.ideaz.utils.ProjectAnalyzer.isPreviewable(destDir)) {
                     destDir.deleteRecursively()
-                    val message = "${projectType.displayName} projects are not available in this release. " +
-                        "The imported folder was not kept."
+                    val message = "$projectName has no index.html or package.json, so IDEaz " +
+                        "cannot preview it. The imported folder was not kept."
                     logHandler.onOverlayLog(message)
                     // The log line alone previously landed only in the AI Log
                     // tab of a collapsed bottom sheet - from the user's seat,
@@ -1119,14 +914,12 @@ class MainViewModel(
                     }
                     return@launch
                 }
-                val packageName = com.hereliesaz.ideaz.utils.ProjectAnalyzer.detectPackageName(destDir)
-                    ?: "com.ideaz.imported.${projectName.filter { it.isLetterOrDigit() }.lowercase()}"
 
                 val owner = settingsViewModel.getGithubUser() ?: "local"
                 val branch = "main"
 
                 withContext(Dispatchers.Main) {
-                    saveAndInitialize(projectName, owner, branch, packageName, projectType, getApplication())
+                    saveAndInitialize(projectName, owner, branch, getApplication())
                 }
 
             } catch (e: Exception) {
@@ -1236,76 +1029,34 @@ class MainViewModel(
     fun clearLog() = stateDelegate.clearLog()
 
     /**
-     * Launches the target application (Android or Web).
+     * Shows the project running: mounts it at the asset-loader root and
+     * switches to App View.
      *
-     * **Logic:**
-     * - **Web:** Points the WebView to the project's `index.html`.
-     * - **Android:** Switches to "App View" (Host) or launches installed APK.
+     * Took a `Context` until the Android branch went away - it resolved a
+     * target package name and handed off to the launcher for an installed APK.
      */
-    fun launchTargetApp(c: Context) {
-        // Suppress launch if Artifact Dialog is open
-        if (_artifactCheckResult.value != null) {
-            logHandler.onBuildLog("[IDE] Launch suppressed: Artifact selection dialog is open.")
-            return
-        }
-
+    fun launchTargetApp() {
         val appName = settingsViewModel.getAppName() ?: return
-        val projectTypeStr = settingsViewModel.readProjectType()
-        val projectType = ProjectType.fromString(projectTypeStr)
-
-        if (projectType.isWebLike()) {
-            val projectDir = settingsViewModel.getProjectPath(appName)
-            if (stateDelegate.currentWebUrl.value == null) {
-                // Mount the project at the asset-loader root (same-origin,
-                // service-worker safe; resolves root-absolute references).
-                val indexFile = File(projectDir, "index.html")
-                if (indexFile.exists()) {
-                    stateDelegate.setCurrentWebProjectDir(projectDir)
-                    stateDelegate.setCurrentWebUrl(WebProjectUrlUtils.localProjectRootUrl())
-                } else {
-                    // App View mounting is gated on currentWebUrl being set, not on
-                    // project type - setTargetAppVisible(true) below with no URL used
-                    // to fall through to MainScreen's Android-placeholder branch,
-                    // showing "Android target host arrives in Phase 2" for what's
-                    // actually a PWA project missing its entry file. Surface the real
-                    // problem instead and stay on the current screen.
-                    logHandler.onOverlayLog(
-                        "Can't launch: this project has no index.html. Add one to preview it."
-                    )
-                    return
-                }
+        val projectDir = settingsViewModel.getProjectPath(appName)
+        if (stateDelegate.currentWebUrl.value == null) {
+            // Mount the project at the asset-loader root (same-origin,
+            // service-worker safe; resolves root-absolute references).
+            if (ProjectAnalyzer.findWebEntryPoint(projectDir) == null) {
+                // App View mounting is gated on currentWebUrl being set, so
+                // setTargetAppVisible(true) with no URL used to fall through to
+                // MainScreen's Android placeholder - "Android target host arrives
+                // in Phase 2" - for a web project that was simply missing its
+                // entry file. Surface the real problem and stay put.
+                logHandler.onOverlayLog(
+                    "Can't launch: this project has no index.html. Add one to preview it."
+                )
+                return
             }
-            startFileObservation(projectDir)
-            stateDelegate.setTargetAppVisible(true)
-        } else {
-            // Android
-            val packageName = settingsViewModel.targetPackageName.value
-            launchInstalledApk(c, packageName, appName)
+            stateDelegate.setCurrentWebProjectDir(projectDir)
+            stateDelegate.setCurrentWebUrl(WebProjectUrlUtils.localProjectRootUrl())
         }
-    }
-
-    private fun launchInstalledApk(c: Context, packageName: String?, appName: String) {
-            try {
-                if (packageName.isNullOrBlank()) {
-                    // Try to detect
-                    val projectDir = settingsViewModel.getProjectPath(appName)
-                    val detectedPackage = ProjectAnalyzer.detectPackageName(projectDir)
-
-                    if (!detectedPackage.isNullOrBlank()) {
-                        settingsViewModel.saveTargetPackageName(detectedPackage)
-                        stateDelegate.setTargetAppVisible(true)
-                    } else {
-                        Toast.makeText(c, c.getString(R.string.error_app_not_installed), Toast.LENGTH_SHORT).show()
-                    }
-                    return
-                }
-
-                // Switch to "App View"
-                stateDelegate.setTargetAppVisible(true)
-
-            } catch (e: Exception) {
-                Toast.makeText(c, c.getString(R.string.error_launch_failed, e.message), Toast.LENGTH_SHORT).show()
-            }
+        startFileObservation(projectDir)
+        stateDelegate.setTargetAppVisible(true)
     }
 
     /**
@@ -1339,42 +1090,6 @@ class MainViewModel(
         }
 
         return missing
-    }
-
-    private suspend fun downloadFile(urlStr: String, destination: File, onProgress: (Int) -> Unit): Boolean {
-        return withContext(Dispatchers.IO) {
-            var connection: HttpURLConnection? = null
-            try {
-                val url = URL(urlStr)
-                connection = (url.openConnection() as HttpURLConnection).also { it.connect() }
-
-                if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                    return@withContext false
-                }
-
-                val fileLength = connection.contentLength
-                connection.inputStream.use { input ->
-                    FileOutputStream(destination).use { output ->
-                        val data = ByteArray(4096)
-                        var total: Long = 0
-                        var count: Int
-                        while (input.read(data).also { count = it } != -1) {
-                            total += count
-                            if (fileLength > 0) {
-                                onProgress((total * 100 / fileLength).toInt())
-                            }
-                            output.write(data, 0, count)
-                        }
-                    }
-                }
-                true
-            } catch (e: Exception) {
-                android.util.Log.w("MainViewModel", "Operation failed", e)
-                false
-            } finally {
-                connection?.disconnect()
-            }
-        }
     }
 
     private suspend fun applyUnidiffPatchInternal(diff: String): Boolean {

@@ -113,12 +113,37 @@ Deliberately absent, and not to be re-added without a target that needs them:
 `FOREGROUND_SERVICE_SPECIAL_USE`, `REQUEST_INSTALL_PACKAGES`, and two
 accessibility services.
 
-## 7. Out of scope
+## 7. One kind of project
+
+There is no `ProjectType`. A directory is either previewable or it isn't, and
+`ProjectAnalyzer.isPreviewable` decides by looking for an entry point.
+
+The enum used to have six values and cost branching in a dozen files. Five of
+them were fiction: `ANDROID` drove a remote-APK pipeline and an on-device Wasm
+compiler that no longer exist; `WEB`, `REACT`, `OTHER` and `UNKNOWN` were never
+in `selectable`, a list whose only member was `PWA` — and the analyzer never
+returned `REACT` at all, so every previewable project reported `PWA` whatever it
+actually was. The taxonomy bought a label nobody could act on, and gated real
+behavior on it: `ensureWorkflow` once branched on a pre-split enum member, wrote
+no workflow, reported success, and polled GitHub Pages for ten minutes for a
+site nothing would ever build.
+
+React is the shape the pipeline is built for — `jsx-source` is what makes a tap
+resolve to a file and line — and the one bundled starter is a React/Vite app.
+Plain HTML still previews; it falls back to `data-ideaz-source`, then to a
+selector, and the AI's preamble says which it is getting.
+
+## 8. Out of scope
 
 React Native, Flutter, Python, the on-device APK toolchain, VirtualDisplay
 hosting, on-device LLM inference, driving other apps through an
-AccessibilityService, and any on-device Kotlin compiler. Several of these were
-built anyway and have now been removed; see the part 1 commit for what and why.
+AccessibilityService, and any on-device Kotlin compiler.
 
 Android as an *edit target* (build remotely, sideload, inspect the running app)
-is not implemented. It is a different `Target`, not a flag on this one.
+is not implemented and nothing here is shaped to accept it back as a flag. What
+went with it: the `templates/android` scaffold and its placeholder-substitution
+and package-relocation machinery, `setup_env.sh` (a JDK + Android SDK bootstrap
+written into every project), `ProjectInitializer`'s crash-reporter injection,
+the `build.gradle(.kts)` `versionCode`/`versionName` rewriting, GitHub artifact
+polling, APK version comparison and launch, and the target-package-name setting
+the last four hung off. It is a different `Target`, and it would start over.

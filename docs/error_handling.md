@@ -22,11 +22,7 @@ IDEaz implements a robust, automatic error handling workflow for both the IDE it
 - **Filtering:** "Noise" errors (Cancellation, etc.) are ignored.
 
 ### 3. User Project Injection
-- **Mechanism:** `ProjectInitializer` and `RepoDelegate`.
-- **Trigger:** Project Load, Clone, or Creation.
-- **Action:** Injects `CrashReporter.kt` into the user's project source tree (`utils/`).
-- **Configuration:** API Keys and Repository info are "baked in" to the source file to minimize runtime dependencies.
-- **Integration:** Requires manual or heuristic hook into `MainActivity.onCreate` (currently automated via `ProjectInitializer` stub).
+Removed. `ProjectInitializer` wrote a `CrashReporter.kt` into the user's own source tree with their API key and repository baked into a `Secrets.kt` beside it, and needed a hook in their `MainActivity.onCreate` to do anything. It only ever applied to the Android edit target, which no longer exists.
 
 ### 4. On-device Provider Failures
 - **Boundary:** `LocalLlmAdapter` throws `LocalProviderException`; it does not return strings prefixed with `Error:`.

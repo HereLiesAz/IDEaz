@@ -3,7 +3,6 @@ package com.hereliesaz.ideaz.ai
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.widget.Attachment
 import com.hereliesaz.ideaz.utils.ProjectAssetImporter
 import kotlinx.coroutines.Dispatchers
@@ -50,7 +49,6 @@ object AttachmentResolver {
     suspend fun resolve(
         context: Context,
         projectDir: File,
-        projectType: ProjectType,
         attachments: List<Attachment>,
     ): Resolved = withContext(Dispatchers.IO) {
         val annotations = mutableListOf<String>()
@@ -61,7 +59,7 @@ object AttachmentResolver {
             when (att.mode) {
                 Attachment.Mode.ASSET -> {
                     runCatching {
-                        ProjectAssetImporter.import(context, projectDir, projectType, att.uri)
+                        ProjectAssetImporter.import(context, projectDir, att.uri)
                     }.onSuccess { result ->
                         annotations += "- ${result.relativePath} (${humanSize(result.sizeBytes)})"
                     }.onFailure { e ->

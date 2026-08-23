@@ -73,14 +73,6 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun testProjectTypePersistence() {
-        assertEquals("UNKNOWN", viewModel.readProjectType())
-        viewModel.setProjectType("ANDROID")
-        assertEquals("ANDROID", viewModel.readProjectType())
-        assertEquals("ANDROID", viewModel.projectType.value)
-    }
-
-    @Test
     fun `Hugging Face token is stored outside default preferences`() {
         val credentials = FakeCredentialStore()
         viewModel = SettingsViewModel(application, credentials)

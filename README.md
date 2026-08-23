@@ -39,9 +39,15 @@ IDEaz is a Kotlin/Compose Multiplatform app:
 
 **Editable projects**
 
-Any web project with an entry point IDEaz can mount and transpile: plain HTML,
-PWAs, React/Vite apps. Detection asks "can we preview this?", not "did you
-remember to write a webmanifest".
+Any web project with an entry point IDEaz can mount and transpile. The only
+question asked of a directory is "can we preview this?" — an `index.html` in one
+of a few conventional places, or a `package.json`. There is no project-type
+picker, because there is no second kind of project.
+
+React is the shape the pipeline is built for, and the bundled starter is a
+React/Vite app: `jsx-source` is what makes a tap resolve to a file and line.
+Plain HTML previews fine and falls back to a `data-ideaz-source` attribute, then
+to a selector — the AI is told which it is getting.
 
 **AI**
 

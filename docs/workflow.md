@@ -15,18 +15,14 @@ The on-device toolchain (`aapt2`, `d8`, `kotlinc`, Maven Aether) was removed in 
 
 ### 2.1 Loading (Preparation)
 *   **Trigger:** User selects a project in the **Load** tab.
-*   **Actions:** Clone / pull via JGit; detect project type via `ProjectAnalyzer`; navigate to Setup tab.
+*   **Actions:** Clone / pull via JGit; check `ProjectAnalyzer.isPreviewable`; navigate to Setup tab.
 *   **Note:** Loading does *not* start a build.
 
 ### 2.2 Initialization (Activation)
-*   **Trigger:** User clicks **Save & Initialize** on the Setup tab. Only runs for web-like project types (`ProjectType.isWebLike()`) — see `MainViewModel`'s force-update path.
-*   **Actions:**
-    1.  **Inject Workflows.** `ProjectConfigManager.ensureWorkflow` force-pushes to `.github/workflows/`, set differs by project type:
-        *   **Android:** `build.yml`, `release.yml`, `antigravity-issue-handler.yml`, `antigravity-branch-manager.yml`.
-        *   **Web:** `web_ci_pages.yml`, `antigravity-issue-handler.yml`, `antigravity-branch-manager.yml`.
-        *   There is no `codeql.yml` injection — the two `antigravity-*.yml` files (issue-triage and branch-management automation, §6) are injected into every generated project instead.
-    2.  **Inject Environment.** Force-push `setup_env.sh` and `AGENTS_SETUP.md` to repo root.
-    3.  **Start Build (Android only):** Tag and push; `RemoteBuildManager` polls.
+*   **Trigger:** User clicks **Save & Initialize** on the Setup tab.
+*   **Actions:** Scaffold the directory from the bundled React starter if it has nothing previewable in it, then open the preview. Nothing is pushed.
+*   **Publishing is separate and explicit.** The rail's **Deploy** item runs `forceUpdateInitFiles`, which writes `.github/workflows/web_ci_pages.yml`, `AGENTS_SETUP.md` and `version.properties` — and only those, staged by exact path so unrelated uncommitted work is untouched.
+*   **Gone:** the Android `build.yml`/`release.yml` pair, `setup_env.sh` (a JDK + Android SDK bootstrap), and the two `antigravity-*.yml` files. Those last two installed an autonomous agent into the user's repository — `on: push`, `contents: write`, `pull-requests: write`, authenticated as the user — with no consent prompt anywhere on the path.
 
 ## 3. AI Coding Loop
 

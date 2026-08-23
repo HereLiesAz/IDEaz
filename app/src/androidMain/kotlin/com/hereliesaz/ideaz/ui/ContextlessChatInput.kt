@@ -18,7 +18,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.hereliesaz.aznavrail.AzTextBox
 import com.hereliesaz.ideaz.ai.AttachmentResolver
-import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.delegates.EditReviewStatus
 import com.hereliesaz.ideaz.ui.widget.Attachment
 import com.hereliesaz.ideaz.ui.widget.PromptInputAttachmentRow
@@ -66,12 +65,8 @@ fun ContextlessChatInput(
                     val projectDir = if (appName != null) {
                         viewModel.settingsViewModel.getProjectPath(appName)
                     } else null
-                    val projectType = ProjectType.fromString(
-                        viewModel.settingsViewModel.readProjectType()
-                    )
-
                     val resolved = if (attachments.isNotEmpty() && projectDir != null) {
-                        AttachmentResolver.resolve(context, projectDir, projectType, attachments)
+                        AttachmentResolver.resolve(context, projectDir, attachments)
                     } else {
                         AttachmentResolver.Resolved(emptyList(), emptyList(), emptyList())
                     }
