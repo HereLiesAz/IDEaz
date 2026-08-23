@@ -45,6 +45,7 @@ import com.hereliesaz.ideaz.ai.local.LocalModelRuntime
 import com.hereliesaz.ideaz.ai.local.LocalModelRuntimes
 import com.hereliesaz.ideaz.ai.local.LocalModelStore
 import com.hereliesaz.ideaz.ai.local.ModelDownloadManager
+import com.hereliesaz.ideaz.ai.local.huggingFaceRepoPageUrl
 
 private fun humanSize(bytes: Long): String = when {
     bytes <= 0L -> "—"
@@ -236,8 +237,24 @@ fun OnDeviceModelsSection(settingsViewModel: SettingsViewModel) {
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
-                        downloadError?.let {
-                            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        downloadError?.let { message ->
+                            Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            // A 403 on a gated model means "go accept the license on
+                            // huggingface.co" - naming that site without a tappable
+                            // link to it just relocates the dead end from here to
+                            // the user's browser history.
+                            if (message.contains("HTTP 403")) {
+                                huggingFaceRepoPageUrl(model.url)?.let { repoUrl ->
+                                    Text(
+                                        "Open on Hugging Face to accept the license ↗",
+                                        color = MaterialTheme.colorScheme.primary,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.clickable {
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, repoUrl.toUri()))
+                                        },
+                                    )
+                                }
+                            }
                         }
                     }
                 }
