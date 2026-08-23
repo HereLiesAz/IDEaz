@@ -40,7 +40,9 @@ Pick / Create project
 
 ## 4. Build Pipeline
 
-Remote-only via GitHub Actions. On "Save & Initialize", IDEaz force-pushes a standardized `android_ci.yml` + `release.yml` to the project repo. Builds dispatch via push or workflow_dispatch; IDEaz polls GitHub Releases for the artifact and sideloads via `PackageInstaller`. PWAs do not need a build step — IDEaz renders the working tree directly.
+There isn't one, by design. IDEaz renders the working tree directly, so a project has no build step to run, remotely or otherwise.
+
+The remote pipeline described here — force-pushed `android_ci.yml` + `release.yml`, artifact polling, `PackageInstaller` sideload — served the Android edit target and went with it. The only workflow IDEaz writes now is `web_ci_pages.yml`, on the explicit Deploy action, to publish to GitHub Pages.
 
 ## 5. Error Handling
 
@@ -50,10 +52,10 @@ Remote-only via GitHub Actions. On "Save & Initialize", IDEaz force-pushes a sta
 ## 6. Initialization vs Loading
 
 ### Loading
-User selects a project on the Load tab → JGit clone/pull → `ProjectAnalyzer` flags type → navigate to Setup tab.
+User selects a project on the Load tab → JGit clone/pull → `ProjectAnalyzer.isPreviewable` → navigate to Setup tab.
 
 ### Initialization
-User taps "Save & Initialize" on the Setup tab → IDEaz force-pushes `.github/workflows/android_ci.yml`, `release.yml`, plus `setup_env.sh` / `AGENTS_SETUP.md` → first build is queued.
+User taps "Save & Initialize" on the Setup tab → the directory is scaffolded from the bundled React starter if empty → the preview opens. Nothing is pushed; publishing is the rail's separate Deploy action.
 
 ## 7. Developer Tools (Escape Hatches)
 

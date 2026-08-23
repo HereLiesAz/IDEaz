@@ -6,11 +6,11 @@
 
 ### 1.1 Loading (Preparation)
 1.  **User:** Selects a project in the **Load** tab.
-2.  **System:** Clones / pulls via `GitManager`; `ProjectAnalyzer` flags type (`pwa` / `android` — Phase 1 will add PWA detection); navigate to the **Setup** tab. Does *not* start a build.
+2.  **System:** Clones / pulls via `GitManager`; `ProjectAnalyzer.isPreviewable` checks for an entry point; navigate to the **Setup** tab.
 
 ### 1.2 Initialization (Activation)
 1.  **User:** Clicks **Save & Initialize** in the Setup tab.
-2.  **System:** Force-pushes `.github/workflows/android_ci.yml` and `release.yml`, plus `setup_env.sh` and `AGENTS_SETUP.md`. For Android targets only, this kicks off the first remote build. PWA targets need no build step.
+2.  **System:** Scaffolds the directory from the bundled React starter if it is empty, then opens the preview. Nothing is pushed — publishing is the rail's separate **Deploy** action.
 
 ## 2. The PWA Edit Loop (Phase 1)
 

@@ -61,6 +61,14 @@ jobs:
         if: ${{ hashFiles('**/gradlew') != '' }}
         run: chmod +x gradlew
 
+      # The element -> source chain is the product's whole premise and none of
+      # it is Kotlin, so Gradle cannot see it. It broke silently once already:
+      # the jsx-runtime shim dropped jsxDEV's `source` argument, which produced
+      # no crash and no warning, only source resolution that always answered
+      # null. Node is preinstalled on ubuntu-latest; this costs a second.
+      - name: Verify the JSX source chain
+        run: node webruntime/src/test/js/jsx-source-chain.test.mjs
+
       - name: Compile, unit test, and lint
         shell: bash
         run: |

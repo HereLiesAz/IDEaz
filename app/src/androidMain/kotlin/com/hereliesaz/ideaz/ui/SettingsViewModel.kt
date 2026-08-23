@@ -183,9 +183,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_BRIDGE_FIRST_RUN_SHOWN = "bridge_first_run_shown"
         const val KEY_CRASH_REPORTING_FIRST_RUN_SHOWN = "crash_reporting_first_run_shown"
 
-        const val KEY_PROJECT_TYPE = "project_type"
-        const val KEY_TARGET_PACKAGE_NAME = "target_package_name"
-        const val ACTION_TARGET_PACKAGE_CHANGED = "com.hereliesaz.ideaz.TARGET_PACKAGE_CHANGED"
 
         const val KEY_REPO_CAN_PUSH = "repo_can_push"
         const val KEY_REPO_IS_ADMIN = "repo_is_admin"
@@ -240,12 +237,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private val _currentAppName = MutableStateFlow(getAppName())
     val currentAppName = _currentAppName.asStateFlow()
-
-    private val _targetPackageName = MutableStateFlow(getTargetPackageName())
-    val targetPackageName = _targetPackageName.asStateFlow()
-
-    private val _projectType = MutableStateFlow(readProjectType())
-    val projectType = _projectType.asStateFlow()
 
     private val _apiKey = MutableStateFlow(getApiKey())
     val apiKey = _apiKey.asStateFlow()
@@ -594,7 +585,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 withContext(Dispatchers.Main) {
                     _apiKey.value = getApiKey()
                     _currentAppName.value = getAppName()
-                    _targetPackageName.value = getTargetPackageName()
                     _localProjects.value = getProjectList().toList()
                     _logLevel.value = getLogLevel()
                     val key = getApiKey()
@@ -608,18 +598,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             }
         }
     }
-
-    // --- PACKAGE ---
-    fun saveTargetPackageName(packageName: String) {
-        sharedPreferences.edit { putString(KEY_TARGET_PACKAGE_NAME, packageName) }
-        _targetPackageName.value = packageName
-        val intent = Intent(ACTION_TARGET_PACKAGE_CHANGED).apply {
-            putExtra("PACKAGE_NAME", packageName)
-            setPackage(getApplication<Application>().packageName)
-        }
-        getApplication<Application>().sendBroadcast(intent)
-    }
-    fun getTargetPackageName() = sharedPreferences.getString(KEY_TARGET_PACKAGE_NAME, "com.example.helloworld")
 
     // --- PROMPTS ---
     fun saveLastPrompt(prompt: String) = sharedPreferences.edit { putString(KEY_LAST_PROMPT, prompt) }
@@ -677,17 +655,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setGithubUser(githubUser: String) = sharedPreferences.edit { putString(KEY_GITHUB_USER, githubUser) }
     fun getBranchName() = sharedPreferences.getString(KEY_BRANCH_NAME, "main") ?: "main"
     fun saveBranchName(branchName: String) = sharedPreferences.edit { putString(KEY_BRANCH_NAME, branchName) }
-    // Named distinctly from the `projectType` StateFlow property below (not
-    // `getProjectType`): a same-named function and property accessor collide
-    // at the JVM method level (same name, different return types), which is
-    // legal bytecode but silently confuses reflection-based tooling like
-    // Mockito's stub recorder - see OverlayDelegateWebContextTest's history.
-    fun readProjectType() = sharedPreferences.getString(KEY_PROJECT_TYPE, "UNKNOWN") ?: "UNKNOWN"
-    fun setProjectType(type: String) {
-        sharedPreferences.edit { putString(KEY_PROJECT_TYPE, type) }
-        _projectType.value = type
-    }
-
     // --- REPO & VERSION ---
     fun saveRepoPermissions(canPush: Boolean, isAdmin: Boolean) = sharedPreferences.edit { putBoolean(KEY_REPO_CAN_PUSH, canPush).putBoolean(KEY_REPO_IS_ADMIN, isAdmin) }
     fun canPushToRepo() = sharedPreferences.getBoolean(KEY_REPO_CAN_PUSH, true)

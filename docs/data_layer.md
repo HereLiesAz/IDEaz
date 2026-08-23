@@ -42,9 +42,9 @@ Version control data is managed by the JGit library, which interacts directly wi
 *   **Concurrency:** `MainViewModel` (via `GitDelegate`) uses a `Mutex` to serialize Git operations.
 
 ## 4. Build Artifacts
-The shipped APK is always built on GitHub Actions; PWAs need no build. The on-device toolchain that used to assemble the APK itself (`aapt2`, `d8`, `kotlinc`) and its caches were removed in Phase 0 and stay removed. `RemoteBuildManager` downloads the Actions artifact into `context.cacheDir` for installation, then deletes it.
+There are none. A project's working tree *is* the app: `WebProjectHost` mounts it and `ideaz-loader.js` transpiles it in the browser. Nothing is compiled on the device and nothing is downloaded to be installed.
 
-A separate, narrower on-device compiler was reintroduced since, but only for a **local preview**, never the shipped artifact: for Android (Compose Multiplatform) projects, `WasmCompilerService` compiles `commonMain`/`wasmJsMain` sources with an embedded `kotlin-compiler-embeddable` (loaded by reflection from dex archives staged out of `assets/wasm-compiler/`, not currently bundled in this repo) into `.wasm`/`.js`/`index.html` under `context.filesDir/www`, which `WebProjectHost` mounts and hot-reloads on an `ACTION_WASM_COMPILE_SUCCESS` broadcast.
+Three generations of the opposite lived here and are all gone: the on-device APK toolchain (`aapt2`, `d8`, `kotlinc`) removed in Phase 0; `RemoteBuildManager`, which downloaded a GitHub Actions artifact into `cacheDir` to install; and `WasmCompilerService`, which compiled Compose Multiplatform sources to `.wasm` under `filesDir/www` for a local preview.
 
 ## 5. Reporting Deduplication
 `GithubIssueReporter` uses a dedicated `SharedPreferences` file or keys to track reported error hashes.
@@ -52,12 +52,12 @@ A separate, narrower on-device compiler was reintroduced since, but only for a *
 *   **Policy:** Prevents duplicate reports for the same error within 24 hours.
 
 ## 6. Static Data & Assets
-*   **Templates:** `assets/templates/` (Copied to new project directories). Phase 1 will add a single opinionated PWA template.
+*   **Templates:** `assets/templates/react/` — the one bundled starter, copied into an empty project directory by `TemplateManager.ensureTemplate`.
 *   **Workflows:** Managed programmatically by `ProjectConfigManager`. YAML content is hardcoded in the codebase to ensure integrity even if assets are missing.
 
-(There is no longer an `assets/tools/` directory — the on-device APK-build toolchain was removed in Phase 0. `WasmCompilerService` (§4) separately expects an `assets/wasm-compiler/` directory for its local-preview-only compiler; that directory is not currently bundled, so preview compilation degrades to a clean error instead of crashing.)
+(There is no `assets/tools/` or `assets/wasm-compiler/` directory. Both belonged to on-device compilers that no longer exist.)
 
 ## 7. Configuration Models (`.ideaz/`)
-*   **Config:** `config.json` stores project-specific settings (e.g., detected package name, schema type).
+*   **Config:** `config.json` stores branch, owner and a timestamp. It used to also carry `projectType` and `packageName`; the reader sets `ignoreUnknownKeys`, so older files still load.
 *   **History:** `prompt_history.json` stores local prompt history for the project.
 *   **Screenshots:** `screenshots/` directory stores captured context images.

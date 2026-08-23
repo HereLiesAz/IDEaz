@@ -27,9 +27,7 @@ import androidx.webkit.ServiceWorkerControllerCompat
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewFeature
 import com.hereliesaz.ideaz.models.ACTION_AI_LOG
-import com.hereliesaz.ideaz.models.ACTION_WASM_COMPILE_SUCCESS
 import com.hereliesaz.ideaz.models.EXTRA_MESSAGE
-import com.hereliesaz.ideaz.models.EXTRA_WWW_DIR
 import java.io.File
 
 /**
@@ -68,8 +66,7 @@ class IdeazJsInterface(private val context: Context) {
 }
 
 /**
- * Composable WebView host for PWA and Web projects, and for the Compose
- * Multiplatform (Wasm) preview of Android projects.
+ * Composable WebView host for the project preview.
  *
  * Content is served via [WebViewAssetLoader] from the virtual origin
  * `https://appassets.androidplatform.net/files/` mapped to [Context.filesDir].
@@ -91,14 +88,7 @@ class IdeazJsInterface(private val context: Context) {
  * @param hardReloadTrigger  Hard-reload signal. When this Long changes (and is > 0),
  *                           the WebView clears its disk/memory cache then reloads.
  *                           Driven by [StateDelegate.webHardReloadTrigger].
- *
- * Android projects are previewed through this same host: when
- * [WasmCompilerService] finishes compiling a project it broadcasts
- * [ACTION_WASM_COMPILE_SUCCESS], and this composable mounts `filesDir/www` and
- * reloads. No cache-clear is needed for that reload to pick up the fresh
- * .wasm - see [WebProjectPathHandler]'s no-store response headers. This does
- * not preserve Compose UI state across a reload; the Wasm module (and
- * everything it renders to its `<canvas>`) is fully reinstantiated each time.
+
  */
 // Lint's JavascriptInterface check can't resolve the annotated members of
 // IdeazJsInterface/WebViewBridge through a remember<T>-typed local (confirmed:
@@ -151,12 +141,6 @@ fun WebProjectHost(
     // long-lived) asset loader always serves the currently-previewed project
     // without recreating the WebView when the user switches projects.
     val projectDirState = remember { mutableStateOf(projectDir) }
-
-    // Set to `filesDir/www` once a Wasm compilation succeeds. While non-null it
-    // takes precedence over [projectDir] as the mounted root, so the preview
-    // shows the compiled binary rather than the project sources. Cleared when
-    // the user switches project or URL.
-    val wasmPreviewDir = remember { mutableStateOf<File?>(null) }
 
     // AssetLoader mounts the active project at the origin root
     // (https://appassets.androidplatform.net/) via WebProjectPathHandler, so
@@ -347,45 +331,14 @@ fun WebProjectHost(
         }
     }
 
-    // INSPECT_WEB broadcast: Phase 1B tap-to-select plumbing (already present).
-    // WASM_COMPILE_SUCCESS: the Compose/Wasm hot-reload path for Android projects.
+    // INSPECT_WEB broadcast: tap-to-select plumbing.
+    //
+    // This receiver also handled WASM_COMPILE_SUCCESS, remounting `filesDir/www`
+    // after an on-device Kotlin/Wasm compile of an Android project. That
+    // compiler no longer exists.
     val receiver = remember {
         object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == ACTION_WASM_COMPILE_SUCCESS) {
-                    if (isWebViewDestroyed.value) return
-                    val dir = intent.getStringExtra(EXTRA_WWW_DIR)
-                        ?.let { File(it) }
-                        ?: return
-                    // Mount the compiler's output directory, then re-enter the
-                    // host page at its root - not a plain reload(), which would
-                    // re-request whatever URL the page is currently on. A CMP
-                    // app can push its own History API entries (client-side
-                    // routing), so the WebView may no longer be sitting at the
-                    // freshly-mounted output's root by the time this fires.
-                    // No cache to clear first: WebProjectPathHandler marks
-                    // every project response no-store, so this always re-fetches
-                    // the fresh .wasm/.js pair even though their filenames (and
-                    // therefore this URL) are unchanged across recompiles. This
-                    // does not preserve UI state - the Wasm module is fully
-                    // reinstantiated - Kotlin/Wasm has no JVM-style live class
-                    // redefinition to build a true state-preserving hot reload on
-                    // top of.
-                    wasmPreviewDir.value = dir
-                    projectDirState.value = dir
-                    // If the page most recently navigated away from this app's
-                    // own origin (e.g. a top-level link tap), onPageStarted
-                    // below already stripped the Ideaz/IdeazBridge interfaces.
-                    // The LaunchedEffect(projectDir, url) that normally re-adds
-                    // them only fires on a project/url *switch*, not on this
-                    // broadcast-driven navigation - re-add them here too, since
-                    // the target is always this app's trusted origin.
-                    webView.addJavascriptInterface(ideazJsInterface, "Ideaz")
-                    webView.addJavascriptInterface(ideazBridge, "IdeazBridge")
-                    webView.loadUrl(WebProjectUrlUtils.localProjectRootUrl())
-                    return
-                }
-
                 if (intent?.action == "com.hereliesaz.ideaz.INSPECT_WEB") {
                     val x = intent.getFloatExtra("X", 0f)
                     val y = intent.getFloatExtra("Y", 0f)
@@ -413,7 +366,6 @@ fun WebProjectHost(
 
     DisposableEffect(context) {
         val filter = IntentFilter("com.hereliesaz.ideaz.INSPECT_WEB").apply {
-            addAction(ACTION_WASM_COMPILE_SUCCESS)
         }
         context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
         onDispose {
@@ -424,10 +376,7 @@ fun WebProjectHost(
     // Load (and reload on project / URL change). Local projects load from the
     // asset-loader root; remote URLs load as-is. Keyed so unrelated recompositions
     // (e.g. selectMode toggles) don't trigger reloads.
-    // A project/URL switch invalidates any mounted Wasm preview — the compiled
-    // binary belongs to the project we just left.
     LaunchedEffect(projectDir, url) {
-        wasmPreviewDir.value = null
         projectDirState.value = projectDir
         if (!isWebViewDestroyed.value) {
             // Every local project is served from the SAME origin
@@ -466,7 +415,7 @@ fun WebProjectHost(
     AndroidView(
         modifier = modifier.fillMaxSize(),
         factory = { webView },
-        update = { projectDirState.value = wasmPreviewDir.value ?: projectDir }
+        update = { projectDirState.value = projectDir }
     )
 
     DisposableEffect(lifecycleOwner) {

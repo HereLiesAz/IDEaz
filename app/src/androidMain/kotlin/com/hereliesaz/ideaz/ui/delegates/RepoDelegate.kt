@@ -10,14 +10,12 @@ import com.hereliesaz.ideaz.api.GitHubRepoResponse
 import com.hereliesaz.ideaz.api.GitHubPermissions
 import com.hereliesaz.ideaz.api.Source
 import com.hereliesaz.ideaz.git.GitManager
-import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.AiModels
 import com.hereliesaz.ideaz.ui.ProjectMetadata
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.utils.GithubSecretBox
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ProjectConfigManager
-import com.hereliesaz.ideaz.utils.ProjectInitializer
 import com.hereliesaz.ideaz.utils.RepoMapper
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,7 +28,7 @@ import java.io.File
  * **Key Responsibilities:**
  * - **Discovery:** listing repositories from Jules/GitHub.
  * - **Creation:** Creating new repos, forking existing ones.
- * - **Setup:** Initializing local project state, generating package names, and ensuring config files exist.
+ * - **Setup:** Initializing local project state and ensuring config files exist.
  * - **Security:** Encrypting and uploading secrets to GitHub Actions.
  *
  * @param application The Application context.
@@ -50,6 +48,15 @@ class RepoDelegate(
     private val onLoadingProgress: (Int?) -> Unit,
     private val onGitProgress: (Int, String) -> Unit
 ) {
+
+    private companion object {
+        /**
+         * The official starter new projects are generated from, via GitHub's
+         * generate-from-template API. See `templates/` in the IDEaz repo.
+         */
+        const val TEMPLATE_OWNER = "HereLiesAz"
+        const val TEMPLATE_REPO = "ideaz-react"
+    }
 
     // --- StateFlows ---
 
@@ -124,8 +131,6 @@ class RepoDelegate(
         appName: String,
         description: String,
         isPrivate: Boolean,
-        projectType: ProjectType,
-        packageName: String,
         context: Context,
         onSuccess: (owner: String, branch: String) -> Unit
     ) {
@@ -139,36 +144,32 @@ class RepoDelegate(
                 }
 
                 val service = GitHubApiClient.createService(token)
-                val templateRepo = com.hereliesaz.ideaz.utils.TemplateRegistry.repoFor(projectType)
                 val configuredUser = settingsViewModel.getGithubUser()?.takeIf { it.isNotBlank() }
 
-                // Prefer generating the new repo from its official template (the
-                // remote starts pre-populated with the starter). Fall back to an
-                // empty auto-init repo if no template is registered or generation
-                // fails (e.g. the template isn't marked as a template repo).
+                // Prefer generating the new repo from the official starter (the
+                // remote starts pre-populated). Fall back to an empty auto-init
+                // repo if generation fails, e.g. because the template isn't
+                // marked as a template repository.
+                //
+                // This used to consult a ProjectType -> repo-name table. There is
+                // one starter now, so the table is a constant.
                 var generated = false
-                val repo = if (templateRepo != null) {
-                    try {
-                        onOverlayLog("Creating $appName from ${com.hereliesaz.ideaz.utils.TemplateRegistry.OWNER}/$templateRepo...")
-                        val generatedRepo = service.generateFromTemplate(
-                            com.hereliesaz.ideaz.utils.TemplateRegistry.OWNER,
-                            templateRepo,
-                            com.hereliesaz.ideaz.api.GenerateFromTemplateRequest(
-                                owner = configuredUser,
-                                name = appName,
-                                description = description,
-                                private = isPrivate
-                            )
+                val repo = try {
+                    onOverlayLog("Creating $appName from $TEMPLATE_OWNER/$TEMPLATE_REPO...")
+                    val generatedRepo = service.generateFromTemplate(
+                        TEMPLATE_OWNER,
+                        TEMPLATE_REPO,
+                        com.hereliesaz.ideaz.api.GenerateFromTemplateRequest(
+                            owner = configuredUser,
+                            name = appName,
+                            description = description,
+                            private = isPrivate
                         )
-                        generated = true
-                        generatedRepo
-                    } catch (e: Exception) {
-                        onLog("Template generate failed (${e.message}); creating an empty repository instead.")
-                        service.createRepo(
-                            CreateRepoRequest(name = appName, description = description, private = isPrivate, autoInit = true)
-                        )
-                    }
-                } else {
+                    )
+                    generated = true
+                    generatedRepo
+                } catch (e: Exception) {
+                    onLog("Template generate failed (${e.message}); creating an empty repository instead.")
                     service.createRepo(
                         CreateRepoRequest(name = appName, description = description, private = isPrivate, autoInit = true)
                     )
@@ -181,24 +182,12 @@ class RepoDelegate(
                 settingsViewModel.setAppName(appName)
                 settingsViewModel.setGithubUser(derivedOwner)
                 settingsViewModel.saveProjectConfig(appName, derivedOwner, branch)
-                settingsViewModel.saveTargetPackageName(packageName)
-                settingsViewModel.setProjectType(projectType.name)
 
                 // When generated from a template, mirror the populated remote
                 // locally by cloning. Otherwise the caller scaffolds the empty
                 // project from the bundled template.
                 if (generated) {
-                    val projectDir = settingsViewModel.getProjectPath(appName)
-                    cloneWithRetry(projectDir, derivedOwner, appName, token)
-                    // The Android template ships the placeholder package; rename
-                    // it to the user's chosen package in the cloned copy.
-                    if (projectType == ProjectType.ANDROID) {
-                        withContext(Dispatchers.IO) {
-                            com.hereliesaz.ideaz.utils.TemplateManager.applyAndroidPlaceholders(
-                                projectDir, packageName, appName
-                            )
-                        }
-                    }
+                    cloneWithRetry(settingsViewModel.getProjectPath(appName), derivedOwner, appName, token)
                 }
 
                 onOverlayLog("Repository created: ${repo.htmlUrl}")
@@ -286,16 +275,6 @@ class RepoDelegate(
                 settingsViewModel.setGithubUser(newOwner)
                 settingsViewModel.saveProjectConfig(response.name, newOwner, newBranch)
 
-                // Generate a sanitized package name since we can't reliably parse it yet
-                var sanitizedUser = newOwner.replace(Regex("[^a-zA-Z0-9]"), "").lowercase()
-                if (sanitizedUser.isEmpty() || sanitizedUser[0].isDigit()) sanitizedUser = "_$sanitizedUser"
-
-                var sanitizedApp = response.name.replace(Regex("[^a-zA-Z0-9]"), "").lowercase()
-                if (sanitizedApp.isEmpty() || sanitizedApp[0].isDigit()) sanitizedApp = "_$sanitizedApp"
-
-                val generatedPackage = "com.$sanitizedUser.$sanitizedApp"
-                settingsViewModel.saveTargetPackageName(generatedPackage)
-
                 // Clone the fork locally so there is an on-device project to edit
                 // and preview. Without this the fork existed only on GitHub and the
                 // flow dead-ended (no local files, nothing to initialise/preview).
@@ -333,12 +312,6 @@ class RepoDelegate(
                 settingsViewModel.setGithubUser(owner)
                 settingsViewModel.saveProjectConfig(appName, owner, defaultBranch)
 
-                // Generate heuristic package name
-                val sanitizedUser = owner.replace(Regex("[^a-zA-Z0-9]"), "").lowercase()
-                val sanitizedApp = appName.replace(Regex("[^a-zA-Z0-9]"), "").lowercase()
-                val generatedPackage = "com.$sanitizedUser.$sanitizedApp"
-                settingsViewModel.saveTargetPackageName(generatedPackage)
-
                 // Check if already cloned locally
                 val projectDir = settingsViewModel.getProjectPath(appName)
                 val git = GitManager(projectDir)
@@ -359,19 +332,16 @@ class RepoDelegate(
                     onOverlayLog("Clone complete.")
                 }
 
-                // Project type is a GLOBAL setting (see MainViewModel.loadProject's
-                // same re-detection) - re-derive it from what's actually on disk
-                // rather than carrying over whatever the previously open project
-                // was. Without this, a cloned Android or plain-web repo silently
-                // inherited a stale type, bypassing this release's PWA-only gate:
-                // secrets were uploaded and CI workflows were pushed for a project
-                // type this release doesn't support.
-                val detectedType = withContext(Dispatchers.IO) { ProjectAnalyzer.detectProjectType(projectDir) }
-                settingsViewModel.setProjectType(detectedType.name)
-                if (detectedType !in ProjectType.selectable) {
+                // Re-derive from what is actually on disk, the same check
+                // MainViewModel.loadProject makes. This used to set a global
+                // ProjectType and refuse anything outside `ProjectType.selectable`;
+                // without the re-detection a cloned repo silently inherited the
+                // previously open project's type, and secrets were uploaded and CI
+                // workflows pushed for a project the release did not support.
+                if (!withContext(Dispatchers.IO) { ProjectAnalyzer.isPreviewable(projectDir) }) {
                     onOverlayLog(
-                        "${detectedType.displayName} projects are not available in this release. " +
-                            "The repository was cloned but not initialized."
+                        "$appName has no index.html or package.json, so IDEaz cannot " +
+                            "preview it. The repository was cloned but not initialized."
                     )
                     return@launch
                 }
@@ -386,33 +356,26 @@ class RepoDelegate(
     }
 
     /**
-     * Forces the regeneration and push of initialization files.
-     * This includes:
-     * - `.github/workflows/` (CI/CD)
-     * - `setup_env.sh` (Environment)
-     * - `AGENTS.md` (AI Instructions)
-     * - `CrashReporter` injection
+     * Forces the regeneration and push of initialization files:
+     * `.github/workflows/web_ci_pages.yml`, `AGENTS_SETUP.md` and
+     * `version.properties`.
+     *
+     * `setup_env.sh` (a JDK + Android SDK bootstrap) and the `CrashReporter`
+     * injection used to ride along here. Both existed for the Android edit
+     * target and are gone with it.
      */
     fun forceUpdateInitFiles() {
         scope.launch(Dispatchers.IO) {
             val appName = settingsViewModel.getAppName() ?: return@launch
             val projectDir = settingsViewModel.getProjectPath(appName)
-            val type = ProjectType.fromString(settingsViewModel.readProjectType())
-            val packageName = settingsViewModel.getTargetPackageName() ?: "com.example.app"
 
-            // 1. Generate Files — collect exactly what changed so the commit
-            // below stages only these paths, never unrelated uncommitted work
-            // sitting in the same working tree (see GitManager.addPaths).
+            // Generate files - collect exactly what changed so the commit below
+            // stages only these paths, never unrelated uncommitted work sitting
+            // in the same working tree (see GitManager.addPaths).
             val writtenPaths = mutableListOf<String>()
-            writtenPaths += ProjectConfigManager.ensureVersioning(projectDir, type)
-            writtenPaths += ProjectConfigManager.ensureWorkflow(projectDir, type)
-            writtenPaths += ProjectConfigManager.ensureSetupScript(projectDir)
+            writtenPaths += ProjectConfigManager.ensureVersioning(projectDir)
+            writtenPaths += ProjectConfigManager.ensureWorkflow(projectDir)
             writtenPaths += ProjectConfigManager.ensureAgentsSetupMd(projectDir)
-
-            // 2. Inject Code (Crash Reporter)
-            if (type == ProjectType.ANDROID) {
-                writtenPaths += ProjectInitializer.injectCrashReporting(application, projectDir, packageName, settingsViewModel)
-            }
 
             if (writtenPaths.isEmpty()) {
                 onOverlayLog("Init files already up to date — nothing to regenerate.")

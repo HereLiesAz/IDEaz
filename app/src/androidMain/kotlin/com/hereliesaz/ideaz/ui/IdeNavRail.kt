@@ -7,7 +7,6 @@ import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.aznavrail.model.AzDockingSide
 import com.hereliesaz.aznavrail.model.AzHeaderIconShape
 import com.hereliesaz.aznavrail.model.AzSheetDetent
-import com.hereliesaz.ideaz.models.ProjectType
 
 private val ideHelpList: Map<String, String> = mapOf(
     "project_settings" to "Open the project's settings and switches.",
@@ -26,7 +25,6 @@ private val ideHelpList: Map<String, String> = mapOf(
 
 fun AzNavHostScope.ideNavRail(
     viewModel: MainViewModel,
-    projectType: String?,
     onShowPromptPopup: () -> Unit,
     handleActionClick: (() -> Unit) -> Unit,
     isIdeVisible: Boolean,
@@ -98,8 +96,7 @@ fun AzNavHostScope.ideNavRail(
         text = "Build",
         onClick = {
             handleActionClick {
-                // Actually trigger the build (web → verify index.html + show
-                // preview via the build-success callback; Android → remote build).
+                // Verify the project has an entry point and show the preview.
                 // Previously this only opened the sheet and did nothing else.
                 viewModel.openPreview()
                 sheetController.snapTo(AzSheetDetent.HALF)
@@ -107,41 +104,37 @@ fun AzNavHostScope.ideNavRail(
         }
     )
 
-    if ((projectType == ProjectType.WEB.name) || (projectType == ProjectType.PWA.name) || (projectType == ProjectType.REACT.name)) {
-        azRailSubItem(
-            id = "reload",
-            hostId = "main",
-            text = "Reload",
-            onClick = {
-                handleActionClick {
-                    viewModel.triggerWebReload()
-                }
+    azRailSubItem(
+        id = "reload",
+        hostId = "main",
+        text = "Reload",
+        onClick = {
+            handleActionClick {
+                viewModel.triggerWebReload()
             }
-        )
-        azRailSubItem(
-            id = "hard_reload",
-            hostId = "main",
-            text = "Hard Reload",
-            onClick = {
-                handleActionClick {
-                    viewModel.triggerWebHardReload()
-                }
+        }
+    )
+    azRailSubItem(
+        id = "hard_reload",
+        hostId = "main",
+        text = "Hard Reload",
+        onClick = {
+            handleActionClick {
+                viewModel.triggerWebHardReload()
             }
-        )
-    }
+        }
+    )
 
-    if ((projectType == ProjectType.WEB.name) || (projectType == ProjectType.PWA.name) || (projectType == ProjectType.REACT.name)) {
-        azRailSubItem(
-            id = "deploy",
-            hostId = "main",
-            text = "Deploy",
-            onClick = {
-                handleActionClick {
-                    viewModel.deployWebProject()
-                }
+    azRailSubItem(
+        id = "deploy",
+        hostId = "main",
+        text = "Deploy",
+        onClick = {
+            handleActionClick {
+                viewModel.deployWebProject()
             }
-        )
-    }
+        }
+    )
 
     azRailSubToggle(
         id = "mode_toggle",

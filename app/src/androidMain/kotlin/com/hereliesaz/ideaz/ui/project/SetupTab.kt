@@ -18,7 +18,6 @@ import androidx.compose.ui.unit.dp
 import com.hereliesaz.aznavrail.AzButton
 import com.hereliesaz.aznavrail.AzTextBox
 import com.hereliesaz.aznavrail.model.AzButtonShape
-import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.ui.MainViewModel
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.utils.TemplateManager
@@ -49,20 +48,6 @@ fun ProjectSetupTab(
     var appName by remember { mutableStateOf("") }
     var githubUser by remember { mutableStateOf("") }
     var branchName by remember { mutableStateOf("main") }
-    var packageName by remember { mutableStateOf("") }
-    var selectedType by remember { mutableStateOf(ProjectType.PWA) }
-
-    // In Create mode the package name is derived from githubUser + appName so the
-    // user doesn't have to think about it. Outside Create mode (existing project
-    // configuration) we leave whatever value was stored as-is and let the user
-    // edit it.
-    val derivedPackageName = remember(githubUser, appName) {
-        TemplateManager.derivePackageName(githubUser, appName)
-    }
-    LaunchedEffect(derivedPackageName, isCreateMode) {
-        if (isCreateMode) packageName = derivedPackageName
-    }
-
     var repoDescription by remember { mutableStateOf("Created with IDEaz") }
     var initialPrompt by remember { mutableStateOf("") }
     var initialPromptTouched by remember { mutableStateOf(false) }
@@ -72,22 +57,14 @@ fun ProjectSetupTab(
             appName = settingsViewModel.getAppName() ?: "IDEazProject"
             githubUser = settingsViewModel.getGithubUser() ?: ""
             branchName = settingsViewModel.getBranchName()
-            packageName = settingsViewModel.getTargetPackageName() ?: "com.example"
-            // Preserve a recognized stored type, including a legacy Android
-            // project, so opening Setup cannot silently rewrite its metadata as
-            // a web project. Unsupported sentinels fall back to the PWA loop.
-            selectedType = ProjectType.fromString(settingsViewModel.readProjectType())
-                .takeUnless { it == ProjectType.OTHER || it == ProjectType.UNKNOWN }
-                ?: ProjectType.PWA
         } else {
             if (appName == "IDEazProject") appName = ""
-            selectedType = ProjectType.PWA
         }
     }
 
-    // Derived state for button enablement
-    val isReleaseSupportedType = selectedType in ProjectType.selectable
-    val isReadyToCreate = initialPrompt.isNotBlank() && appName.isNotBlank() && isReleaseSupportedType
+    // Derived state for button enablement. This used to also require
+    // `selectedType in ProjectType.selectable` - a one-element list.
+    val isReadyToCreate = initialPrompt.isNotBlank() && appName.isNotBlank()
 
     if (showTokenRequiredDialog) {
         AlertDialog(
@@ -120,10 +97,7 @@ fun ProjectSetupTab(
             ) {
                 AzButton(
                     modifier = Modifier.weight(1f),
-                    onClick = {
-                        selectedType = ProjectType.PWA
-                        onCreateModeChanged(true)
-                    },
+                    onClick = { onCreateModeChanged(true) },
                     text = "Create",
                     shape = AzButtonShape.RECTANGLE,
                     enabled = !isBusy && !isCreateMode
@@ -179,78 +153,6 @@ fun ProjectSetupTab(
             )
             Spacer(Modifier.height(8.dp))
 
-            AzTextBox(
-                value = packageName,
-                // Editable in Configure mode so an existing project can be
-                // corrected if the stored package drifted from the source
-                // (e.g. someone moved the manifest namespace by hand).
-                // In Create mode the field is driven by the derivedPackageName
-                // LaunchedEffect above, so user edits would just be
-                // immediately overwritten — keep it read-only there.
-                onValueChange = { if (!isCreateMode) packageName = it },
-                hint = if (isCreateMode) "Package Name (auto-generated)" else "Package Name",
-                onSubmit = {},
-                enabled = !isCreateMode,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            // Project Type Dropdown
-            var expanded by remember { mutableStateOf(false) }
-            ExposedDropdownMenuBox(
-                expanded = expanded,
-                onExpandedChange = { expanded = !expanded },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                TextField(
-                    modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-                    readOnly = true,
-                    value = selectedType.displayName,
-                    onValueChange = {},
-                    label = { Text("Project Type") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                    colors = ExposedDropdownMenuDefaults.textFieldColors()
-                )
-                ExposedDropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false }
-                ) {
-                    ProjectType.selectable.forEach { type ->
-                        DropdownMenuItem(
-                            text = { Text(type.displayName) },
-                            onClick = {
-                                selectedType = type
-                                expanded = false
-                            },
-                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
-                        )
-                    }
-                }
-            }
-
-            if (!isReleaseSupportedType) {
-                Spacer(Modifier.height(8.dp))
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "${selectedType.displayName} projects are not available in this release.",
-                            style = MaterialTheme.typography.titleSmall,
-                        )
-                        Text(
-                            text = "This project remains unchanged. PWA is the only production-ready target loop in this release.",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-            }
-
             // --- CREATE MODE SPECIFIC FIELDS ---
             if (isCreateMode) {
                 Spacer(Modifier.height(8.dp))
@@ -301,7 +203,7 @@ fun ProjectSetupTab(
                             showTokenRequiredDialog = true
                         } else if (onCheckRequirements()) {
                             viewModel.createGitHubRepository(
-                                appName, repoDescription, false, selectedType, packageName, context,
+                                appName, repoDescription, false, context,
                                 initialPrompt = initialPrompt.takeIf { it.isNotBlank() }
                             ) {
                                 onCreateModeChanged(false)
@@ -320,7 +222,7 @@ fun ProjectSetupTab(
                         if (onCheckRequirements()) {
                             // Ensure init first
                             viewModel.saveAndInitialize(
-                                appName, githubUser, branchName, packageName, selectedType, context, null
+                                appName, githubUser, branchName, context, null
                             )
                             viewModel.sendPrompt(DOCS_PROMPT)
                         }
@@ -328,7 +230,7 @@ fun ProjectSetupTab(
                     text = "Generate Project Docs (AI)",
                     shape = AzButtonShape.RECTANGLE,
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !isBusy && isReleaseSupportedType
+                    enabled = !isBusy
                 )
                 Text(
                     text = "Asks the AI to scaffold AGENTS.md and the docs/ folder for this repo. Sends a detailed prompt to the conversational chat.",
@@ -343,14 +245,14 @@ fun ProjectSetupTab(
                     onClick = {
                         if (onCheckRequirements()) {
                             viewModel.saveAndInitialize(
-                                appName, githubUser, branchName, packageName, selectedType, context, null
+                                appName, githubUser, branchName, context, null
                             )
                         }
                     },
                     text = "Save & Initialize",
                     shape = AzButtonShape.RECTANGLE,
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !isBusy && isReleaseSupportedType,
+                    enabled = !isBusy,
                     isLoading = isBusy,
                 )
             }

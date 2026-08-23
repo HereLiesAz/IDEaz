@@ -49,7 +49,6 @@ fun MainScreen(viewModel: MainViewModel) {
     val sheetController = rememberAzSheetController(initial = AzSheetDetent.PEEK)
 
     val isIdeVisible by viewModel.isTargetAppVisible.collectAsState()
-    val projectType by viewModel.settingsViewModel.projectType.collectAsState()
     val currentWebUrl by viewModel.currentWebUrl.collectAsState()
     val currentWebProjectDir by viewModel.currentWebProjectDir.collectAsState()
     val webReloadTrigger by viewModel.webReloadTrigger.collectAsState()
@@ -124,7 +123,6 @@ fun MainScreen(viewModel: MainViewModel) {
         ) {
             ideNavRail(
                 viewModel = viewModel,
-                projectType = projectType,
                 onShowPromptPopup = {
                     isPromptPopupVisible = true
                 },
@@ -168,13 +166,12 @@ fun MainScreen(viewModel: MainViewModel) {
                                 )
                             }
                         } else {
-                            // Placeholder until Phase 2 rebuilds the Android target host
-                            // on top of IdeazOverlayService (System Alert Window overlay).
-                            // The previous VirtualDisplay-based AndroidProjectHost was
-                            // removed because it required signature-level permissions
-                            // unavailable to sideloaded apps. See
-                            // docs/plans/2026-05-01-phase-0-triage.md.
-                            AndroidProjectHostPlaceholder()
+                            // App View with no URL means the project has no entry
+                            // point. launchTargetApp() refuses to get here and says
+                            // so; this branch is the belt to that suspenders.
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("Nothing to preview: this project has no index.html.")
+                            }
                         }
                     } else {
                         IdeNavHost(
@@ -246,19 +243,3 @@ fun MainScreen(viewModel: MainViewModel) {
     }
 }
 
-/**
- * Placeholder shown when the IDE is in "App View" for an Android-typed project.
- *
- * The previous [com.hereliesaz.ideaz.ui.project.AndroidProjectHost] used
- * `VirtualDisplay` + `ActivityOptions.setLaunchDisplayId` to render the target
- * APK inside the IDE. That approach requires signature-level permissions that
- * sideloaded apps cannot obtain on stock Android, so it was removed in the
- * Phase 0 triage. Phase 2 will rebuild the Android target host on top of
- * `IdeazOverlayService` (System Alert Window overlay).
- */
-@Composable
-private fun AndroidProjectHostPlaceholder() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Android target host arrives in Phase 2.")
-    }
-}

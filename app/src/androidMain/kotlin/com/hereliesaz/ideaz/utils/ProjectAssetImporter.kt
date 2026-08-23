@@ -3,7 +3,6 @@ package com.hereliesaz.ideaz.utils
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
-import com.hereliesaz.ideaz.models.ProjectType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -34,45 +33,15 @@ object ProjectAssetImporter {
     )
 
     /**
-     * Pick a subdirectory based on project type. For Android binary blobs
-     * (PNG/JPG/font/etc.) `res/raw/` is the right home, but only if the
-     * filename sanitises to `[a-z0-9_]+` — `res/raw/` rejects hyphens, spaces,
-     * and uppercase. When sanitisation would lose information, fall back to
-     * `app/src/main/assets/`.
+     * Where an imported asset lands: `assets/` inside the project.
+     *
+     * This used to branch on project type, routing Android imports to
+     * `app/src/main/res/raw` or `app/src/main/assets` depending on whether the
+     * filename sanitised to `[a-z0-9_]+` (which `res/raw/` requires). With the
+     * Android target gone there is one destination, and the sanitisation
+     * heuristic that decided between the two went with it.
      */
-    private fun destinationDir(projectDir: File, type: ProjectType, originalName: String): File {
-        return when (type) {
-            ProjectType.WEB, ProjectType.PWA, ProjectType.REACT -> File(projectDir, "assets")
-            ProjectType.ANDROID -> {
-                val nameOnly = originalName.substringBeforeLast('.', originalName)
-                val resRawOk = nameOnly == nameOnly.lowercase() &&
-                    nameOnly.all { it.isLetterOrDigit() || it == '_' } &&
-                    nameOnly.isNotEmpty() && !nameOnly[0].isDigit()
-                if (resRawOk && originalName.isBinaryAssetName()) {
-                    File(projectDir, "app/src/main/res/raw")
-                } else {
-                    File(projectDir, "app/src/main/assets")
-                }
-            }
-            else -> projectDir
-        }
-    }
-
-    /**
-     * Heuristic for "this is a raw binary asset, not text" — used only to
-     * route Android imports to `res/raw/` vs `assets/`. Text-y files go to
-     * `assets/` so the build tool doesn't try to validate them.
-     */
-    private fun String.isBinaryAssetName(): Boolean {
-        val ext = substringAfterLast('.', "").lowercase()
-        return ext in setOf(
-            "png", "jpg", "jpeg", "webp", "gif", "bmp",
-            "mp3", "ogg", "wav", "flac", "m4a",
-            "mp4", "webm", "mkv",
-            "ttf", "otf",
-            "pdf",
-        )
-    }
+    private fun destinationDir(projectDir: File): File = File(projectDir, "assets")
 
     /**
      * Resolve a user-visible filename for [uri]. Tries the SAF
@@ -123,11 +92,10 @@ object ProjectAssetImporter {
     suspend fun import(
         context: Context,
         projectDir: File,
-        projectType: ProjectType,
         sourceUri: Uri,
     ): ImportResult = withContext(Dispatchers.IO) {
         val displayName = resolveDisplayName(context, sourceUri)
-        val destDir = destinationDir(projectDir, projectType, displayName).apply { mkdirs() }
+        val destDir = destinationDir(projectDir).apply { mkdirs() }
         val destFile = nonCollidingFile(destDir, displayName)
 
         val bytes = context.contentResolver.openInputStream(sourceUri)?.use { it.readBytes() }

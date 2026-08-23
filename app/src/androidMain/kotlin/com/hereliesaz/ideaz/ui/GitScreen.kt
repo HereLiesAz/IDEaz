@@ -14,7 +14,6 @@ import androidx.compose.ui.unit.dp
 import com.hereliesaz.aznavrail.AzButton
 import com.hereliesaz.aznavrail.AzTextBox
 import com.hereliesaz.aznavrail.model.AzButtonShape
-import com.hereliesaz.ideaz.models.ProjectType
 import com.hereliesaz.ideaz.utils.ProjectConfigManager
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -101,8 +100,7 @@ fun GitScreen(
     }
 
     if (showRegenerateConfirm) {
-        val type = ProjectType.fromString(settingsViewModel.readProjectType())
-        val paths = ProjectConfigManager.initFileRelativePaths(type)
+        val paths = ProjectConfigManager.initFileRelativePaths()
         val repo = settingsViewModel.getGithubUser()?.let { user ->
             settingsViewModel.getAppName()?.let { app -> "$user/$app" }
         } ?: "this project"
@@ -116,12 +114,6 @@ fun GitScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("Overwrites and commits, only if their content actually changed:")
                     paths.forEach { path -> Text("• $path", style = MaterialTheme.typography.bodySmall) }
-                    if (type == ProjectType.ANDROID) {
-                        Text(
-                            "• crash-reporter integration files (exact paths depend on your package layout)",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         "This pushes directly to $selectedBranch — only files listed above are " +
