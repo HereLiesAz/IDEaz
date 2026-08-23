@@ -60,10 +60,14 @@ you see what changed, and nothing reaches the preview until you approve it.
 
 **Git**
 
-Every project is a git repository and git is the source of truth. You do **not**
-need a GitHub account to start — scaffold a project, edit it, and see it running
-entirely locally. Connecting GitHub is the *publish* step, which is where a token
-has an obvious purpose.
+Every project is a git repository and git is the source of truth. A new project
+is `git init`-ed and gets an initial commit before it has any remote.
+
+You do **not** need a GitHub account to start. Create a project, scaffold it,
+edit it with the AI, and commit — all offline. **Deploy** is the one action that
+asks for a token, and it creates the repository for you on first publish. That is
+the only place in the app where a token has an obvious purpose, so it is the only
+place that asks.
 
 **Building**
 

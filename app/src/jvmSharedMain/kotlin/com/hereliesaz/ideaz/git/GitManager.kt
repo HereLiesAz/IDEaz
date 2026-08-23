@@ -3,6 +3,7 @@ package com.hereliesaz.ideaz.git
 import com.hereliesaz.ideaz.platform.Platform
 
 import org.eclipse.jgit.api.Git
+import org.eclipse.jgit.api.errors.NoHeadException
 import org.eclipse.jgit.api.errors.GitAPIException
 import org.eclipse.jgit.transport.RemoteRefUpdate
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
@@ -163,7 +164,21 @@ class GitManager(private val projectDir: File) {
     fun commit(message: String, allowEmpty: Boolean = false) {
         configureUser()
         Git.open(projectDir).use { git ->
-            git.commit().setMessage(message).setAllowEmpty(allowEmpty).call()
+            // setSign(false) is not a style preference. JGit reads the ambient
+            // git config, so on any machine with `commit.gpgsign = true` every
+            // commit here threw - and with `gpg.format = ssh` it threw
+            // UnsupportedSigningFormatException ("No signer for ssh signatures")
+            // rather than anything that names the real problem. IDEaz has no
+            // signing key and no way to prompt for a passphrase, so it must
+            // opt out explicitly rather than inherit the user's setting.
+            //
+            // IdeTools.checkpoint already did this; this path did not, so the
+            // AI's checkpoints committed fine while the user's own commits,
+            // Deploy, and the initial commit of a new project all failed. Most
+            // visible on the desktop target, where a developer's global config
+            // is right there - CI runners have no signing configured, which is
+            // why CI never caught it.
+            git.commit().setMessage(message).setAllowEmpty(allowEmpty).setSign(false).call()
         }
     }
 
@@ -395,6 +410,19 @@ class GitManager(private val projectDir: File) {
     }
 
     /**
+     * The configured URL of remote [name], or null when no such remote exists.
+     *
+     * Used to decide whether a project has ever been published: a locally
+     * created project has no `origin` until the first Deploy creates one.
+     */
+    fun remoteUrl(name: String): String? {
+        if (!isRepo()) return null
+        return Git.open(projectDir).use { git ->
+            git.repository.config.getString("remote", name, "url")?.takeIf { it.isNotBlank() }
+        }
+    }
+
+    /**
      * Adds a remote to the repository configuration.
      */
     fun addRemote(name: String, url: String) {
@@ -522,16 +550,21 @@ class GitManager(private val projectDir: File) {
      * @return A list of formatted commit strings ("shortSha - message (author)").
      */
     fun getCommitHistory(): List<String> {
-        try {
-            Git.open(projectDir).use { git ->
-                return git.log().call().map { commit ->
+        Git.open(projectDir).use { git ->
+            return try {
+                git.log().call().map { commit ->
                     val author = commit.authorIdent.name
                     val message = commit.shortMessage
                     "${commit.name.substring(0, 7)} - $message ($author)"
                 }
+            } catch (e: NoHeadException) {
+                // A repository with no commits yet is not an error, it is a new
+                // repository. JGit's log() throws NoHeadException for it, and
+                // GitDelegate.refreshGitData catches everything silently and in
+                // order - so this used to take branches and status down with it,
+                // leaving the Git screen blank with no indication why.
+                emptyList()
             }
-        } catch (e: Exception) {
-            throw e
         }
     }
 

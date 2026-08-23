@@ -49,15 +49,6 @@ class RepoDelegate(
     private val onGitProgress: (Int, String) -> Unit
 ) {
 
-    private companion object {
-        /**
-         * The official starter new projects are generated from, via GitHub's
-         * generate-from-template API. See `templates/` in the IDEaz repo.
-         */
-        const val TEMPLATE_OWNER = "HereLiesAz"
-        const val TEMPLATE_REPO = "ideaz-react"
-    }
-
     // --- StateFlows ---
 
     private val _ownedRepos = MutableStateFlow<List<GitHubRepoResponse>>(emptyList())
@@ -117,87 +108,72 @@ class RepoDelegate(
     }
 
     /**
-     * Creates a new repository on GitHub and initializes the local project state.
+     * Makes sure the current project has a GitHub repository and an `origin`
+     * remote pointing at it, creating the repository when it does not exist yet.
      *
-     * @param appName The name of the new repository.
-     * @param description A short description.
-     * @param isPrivate Whether the repo should be private.
-     * @param projectType The type of project (Android, Web, etc.).
-     * @param packageName The target package name (e.g., com.example.app).
-     * @param context Context for file operations.
-     * @param onSuccess Callback invoked with the new owner and branch name.
+     * Creating a project used to go through GitHub first: the Create button was
+     * hard-gated on a token, called `generateFromTemplate` to make a
+     * pre-populated remote, then cloned it back down. That meant a named project
+     * could not be scaffolded at all without an account — the README promised
+     * otherwise, and the local path only worked if you accepted the default
+     * project name, because the App Name field is read-only outside Create mode.
+     *
+     * Projects are created locally now, and this runs on the first Deploy, which
+     * is the point where a token has an obvious purpose.
+     *
+     * @return true when the project is ready to push; false when it is not (no
+     *   token, or the API call failed) — the reason is reported to the log.
      */
-    fun createGitHubRepository(
-        appName: String,
-        description: String,
-        isPrivate: Boolean,
-        context: Context,
-        onSuccess: (owner: String, branch: String) -> Unit
-    ) {
-        scope.launch {
-            onLoadingProgress(0)
-            try {
-                val token = settingsViewModel.getGithubToken()
-                if (token.isNullOrBlank()) {
-                    onOverlayLog("Error: No GitHub Token found.")
-                    return@launch
-                }
+    suspend fun ensureRemoteRepository(appName: String): Boolean = withContext(Dispatchers.IO) {
+        val git = GitManager(settingsViewModel.getProjectPath(appName))
+        if (git.remoteUrl("origin") != null) return@withContext true
 
-                val service = GitHubApiClient.createService(token)
-                val configuredUser = settingsViewModel.getGithubUser()?.takeIf { it.isNotBlank() }
+        val token = settingsViewModel.getGithubToken()
+        if (token.isNullOrBlank()) {
+            onOverlayLog(
+                "Deploy needs a GitHub token to publish $appName. Add one in Settings — " +
+                    "creating, editing and previewing all work without an account."
+            )
+            return@withContext false
+        }
 
-                // Prefer generating the new repo from the official starter (the
-                // remote starts pre-populated). Fall back to an empty auto-init
-                // repo if generation fails, e.g. because the template isn't
-                // marked as a template repository.
-                //
-                // This used to consult a ProjectType -> repo-name table. There is
-                // one starter now, so the table is a constant.
-                var generated = false
-                val repo = try {
-                    onOverlayLog("Creating $appName from $TEMPLATE_OWNER/$TEMPLATE_REPO...")
-                    val generatedRepo = service.generateFromTemplate(
-                        TEMPLATE_OWNER,
-                        TEMPLATE_REPO,
-                        com.hereliesaz.ideaz.api.GenerateFromTemplateRequest(
-                            owner = configuredUser,
-                            name = appName,
-                            description = description,
-                            private = isPrivate
-                        )
-                    )
-                    generated = true
-                    generatedRepo
-                } catch (e: Exception) {
-                    onLog("Template generate failed (${e.message}); creating an empty repository instead.")
-                    service.createRepo(
-                        CreateRepoRequest(name = appName, description = description, private = isPrivate, autoInit = true)
-                    )
-                }
+        try {
+            val service = GitHubApiClient.createService(token)
+            val configuredUser = settingsViewModel.getGithubUser()?.takeIf { it.isNotBlank() }
 
-                val derivedOwner = repo.fullName.split("/")[0]
-                val branch = repo.defaultBranch ?: "main"
-
-                // Update Local Config
-                settingsViewModel.setAppName(appName)
-                settingsViewModel.setGithubUser(derivedOwner)
-                settingsViewModel.saveProjectConfig(appName, derivedOwner, branch)
-
-                // When generated from a template, mirror the populated remote
-                // locally by cloning. Otherwise the caller scaffolds the empty
-                // project from the bundled template.
-                if (generated) {
-                    cloneWithRetry(settingsViewModel.getProjectPath(appName), derivedOwner, appName, token)
-                }
-
-                onOverlayLog("Repository created: ${repo.htmlUrl}")
-                onSuccess(derivedOwner, branch)
-
-            } catch (e: Exception) {
-                onOverlayLog("Failed to create repository: ${e.message}")
-            } finally {
-                onLoadingProgress(null)
+            // Reuse the repository when it already exists — a re-Deploy after the
+            // local remote was dropped, or a repo the user made by hand. Only
+            // create when the lookup genuinely fails.
+            val existing = configuredUser?.let {
+                try { service.getRepo(it, appName) } catch (e: Exception) { null }
             }
+
+            val repo = existing ?: run {
+                onOverlayLog("Creating $appName on GitHub...")
+                service.createRepo(
+                    CreateRepoRequest(
+                        name = appName,
+                        description = settingsViewModel.getRepoDescription(),
+                        private = false,
+                        // No auto-init: the local project already has commits, and
+                        // an auto-initialised remote would need a merge before the
+                        // first push could fast-forward.
+                        autoInit = false,
+                    )
+                )
+            }
+
+            val owner = repo.fullName.split("/")[0]
+            val branch = git.getCurrentBranch() ?: repo.defaultBranch ?: "main"
+            settingsViewModel.setGithubUser(owner)
+            settingsViewModel.saveProjectConfig(appName, owner, branch)
+
+            git.addRemote("origin", "https://github.com/$owner/$appName.git")
+            onOverlayLog("Linked $appName to $owner/$appName.")
+            true
+        } catch (e: Exception) {
+            onOverlayLog("Could not create the GitHub repository: ${e.message}")
+            false
         }
     }
 

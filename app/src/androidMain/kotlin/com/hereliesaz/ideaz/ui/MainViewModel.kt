@@ -531,9 +531,14 @@ class MainViewModel(
             return
         }
         val projectDir = settingsViewModel.getProjectPath(appName)
-        if (!File(projectDir, "index.html").isFile) {
+        // Ask ProjectAnalyzer, not `File(projectDir, "index.html")`. This used to
+        // check the repo root only, so a project whose entry point lives at
+        // public/index.html or src/index.html - which the load gate admits and
+        // launchTargetApp mounts happily - was refused right here. Build and App
+        // View disagreed about the same project.
+        if (ProjectAnalyzer.findWebEntryPoint(projectDir) == null) {
             logHandler.onBuildLog(
-                "[IDE] $appName has no index.html at its root, so there is nothing to preview.\n"
+                "[IDE] $appName has no index.html, so there is nothing to preview.\n"
             )
             return
         }
@@ -564,10 +569,28 @@ class MainViewModel(
         viewModelScope.launch {
             logHandler.onBuildLog("Deploying Web Project (Push to GitHub)...")
             try {
-                // Ensure GitHub Pages workflow / AGENTS.md / setup script are
-                // in the project before deploying. Save & Initialize for PWAs
-                // is local-only now, so the first Deploy is what generates
-                // these and pushes them.
+                if (appName.isNullOrBlank()) {
+                    logHandler.onBuildLog("Deploy failed: no project is open.")
+                    return@launch
+                }
+                // Publishing is the one step that needs an account, so it is the
+                // one step that asks for a token - and it creates the repository
+                // if this project has never been published. Everything before
+                // this point works offline.
+                if (!repoDelegate.ensureRemoteRepository(appName)) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            getApplication(),
+                            "Deploy needs a GitHub token. Add one in Settings.",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    }
+                    return@launch
+                }
+
+                // Generate the Pages workflow / AGENTS_SETUP.md / version.properties
+                // before pushing. Creating a project is local-only, so the first
+                // Deploy is what writes and pushes these.
                 repoDelegate.forceUpdateInitFiles()
                 // Ensure latest changes are committed
                 gitDelegate.commit("Deploy: ${System.currentTimeMillis()}")
@@ -723,19 +746,28 @@ class MainViewModel(
     fun scanLocalProjects() = repoDelegate.scanLocalProjects()
     fun getLocalProjectsWithMetadata() = repoDelegate.getLocalProjectsWithMetadata()
     fun forceUpdateInitFiles() = repoDelegate.forceUpdateInitFiles()
-    /** Creates a new repo and initializes the project. */
-    fun createGitHubRepository(name: String, desc: String, priv: Boolean, ctx: Context, initialPrompt: String? = null, onSuccess: () -> Unit) {
-        repoDelegate.createGitHubRepository(name, desc, priv, ctx) { owner, branch ->
-            // Local content is either cloned from the template repo (generate
-            // flow, handled in RepoDelegate) or scaffolded from the bundled
-            // template by saveAndInitialize's ensureTemplate when the directory
-            // is still empty (fallback). Either way ensureTemplate is a no-op
-            // once files are present, so we don't copy here. The initial prompt
-            // is dispatched by saveAndInitialize AFTER scaffolding, so the AI
-            // never runs against an empty project.
-            saveAndInitialize(name, owner, branch, ctx, initialPrompt)
-            onSuccess()
-        }
+    /**
+     * Creates a new project. Entirely local and offline: no GitHub account, no
+     * token, no network.
+     *
+     * This used to be `createGitHubRepository`, which made the remote first and
+     * cloned it back down, so the Create button was hard-gated on a token. The
+     * repository is now created by the first Deploy
+     * ([RepoDelegate.ensureRemoteRepository]), which is where a token has an
+     * obvious purpose.
+     */
+    fun createProject(
+        appName: String,
+        description: String,
+        context: Context,
+        initialPrompt: String? = null,
+        onSuccess: () -> Unit,
+    ) {
+        // Held for the first Deploy - there is no repository to attach it to yet.
+        settingsViewModel.saveRepoDescription(description)
+        val owner = settingsViewModel.getGithubUser().orEmpty()
+        saveAndInitialize(appName, owner, "main", context, initialPrompt)
+        onSuccess()
     }
 
     /** Selects a repo and prepares it for use. */
@@ -762,6 +794,26 @@ class MainViewModel(
             withContext(Dispatchers.IO) {
                 projectDir.mkdirs()
                 com.hereliesaz.ideaz.utils.TemplateManager.ensureTemplate(context, projectDir)
+
+                // "Every project is a git repository and git is the source of
+                // truth" - but nothing initialised one on the local path. Only
+                // forceUpdateInitFiles did, and that runs on Deploy, so a project
+                // created and edited offline had no history to inspect, no undo
+                // below the AI's own checkpoints, and nothing to push when the
+                // user finally did connect an account.
+                //
+                // The initial commit is unconditional, not gated on whether the
+                // starter was just scaffolded. An imported folder is the case
+                // that gating broke: files present, nothing scaffolded, so it got
+                // `init` and no commit - a repository with no HEAD, which is a
+                // worse state than either alternative. An empty directory commits
+                // fine (verified in GitManagerTest), so there is nothing to guard.
+                val git = GitManager(projectDir)
+                if (!git.isRepo()) {
+                    git.init()
+                    runCatching { git.addAll(); git.commit("Initial commit") }
+                        .onFailure { logHandler.onBuildLog("[GIT] Initial commit failed: ${it.message}\n") }
+                }
             }
 
             // Projects live entirely on-device for the edit loop. No GitHub

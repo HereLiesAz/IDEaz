@@ -34,13 +34,9 @@ fun ProjectSetupTab(
     isCreateMode: Boolean,
     onCreateModeChanged: (Boolean) -> Unit,
     onNavigateToTab: (String) -> Unit,
-    onNavigateToSettings: () -> Unit,
 ) {
     val currentAppNameState by settingsViewModel.currentAppName.collectAsState()
     val loadingProgress by viewModel.loadingProgress.collectAsState()
-
-    // Explicit state for Token Popup
-    var showTokenRequiredDialog by remember { mutableStateOf(false) }
 
     // Derived state for button loading
     val isBusy = loadingProgress != null
@@ -65,26 +61,6 @@ fun ProjectSetupTab(
     // Derived state for button enablement. This used to also require
     // `selectedType in ProjectType.selectable` - a one-element list.
     val isReadyToCreate = initialPrompt.isNotBlank() && appName.isNotBlank()
-
-    if (showTokenRequiredDialog) {
-        AlertDialog(
-            onDismissRequest = { showTokenRequiredDialog = false },
-            title = { Text("GitHub Token Required") },
-            text = { Text("A GitHub token is required to create a repository and automate secret setup.") },
-            confirmButton = {
-                AzButton(
-                    onClick = {
-                        showTokenRequiredDialog = false
-                        onNavigateToSettings()
-                    },
-                    text = "Go to Settings"
-                )
-            },
-            dismissButton = {
-                TextButton(onClick = { showTokenRequiredDialog = false }) { Text("Cancel") }
-            }
-        )
-    }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         item {
@@ -136,7 +112,7 @@ fun ProjectSetupTab(
             AzTextBox(
                 value = githubUser,
                 onValueChange = { githubUser = it },
-                hint = "GitHub User",
+                hint = "GitHub User (optional until you publish)",
                 onSubmit = {},
                 enabled = isCreateMode,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
@@ -159,7 +135,7 @@ fun ProjectSetupTab(
                 AzTextBox(
                     value = repoDescription,
                     onValueChange = { repoDescription = it },
-                    hint = "Description",
+                    hint = "Description (used if you publish to GitHub)",
                     onSubmit = {}
                 )
 
@@ -199,11 +175,12 @@ fun ProjectSetupTab(
             if (isCreateMode) {
                 AzButton(
                     onClick = {
-                        if (settingsViewModel.getGithubToken().isNullOrBlank()) {
-                            showTokenRequiredDialog = true
-                        } else if (onCheckRequirements()) {
-                            viewModel.createGitHubRepository(
-                                appName, repoDescription, false, context,
+                        // No GitHub token check. Creating a project is local and
+                        // offline; the token is asked for by Deploy, which is what
+                        // creates the repository.
+                        if (onCheckRequirements()) {
+                            viewModel.createProject(
+                                appName, repoDescription, context,
                                 initialPrompt = initialPrompt.takeIf { it.isNotBlank() }
                             ) {
                                 onCreateModeChanged(false)
