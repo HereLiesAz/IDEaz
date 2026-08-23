@@ -1,61 +1,124 @@
 # IDEaz: Architecture
 
-> **Authoritative source:** [`plans/2026-05-01-ideaz-revival-design.md`](plans/2026-05-01-ideaz-revival-design.md). This file is the short overview.
+## 1. What this is
 
-## 1. Product Shape
+IDEaz is a **Kotlin/Compose Multiplatform** app that visually edits web projects.
+You render your project, tap an element, describe the change, and an AI edits the
+source. Git is the source of truth.
 
-IDEaz is an Android app that visually edits two kinds of GitHub-hosted projects:
+Two targets, one source tree:
 
-| Target | Phase | Edit loop | Where it runs |
-|---|---|---|---|
-| **PWA** | 1 (daily driver) | sub-second WebView reload | `WebProjectHost` inside IDEaz |
-| **Android app** | 2 (heavy artillery) | sub-second local preview (on-device Wasm compile) for editing; minutes (Jules + GitHub Actions) for the real APK | local preview renders in `WebProjectHost` like a PWA; the sideloaded APK is still observed via System Alert Window overlay, wired but inert until Phase 2 |
+| Target | What it is |
+|---|---|
+| **android** | The phone IDE. The product's original identity. |
+| **desktop** (JVM) | The same app on a laptop. Not a second product — it is how the app becomes runnable and testable without a handset. |
 
-Git is the source of truth. The shipped APK is never built on-device — that build is always remote (GitHub Actions), and the old on-device APK toolchain (`aapt2`, `d8`, `kotlinc`-for-JVM, Maven Aether) stays removed. A narrower on-device compiler was reintroduced since, but only for a **local preview**: `WasmCompilerService` compiles Android (Compose Multiplatform) projects' `commonMain`/`wasmJsMain` sources to Wasm and mounts the result in `WebProjectHost`, giving Android projects the same fast local loop PWAs already had. See §5.
+The desktop target exists for a specific reason. For most of this project's life
+nothing here had ever executed on a device: no instrumented tests, no emulator in
+CI, no recorded session. The bill came due once already, when a release shipped
+with **every credential save silently failing** because a caller-generated IV was
+passed to an AndroidKeyStore key — found by reading code, not by launching the
+app. `./gradlew :app:run` makes "launch it and click the loop" something a person
+or a CI job can do in seconds.
 
-## 2. The Core Loop
+Both targets are JVM, which is what makes sharing tractable: JGit, OkHttp and
+Retrofit run unchanged on both.
 
-1. **Pick or create a project.** Setup / Load / Clone tabs in `ProjectScreen`. `ProjectAnalyzer` detects the project type.
-2. **Render the target.** PWA renders in `WebProjectHost`. Android now renders there too, as a Compose Multiplatform / Wasm local preview compiled on-device by `WasmCompilerService`; the sideloaded-APK overlay path (Phase 2) via `IdeazOverlayService` remains wired but inert.
-3. **Tap an element.** Bridge captures element context (selector + structure + screenshot region for PWA; `AccessibilityNodeInfo` chain for Android).
-4. **Prompt the AI.** Phase 1: `ConversationalAiClient`, implemented by `GeminiAdapter`, `AnthropicAdapter`, `OpenAiCompatibleAdapter` (Groq/Cerebras/HF/Mistral/OpenAI/DeepSeek), the on-device `LocalLlmAdapter`, and the `GeminiAppBridgeAdapter` — all BYO-key except the local one. Every one of these now shares the same edit-checkpoint/review/approve/reject/undo contract (`IdeTools` checkpoints + `LocalEditApproval`/`LocalEditApprovalRequiredException`, package `ai.local` despite being provider-agnostic), not just the local adapter. Phase 2: `AgenticAiClient` (`JulesAdapter`, PR-based).
-5. **Apply changes.** Phase 1 writes directly to the working tree behind a checkpoint the user approves or rejects, then reloads the WebView. Phase 2 lets Jules open a PR; IDEaz auto-merges, polls Actions, sideloads the new APK.
-6. **Commit.** PWA edits get a manual "Commit & Push" button; Android edits commit through Jules/GitHub.
+## 2. The core loop
 
-## 3. Delegates
+```
+Open project → preview it → tap an element → describe the change
+             → AI edits the source → review the diff → approve → reload
+```
 
-`MainViewModel` coordinates; logic lives in delegates under `ui/delegates/`:
+Everything else in this repository is in service of that sentence, or should not
+be here.
 
-* `AIDelegate` — AI sessions (Phase 1 Gemini, Phase 2 Jules; Phase 0 stubs the Jules call sites)
-* `BuildDelegate` — remote build dispatch + polling + install
-* `GitDelegate` — `GitManager` (JGit) wrapper
-* `RepoDelegate` — GitHub API (clone, fork, secrets upload — see Phase 0 follow-ups)
-* `OverlayDelegate` — overlay state + selection mode (Phase 2)
-* `SystemEventDelegate` — package-install broadcasts
-* `UpdateDelegate` — IDEaz self-update
-* `StateDelegate` — shared mutable state
+**The element→source problem** is the hard part, and the thing the product is a
+bet on. It is solved by the preview pipeline itself: `ideaz-loader.js` transpiles
+the project's own source in-browser with Babel, and does so with
+`development: true`, which enables `@babel/plugin-transform-react-jsx-source`.
+That stamps `{fileName, lineNumber, columnNumber}` onto every JSX element; React
+exposes it on the fiber as `_debugSource`; `ideaz-bridge.js` walks the fiber tree
+from the tapped node and reads it. The AI therefore receives `src/App.jsx:42`
+rather than a CSS selector and a search problem.
 
-## 4. Services
+Projects with no such metadata still work — the bridge falls back to a
+`data-ideaz-source` attribute, then to selector + surrounding HTML, and the
+model's system preamble tells it which it is getting.
 
-* **`BuildService`**: foreground service (`foregroundServiceType="dataSync"`), runs in the main app process — not a separate `:build_process` (that claim was never true of the manifest declaration). Post-Phase-0 it is a thin shell around `RemoteBuildManager` — dispatches a remote build, polls GitHub Releases, downloads the artifact.
-* **`IdeazOverlayService`**: `TYPE_APPLICATION_OVERLAY` window for Phase 2 element-tap on the sideloaded target app. Wired but inert until Phase 2.
-* **`IdeazAccessibilityService`**: `AccessibilityNodeInfo` walk for Phase 2 element capture. Wired but inert until Phase 2.
-* **`CrashReportingService`** (`:crash_reporter`): isolated process so crashes still report.
-* **`ScreenshotService`**: `MediaProjection` virtual display for region screenshots. Declared in the manifest (`mediaProjection` FGS) and started **only for Android target projects**, gated at runtime by `OverlayDelegate.isScreenCaptureEnabled()`; web/PWA projects never raise the consent prompt or start the service.
+## 3. Source layout
 
-## 5. File System
+```
+commonMain            platform-agnostic (Compose UI, pure Kotlin)
+  └── jvmSharedMain   + the JVM stdlib, JGit, OkHttp, Retrofit
+        ├── androidMain
+        └── desktopMain
+```
 
-* Projects: `context.filesDir/projects/{projectName}` (cloned via JGit).
-* External projects can be registered; imports copy into internal storage.
-* No more `local_build_tools/` — the on-device APK toolchain removed in Phase 0.
-* `context.filesDir/www`: output of the on-device Wasm/Compose-Multiplatform local preview compile (`WasmCompilerService`), mounted by `WebProjectHost`. Distinct from the removed APK toolchain — this never produces anything that ships; the real APK still comes only from GitHub Actions.
+`commonMain` compiles to platform-agnostic metadata and cannot touch `java.*`,
+which rules out almost everything real here. `jvmSharedMain` is the intermediate
+source set both JVM targets share, and is where the bulk of the logic lives: the
+AI layer (`IdeTools` and its checkpoint machinery, the three adapters, the tool
+schema, the edit-approval contract), the GitHub API client, `GitManager`,
+`StateDelegate`, `ProjectAnalyzer`, `RepoSnapshot`, `GithubSecretBox`.
 
-## 6. Networking
+The platform seam is deliberately tiny — one `expect object Platform` covering
+logging, Base64, and a debug-build flag. Those three were all that pinned
+otherwise-portable code to Android.
 
-* **Retrofit** for GitHub and Jules.
-* **Phase 1:** `ConversationalAiClient` adapters for Gemini, Anthropic, and OpenAI-compatible providers (HTTP + streaming), plus the on-device local adapter and the Gemini-app bridge.
-* **`AuthInterceptor`** injects keys; **`LoggingInterceptor`** sanitizes logs; **`RetryInterceptor`** handles backoff.
+## 4. Rendering
 
-## 7. Out of Scope (Permanently)
+`WebProjectHost` mounts the project's working tree at the origin root of
+`https://appassets.androidplatform.net/` via `WebViewAssetLoader`, so it gets a
+real origin and service-worker support with no network.
 
-React Native, Flutter, Python, generic web (non-PWA), Zipline / Redwood hot-reload, the on-device **APK-build** toolchain (`aapt2`/`d8`/`kotlinc`-for-JVM/Maven Aether), VirtualDisplay-based `AndroidProjectHost`, "Race to Build" branching. These were deleted across Phase 0 (Tasks 2–8). (A narrower on-device *Wasm preview* compiler was reintroduced later for Android/Compose-Multiplatform local editing — see §5 — but it is not an APK toolchain and doesn't produce a shippable artifact.)
+There is no bundler on a phone, so `webruntime/` ships a vendored JS runtime
+(React, React-DOM, Babel, and the common ecosystem libraries) plus
+`ideaz-loader.js`, which transpiles JSX/TS on demand and rewrites relative
+imports to `blob:` URLs. This is the most inventive thing in the codebase and it
+is the right answer to the constraint.
+
+`WebProjectPathHandler` marks project content `no-store` (it changes under the
+user's hands) while the bundled runtime is cacheable and version-segmented by
+`BuildConfig.VERSION_CODE`, so an app upgrade cannot serve stale runtime JS.
+
+## 5. AI providers
+
+Eight registered providers behind three adapters: `GeminiAdapter`,
+`AnthropicAdapter`, and one `OpenAiCompatibleAdapter` serving every
+`/chat/completions` backend (OpenAI, DeepSeek, Groq, Cerebras, Hugging Face,
+Mistral). All BYO-key.
+
+Wire model ids are **pinned** in `AiModels` and overridable per provider in
+Settings. They used to be discovered at runtime by regex-matching the provider's
+`/models` listing and taking the newest by publish date, which made the choice
+nondeterministic and, for OpenAI, routinely selected a non-chat variant because
+the filter also matched `gpt-4o-transcribe` and `gpt-4o-audio-preview`.
+
+Every provider shares one edit contract: the AI writes into the working tree
+behind an out-of-tree checkpoint, and `AiEditApprovalRequiredException` stops
+anything reaching the preview until the user approves. The checkpoint machinery
+(`IdeTools`) is durable across process death, fingerprint-gated before restore,
+and reconciled at startup.
+
+## 6. Permissions
+
+The core loop happens inside this app's own WebView and needs **none**.
+`POST_NOTIFICATIONS` is the only one declared, so long-running work can report
+progress while backgrounded.
+
+Deliberately absent, and not to be re-added without a target that needs them:
+`SYSTEM_ALERT_WINDOW`, `FOREGROUND_SERVICE_MEDIA_PROJECTION`,
+`FOREGROUND_SERVICE_SPECIAL_USE`, `REQUEST_INSTALL_PACKAGES`, and two
+accessibility services.
+
+## 7. Out of scope
+
+React Native, Flutter, Python, the on-device APK toolchain, VirtualDisplay
+hosting, on-device LLM inference, driving other apps through an
+AccessibilityService, and any on-device Kotlin compiler. Several of these were
+built anyway and have now been removed; see the part 1 commit for what and why.
+
+Android as an *edit target* (build remotely, sideload, inspect the running app)
+is not implemented. It is a different `Target`, not a flag on this one.

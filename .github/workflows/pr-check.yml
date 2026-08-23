@@ -73,7 +73,7 @@ jobs:
           # because there was no watchdog. Carrying the watchdog over here too.
           (
             timeout --kill-after=1m 20m bash -eo pipefail -c \
-              './gradlew testDebugUnitTest lintDebug --continue' 2>&1 | tee build.log
+              './gradlew assembleDebug testDebugUnitTest desktopMainClasses lintDebug --continue' 2>&1 | tee build.log
             echo "${PIPESTATUS[0]}" > /tmp/build_exit_code
           ) &
           BUILD_PID=$!

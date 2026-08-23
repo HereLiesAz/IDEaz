@@ -6,7 +6,12 @@ Before committing ANY changes, you **MUST** strictly adhere to the following wor
 
 1.  **Code Review:** You must request and receive a complete code review.
 2.  **Verify Build & Tests:** You must run a full build and ensure all tests pass. Use `./gradlew build` or specific task like `./gradlew :app:assembleDebug`.
-3.  **Update Documentation:** You must update ALL relevant documentation to reflect your changes. This includes `TODO.md`, `file_descriptions.md`, and any other specific docs.
+3.  **Update documentation that is now wrong.** Correct anything your change
+    falsified, in place. Do **not** append a changelog entry describing what you
+    did — the commit already says that, and saying it twice is how `docs/TODO.md`
+    reached 56 KB of append-only prose that had never once shrunk, under a heading
+    whose own first line said it was superseded. A file map that is 78% accurate
+    is worse than none, because a reader cannot tell which 78%.
 4.  **Update version:** Follow the versioning strategy below.
 5.  **Commit:** Only AFTER steps 1-4 are successfully completed may you commit your changes.
 
@@ -55,7 +60,6 @@ The `docs/` folder contains the documentation for this project. These files are 
 *   **`docs/data_layer.md`**: Data storage, API, and state management.
 *   **`docs/error_handling.md`**: Strategy for handling and reporting errors.
 *   **`docs/fauxpas.md`**: Common mistakes and anti-patterns.
-*   **`docs/jules-integration.md`**: Jules API integration (Phase 2).
 *   **`docs/manifest.md`**: AndroidManifest explanation.
 *   **`docs/misc.md`**: Miscellaneous info (templates, logs).
 *   **`docs/performance.md`**: Performance guidelines.
