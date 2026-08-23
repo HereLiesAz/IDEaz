@@ -793,8 +793,7 @@ class MainViewModel(
             val projectDir = context.filesDir.resolve(appName)
             withContext(Dispatchers.IO) {
                 projectDir.mkdirs()
-                val scaffolded =
-                    com.hereliesaz.ideaz.utils.TemplateManager.ensureTemplate(context, projectDir)
+                com.hereliesaz.ideaz.utils.TemplateManager.ensureTemplate(context, projectDir)
 
                 // "Every project is a git repository and git is the source of
                 // truth" - but nothing initialised one on the local path. Only
@@ -802,13 +801,18 @@ class MainViewModel(
                 // created and edited offline had no history to inspect, no undo
                 // below the AI's own checkpoints, and nothing to push when the
                 // user finally did connect an account.
+                //
+                // The initial commit is unconditional, not gated on whether the
+                // starter was just scaffolded. An imported folder is the case
+                // that gating broke: files present, nothing scaffolded, so it got
+                // `init` and no commit - a repository with no HEAD, which is a
+                // worse state than either alternative. An empty directory commits
+                // fine (verified in GitManagerTest), so there is nothing to guard.
                 val git = GitManager(projectDir)
                 if (!git.isRepo()) {
                     git.init()
-                    if (scaffolded) {
-                        runCatching { git.addAll(); git.commit("Initial commit") }
-                            .onFailure { logHandler.onBuildLog("[GIT] Initial commit failed: ${it.message}\n") }
-                    }
+                    runCatching { git.addAll(); git.commit("Initial commit") }
+                        .onFailure { logHandler.onBuildLog("[GIT] Initial commit failed: ${it.message}\n") }
                 }
             }
 

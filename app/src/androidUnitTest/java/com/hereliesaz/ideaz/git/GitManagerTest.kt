@@ -114,4 +114,42 @@ class GitManagerTest {
 
         assertTrue(git.getCommitHistory().isNotEmpty())
     }
+
+    /**
+     * saveAndInitialize commits unconditionally after `init`, so this has to
+     * work for a directory with nothing in it. It gated on "did we just scaffold
+     * the starter?" until this test showed the gate was unnecessary — and that
+     * the case it excluded (an imported folder: files present, nothing
+     * scaffolded) was left as a repository with no HEAD.
+     */
+    @Test
+    fun initThenCommitWorksForAnEmptyDirectory() {
+        val dir = tempFolder.newFolder("empty")
+        val git = GitManager(dir)
+        git.init()
+        git.addAll()
+        git.commit("Initial commit")
+
+        assertEquals(1, git.getCommitHistory().size)
+    }
+
+    /**
+     * A repository with no commits is a new repository, not an error. JGit's
+     * `log()` throws `NoHeadException` for it, and GitDelegate.refreshGitData
+     * catches everything silently *and in order* — so this throwing used to take
+     * branches and status down with it, leaving the Git screen blank with no
+     * indication why.
+     */
+    @Test
+    fun commitHistoryIsEmptyRatherThanThrowingForARepoWithNoHead() {
+        val dir = tempFolder.newFolder("no_head")
+        File(dir, "index.html").writeText("<!doctype html>")
+        val git = GitManager(dir)
+        git.init()
+
+        assertTrue(git.getCommitHistory().isEmpty())
+        // The two calls refreshGitData makes *after* it, which a throw skipped.
+        assertTrue(git.getStatus().isNotEmpty())
+        assertTrue(git.getBranches().isEmpty())
+    }
 }

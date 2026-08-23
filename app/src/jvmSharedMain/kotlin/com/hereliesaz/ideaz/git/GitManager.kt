@@ -3,6 +3,7 @@ package com.hereliesaz.ideaz.git
 import com.hereliesaz.ideaz.platform.Platform
 
 import org.eclipse.jgit.api.Git
+import org.eclipse.jgit.api.errors.NoHeadException
 import org.eclipse.jgit.api.errors.GitAPIException
 import org.eclipse.jgit.transport.RemoteRefUpdate
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
@@ -549,16 +550,21 @@ class GitManager(private val projectDir: File) {
      * @return A list of formatted commit strings ("shortSha - message (author)").
      */
     fun getCommitHistory(): List<String> {
-        try {
-            Git.open(projectDir).use { git ->
-                return git.log().call().map { commit ->
+        Git.open(projectDir).use { git ->
+            return try {
+                git.log().call().map { commit ->
                     val author = commit.authorIdent.name
                     val message = commit.shortMessage
                     "${commit.name.substring(0, 7)} - $message ($author)"
                 }
+            } catch (e: NoHeadException) {
+                // A repository with no commits yet is not an error, it is a new
+                // repository. JGit's log() throws NoHeadException for it, and
+                // GitDelegate.refreshGitData catches everything silently and in
+                // order - so this used to take branches and status down with it,
+                // leaving the Git screen blank with no indication why.
+                emptyList()
             }
-        } catch (e: Exception) {
-            throw e
         }
     }
 
