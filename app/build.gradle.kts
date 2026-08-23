@@ -1,11 +1,113 @@
+// Compose Multiplatform 1.11 marks the `compose.runtime` / `compose.material3`
+// accessors deprecated at ERROR level, telling you to name the artifacts
+// directly. That advice does not hold on the stable line: `org.jetbrains.compose
+// .material3:material3` has no 1.11.1 - it is only published as 1.11.0-alphaNN -
+// so spelling the coordinates out means either pinning an alpha or mixing
+// version lines. The plugin's own accessors resolve the combination JetBrains
+// actually ships and tests together, so keep using them and revisit when the
+// direct coordinates line up with a stable release.
+@file:Suppress("DEPRECATION_ERROR", "DEPRECATION")
+
 import java.util.Properties
 import java.io.FileInputStream
 
 plugins {
+    alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.application)
+    alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
+
+// IDEaz is a Kotlin/Compose Multiplatform app with two targets:
+//
+//   android  - the phone IDE, the product's original identity.
+//   desktop  - the same UI on the JVM. This is not a second product; it is how
+//              the app becomes runnable and testable without a handset. The
+//              deepest finding of the architecture audit was that nothing here
+//              had ever executed on a device, and that a released build shipped
+//              with every credential save broken because no one had launched it.
+//              A desktop target makes "run the app and click the loop" a thing a
+//              developer (or CI) can actually do.
+//
+// Both targets are JVM, which is what makes this tractable: JGit, OkHttp and
+// Retrofit all run unchanged on both.
+kotlin {
+    androidTarget {
+        compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21) }
+    }
+    jvm("desktop") {
+        compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21) }
+    }
+
+    jvmToolchain(21)
+
+    sourceSets {
+        commonMain.dependencies {
+            implementation(compose.runtime)
+            implementation(compose.foundation)
+            implementation(compose.material3)
+            implementation(compose.ui)
+            implementation(compose.materialIconsExtended)
+            implementation(compose.components.resources)
+            implementation(libs.aznavrail.cmp)
+            implementation(libs.cmp.lifecycle.viewmodel)
+            implementation(libs.cmp.lifecycle.runtime)
+            implementation(libs.cmp.navigation.compose)
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.okhttp)
+            implementation(libs.okhttp.logging.interceptor)
+            implementation(libs.retrofit)
+            implementation(libs.retrofit2.kotlinx.serialization.converter)
+            implementation(libs.org.eclipse.jgit)
+            implementation(libs.slf4j.api)
+            implementation(libs.bouncycastle.bcprov)
+        }
+
+        androidMain.dependencies {
+            implementation(compose.preview)
+            implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.appcompat)
+            implementation(libs.androidx.core.ktx)
+            implementation(libs.androidx.webkit)
+            implementation(libs.androidx.preference.ktx)
+            implementation(libs.androidx.documentfile)
+            implementation(libs.sora.editor)
+            implementation(libs.sora.language.textmate)
+            implementation(libs.slf4j.android)
+            // The exclude has to be applied on the configuration rather than
+            // inline here: the KMP sourceSet DSL takes a Provider, not a
+            // configurable dependency notation.
+            implementation(libs.google.genai)
+            implementation(libs.haze)
+        }
+
+        getByName("desktopMain").dependencies {
+            implementation(compose.desktop.currentOs)
+            implementation(libs.kotlinx.coroutines.swing)
+        }
+
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
+        }
+
+        // Robolectric and Mockito need the Android classpath, so these stay on
+        // the Android unit-test source set rather than commonTest.
+        getByName("androidUnitTest").dependencies {
+            implementation(libs.junit)
+            implementation(libs.org.json)
+            implementation(libs.mockwebserver)
+            implementation(libs.robolectric)
+            implementation(libs.mockito.kotlin)
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.androidx.compose.ui.test.junit4)
+            implementation(libs.androidx.compose.ui.test.manifest)
+        }
+    }
+}
+
 
 val versionProps = Properties()
 val versionPropsFile = rootProject.file("version.properties")
@@ -141,9 +243,15 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
         targetCompatibility = JavaVersion.VERSION_21
     }
     buildFeatures {
-        compose = true
+        // compose is supplied by the Compose Multiplatform plugin.
         buildConfig = true
-        aidl = true
+    }
+    // KMP puts Android sources under androidMain; point AGP's `main` source set
+    // at the Android resources, assets and manifest that moved with them.
+    sourceSets["main"].apply {
+        manifest.srcFile("src/androidMain/AndroidManifest.xml")
+        res.directories.add("src/androidMain/res")
+        assets.directories.add("src/androidMain/assets")
     }
 
     androidResources {
@@ -192,6 +300,10 @@ androidComponents.onVariants { variant ->
 // producing a strict-version conflict during lint's androidTest model generation.
 // Pin both modules to the alpha version that matches runtime to break the deadlock.
 configurations.all {
+    // google-genai drags in full protobuf-java; Android cannot host both it and
+    // protobuf-javalite. Excluded here because the KMP sourceSet DSL has no
+    // inline exclude form.
+    exclude(group = "com.google.protobuf", module = "protobuf-java")
     resolutionStrategy {
         force("androidx.concurrent:concurrent-futures:1.3.0")
         force("androidx.concurrent:concurrent-futures-ktx:1.3.0")
@@ -251,86 +363,30 @@ configurations.all {
     }
 }
 
+// Constraints only. Every actual dependency lives in the kotlin { sourceSets }
+// block above, per target. These force secure versions on transitive deps that
+// Dependabot flagged; a constraint sets the version without adding the artifact,
+// so Gradle applies it only when resolution actually pulls it in.
 dependencies {
-    // Force secure versions on JGit's vulnerable transitive deps (Dependabot
-    // alerts #26/#27/#29 Bouncy Castle, #30 Apache HttpClient, #31 commons-lang3).
-    // Constraints set the version without adding the dep; Gradle applies them
-    // only when the transitive resolution actually pulls the artifact.
     constraints {
-        implementation(libs.bouncycastle.bcprov) {
+        commonMainImplementation(libs.bouncycastle.bcprov) {
             because("CVE timing channel + LDAP injection (Dependabot #29, #27)")
         }
-        implementation(libs.bouncycastle.bcpkix) {
+        commonMainImplementation(libs.bouncycastle.bcpkix) {
             because("Broken/risky cryptographic algorithm (Dependabot #26)")
         }
-        implementation(libs.commons.lang3) {
+        commonMainImplementation(libs.commons.lang3) {
             because("Uncontrolled recursion CVE (Dependabot #31)")
         }
-        implementation(libs.apache.httpclient) {
+        commonMainImplementation(libs.apache.httpclient) {
             because("XSS in Apache HttpClient (Dependabot #30)")
         }
     }
 
-    implementation(libs.sora.editor)
-    implementation(libs.sora.language.textmate)
-    implementation(libs.org.eclipse.jgit)
-    implementation(libs.slf4j.api)
-    implementation(libs.slf4j.android)
-    implementation(libs.retrofit)
-    implementation(libs.retrofit2.kotlinx.serialization.converter)
-    implementation(libs.okhttp)
-    implementation(libs.okhttp.logging.interceptor)
-    implementation(libs.kotlinx.serialization.json)
-    // Used for libsodium-compatible crypto_box_seal (GithubSecretBox) to encrypt
-    // GitHub Actions secrets. R8 strips the unused remainder of bcprov in release.
-    implementation(libs.bouncycastle.bcprov)
-    implementation(libs.google.genai) {
-        exclude(group = "com.google.protobuf", module = "protobuf-java")
-    }
-    // removed with the on-device model / overlay subsystems
-    // removed with the on-device model subsystem
-    // removed with the on-device model / overlay subsystems
-    implementation(libs.aznavrail) {
-        exclude(group = "com.github.HereLiesAz.AzNavRail", module = "aznavrail-cmp-wasm-js")
-        exclude(group = "com.github.HereLiesAz.AzNavRail", module = "aznavrail-cmp-desktop")
-        exclude(group = "com.github.HereLiesAz.AzNavRail", module = "aznavrail-cmp-android")
-    }
-    implementation(libs.androidx.navigation.compose)
-    implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.androidx.compose.runtime.livedata)
-    implementation(libs.androidx.preference.ktx)
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.activity.compose)
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.compose.ui)
-    implementation(libs.androidx.compose.ui.graphics)
-    implementation(libs.androidx.compose.ui.tooling.preview)
-    implementation(libs.androidx.compose.material3)
-    implementation(libs.androidx.documentfile)
-    implementation(libs.androidx.material.icons.extended)
-    implementation(libs.haze)
-    testImplementation(libs.junit)
-    testImplementation(libs.org.json)
-    testImplementation(libs.mockwebserver)
-    testImplementation(libs.robolectric)
-    testImplementation(libs.androidx.compose.ui.test.junit4)
-    testImplementation(libs.androidx.compose.ui.test.manifest)
-    testImplementation(libs.mockito.kotlin)
-    testImplementation(libs.kotlinx.coroutines.test)
+
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
-
-    implementation(libs.kotlinx.coroutines.core)
-
-    implementation(libs.androidx.appcompat)
-    implementation(libs.androidx.webkit)
-    // removed with the on-device model / overlay subsystems
-
 }
 
 abstract class IncrementBuildNumberTask : DefaultTask() {
@@ -373,4 +429,22 @@ tasks.configureEach {
 // build-and-release.yml's heavier combined release+debug build (see PR #850).
 tasks.withType<Test>().configureEach {
     maxHeapSize = "1536m"
+}
+
+// Desktop packaging. `./gradlew :app:run` launches the IDE on the JVM - the
+// fastest way to exercise the tap -> prompt -> edit -> reload loop without a
+// handset, which is the whole reason this target exists.
+compose.desktop {
+    application {
+        mainClass = "com.hereliesaz.ideaz.MainKt"
+        nativeDistributions {
+            targetFormats(
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg,
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi,
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb,
+            )
+            packageName = "IDEaz"
+            packageVersion = "$major.$minor.$patch"
+        }
+    }
 }
