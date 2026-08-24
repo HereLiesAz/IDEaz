@@ -387,10 +387,28 @@ fun WebProjectHost(
             // app restarts), able to intercept B's requests and read/serve
             // stale content for it. Tear down everything the outgoing page
             // could have left behind before loading the next one.
+            //
+            // WebStorage.deleteOrigin() below looks like the API for this but
+            // isn't: it only ever clears the long-deprecated Web SQL
+            // Database API. It has no effect on localStorage, sessionStorage,
+            // IndexedDB, or the Cache Storage a service worker's fetch
+            // handler reads from - real project data (auth tokens, app
+            // state, anything a project legitimately persists) leaked
+            // straight from one project into the next, and back, on every
+            // switch. WebView has no native per-origin API for those, so
+            // they're cleared the same way the service worker unregistration
+            // above already has to be: JS evaluated while still on the
+            // shared origin, before navigating away from it.
             if (webView.url?.startsWith(WebProjectUrlUtils.ASSET_ROOT_URL) == true) {
                 webView.evaluateJavascript(
                     "if (navigator.serviceWorker) { navigator.serviceWorker.getRegistrations()" +
-                        ".then(rs => rs.forEach(r => r.unregister())); }",
+                        ".then(rs => rs.forEach(r => r.unregister())); }" +
+                        "try { localStorage.clear(); } catch (e) {}" +
+                        "try { sessionStorage.clear(); } catch (e) {}" +
+                        "if (window.indexedDB && indexedDB.databases) {" +
+                        " indexedDB.databases().then(dbs => dbs.forEach(db => db.name && indexedDB.deleteDatabase(db.name)));" +
+                        " }" +
+                        "if (window.caches) { caches.keys().then(keys => keys.forEach(k => caches.delete(k))); }",
                     null,
                 )
             }
