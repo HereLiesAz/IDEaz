@@ -168,6 +168,17 @@ class RepoDelegate(
             settingsViewModel.setGithubUser(owner)
             settingsViewModel.saveProjectConfig(appName, owner, branch)
 
+            // addRemote() opens the local .git directory directly and throws
+            // if there isn't one. Without this guard, a project that reached
+            // here without ever being git-inited (e.g. loaded some other
+            // way) hit that exception after the GitHub repo above had
+            // already been created - reported as "could not create the
+            // repository" even though it now existed, and every retry
+            // re-found that same repo via the lookup above and failed here
+            // again, permanently: nothing on this path ever fixed the local
+            // directory.
+            if (!git.isRepo()) git.init()
+
             git.addRemote("origin", "https://github.com/$owner/$appName.git")
             onOverlayLog("Linked $appName to $owner/$appName.")
             true
