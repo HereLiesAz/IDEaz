@@ -612,10 +612,26 @@ class MainViewModel(
                 // before pushing. Creating a project is local-only, so the first
                 // Deploy is what writes and pushes these.
                 repoDelegate.forceUpdateInitFiles()
-                // Ensure latest changes are committed
-                gitDelegate.commit("Deploy: ${System.currentTimeMillis()}")
+                // Ensure latest changes are committed. Both commit() and push()
+                // return Boolean and never throw - they catch every failure
+                // internally and log it via onLog - so their result must be
+                // checked explicitly, or "Pushed successfully" gets logged (and
+                // a success Toast shown) on every single deploy failure: no git
+                // manager, no auth token, a rejected push, a network error, all
+                // of it. The specific reason is already in the build log from
+                // gitDelegate's own onLog calls immediately above this.
+                if (!gitDelegate.commit("Deploy: ${System.currentTimeMillis()}")) {
+                    logHandler.onBuildLog("Deploy failed: could not commit changes. See the log above for details.")
+                    return@launch
+                }
                 // Use default push (uses settings creds)
-                gitDelegate.push()
+                if (!gitDelegate.push()) {
+                    logHandler.onBuildLog("Deploy failed: push did not complete. See the log above for details.")
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(getApplication(), "Deploy failed: could not push to GitHub.", Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
                 logHandler.onBuildLog("Pushed successfully. GitHub Actions will handle deployment.")
                 logHandler.onBuildLog("[Instruction] Ensure 'GitHub Pages' is enabled in repository settings (Source: gh-pages branch).")
                 withContext(Dispatchers.Main) {
