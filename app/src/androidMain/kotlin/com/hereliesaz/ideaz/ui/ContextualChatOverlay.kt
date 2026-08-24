@@ -179,7 +179,7 @@ fun ContextualChatOverlay(
 }
 
 /** A short human label for the tapped element, read out of the bridge payload. */
-private fun elementLabel(element: String?): String {
+internal fun elementLabel(element: String?): String {
     if (element.isNullOrBlank()) return "Selected element"
     val tag = Regex("\"tagName\"\\s*:\\s*\"([^\"]+)\"").find(element)?.groupValues?.get(1)
     return if (tag != null) "Selected <$tag>" else "Selected element"
@@ -190,11 +190,19 @@ private fun elementLabel(element: String?): String {
  * Babel's jsx-source transform: the element knows where it came from, so the
  * user can see it and the model is told to go straight there.
  */
-private fun sourceLabel(element: String?): String? {
+internal fun sourceLabel(element: String?): String? {
     if (element.isNullOrBlank()) return null
-    val m = Regex("\"source\"\\s*:\\s*\\{[^}]*\"fileName\"\\s*:\\s*\"([^\"]+)\"[^}]*?(?:\"lineNumber\"\\s*:\\s*(\\d+))?[^}]*}")
-        .find(element) ?: return null
-    val file = m.groupValues[1].substringAfterLast('/')
-    val line = m.groupValues.getOrNull(2)?.takeIf { it.isNotBlank() }
+    // The line number was never reachable in a single pass: a lazy "any
+    // chars" quantifier immediately followed by an *optional* group lets the
+    // regex engine satisfy the optional group by matching zero occurrences
+    // right where the lazy quantifier starts, since nothing after it is
+    // mandatory - it never gets pressured to backtrack forward to where
+    // "lineNumber" actually appears, so that capture group was always empty.
+    // Extracting the source block first and searching each key independently
+    // (key order in the payload isn't guaranteed anyway) sidesteps that.
+    val block = Regex("\"source\"\\s*:\\s*\\{([^}]*)}").find(element)?.groupValues?.get(1) ?: return null
+    val fileValue = Regex("\"fileName\"\\s*:\\s*\"([^\"]+)\"").find(block)?.groupValues?.get(1) ?: return null
+    val file = fileValue.substringAfterLast('/')
+    val line = Regex("\"lineNumber\"\\s*:\\s*(\\d+)").find(block)?.groupValues?.get(1)
     return if (line != null) "$file:$line" else file
 }

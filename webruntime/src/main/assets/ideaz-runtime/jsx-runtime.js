@@ -36,7 +36,30 @@ function jsxImpl(type, props, key, isStaticChildren, source, self) {
         return React.createElement(type, config);
     }
     if (Array.isArray(children)) {
-        return React.createElement(type, config, ...children);
+        // Real React's jsxs never spreads the array into createElement's
+        // variadic children arguments - it leaves `children` as the array it
+        // already is. Spreading changed the element's shape in two provable
+        // ways: an empty array (a `.map()` over an empty list, a real and
+        // common case) collapses to zero variadic arguments, and
+        // createElement sets props.children to `undefined` when it receives
+        // none - not `[]` - which anything downstream inspecting "is this
+        // position a list" sees differently. And createElement's own
+        // duplicate/missing-key warnings only fire for children that arrive
+        // as a single array argument, not for children spread across
+        // discrete positional arguments, so spreading silently dropped those
+        // warnings too.
+        //
+        // The natural fix - build the element, then assign the real array
+        // onto element.props.children directly - throws: React's dev build
+        // (react.umd.js) Object.freezes element.props before returning. So
+        // set it on `config` instead: createElement's own config-copy loop
+        // (everything but key/ref/__self/__source) already treats a
+        // "children" property on config exactly like an explicit prop,
+        // landing it on props.children with no copy and no variadic
+        // collapsing to fight with, since zero children arguments are
+        // passed here.
+        config.children = children;
+        return React.createElement(type, config);
     }
     return React.createElement(type, config, children);
 }

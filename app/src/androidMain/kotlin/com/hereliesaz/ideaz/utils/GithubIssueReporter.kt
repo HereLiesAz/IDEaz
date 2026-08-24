@@ -82,10 +82,17 @@ object GithubIssueReporter {
 
         // Truncate for safety (API limit ~65k chars, URL limit 2k-8k). Keep the
         // head — the exception and app frames live at the top of a stack trace.
+        val appVersion = try {
+            val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            "${pInfo.versionName} (${pInfo.longVersionCode})"
+        } catch (e: Exception) {
+            "Unknown"
+        }
+
         val bodyContent = """
             **Context:** ${sanitizeContent(contextMessage)}
             **Device:** ${Build.MANUFACTURER} ${Build.MODEL} (SDK ${Build.VERSION.SDK_INT})
-            **App Version:** 1.0 (Development)
+            **App Version:** $appVersion
 
             **Stack Trace:**
             ```

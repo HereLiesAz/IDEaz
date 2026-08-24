@@ -43,6 +43,23 @@ class LogSanitizerTest {
     }
 
     @Test
+    fun `redacts current OpenAI project-scoped keys`() {
+        // sk-proj-... is OpenAI's current default format. The embedded
+        // hyphen after "proj" broke a plain-alphanumeric sk- pattern - it
+        // never reached the 20-char run length before hitting the hyphen.
+        val key = "sk-proj-abcdefGHIJKL_1234567890-abcdefGHIJKL1234567890"
+        val result = LogSanitizer.sanitize("key=$key")
+        assertFalse(result.contains(key))
+    }
+
+    @Test
+    fun `redacts Cerebras keys`() {
+        val key = "csk-abcdefghijklmnopqrstuvwxyz1234567890"
+        val result = LogSanitizer.sanitize("key=$key")
+        assertFalse(result.contains(key))
+    }
+
+    @Test
     fun `leaves unrelated text untouched`() {
         val text = "Build succeeded in 12s with 0 warnings."
         assertEquals(text, LogSanitizer.sanitize(text))

@@ -265,7 +265,11 @@ class AnthropicAdapter(
         }
     }
 
-    private fun JsonPrimitive.contentOrNullSafe(): String? = if (isString) content else content
+    // JsonNull is a JsonPrimitive with isString == false and content == "null" -
+    // without this explicit check, a JSON null argument value silently became
+    // the literal string "null" instead of Kotlin null, both in chat display
+    // and in AI-written file content.
+    private fun JsonPrimitive.contentOrNullSafe(): String? = if (this is JsonNull) null else content
 
     private fun AiToolSpec.toAnthropicTool(): JsonElement = buildJsonObject {
         put("name", name)

@@ -16,13 +16,16 @@ object LogSanitizer {
         // Google API Keys (AIza...)
         Regex("AIza[0-9A-Za-z-_]{35}") to REDACTED,
 
-        // OpenAI (sk-...) and Anthropic (sk-ant-...) keys.
+        // OpenAI (sk-..., and the current sk-proj-... project-scoped format,
+        // whose embedded hyphens don't match a plain alphanumeric run) and
+        // Anthropic (sk-ant-...) keys.
         Regex("sk-ant-[a-zA-Z0-9_-]{20,}") to REDACTED,
-        Regex("sk-[a-zA-Z0-9]{20,}") to REDACTED,
+        Regex("sk-[a-zA-Z0-9_-]{20,}") to REDACTED,
 
-        // Hugging Face (hf_...) and Groq (gsk_...) keys.
+        // Hugging Face (hf_...), Groq (gsk_...), and Cerebras (csk-...) keys.
         Regex("hf_[a-zA-Z0-9]{20,}") to REDACTED,
         Regex("gsk_[a-zA-Z0-9]{20,}") to REDACTED,
+        Regex("csk-[a-zA-Z0-9]{20,}") to REDACTED,
 
         // Bearer tokens - keep "Bearer " prefix
         Regex("(Bearer\\s+)[a-zA-Z0-9_\\-\\.]+") to "$1$REDACTED",

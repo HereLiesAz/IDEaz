@@ -220,10 +220,23 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 val response = client.chat(stateDelegate.chatMessages.value)
-                stateDelegate.appendChatMessage(ChatMessage("model", response, model.displayName))
-                // Any file writes have already happened inside the tool-use loop;
-                // hard-reload so the WebView picks up the changes immediately.
-                stateDelegate.triggerWebHardReload()
+                // chat() signals a handled failure (network error, unexpected
+                // response shape) by returning an "Error: " string rather than
+                // throwing - see IdeTools' class doc for the same contract on
+                // tool results. Without this check every such failure rendered
+                // as an ordinary assistant reply instead of an error bubble.
+                val message = if (response.startsWith("Error: ")) {
+                    ChatMessage.error(response)
+                } else {
+                    ChatMessage("model", response, model.displayName)
+                }
+                stateDelegate.appendChatMessage(message)
+                // chat() only returns here (rather than throwing
+                // AiEditApprovalRequiredException) when no mutating tool ran
+                // this turn, or one ran but produced zero net file changes -
+                // see each adapter's complete(). Either way nothing on disk
+                // changed, so there is nothing for the WebView to reload;
+                // approveEdit/restoreEdit below reload after a real change.
             } catch (e: AiEditApprovalRequiredException) {
                 stateDelegate.editReview.value
                     ?.takeIf { it.status == EditReviewStatus.APPROVED }
@@ -490,16 +503,17 @@ class MainViewModel(
     fun flushNonFatalErrors() {
         val errors = ErrorCollector.getAndClear()
         if (errors != null) {
-            val apiKey = settingsViewModel.getApiKey()
             val githubToken = settingsViewModel.getGithubToken()
             val githubUser = settingsViewModel.getGithubUser() ?: "Unknown"
             val reportToGithub = settingsViewModel.isReportIdeErrorsEnabled()
 
-            // See CrashHandler.handleCrash for why this can't require the
-            // Jules key alone - a GitHub-only reporting user needs neither it
-            // nor a Jules project ID.
+            // Mirrors CrashHandler.handleCrash: reporting needs the user's
+            // consent (KEY_REPORT_IDE_ERRORS) and a GitHub token to file the
+            // issue with. This intent only ever carries GitHub extras - the
+            // Jules API key is unrelated to this path and must never bypass
+            // consent on its own.
             val canReportToGithub = reportToGithub && !githubToken.isNullOrBlank()
-            if (!apiKey.isNullOrBlank() || canReportToGithub) {
+            if (canReportToGithub) {
                 val intent = Intent(getApplication(), CrashReportingService::class.java).apply {
                     action = CrashReportingService.ACTION_REPORT_NON_FATAL
                     putExtra(CrashReportingService.EXTRA_GITHUB_TOKEN, githubToken)
@@ -536,14 +550,20 @@ class MainViewModel(
         // public/index.html or src/index.html - which the load gate admits and
         // launchTargetApp mounts happily - was refused right here. Build and App
         // View disagreed about the same project.
-        if (ProjectAnalyzer.findWebEntryPoint(projectDir) == null) {
+        val entryPoint = ProjectAnalyzer.findWebEntryPoint(projectDir)
+        if (entryPoint == null) {
             logHandler.onBuildLog(
                 "[IDE] $appName has no index.html, so there is nothing to preview.\n"
             )
             return
         }
         stateDelegate.setCurrentWebProjectDir(projectDir)
-        stateDelegate.setCurrentWebUrl(WebProjectUrlUtils.localProjectRootUrl())
+        // Navigate to the entry point that was actually found, not always the
+        // root's own index.html - a project whose entry lives at
+        // public/index.html passed the check above but WebProjectPathHandler
+        // has no root-level index.html to serve, so it used to show its "no
+        // index.html" diagnostic despite the gate having just admitted it.
+        stateDelegate.setCurrentWebUrl(WebProjectUrlUtils.localProjectUrl(entryPoint))
         stateDelegate.setTargetAppVisible(true)
         editorViewModel.setProjectDir(projectDir)
     }
@@ -1093,7 +1113,8 @@ class MainViewModel(
         if (stateDelegate.currentWebUrl.value == null) {
             // Mount the project at the asset-loader root (same-origin,
             // service-worker safe; resolves root-absolute references).
-            if (ProjectAnalyzer.findWebEntryPoint(projectDir) == null) {
+            val entryPoint = ProjectAnalyzer.findWebEntryPoint(projectDir)
+            if (entryPoint == null) {
                 // App View mounting is gated on currentWebUrl being set, so
                 // setTargetAppVisible(true) with no URL used to fall through to
                 // MainScreen's Android placeholder - "Android target host arrives
@@ -1105,7 +1126,9 @@ class MainViewModel(
                 return
             }
             stateDelegate.setCurrentWebProjectDir(projectDir)
-            stateDelegate.setCurrentWebUrl(WebProjectUrlUtils.localProjectRootUrl())
+            // See openPreview() for why this must be the entry point that was
+            // actually found, not always the root's own index.html.
+            stateDelegate.setCurrentWebUrl(WebProjectUrlUtils.localProjectUrl(entryPoint))
         }
         startFileObservation(projectDir)
         stateDelegate.setTargetAppVisible(true)

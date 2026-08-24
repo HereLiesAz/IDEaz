@@ -236,10 +236,24 @@ class IdeTools(private val projectDir: File) {
         val paths = when (toolName) {
             "write_file" -> listOf(arguments["path"].orEmpty())
             "apply_patch" -> arguments["patch"].orEmpty().lineSequence()
-                .filter { it.startsWith("--- ") || it.startsWith("+++ ") }
-                .map { it.substring(4).substringBefore('\t').trim() }
+                .mapNotNull { line ->
+                    // Unified diff convention: a "---" line is always prefixed
+                    // "a/" and a "+++" line always "b/" - never both, and never
+                    // the other way round. Stripping only the prefix that
+                    // matches the line's own type (rather than chaining both
+                    // strips unconditionally) avoids double-stripping a real
+                    // path whose own top-level directory happens to be named
+                    // "a" or "b" - a chained strip silently turned a deleted
+                    // "b/config.js" into the nonexistent "config.js", making
+                    // the deletion vanish from review entirely.
+                    val prefix = when {
+                        line.startsWith("--- ") -> "a/"
+                        line.startsWith("+++ ") -> "b/"
+                        else -> return@mapNotNull null
+                    }
+                    line.substring(4).substringBefore('\t').trim().removePrefix(prefix)
+                }
                 .filter { it != "/dev/null" }
-                .map { it.removePrefix("a/").removePrefix("b/") }
                 .distinct()
                 .toList()
             else -> emptyList()

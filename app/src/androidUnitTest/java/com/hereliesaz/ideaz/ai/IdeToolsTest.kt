@@ -195,6 +195,45 @@ class IdeToolsTest {
     }
 
     @Test
+    fun `captureToolEdit does not lose a deletion under a top-level b directory`() {
+        // Regression for a chained removePrefix("a/").removePrefix("b/") bug:
+        // a "---" line's own git-diff prefix is "a/", but once that's
+        // stripped, a second unconditional removePrefix("b/") could still
+        // match and over-strip if the real project path's own top-level
+        // directory happened to be named "b" - turning "b/config.js" into
+        // the nonexistent "config.js" and silently dropping the deletion
+        // from review entirely.
+        tempFolder.newFolder("b")
+        tempFolder.newFile("b/config.js").writeText("old")
+        val checkpoint = tools.createEditCheckpoint("before AI edit")
+        tools.captureToolEdit(
+            checkpoint,
+            "apply_patch",
+            mapOf("patch" to "--- a/b/config.js\n+++ /dev/null\n@@ -1 +0,0 @@\n-old\n"),
+        )
+        tempFolder.root.resolve("b/config.js").delete()
+
+        assertEquals(listOf("b/config.js"), tools.reviewEdits(checkpoint).changedFiles)
+        tools.discardEditCheckpoint(checkpoint)
+    }
+
+    @Test
+    fun `captureToolEdit handles a top-level a directory on both diff lines`() {
+        tempFolder.newFolder("a")
+        tempFolder.newFile("a/style.css").writeText("old")
+        val checkpoint = tools.createEditCheckpoint("before AI edit")
+        tools.captureToolEdit(
+            checkpoint,
+            "apply_patch",
+            mapOf("patch" to "--- a/a/style.css\n+++ b/a/style.css\n@@ -1 +1 @@\n-old\n+new\n"),
+        )
+        tools.writeFile("a/style.css", "new")
+
+        assertEquals(listOf("a/style.css"), tools.reviewEdits(checkpoint).changedFiles)
+        tools.discardEditCheckpoint(checkpoint)
+    }
+
+    @Test
     fun `startup reconciliation recovers a completed write for explicit review`() {
         tempFolder.newFile("index.html").writeText("before")
         val checkpoint = tools.createEditCheckpoint("before AI edit")

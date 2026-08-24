@@ -175,7 +175,20 @@ jobs:
             # doesn't skip the dependency-jar cache (still fast, unaffected),
             # only the specific mechanism most likely to be the actual carrier
             # of stale state across runs.
-            if [ -x ./gradlew ]; then BUILD_COMMAND="./gradlew build -PversionBuild=$BUILD_NUMBER"
+            # bundleDebug/bundleRelease alongside build(): :app depends on the
+            # install-time dynamic-feature module :webruntime for its ~4.5MB
+            # bundled JS runtime, and `build` does not include the bundle
+            # tasks by default. The AAB these produce is fed to the "Fuse
+            # release APK" step below, which is the only thing that makes the
+            # runtime end up in the single APK this workflow publishes - see
+            # that step for why assembleRelease's own APK output can't be
+            # published directly.
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              BUNDLE_TASK="bundleRelease"
+            else
+              BUNDLE_TASK="bundleDebug"
+            fi
+            if [ -x ./gradlew ]; then BUILD_COMMAND="./gradlew build $BUNDLE_TASK -PversionBuild=$BUILD_NUMBER"
             elif [ -f package.json ]; then BUILD_COMMAND="npm ci && npm test && npm run build"
             elif [ -f pyproject.toml ]; then BUILD_COMMAND="python -m build"
             else echo "Set the BUILD_COMMAND repository variable" >&2; exit 1
@@ -304,6 +317,94 @@ jobs:
       # RELEASE STEPS (push to master, or a manual run against master -
       # there's no pull_request trigger left to exclude)
       # ------------------------------------------------------------------
+      - name: Fuse release APK
+        # Every APK this workflow has ever published to GitHub Releases has
+        # been missing the entire ~4.5MB web runtime (Babel, React, the
+        # in-browser loader) that every preview depends on - confirmed by
+        # inspecting a real assembleRelease output: `assets/ideaz-runtime/`
+        # is entirely absent from :app's own APK.
+        #
+        # :webruntime is an install-time dynamic-feature module (see its
+        # AndroidManifest's `<dist:fusing include="true"/>`), which is a
+        # bundletool concept: it controls whether the module gets merged into
+        # a *standalone* APK that bundletool generates from an .aab for
+        # devices below API 21. This app's minSdk is 30, so bundletool never
+        # produces a standalone APK for it, and the fusing flag has never had
+        # anything to act on. A plain `./gradlew assembleRelease` isn't
+        # bundletool at all - it's Gradle's per-module APK packaging, which
+        # produces :app's base APK and :webruntime's feature APK as two
+        # separate files, and the artifact-selection step below has always
+        # picked the base one (it sorts first alphabetically). The Play
+        # publish path (publish-play.yml) never hit this: it uploads the .aab
+        # directly and Play's own delivery infrastructure installs the
+        # install-time module alongside the base at install time.
+        #
+        # The fix is the same tool AGP itself uses to test dynamic-feature
+        # delivery: build the .aab (see the bundleDebug/bundleRelease task
+        # added to the Gradle command above), then ask bundletool for a
+        # *universal* APK, which is the one APK-set mode that genuinely fuses
+        # every install-time module into a single, ordinary, sideloadable
+        # file - verified locally: unzipping a universal APK built this way
+        # shows all 21 vendored runtime files under `assets/ideaz-runtime/`.
+        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == github.event.repository.default_branch
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          # KEYSTORE_FILE is set by "Prepare Keystore from Secrets" above when
+          # release-signing secrets are configured; unset for the debug build.
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VARIANT="release"
+            AAB="app/build/outputs/bundle/release/app-release.aab"
+            KS="${KEYSTORE_FILE:?KEYSTORE_FILE must be set to fuse a release build - see 'Prepare Keystore from Secrets'}"
+            KS_PASS="$KEYSTORE_PASSWORD"
+            KS_ALIAS="$KEY_ALIAS"
+            KEY_PASS_VALUE="$KEY_PASSWORD"
+          else
+            VARIANT="debug"
+            AAB="app/build/outputs/bundle/debug/app-debug.aab"
+            # AGP's well-known, unsecret debug keystore - same credentials
+            # app/build.gradle.kts's own `debug` signingConfig uses.
+            KS="app/debug.keystore"
+            KS_PASS="android"
+            KS_ALIAS="androiddebugkey"
+            KEY_PASS_VALUE="android"
+          fi
+          test -f "$AAB" || { echo "Expected bundle not found: $AAB" >&2; exit 1; }
+
+          BUNDLETOOL_VERSION="1.18.3"
+          curl -sSL --fail -o bundletool.jar \
+            "https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar"
+
+          java -jar bundletool.jar build-apks \
+            --bundle="$AAB" \
+            --output=fused.apks \
+            --mode=universal \
+            --ks="$KS" \
+            --ks-pass="pass:$KS_PASS" \
+            --ks-key-alias="$KS_ALIAS" \
+            --key-pass="pass:$KEY_PASS_VALUE" \
+            --overwrite
+
+          unzip -p fused.apks universal.apk > "fused-$VARIANT.apk"
+
+          # The whole point of this step - fail loudly here rather than
+          # publish a second silently-broken APK.
+          # NOTE: the listing is captured into a variable before grep runs,
+          # rather than piped directly (`unzip -l ... | grep -q ...`). Piping
+          # into `grep -q` lets grep exit as soon as it finds a match, which
+          # can SIGPIPE the still-writing `unzip -l` process; under
+          # `set -o pipefail` that surfaces as a spurious pipeline failure
+          # even though the pattern was actually found.
+          LISTING=$(unzip -l "fused-$VARIANT.apk")
+          if ! grep -q 'assets/ideaz-runtime/' <<< "$LISTING"; then
+            echo "::error::fused-$VARIANT.apk is missing assets/ideaz-runtime/ - the web runtime did not survive fusing" >&2
+            exit 1
+          fi
+          echo "FUSED_APK=$(pwd)/fused-$VARIANT.apk" >> "$GITHUB_ENV"
+
       - name: Prepare Release Variables
         if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == github.event.repository.default_branch
         id: release_vars
@@ -338,6 +439,13 @@ jobs:
           ARTIFACT_GLOB="${RELEASE_ARTIFACT_PATH_VAR}"
           if [ -n "$ARTIFACT_GLOB" ]; then
             ARTIFACT=$(find . -path "$ARTIFACT_GLOB" -type f | sort | head -n 1)
+          elif [ -n "${FUSED_APK:-}" ] && [ -f "$FUSED_APK" ]; then
+            # The "Fuse release APK" step above already built exactly the
+            # file this trigger publishes - a single APK with :webruntime's
+            # assets genuinely fused in, not one of :app's/:webruntime's
+            # separate per-module outputs. Use it directly instead of
+            # re-deriving which loose build/outputs/ file to guess at.
+            ARTIFACT="$FUSED_APK"
           else
             # A plain glob+sort over both build variants picks whichever path
             # sorts first alphabetically - 'debug' < 'release' - regardless of
@@ -346,7 +454,8 @@ jobs:
             # prerelease "Latest Release". Prefer the variant this trigger
             # actually publishes (debug on push, release on workflow_dispatch);
             # only fall back to the broad search for non-Android build types
-            # (npm/python/etc) that have no debug/release split.
+            # (npm/python/etc) that have no debug/release split, or if the
+            # fuse step above didn't run for some reason.
             if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
               PREFERRED_PATH='*/release/*'
             else

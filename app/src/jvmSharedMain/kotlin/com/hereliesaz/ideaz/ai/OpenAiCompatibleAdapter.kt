@@ -11,6 +11,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -285,7 +286,11 @@ private fun ChatMessage.toOpenAiMessage(): JsonObject = buildJsonObject {
     }
 }
 
-private fun JsonPrimitive.contentOrNullSafe(): String? = if (isString) content else content
+// JsonNull is a JsonPrimitive with isString == false and content == "null" -
+// without this explicit check, a JSON null argument value silently became
+// the literal string "null" instead of Kotlin null, both in chat display
+// and in AI-written file content.
+private fun JsonPrimitive.contentOrNullSafe(): String? = if (this is JsonNull) null else content
 
 private fun AiToolSpec.toOpenAiTool(): JsonElement = buildJsonObject {
     put("type", "function")

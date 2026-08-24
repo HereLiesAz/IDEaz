@@ -62,7 +62,23 @@ class WebProjectPathHandler(
         if (!file.isFile) {
             // A missing entry document otherwise renders as a blank white page
             // with no explanation; serve a diagnostic instead.
-            return if (relative == "index.html") diagnosticIndexPage(projectDir) else notFound()
+            if (relative == "index.html") return diagnosticIndexPage(projectDir)
+
+            // SPA history-API fallback. A client-side router (React Router,
+            // etc.) changes the WebView's URL to routes like
+            // "dashboard/settings" that are never real files - only the JS
+            // router resolves them. A page reload (or deep link) replays
+            // that URL as a fresh request here, and without this fallback it
+            // 404s instead of re-mounting the app so the router can take
+            // over, exactly like a static file host with no dev-server
+            // rewrite rules would. Only fall back for extensionless paths -
+            // a request for a real, missing asset (some/path/logo.png) must
+            // still 404 rather than silently serve HTML in its place.
+            if (!relative.substringAfterLast('/').contains('.')) {
+                val rootIndex = File(root, "index.html")
+                if (rootIndex.isFile) return serveHtml(rootIndex)
+            }
+            return notFound()
         }
 
         val ext = file.extension.lowercase()
@@ -250,10 +266,20 @@ class WebProjectPathHandler(
                 else -> INJECTION + html
             }
 
-            return withRuntime
-                .replace("type=\"module\"", "type=\"ideaz-module\"")
-                .replace("type='module'", "type='ideaz-module'")
+            // Case-insensitive to match needsRuntime()'s own detection (which
+            // lowercases the whole document first) and the HTML spec, which
+            // matches a <script> type value of "module" ASCII
+            // case-insensitively. A literal, case-sensitive replace here
+            // left a <script type="MODULE"> tag un-neutralized even though
+            // needsRuntime() had already decided the runtime was needed for
+            // it - the browser still tried to execute the raw JSX natively
+            // and failed, runtime injected or not.
+            return MODULE_TYPE_REGEX.replace(withRuntime) { m ->
+                "type=${m.groupValues[1]}ideaz-module${m.groupValues[1]}"
+            }
         }
+
+        private val MODULE_TYPE_REGEX = Regex("""type\s*=\s*(["'])module\1""", RegexOption.IGNORE_CASE)
 
         fun mimeFor(ext: String): String = when (ext) {
             "js", "mjs", "cjs", "jsx", "ts", "tsx" -> "text/javascript"

@@ -78,6 +78,10 @@ fun MainScreen(viewModel: MainViewModel) {
     if (showCrashReportingFirstRun) {
         AlertDialog(
             onDismissRequest = {
+                // Scrim-tap or back-press is a dismissal, not a choice - and
+                // the setting defaults to true, so treat it the same as
+                // "Don't allow" rather than silently leaving reporting on.
+                settingsViewModel.setReportIdeErrorsEnabled(false)
                 settingsViewModel.markCrashReportingFirstRunShown()
                 showCrashReportingFirstRun = false
             },
