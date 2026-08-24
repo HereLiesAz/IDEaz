@@ -550,14 +550,20 @@ class MainViewModel(
         // public/index.html or src/index.html - which the load gate admits and
         // launchTargetApp mounts happily - was refused right here. Build and App
         // View disagreed about the same project.
-        if (ProjectAnalyzer.findWebEntryPoint(projectDir) == null) {
+        val entryPoint = ProjectAnalyzer.findWebEntryPoint(projectDir)
+        if (entryPoint == null) {
             logHandler.onBuildLog(
                 "[IDE] $appName has no index.html, so there is nothing to preview.\n"
             )
             return
         }
         stateDelegate.setCurrentWebProjectDir(projectDir)
-        stateDelegate.setCurrentWebUrl(WebProjectUrlUtils.localProjectRootUrl())
+        // Navigate to the entry point that was actually found, not always the
+        // root's own index.html - a project whose entry lives at
+        // public/index.html passed the check above but WebProjectPathHandler
+        // has no root-level index.html to serve, so it used to show its "no
+        // index.html" diagnostic despite the gate having just admitted it.
+        stateDelegate.setCurrentWebUrl(WebProjectUrlUtils.localProjectUrl(entryPoint))
         stateDelegate.setTargetAppVisible(true)
         editorViewModel.setProjectDir(projectDir)
     }
@@ -1107,7 +1113,8 @@ class MainViewModel(
         if (stateDelegate.currentWebUrl.value == null) {
             // Mount the project at the asset-loader root (same-origin,
             // service-worker safe; resolves root-absolute references).
-            if (ProjectAnalyzer.findWebEntryPoint(projectDir) == null) {
+            val entryPoint = ProjectAnalyzer.findWebEntryPoint(projectDir)
+            if (entryPoint == null) {
                 // App View mounting is gated on currentWebUrl being set, so
                 // setTargetAppVisible(true) with no URL used to fall through to
                 // MainScreen's Android placeholder - "Android target host arrives
@@ -1119,7 +1126,9 @@ class MainViewModel(
                 return
             }
             stateDelegate.setCurrentWebProjectDir(projectDir)
-            stateDelegate.setCurrentWebUrl(WebProjectUrlUtils.localProjectRootUrl())
+            // See openPreview() for why this must be the entry point that was
+            // actually found, not always the root's own index.html.
+            stateDelegate.setCurrentWebUrl(WebProjectUrlUtils.localProjectUrl(entryPoint))
         }
         startFileObservation(projectDir)
         stateDelegate.setTargetAppVisible(true)
