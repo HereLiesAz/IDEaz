@@ -1,16 +1,28 @@
 package com.hereliesaz.ideaz.ui.web
 
+import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import java.io.File
 
 /**
- * Unit tests for the pure HTML/MIME helpers in [WebProjectPathHandler]. The
- * `handle()` request path needs an Android Context + WebResourceResponse and is
- * covered manually on device (see the plan's verification section).
+ * Unit tests for the pure HTML/MIME helpers in [WebProjectPathHandler], plus
+ * `handle()`'s SPA history-API fallback (the rest of `handle()`'s request path
+ * is covered manually on device - see the plan's verification section).
  */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class WebProjectPathHandlerTest {
+
+    @get:Rule
+    val tempFolder = TemporaryFolder()
 
     @Test
     fun needsRuntime_trueForModuleScripts() {
@@ -80,5 +92,51 @@ class WebProjectPathHandlerTest {
         assertEquals("image/png", WebProjectPathHandler.mimeFor("png"))
         assertEquals("image/svg+xml", WebProjectPathHandler.mimeFor("svg"))
         assertEquals("application/octet-stream", WebProjectPathHandler.mimeFor("unknownext"))
+    }
+
+    // --- handle(): SPA history-API fallback ---
+
+    private fun handlerFor(projectDir: File) = WebProjectPathHandler(
+        ApplicationProvider.getApplicationContext(),
+    ) { projectDir }
+
+    @Test
+    fun handle_fallsBackToIndexForAnExtensionlessClientSideRoute() {
+        val project = tempFolder.newFolder("project")
+        File(project, "index.html").writeText("<html><body>app shell</body></html>")
+
+        // A client-side router (React Router, etc.) changes the WebView's URL
+        // to routes like this that are never real files. A reload replays it
+        // as a fresh request; without the fallback this 404s instead of
+        // re-mounting the app so the router can resolve it.
+        val response = handlerFor(project).handle("dashboard/settings")
+
+        assertEquals(200, response?.statusCode)
+        assertEquals("text/html", response?.mimeType)
+        val body = response?.data?.readBytes()?.toString(Charsets.UTF_8)
+        assertTrue("serves the SPA shell, not a 404", body?.contains("app shell") == true)
+    }
+
+    @Test
+    fun handle_stillReturns404ForAGenuinelyMissingAsset() {
+        val project = tempFolder.newFolder("project2")
+        File(project, "index.html").writeText("<html><body>app shell</body></html>")
+
+        // A path with a real extension that doesn't exist is a missing
+        // asset, not a client-side route - it must still 404 rather than
+        // silently serving HTML in its place.
+        val response = handlerFor(project).handle("assets/logo.png")
+
+        assertEquals(404, response?.statusCode)
+    }
+
+    @Test
+    fun handle_404sAnExtensionlessRouteWhenProjectHasNoIndexToFallBackTo() {
+        val project = tempFolder.newFolder("project3")
+        // No index.html anywhere in this project: nothing to fall back to.
+
+        val response = handlerFor(project).handle("dashboard/settings")
+
+        assertEquals(404, response?.statusCode)
     }
 }
