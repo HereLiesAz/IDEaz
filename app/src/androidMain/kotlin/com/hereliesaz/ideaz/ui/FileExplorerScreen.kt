@@ -29,8 +29,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 
 private sealed class FileExplorerDialog {
     object NewFile : FileExplorerDialog()
@@ -328,7 +326,17 @@ fun FileExplorerScreen(
                                 if (file.isDirectory) {
                                     currentPath = file
                                 } else {
-                                    val encodedPath = URLEncoder.encode(file.absolutePath, StandardCharsets.UTF_8.toString())
+                                    // URLEncoder is for application/x-www-form-urlencoded
+                                    // query strings - it encodes a space as "+", not
+                                    // "%20". Jetpack Navigation decodes a route argument
+                                    // with plain percent-decoding, which never turns "+"
+                                    // back into a space, so any file whose path contained
+                                    // a space (a very ordinary thing) arrived at
+                                    // FileContentScreen with a literal "+" where the space
+                                    // should be - a path that matches no real file.
+                                    // Uri.encode is the one that actually matches how this
+                                    // route argument gets decoded.
+                                    val encodedPath = android.net.Uri.encode(file.absolutePath)
                                     navController.navigate("file_content/$encodedPath")
                                 }
                             },
