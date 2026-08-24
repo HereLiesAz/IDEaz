@@ -83,6 +83,13 @@ jobs:
       - name: Verify jsxs() array children match real React's shape
         run: node webruntime/src/test/js/jsx-array-children.test.mjs
 
+      # sourceOf() in ideaz-bridge.js used to check data-ideaz-source before
+      # the React fiber's own per-element source and return immediately -
+      # node.closest() walks every ancestor, so one data-ideaz-source near
+      # the app root silently overrode every tap beneath it.
+      - name: Verify the bridge prefers the fiber source over data-ideaz-source
+        run: node webruntime/src/test/js/bridge-source-priority.test.mjs
+
       - name: Compile, unit test, and lint
         shell: bash
         run: |

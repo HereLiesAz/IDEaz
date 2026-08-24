@@ -23,21 +23,7 @@
      * Returns null when nothing is available; the AI is told in its system
      * preamble to fall back to the selector in that case.
      */
-    function sourceOf(node) {
-        var declared = node.closest && node.closest('[data-ideaz-source]');
-        if (declared) {
-            var raw = declared.getAttribute('data-ideaz-source') || '';
-            var m = /^(.*?):(\d+)(?::(\d+))?$/.exec(raw);
-            if (m) {
-                return {
-                    fileName: m[1],
-                    lineNumber: parseInt(m[2], 10),
-                    columnNumber: m[3] ? parseInt(m[3], 10) : 0
-                };
-            }
-            if (raw) return { fileName: raw, lineNumber: 0, columnNumber: 0 };
-        }
-
+    function reactFiberSourceOf(node) {
         var el = node;
         var hops = 0;
         while (el && hops < 25) {
@@ -66,6 +52,36 @@
             hops++;
         }
         return null;
+    }
+
+    function declaredSourceOf(node) {
+        var declared = node.closest && node.closest('[data-ideaz-source]');
+        if (!declared) return null;
+        var raw = declared.getAttribute('data-ideaz-source') || '';
+        var m = /^(.*?):(\d+)(?::(\d+))?$/.exec(raw);
+        if (m) {
+            return {
+                fileName: m[1],
+                lineNumber: parseInt(m[2], 10),
+                columnNumber: m[3] ? parseInt(m[3], 10) : 0
+            };
+        }
+        if (raw) return { fileName: raw, lineNumber: 0, columnNumber: 0 };
+        return null;
+    }
+
+    function sourceOf(node) {
+        // React's own per-element _debugSource is exact - it names the JSX
+        // that produced *this* element, not whatever ancestor happens to
+        // carry a data-ideaz-source attribute. data-ideaz-source is a
+        // genuine fallback for when that isn't available (non-React
+        // projects, or a project that opts into it deliberately); checking
+        // it first made it a hard override instead - node.closest() walks
+        // every ancestor, so a single data-ideaz-source near the app root
+        // silently answered every tap anywhere beneath it with the same
+        // stale location, discarding the accurate per-element source React
+        // had right there on the fiber.
+        return reactFiberSourceOf(node) || declaredSourceOf(node);
     }
 
     /**
