@@ -1,7 +1,6 @@
 package com.hereliesaz.ideaz.services
 
 import android.content.Intent
-import com.hereliesaz.ideaz.api.AuthInterceptor
 import org.junit.Assert.assertEquals
 import org.junit.Ignore
 import org.junit.Test

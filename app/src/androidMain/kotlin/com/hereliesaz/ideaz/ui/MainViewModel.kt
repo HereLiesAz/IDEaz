@@ -490,16 +490,17 @@ class MainViewModel(
     fun flushNonFatalErrors() {
         val errors = ErrorCollector.getAndClear()
         if (errors != null) {
-            val apiKey = settingsViewModel.getApiKey()
             val githubToken = settingsViewModel.getGithubToken()
             val githubUser = settingsViewModel.getGithubUser() ?: "Unknown"
             val reportToGithub = settingsViewModel.isReportIdeErrorsEnabled()
 
-            // See CrashHandler.handleCrash for why this can't require the
-            // Jules key alone - a GitHub-only reporting user needs neither it
-            // nor a Jules project ID.
+            // Mirrors CrashHandler.handleCrash: reporting needs the user's
+            // consent (KEY_REPORT_IDE_ERRORS) and a GitHub token to file the
+            // issue with. This intent only ever carries GitHub extras - the
+            // Jules API key is unrelated to this path and must never bypass
+            // consent on its own.
             val canReportToGithub = reportToGithub && !githubToken.isNullOrBlank()
-            if (!apiKey.isNullOrBlank() || canReportToGithub) {
+            if (canReportToGithub) {
                 val intent = Intent(getApplication(), CrashReportingService::class.java).apply {
                     action = CrashReportingService.ACTION_REPORT_NON_FATAL
                     putExtra(CrashReportingService.EXTRA_GITHUB_TOKEN, githubToken)

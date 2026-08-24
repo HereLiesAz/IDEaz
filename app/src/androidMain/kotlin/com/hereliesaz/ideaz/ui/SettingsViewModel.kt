@@ -10,7 +10,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import androidx.core.content.edit
-import com.hereliesaz.ideaz.api.AuthInterceptor
 import com.hereliesaz.ideaz.utils.SecurityUtils
 import com.hereliesaz.ideaz.utils.AndroidKeystoreCredentialStore
 import com.hereliesaz.ideaz.utils.CredentialStore
@@ -268,10 +267,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
 
     init {
-        val savedKey = getApiKey()
-        if (savedKey != null) {
-            AuthInterceptor.apiKey = savedKey
-        }
         loadLocalProjects()
         _themeMode.value = getThemeMode()
         sharedPreferences.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
@@ -322,7 +317,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun saveApiKey(apiKey: String): Boolean {
         val trimmed = apiKey.trim()
         val saved = saveString(KEY_API_KEY, trimmed)
-        AuthInterceptor.apiKey = trimmed
         _apiKey.value = trimmed
         return saved
     }
@@ -588,8 +582,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     _currentAppName.value = getAppName()
                     _localProjects.value = getProjectList().toList()
                     _logLevel.value = getLogLevel()
-                    val key = getApiKey()
-                    if (key != null) AuthInterceptor.apiKey = key
                     _settingsVersion.value++
                     Toast.makeText(context, "Settings imported successfully", Toast.LENGTH_SHORT).show()
                 }
