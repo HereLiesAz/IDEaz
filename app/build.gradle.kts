@@ -343,65 +343,14 @@ configurations.named("androidMainImplementation") {
     exclude(group = "com.google.protobuf", module = "protobuf-java")
 }
 
-configurations.all {
-    resolutionStrategy {
-        force("androidx.concurrent:concurrent-futures:1.3.0")
-        force("androidx.concurrent:concurrent-futures-ktx:1.3.0")
-
-        // Security: pin transitive libraries flagged by Dependabot to patched versions.
-        // Jackson (via google-genai) and bcprov (GithubSecretBox) ship in the APK.
-        // The remaining copies are limited to test / lint-tooling classpaths:
-        // bcpkix/bcutil via Robolectric or AGP, commons-lang3 via AGP's lint tools,
-        // and Netty via grpc-netty on the unit-test classpath. Pin every occurrence;
-        // the release-runtime-only dependency submission below reports only what can
-        // ship, while local/CI resolution remains hardened on every configuration.
-        // The earlier foojay-resolver removal in settings.gradle.kts did not address
-        // these dependencies because that plugin was never their source.
-        force(
-            "org.bouncycastle:bcprov-jdk18on:1.85",
-            "org.bouncycastle:bcpkix-jdk18on:1.85",
-            "org.bouncycastle:bcutil-jdk18on:1.85",
-            "org.apache.commons:commons-lang3:3.20.0",
-            "com.google.protobuf:protobuf-java:4.35.1",
-            "com.google.protobuf:protobuf-kotlin:4.35.1",
-        )
-        dependencySubstitution {
-            substitute(module("com.google.protobuf:protobuf-javalite"))
-                .using(module("com.google.protobuf:protobuf-java:4.35.1"))
-                .because("Android cannot have both javalite and full protobuf-java on the same classpath")
-        }
-        eachDependency {
-            when {
-                // Jackson arrives as core/databind/annotations + datatype modules and a
-                // BOM; pin the whole family to a patched 2.18.x - currently 2.18.10, the
-                // latest patch in that line, closing 9 Dependabot alerts (CVE-2026-54512/
-                // 54514/54515/59889 and siblings; see docs/TODO.md's Production Readiness
-                // section for the full list).
-                //
-                // Two earlier attempts (2026-08-16, 2026-08-17) reverted this same move -
-                // a simultaneous Netty bump hanging CI, then an opaque, stack-trace-free
-                // `:app:packageDebug` failure with nothing to diagnose from the CI log
-                // alone. This attempt (2026-08-21) reproduced neither locally, with
-                // `--stacktrace` on: `:app:packageDebug`, `:app:checkDebugDuplicateClasses`,
-                // and a full `./gradlew build` all pass clean at 2.18.10, and
-                // `:app:dependencies --configuration debugRuntimeClasspath` confirms every
-                // Jackson module resolves to 2.18.10 with no conflicts. Whatever caused the
-                // prior failure looks CI-runner-specific rather than a real incompatibility
-                // - if `packageDebug` fails again in CI at this exact pin, that's the signal
-                // it's worth chasing as an environment issue, not a Jackson one.
-                requested.group.startsWith("com.fasterxml.jackson") ->
-                    useVersion("2.18.10")
-                // Netty arrives as ~11 modules via grpc-netty (unit-test only). Pin the
-                // io.netty group to the latest patched 4.1.x — staying off 4.2.x, which
-                // grpc-netty does not support. (netty-tcnative tracks a separate scheme.)
-                requested.group == "io.netty" &&
-                    requested.name.startsWith("netty-") &&
-                    !requested.name.startsWith("netty-tcnative") ->
-                    useVersion("4.1.134.Final")
-            }
-        }
-    }
-}
+// Security pins live in the ROOT build file's `subprojects` block, not here.
+// They were `configurations.all { ... }` in this file, which only ever reached
+// :app's own configurations. :webruntime resolves its own graph — it depends on
+// :app, so it inherits the *dependencies* but not the resolution rules — and the
+// dependency-submission workflow submits BOTH modules' releaseRuntimeClasspath.
+// So the SBOM carried :webruntime's unpinned Jackson 2.17.2 alongside :app's
+// pinned 2.18.10, and Dependabot kept reporting the 2.17.2 CVEs against a repo
+// whose app module had already been patched for them. See build.gradle.kts.
 
 // Constraints only. Every actual dependency lives in the kotlin { sourceSets }
 // block above, per target. These force secure versions on transitive deps that
