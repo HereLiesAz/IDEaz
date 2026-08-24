@@ -1053,24 +1053,12 @@ class MainViewModel(
         }
     }
 
-    /** Deletes a project locally. */
-    fun deleteProject(n: String) {
-        if (n.isBlank()) return
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                performLocalDeletion(n)
-                logHandler.onBuildLog("Project '$n' deleted locally.\n")
-            } catch (e: Exception) {
-                logHandler.onBuildLog("Error deleting project: ${e.message}\n")
-            }
-        }
-    }
-
     /**
      * Syncs changes to remote repository before deleting local files.
      * Prevents data loss.
      */
     fun syncAndDeleteProject(n: String) {
+        if (n.isBlank()) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val projectDir = settingsViewModel.getProjectPath(n)
