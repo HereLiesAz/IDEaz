@@ -148,7 +148,7 @@ eq("jsx() leaves _source null", prod._source, null);
 eq("key is absent when not passed", prod.key, null);
 
 const multi = shim.jsxs("ul", { children: [shim.jsx("li", { children: "a" }), shim.jsx("li", { children: "b" })] });
-eq("jsxs() spreads array children", sandbox.React.Children.count(multi.props.children), 2);
+eq("jsxs() array children render", sandbox.React.Children.count(multi.props.children), 2);
 
 console.log(failures === 0 ? "\nPASS" : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

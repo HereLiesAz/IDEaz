@@ -76,6 +76,13 @@ jobs:
       - name: Verify import cycles degrade instead of hanging the preview
         run: node webruntime/src/test/js/loader-import-cycle.test.mjs
 
+      # jsxs() used to spread array children into createElement's variadic
+      # arguments, which changed an element's shape versus real React's own
+      # jsx-runtime (an empty list became `undefined` children instead of
+      # `[]`) and silenced key warnings that only fire for array children.
+      - name: Verify jsxs() array children match real React's shape
+        run: node webruntime/src/test/js/jsx-array-children.test.mjs
+
       - name: Compile, unit test, and lint
         shell: bash
         run: |
