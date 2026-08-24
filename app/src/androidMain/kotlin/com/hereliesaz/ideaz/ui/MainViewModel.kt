@@ -220,7 +220,17 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 val response = client.chat(stateDelegate.chatMessages.value)
-                stateDelegate.appendChatMessage(ChatMessage("model", response, model.displayName))
+                // chat() signals a handled failure (network error, unexpected
+                // response shape) by returning an "Error: " string rather than
+                // throwing - see IdeTools' class doc for the same contract on
+                // tool results. Without this check every such failure rendered
+                // as an ordinary assistant reply instead of an error bubble.
+                val message = if (response.startsWith("Error: ")) {
+                    ChatMessage.error(response)
+                } else {
+                    ChatMessage("model", response, model.displayName)
+                }
+                stateDelegate.appendChatMessage(message)
                 // Any file writes have already happened inside the tool-use loop;
                 // hard-reload so the WebView picks up the changes immediately.
                 stateDelegate.triggerWebHardReload()
