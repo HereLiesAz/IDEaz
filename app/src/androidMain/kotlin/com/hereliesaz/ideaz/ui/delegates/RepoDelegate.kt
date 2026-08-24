@@ -351,9 +351,19 @@ class RepoDelegate(
      * injection used to ride along here. Both existed for the Android edit
      * target and are gone with it.
      */
-    fun forceUpdateInitFiles() {
-        scope.launch(Dispatchers.IO) {
-            val appName = settingsViewModel.getAppName() ?: return@launch
+    // Deliberately `suspend`, not its own scope.launch: deployWebProject()
+    // calls this and then immediately does its own git commit()/push() on
+    // the same repository. A fire-and-forget launch here let both sets of
+    // git operations run concurrently against the same .git directory - a
+    // real race (index contention, interleaved staging) between this
+    // function's own addPaths()/commit()/push() below and the caller's.
+    // Being suspend means a caller already inside a coroutine (every call
+    // site is) genuinely awaits this before doing anything else with the
+    // repo; callers outside a coroutine (a Compose onClick) wrap it in their
+    // own launch instead - see MainViewModel.forceUpdateInitFiles().
+    suspend fun forceUpdateInitFiles() {
+        withContext(Dispatchers.IO) {
+            val appName = settingsViewModel.getAppName() ?: return@withContext
             val projectDir = settingsViewModel.getProjectPath(appName)
 
             // Generate files - collect exactly what changed so the commit below
@@ -366,7 +376,7 @@ class RepoDelegate(
 
             if (writtenPaths.isEmpty()) {
                 onOverlayLog("Init files already up to date — nothing to regenerate.")
-                return@launch
+                return@withContext
             }
             onOverlayLog("Regenerated: ${writtenPaths.joinToString(", ")}")
 

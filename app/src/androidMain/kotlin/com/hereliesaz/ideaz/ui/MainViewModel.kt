@@ -781,7 +781,13 @@ class MainViewModel(
     fun fetchGitHubRepos() = repoDelegate.fetchGitHubRepos()
     fun scanLocalProjects() = repoDelegate.scanLocalProjects()
     fun getLocalProjectsWithMetadata() = repoDelegate.getLocalProjectsWithMetadata()
-    fun forceUpdateInitFiles() = repoDelegate.forceUpdateInitFiles()
+    // forceUpdateInitFiles() is now suspend (see RepoDelegate for why); this
+    // proxy is called from a plain Compose onClick, not a coroutine, so it
+    // needs its own launch. Callers already inside a coroutine (deployWebProject,
+    // etc.) call repoDelegate.forceUpdateInitFiles() directly to actually await it.
+    fun forceUpdateInitFiles() {
+        viewModelScope.launch { repoDelegate.forceUpdateInitFiles() }
+    }
     /**
      * Creates a new project. Entirely local and offline: no GitHub account, no
      * token, no network.
@@ -809,7 +815,10 @@ class MainViewModel(
     /** Selects a repo and prepares it for use. */
     fun selectRepositoryForSetup(repo: GitHubRepoResponse, onSuccess: () -> Unit) {
         repoDelegate.selectRepositoryForSetup(repo) { owner, branch ->
-            repoDelegate.forceUpdateInitFiles()
+            // The callback itself isn't a suspend lambda even though
+            // RepoDelegate invokes it from inside a coroutine - needs its
+            // own scope to call the now-suspend forceUpdateInitFiles().
+            viewModelScope.launch { repoDelegate.forceUpdateInitFiles() }
             onSuccess()
         }
     }
