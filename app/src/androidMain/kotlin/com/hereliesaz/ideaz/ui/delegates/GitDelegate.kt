@@ -67,19 +67,24 @@ class GitDelegate(
      */
     suspend fun refreshGitData() = withContext(Dispatchers.IO) {
         val git = getGitManager() ?: return@withContext
-        try {
+
+        // Each call is independent: getBranches()/getStatus() can still
+        // throw (getCommitHistory() catches its own NoHeadException, but
+        // these don't), and a single try/catch around all of them meant one
+        // exception from an earlier call silently left every later
+        // StateFlow at its stale previous value - "likely just not a repo
+        // yet" doesn't hold once an earlier call in the same batch already
+        // succeeded, so this was never just the empty-repo case it assumed.
+        runCatching {
             // Sync current branch to settings so the UI knows what we are on
             val currentBranch = git.getCurrentBranch()
             if (currentBranch != null) {
                 settingsViewModel.saveBranchName(currentBranch)
             }
-
-            _commitHistory.value = git.getCommitHistory()
-            _branches.value = git.getBranches()
-            _gitStatus.value = git.getStatus()
-        } catch (e: Exception) {
-            // Log silently, likely just not a repo yet
         }
+        runCatching { _commitHistory.value = git.getCommitHistory() }
+        runCatching { _branches.value = git.getBranches() }
+        runCatching { _gitStatus.value = git.getStatus() }
     }
 
     /**
