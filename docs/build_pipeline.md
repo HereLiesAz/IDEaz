@@ -46,7 +46,7 @@ GitHub Actions workflows that need API keys (e.g., signing keystore, AI provider
 
 `.github/workflows/dependency-submission.yml` submits only configurations matching `.*[Rr]eleaseRuntimeClasspath`. This covers dependencies packaged into the release APK/AAB in both `:app` and `:webruntime` while excluding unit-test, instrumentation-test, lint, Gradle, AGP, plugin, and other CI-tooling classpaths.
 
-The boundary is deliberate. A production SBOM must describe the production artifact. Submitting every resolvable Gradle configuration previously caused GitHub to conflate build-runner copies of Netty, Apache HttpClient, Commons Lang, Jackson, and Bouncy Castle with the Android runtime graph. Build tooling is handled separately through pinned action/plugin versions and Dependabot updates. Runtime Jackson and Bouncy Castle remain in the submitted graph at the versions pinned by `app/build.gradle.kts`; narrowing submission does not relax resolution on any configuration.
+The boundary is deliberate. A production SBOM must describe the production artifact. Submitting every resolvable Gradle configuration previously caused GitHub to conflate build-runner copies of Netty, Apache HttpClient, Commons Lang, Jackson, and Bouncy Castle with the Android runtime graph. Build tooling is handled separately through pinned action/plugin versions and Dependabot updates. Runtime Jackson and Bouncy Castle remain in the submitted graph at the versions pinned by root `build.gradle.kts`'s `subprojects { configurations.all { resolutionStrategy { ... } } }` block (moved there from `app/build.gradle.kts` so :webruntime inherits the same pins, not just :app — see that file's comment); narrowing submission does not relax resolution on any configuration.
 
 ---
 
