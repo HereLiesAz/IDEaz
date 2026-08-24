@@ -266,10 +266,20 @@ class WebProjectPathHandler(
                 else -> INJECTION + html
             }
 
-            return withRuntime
-                .replace("type=\"module\"", "type=\"ideaz-module\"")
-                .replace("type='module'", "type='ideaz-module'")
+            // Case-insensitive to match needsRuntime()'s own detection (which
+            // lowercases the whole document first) and the HTML spec, which
+            // matches a <script> type value of "module" ASCII
+            // case-insensitively. A literal, case-sensitive replace here
+            // left a <script type="MODULE"> tag un-neutralized even though
+            // needsRuntime() had already decided the runtime was needed for
+            // it - the browser still tried to execute the raw JSX natively
+            // and failed, runtime injected or not.
+            return MODULE_TYPE_REGEX.replace(withRuntime) { m ->
+                "type=${m.groupValues[1]}ideaz-module${m.groupValues[1]}"
+            }
         }
+
+        private val MODULE_TYPE_REGEX = Regex("""type\s*=\s*(["'])module\1""", RegexOption.IGNORE_CASE)
 
         fun mimeFor(ext: String): String = when (ext) {
             "js", "mjs", "cjs", "jsx", "ts", "tsx" -> "text/javascript"

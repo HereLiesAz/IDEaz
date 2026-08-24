@@ -70,6 +70,19 @@ class WebProjectPathHandlerTest {
     }
 
     @Test
+    fun injectRuntime_neutralizesAnUpperOrMixedCaseModuleType() {
+        // needsRuntime() lowercases the whole document before checking, so it
+        // treats this as needing the runtime - the neutralization rewrite
+        // must actually agree, or the browser (which matches a <script>
+        // type of "module" ASCII case-insensitively) still executes the raw
+        // JSX natively instead of ideaz-loader.js ever seeing the tag.
+        val html = """<html><head></head><body><script type="MODULE" src="/src/main.jsx"></script></body></html>"""
+        val out = WebProjectPathHandler.injectRuntime(html)
+        assertTrue("MODULE (any case) is neutralized", out.contains("""type="ideaz-module""""))
+        assertFalse("no case-variant native module script remains", out.lowercase().contains("""type="module""""))
+    }
+
+    @Test
     fun injectRuntime_isIdempotent() {
         val html = """<html><head></head><body><script type="module" src="/m.jsx"></script></body></html>"""
         val once = WebProjectPathHandler.injectRuntime(html)
