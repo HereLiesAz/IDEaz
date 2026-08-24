@@ -228,14 +228,6 @@ fun SettingsScreen(
         }
     )
 
-    val installPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult(),
-        onResult = {
-            Log.d(TAG, "Returned from install settings")
-            refreshTrigger++
-        }
-    )
-
     val accessibilitySettingsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
         onResult = {
@@ -774,9 +766,6 @@ fun SettingsScreen(
                 val hasNotify by remember(refreshTrigger) {
                     mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED else true)
                 }
-                val hasInstall by remember(refreshTrigger) {
-                    mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.packageManager.canRequestPackageInstalls() else true)
-                }
                 val hasAccessibility by remember(refreshTrigger) {
                     mutableStateOf(isAccessibilityServiceEnabled(context, ".services.IdeazAccessibilityService"))
                 }
@@ -816,21 +805,6 @@ fun SettingsScreen(
                     onClick = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        }
-                    }
-                )
-
-                PermissionCheckRow(
-                    name = "Install Unknown Apps",
-                    description = "Needed only to install an IDEaz update you download in-app.",
-                    granted = hasInstall,
-                    onClick = {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            val intent = Intent(
-                                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                Uri.parse("package:${context.packageName}")
-                            )
-                            installPermissionLauncher.launch(intent)
                         }
                     }
                 )

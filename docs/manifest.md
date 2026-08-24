@@ -51,7 +51,7 @@
     * Lists locally-downloadable models, gated on AICore support / RAM-ABI requirements / a saved Hugging Face token where the model requires one.
 * **Permissions Section**
     * An **"Open App Info"** button and explanatory text at the top: Android can label Accessibility/Overlay grants "restricted" for a sideloaded app until the user visits system App Info and enables them via its overflow menu — this jumps straight there.
-    * Overlay, Accessibility, Post Notifications, and Install Unknown Apps checks, each with a one-line description of why IDEaz needs it. The Screen Capture (MediaProjection) row was removed — that's a Phase-2 (Android target) feature, dormant in the PWA-only product. Broad storage permissions were removed entirely (P0.2 permission-minimization); SAF pickers cover file access instead.
+    * Overlay, Accessibility, and Post Notifications checks, each with a one-line description of why IDEaz needs it. The Screen Capture (MediaProjection) row and Install Unknown Apps check were removed — in-app updates and screen capture were dormant/removed during permission minimization. Broad storage permissions were removed entirely (P0.2 permission-minimization); SAF pickers cover file access instead.
 * **Preferences Section**
     * **Show Cancel Warning Checkbox**: Toggles cancellation dialog.
     * **Auto-report IDE internal errors Checkbox**: Toggles the automated GitHub issue reporting feature (`GithubIssueReporter`).
