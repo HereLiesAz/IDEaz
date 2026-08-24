@@ -387,8 +387,13 @@ abstract class IncrementBuildNumberTask : DefaultTask() {
 
     @TaskAction
     fun increment() {
-        // CI supplies the build component via -PversionBuild (commit count); leave
-        // version.properties untouched in that case so the checkout stays clean.
+        // Skipped whenever `buildNumber` (see above) already has a real source
+        // for the build component - CI's -PversionBuild, or a local git commit
+        // count - which is every normal case. The file counter this writes is
+        // consulted only as buildNumber's last-resort fallback for a checkout
+        // with no usable git history at all, so bumping it on every single
+        // local assemble/bundle/install regardless dirtied version.properties
+        // (and busted the configuration cache) for a value nothing was reading.
         if (skip.get()) return
         val file = versionFile.get().asFile
         val props = Properties()
@@ -403,7 +408,9 @@ abstract class IncrementBuildNumberTask : DefaultTask() {
 
 tasks.register<IncrementBuildNumberTask>("incrementBuildNumber") {
     versionFile.set(rootProject.layout.projectDirectory.file("version.properties"))
-    skip.set(versionBuildOverride != null)
+    // Only the git-less fallback case needs this file counter to advance at
+    // all - see buildNumber's derivation and IncrementBuildNumberTask.increment().
+    skip.set(versionBuildOverride != null || gitCommitCount != null)
     outputs.upToDateWhen { false }
 }
 

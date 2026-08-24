@@ -1,19 +1,19 @@
 {
-    "grammars": [
+    "languages": [
         {
             "scopeName": "text.html.basic",
-            "path": "html.json",
-            "language": "html"
+            "grammar": "html.json",
+            "name": "html"
         },
         {
             "scopeName": "source.js",
-            "path": "js.json",
-            "language": "javascript"
+            "grammar": "js.json",
+            "name": "javascript"
         },
         {
             "scopeName": "source.css",
-            "path": "css.json",
-            "language": "css"
+            "grammar": "css.json",
+            "name": "css"
         }
     ]
 }

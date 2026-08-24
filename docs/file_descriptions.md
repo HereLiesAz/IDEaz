@@ -80,8 +80,6 @@ JVM targets depend on.
     durable across process death, fingerprint-gated before restore.
 *   `ai/AiEditApproval.kt` — a pending validated edit awaiting an explicit user
     decision. Every provider shares this one contract.
-*   `ai/AiEditApplier.kt` — turns a text-only reply's fenced blocks back into real
-    file writes, for backends that cannot call tools.
 *   `ai/ConversationalAiClient.kt` — provider-agnostic interface; callers pass the
     whole history so implementations keep multi-turn context.
 *   `ai/AnthropicAdapter.kt`, `ai/OpenAiCompatibleAdapter.kt` — two of the three
