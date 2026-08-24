@@ -181,6 +181,8 @@ fun ProjectSetupTab(
                         if (onCheckRequirements()) {
                             viewModel.createProject(
                                 appName, repoDescription, context,
+                                githubUser = githubUser,
+                                branchName = branchName,
                                 initialPrompt = initialPrompt.takeIf { it.isNotBlank() }
                             ) {
                                 onCreateModeChanged(false)

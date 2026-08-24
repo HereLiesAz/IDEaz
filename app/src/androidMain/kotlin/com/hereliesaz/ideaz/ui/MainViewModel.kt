@@ -802,13 +802,20 @@ class MainViewModel(
         appName: String,
         description: String,
         context: Context,
+        githubUser: String = "",
+        branchName: String = "",
         initialPrompt: String? = null,
         onSuccess: () -> Unit,
     ) {
         // Held for the first Deploy - there is no repository to attach it to yet.
         settingsViewModel.saveRepoDescription(description)
-        val owner = settingsViewModel.getGithubUser().orEmpty()
-        saveAndInitialize(appName, owner, "main", context, initialPrompt)
+        // SetupTab's "GitHub User" and "Branch" fields are editable in Create
+        // mode but weren't wired to anything - typing a custom value there
+        // was silently discarded in favor of whatever was previously saved
+        // (or "main"), regardless of what the form actually showed.
+        val owner = githubUser.takeIf { it.isNotBlank() } ?: settingsViewModel.getGithubUser().orEmpty()
+        val branch = branchName.takeIf { it.isNotBlank() } ?: "main"
+        saveAndInitialize(appName, owner, branch, context, initialPrompt)
         onSuccess()
     }
 
