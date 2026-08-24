@@ -231,9 +231,12 @@ class MainViewModel(
                     ChatMessage("model", response, model.displayName)
                 }
                 stateDelegate.appendChatMessage(message)
-                // Any file writes have already happened inside the tool-use loop;
-                // hard-reload so the WebView picks up the changes immediately.
-                stateDelegate.triggerWebHardReload()
+                // chat() only returns here (rather than throwing
+                // AiEditApprovalRequiredException) when no mutating tool ran
+                // this turn, or one ran but produced zero net file changes -
+                // see each adapter's complete(). Either way nothing on disk
+                // changed, so there is nothing for the WebView to reload;
+                // approveEdit/restoreEdit below reload after a real change.
             } catch (e: AiEditApprovalRequiredException) {
                 stateDelegate.editReview.value
                     ?.takeIf { it.status == EditReviewStatus.APPROVED }
