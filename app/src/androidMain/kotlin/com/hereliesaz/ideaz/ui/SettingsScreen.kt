@@ -125,6 +125,8 @@ fun SettingsScreen(
     var showKeystoreResetConfirm by remember { mutableStateOf(false) }
     var exportUri by remember { mutableStateOf<Uri?>(null) }
     var importUri by remember { mutableStateOf<Uri?>(null) }
+    var showImportProjectsConfirm by remember { mutableStateOf(false) }
+    var importProjectsUri by remember { mutableStateOf<Uri?>(null) }
 
 
     val keystorePickerLauncher = rememberLauncherForActivityResult(
@@ -174,6 +176,20 @@ fun SettingsScreen(
         if (uri != null) {
             importUri = uri
             showImportPasswordDialog = true
+        }
+    }
+
+    // The other half of exportProjectsLauncher above: BackupManager.importData
+    // has always existed too, and had exactly the same problem - no caller
+    // anywhere in the app, so an export archive could never actually be
+    // restored. It extracts by overwriting any existing file at the same
+    // relative path, so this confirms before running.
+    val importProjectsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            importProjectsUri = uri
+            showImportProjectsConfirm = true
         }
     }
 
@@ -260,6 +276,37 @@ fun SettingsScreen(
             },
             dismissButton = {
                 AzButton(onClick = { showKeystoreResetConfirm = false }, text = "Cancel", shape = AzButtonShape.NONE)
+            }
+        )
+    }
+
+    if (showImportProjectsConfirm) {
+        AlertDialog(
+            onDismissRequest = { showImportProjectsConfirm = false },
+            title = { Text("Import projects?") },
+            text = { Text("Any project in the archive that shares a name with one already on this device will be overwritten. This cannot be undone.") },
+            confirmButton = {
+                AzButton(
+                    onClick = {
+                        showImportProjectsConfirm = false
+                        val uri = importProjectsUri
+                        if (uri != null) {
+                            scope.launch {
+                                val ok = com.hereliesaz.ideaz.utils.BackupManager.importData(context, uri)
+                                Toast.makeText(
+                                    context,
+                                    if (ok) "Projects imported." else "Import failed. Check the console for details.",
+                                    Toast.LENGTH_LONG,
+                                ).show()
+                            }
+                        }
+                    },
+                    text = "Import",
+                    shape = AzButtonShape.RECTANGLE,
+                )
+            },
+            dismissButton = {
+                AzButton(onClick = { showImportProjectsConfirm = false }, text = "Cancel", shape = AzButtonShape.NONE)
             }
         )
     }
@@ -359,6 +406,13 @@ fun SettingsScreen(
                 AzButton(
                     onClick = { exportProjectsLauncher.launch("ideaz-projects.zip") },
                     text = "Export Projects",
+                    shape = AzButtonShape.RECTANGLE,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                AzButton(
+                    onClick = { importProjectsLauncher.launch(arrayOf("application/zip")) },
+                    text = "Import Projects",
                     shape = AzButtonShape.RECTANGLE,
                     modifier = Modifier.fillMaxWidth(),
                 )
