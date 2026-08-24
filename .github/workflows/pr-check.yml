@@ -69,6 +69,13 @@ jobs:
       - name: Verify the JSX source chain
         run: node webruntime/src/test/js/jsx-source-chain.test.mjs
 
+      # A direct A<->B import cycle used to deadlock ideaz-loader.js forever,
+      # silently: loadModule's inputCache returned the still-pending outer
+      # promise for the second, re-entrant call, so it could only settle by
+      # completing itself first. Also not Kotlin, also invisible to Gradle.
+      - name: Verify import cycles degrade instead of hanging the preview
+        run: node webruntime/src/test/js/loader-import-cycle.test.mjs
+
       - name: Compile, unit test, and lint
         shell: bash
         run: |

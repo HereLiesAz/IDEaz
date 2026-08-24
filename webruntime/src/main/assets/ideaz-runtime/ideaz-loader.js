@@ -16,7 +16,10 @@
 // imports, extensionless imports (probes .jsx/.tsx/.ts/.js + /index.*), and
 // `import './x.css'` / `.json` / image-asset imports.
 // Not supported (documented limitations): Vite-only features (import.meta.env,
-// /@vite/client HMR, glob/?raw/?url imports) and ES module import cycles.
+// /@vite/client HMR, glob/?raw/?url imports), and ES module import cycles get
+// an empty module substituted at the back-edge rather than live bindings
+// (logged to the console) — same graceful-degradation Node's CommonJS gives
+// circular requires, not a hang.
 (function () {
     "use strict";
 
@@ -28,6 +31,7 @@
     var inputCache = new Map();    // input specifier URL -> Promise<blobUrl>
     var resolvedCache = new Map(); // resolved real URL   -> Promise<blobUrl>
     var inProgress = new Set();    // real URLs currently being built (cycle guard)
+    var pendingInputs = new Set(); // input URLs mid-resolveModule, not yet in `inProgress` (cycle guard)
     var emptyBlobUrl = null;
 
     function err(msg, e) {
@@ -215,22 +219,40 @@
     }
 
     function loadModule(inputUrl) {
-        if (inputCache.has(inputUrl)) return inputCache.get(inputUrl);
-        var p = (async function () {
-            var resolved = await resolveModule(inputUrl);
-            var realUrl = resolved.realUrl;
-            if (resolvedCache.has(realUrl)) return resolvedCache.get(realUrl);
-            if (inProgress.has(realUrl)) {
-                err("Import cycle detected at " + realUrl + " — substituting empty module.");
-                return emptyModule();
+        if (inputCache.has(inputUrl)) {
+            // `inProgress` (keyed by realUrl, checked below) only guards a cycle
+            // once resolveModule() has settled - but a direct A<->B cycle
+            // re-enters loadModule with the *same inputUrl* string while the
+            // first call is still awaiting resolveModule(), before realUrl is
+            // even known. Returning the cached-but-still-pending promise in
+            // that case is a deadlock: it can only settle once this very call
+            // returns, so it never does, silently, with no error logged.
+            if (pendingInputs.has(inputUrl)) {
+                err("Import cycle detected at " + inputUrl + " — substituting empty module.");
+                return Promise.resolve(emptyModule());
             }
-            inProgress.add(realUrl);
-            var blobPromise = buildModule(realUrl, resolved.kind, resolved.text);
-            resolvedCache.set(realUrl, blobPromise);
+            return inputCache.get(inputUrl);
+        }
+        pendingInputs.add(inputUrl);
+        var p = (async function () {
             try {
-                return await blobPromise;
+                var resolved = await resolveModule(inputUrl);
+                var realUrl = resolved.realUrl;
+                if (resolvedCache.has(realUrl)) return resolvedCache.get(realUrl);
+                if (inProgress.has(realUrl)) {
+                    err("Import cycle detected at " + realUrl + " — substituting empty module.");
+                    return emptyModule();
+                }
+                inProgress.add(realUrl);
+                var blobPromise = buildModule(realUrl, resolved.kind, resolved.text);
+                resolvedCache.set(realUrl, blobPromise);
+                try {
+                    return await blobPromise;
+                } finally {
+                    inProgress.delete(realUrl);
+                }
             } finally {
-                inProgress.delete(realUrl);
+                pendingInputs.delete(inputUrl);
             }
         })();
         inputCache.set(inputUrl, p);
