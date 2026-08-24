@@ -612,10 +612,26 @@ class MainViewModel(
                 // before pushing. Creating a project is local-only, so the first
                 // Deploy is what writes and pushes these.
                 repoDelegate.forceUpdateInitFiles()
-                // Ensure latest changes are committed
-                gitDelegate.commit("Deploy: ${System.currentTimeMillis()}")
+                // Ensure latest changes are committed. Both commit() and push()
+                // return Boolean and never throw - they catch every failure
+                // internally and log it via onLog - so their result must be
+                // checked explicitly, or "Pushed successfully" gets logged (and
+                // a success Toast shown) on every single deploy failure: no git
+                // manager, no auth token, a rejected push, a network error, all
+                // of it. The specific reason is already in the build log from
+                // gitDelegate's own onLog calls immediately above this.
+                if (!gitDelegate.commit("Deploy: ${System.currentTimeMillis()}")) {
+                    logHandler.onBuildLog("Deploy failed: could not commit changes. See the log above for details.")
+                    return@launch
+                }
                 // Use default push (uses settings creds)
-                gitDelegate.push()
+                if (!gitDelegate.push()) {
+                    logHandler.onBuildLog("Deploy failed: push did not complete. See the log above for details.")
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(getApplication(), "Deploy failed: could not push to GitHub.", Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
                 logHandler.onBuildLog("Pushed successfully. GitHub Actions will handle deployment.")
                 logHandler.onBuildLog("[Instruction] Ensure 'GitHub Pages' is enabled in repository settings (Source: gh-pages branch).")
                 withContext(Dispatchers.Main) {
@@ -765,7 +781,13 @@ class MainViewModel(
     fun fetchGitHubRepos() = repoDelegate.fetchGitHubRepos()
     fun scanLocalProjects() = repoDelegate.scanLocalProjects()
     fun getLocalProjectsWithMetadata() = repoDelegate.getLocalProjectsWithMetadata()
-    fun forceUpdateInitFiles() = repoDelegate.forceUpdateInitFiles()
+    // forceUpdateInitFiles() is now suspend (see RepoDelegate for why); this
+    // proxy is called from a plain Compose onClick, not a coroutine, so it
+    // needs its own launch. Callers already inside a coroutine (deployWebProject,
+    // etc.) call repoDelegate.forceUpdateInitFiles() directly to actually await it.
+    fun forceUpdateInitFiles() {
+        viewModelScope.launch { repoDelegate.forceUpdateInitFiles() }
+    }
     /**
      * Creates a new project. Entirely local and offline: no GitHub account, no
      * token, no network.
@@ -780,20 +802,30 @@ class MainViewModel(
         appName: String,
         description: String,
         context: Context,
+        githubUser: String = "",
+        branchName: String = "",
         initialPrompt: String? = null,
         onSuccess: () -> Unit,
     ) {
         // Held for the first Deploy - there is no repository to attach it to yet.
         settingsViewModel.saveRepoDescription(description)
-        val owner = settingsViewModel.getGithubUser().orEmpty()
-        saveAndInitialize(appName, owner, "main", context, initialPrompt)
+        // SetupTab's "GitHub User" and "Branch" fields are editable in Create
+        // mode but weren't wired to anything - typing a custom value there
+        // was silently discarded in favor of whatever was previously saved
+        // (or "main"), regardless of what the form actually showed.
+        val owner = githubUser.takeIf { it.isNotBlank() } ?: settingsViewModel.getGithubUser().orEmpty()
+        val branch = branchName.takeIf { it.isNotBlank() } ?: "main"
+        saveAndInitialize(appName, owner, branch, context, initialPrompt)
         onSuccess()
     }
 
     /** Selects a repo and prepares it for use. */
     fun selectRepositoryForSetup(repo: GitHubRepoResponse, onSuccess: () -> Unit) {
         repoDelegate.selectRepositoryForSetup(repo) { owner, branch ->
-            repoDelegate.forceUpdateInitFiles()
+            // The callback itself isn't a suspend lambda even though
+            // RepoDelegate invokes it from inside a coroutine - needs its
+            // own scope to call the now-suspend forceUpdateInitFiles().
+            viewModelScope.launch { repoDelegate.forceUpdateInitFiles() }
             onSuccess()
         }
     }
@@ -1021,24 +1053,12 @@ class MainViewModel(
         }
     }
 
-    /** Deletes a project locally. */
-    fun deleteProject(n: String) {
-        if (n.isBlank()) return
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                performLocalDeletion(n)
-                logHandler.onBuildLog("Project '$n' deleted locally.\n")
-            } catch (e: Exception) {
-                logHandler.onBuildLog("Error deleting project: ${e.message}\n")
-            }
-        }
-    }
-
     /**
      * Syncs changes to remote repository before deleting local files.
      * Prevents data loss.
      */
     fun syncAndDeleteProject(n: String) {
+        if (n.isBlank()) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val projectDir = settingsViewModel.getProjectPath(n)

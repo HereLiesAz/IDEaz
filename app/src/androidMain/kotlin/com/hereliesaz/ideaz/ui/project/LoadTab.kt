@@ -48,11 +48,15 @@ fun ProjectLoadTab(
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("Delete Project?") },
-            text = { Text("Are you sure you want to delete '${projectToDelete}'? This action cannot be undone.") },
+            text = { Text("Are you sure you want to delete '${projectToDelete}'? Uncommitted changes are synced to GitHub first, if a token is configured. This action cannot be undone.") },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        projectToDelete?.let { viewModel.deleteProject(it) }
+                        // syncAndDeleteProject, not deleteProject: commits and
+                        // pushes any pending work before removing the local
+                        // copy, aborting the deletion if that sync fails -
+                        // deleteProject has no such protection at all.
+                        projectToDelete?.let { viewModel.syncAndDeleteProject(it) }
                         showDeleteDialog = false
                     },
                     colors = ButtonDefaults.textButtonColors(

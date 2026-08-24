@@ -84,6 +84,20 @@ object BackupManager {
     }
 
     private fun shouldSkip(path: String): Boolean {
-        return path.contains("cache") || path.contains(".ideaz") || path.endsWith("debug.keystore")
+        // Plain substring matching here used to drop any real project file
+        // whose path merely contained "cache" or ".ideaz" anywhere -
+        // src/CacheManager.js, a project literally named my-cache-app,
+        // anything - silently, from every single backup. Matching whole
+        // path segments instead only excludes the actual non-project
+        // directories this is meant to skip.
+        if (path.endsWith("debug.keystore")) return true
+        val segments = path.split('/')
+        // Same top-level "is this actually a project" exclusions
+        // RepoDelegate.scanLocalProjects() uses.
+        val topLevel = segments.firstOrNull()
+        if (topLevel == "cache" || topLevel == "tools" || topLevel == "local-repo") return true
+        // Per-project AI-edit checkpoint scratch data (IdeTools) can appear
+        // at any depth inside a project, not just at its root.
+        return segments.any { it == ".ideaz-edit-checkpoints" }
     }
 }

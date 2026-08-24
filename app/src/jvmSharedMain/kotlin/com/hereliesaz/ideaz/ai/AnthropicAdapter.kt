@@ -194,7 +194,7 @@ class AnthropicAdapter(
 
         val body = buildJsonObject {
             put("model", currentModel)
-            put("max_tokens", 4096)
+            put("max_tokens", MAX_RESPONSE_TOKENS)
             if (systemText.isNotBlank()) {
                 put("system", systemText)
             }
@@ -288,5 +288,17 @@ class AnthropicAdapter(
                 params.filter { it.required }.forEach { add(JsonPrimitive(it.name)) }
             }
         }
+    }
+
+    companion object {
+        // Anthropic's API requires max_tokens on every request; unlike the
+        // OpenAI-compatible and Gemini adapters, there's no "leave it to the
+        // provider's default" option. 4096 was an arbitrary, unbacked guess
+        // - low enough to risk truncating a legitimately large write_file or
+        // apply_patch tool call mid-generation, silently corrupting the
+        // resulting edit. 8192 is safely supported across every current and
+        // recent Claude model without a beta header, so it meaningfully cuts
+        // that risk without any new failure mode.
+        private const val MAX_RESPONSE_TOKENS = 8192
     }
 }
