@@ -2,9 +2,9 @@ package com.hereliesaz.ideaz.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -116,12 +116,11 @@ fun MainScreen(viewModel: MainViewModel) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
-    ) { innerPadding ->
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+    ) { _ ->
         AzHostActivityLayout(
             navController = navController,
-            modifier = Modifier
-                .padding(innerPadding)
-                .fillMaxSize(),
+            modifier = Modifier.fillMaxSize(),
             currentDestination = currentDestination?.destination?.route,
             isLandscape = config.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
         ) {
