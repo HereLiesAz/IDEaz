@@ -1,12 +1,19 @@
 package com.hereliesaz.ideaz.ui
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import com.hereliesaz.aznavrail.AzNavHostScope
 import com.hereliesaz.aznavrail.bottomsheet.AzSheetController
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.aznavrail.model.AzDockingSide
 import com.hereliesaz.aznavrail.model.AzHeaderIconShape
 import com.hereliesaz.aznavrail.model.AzSheetDetent
+
+// Every item's own base/unselected colour. AzNavRail falls back to the rail's
+// resolved accent (activeColor, below) for any item that doesn't set its own
+// `color` — without this, every item renders in the active-item's yellow
+// highlight instead of just the one that's actually active.
+private val railItemColor = Color.White
 
 private val ideHelpList: Map<String, String> = mapOf(
     "project_settings" to "Open the project's settings and switches.",
@@ -43,10 +50,15 @@ fun AzNavHostScope.ideNavRail(
     azConfig(
         packButtons = true,
         dockingSide = AzDockingSide.LEFT,
+        railItemWidth = 56.dp,
     )
 
     azTheme(
-        defaultShape = AzButtonShape.RECTANGLE,
+        // Borderless: no item carries an outline. AzNavRail never draws the
+        // border ring for a borderless shape, active or not, so an item that
+        // *should* show an outline while active (the mode_toggle "Select"
+        // item below) has to switch its own `shape` per-item instead.
+        defaultShape = AzButtonShape.NONE,
         headerIconShape = AzHeaderIconShape.NONE,
         // The app palette is monochrome, so the active rail item is otherwise
         // indistinguishable; give it a distinct accent.
@@ -70,12 +82,13 @@ fun AzNavHostScope.ideNavRail(
         onDismissHelp = onDismissHelp,
     )
 
-    azRailItem(id = "project_settings", text = "Project", route = "project_settings", onClick = { onNavigateToMainApp("project_settings") })
-    azMenuItem(id = "git",  text = "Git", route = "git", onClick = { onNavigateToMainApp("git") })
+    azRailItem(id = "project_settings", text = "Project", route = "project_settings", color = railItemColor, onClick = { onNavigateToMainApp("project_settings") })
+    azMenuItem(id = "git",  text = "Git", route = "git", color = railItemColor, onClick = { onNavigateToMainApp("git") })
 
     azRailHostItem(
         id = "main",
         text = "IDEaz",
+        color = railItemColor,
         onClick = { }
     )
 
@@ -83,6 +96,7 @@ fun AzNavHostScope.ideNavRail(
         id = "prompt",
         hostId = "main",
         text = "Prompt",
+        color = railItemColor,
         onClick = {
             handleActionClick {
                 onShowPromptPopup()
@@ -94,6 +108,7 @@ fun AzNavHostScope.ideNavRail(
         id = "build",
         hostId = "main",
         text = "Build",
+        color = railItemColor,
         onClick = {
             handleActionClick {
                 // Verify the project has an entry point and show the preview.
@@ -108,6 +123,7 @@ fun AzNavHostScope.ideNavRail(
         id = "reload",
         hostId = "main",
         text = "Reload",
+        color = railItemColor,
         onClick = {
             handleActionClick {
                 viewModel.triggerWebReload()
@@ -118,6 +134,7 @@ fun AzNavHostScope.ideNavRail(
         id = "hard_reload",
         hostId = "main",
         text = "Hard Reload",
+        color = railItemColor,
         onClick = {
             handleActionClick {
                 viewModel.triggerWebHardReload()
@@ -129,6 +146,7 @@ fun AzNavHostScope.ideNavRail(
         id = "deploy",
         hostId = "main",
         text = "Deploy",
+        color = railItemColor,
         onClick = {
             handleActionClick {
                 viewModel.deployWebProject()
@@ -142,7 +160,11 @@ fun AzNavHostScope.ideNavRail(
         isChecked = isIdeVisible,
         toggleOnText = "Interact",
         toggleOffText = "Select",
-        shape = AzButtonShape.NONE,
+        color = railItemColor,
+        // Borderless while "Interact" (the default mode); switches to a
+        // bordered shape only while toggled to "Select" (isIdeVisible ==
+        // false), so the outline appears exactly when Select mode is active.
+        shape = if (isIdeVisible) AzButtonShape.NONE else AzButtonShape.RECTANGLE,
         onClick = {
             handleActionClick {
                 onToggleMode()
@@ -150,11 +172,11 @@ fun AzNavHostScope.ideNavRail(
         }
     )
 
-    azMenuItem(id = "file_explorer",  text = "Files", route = "file_explorer", onClick = { onNavigateToMainApp("file_explorer") })
-    azRailItem(id = "settings", text = "Settings", route = "settings", onClick = { onNavigateToMainApp("settings") })
+    azMenuItem(id = "file_explorer",  text = "Files", route = "file_explorer", color = railItemColor, onClick = { onNavigateToMainApp("file_explorer") })
+    azRailItem(id = "settings", text = "Settings", route = "settings", color = railItemColor, onClick = { onNavigateToMainApp("settings") })
 
     // Help overlay trigger. Tapping shows ideHelpList entries for each rail
     // item (and the defaults that AzNavRail computes for items without an
     // explicit entry).
-    azHelpRailItem(id = "help", text = "Help")
+    azHelpRailItem(id = "help", text = "Help", color = railItemColor)
 }
