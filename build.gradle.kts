@@ -48,12 +48,12 @@ subprojects {
                 "org.bouncycastle:bcpkix-jdk18on:1.85",
                 "org.bouncycastle:bcutil-jdk18on:1.85",
                 "org.apache.commons:commons-lang3:3.20.0",
-                "com.google.protobuf:protobuf-java:4.35.1",
-                "com.google.protobuf:protobuf-kotlin:4.35.1",
+                "com.google.protobuf:protobuf-java:4.36.0",
+                "com.google.protobuf:protobuf-kotlin:4.36.0",
             )
             dependencySubstitution {
                 substitute(module("com.google.protobuf:protobuf-javalite"))
-                    .using(module("com.google.protobuf:protobuf-java:4.35.1"))
+                    .using(module("com.google.protobuf:protobuf-java:4.36.0"))
                     .because("Android cannot have both javalite and full protobuf-java on the same classpath")
             }
             eachDependency {
