@@ -200,7 +200,7 @@ internal fun sourceLabel(element: String?): String? {
     // "lineNumber" actually appears, so that capture group was always empty.
     // Extracting the source block first and searching each key independently
     // (key order in the payload isn't guaranteed anyway) sidesteps that.
-    val block = Regex("\"source\"\\s*:\\s*\\{([^\\}]*)\\}").find(element)?.groupValues?.get(1) ?: return null
+    val block = Regex("\"source\"\\s*:\\s*\\{([^}]*)\\}").find(element)?.groupValues?.get(1) ?: return null
     val fileValue = Regex("\"fileName\"\\s*:\\s*\"([^\"]+)\"").find(block)?.groupValues?.get(1) ?: return null
     val file = fileValue.substringAfterLast('/')
     val line = Regex("\"lineNumber\"\\s*:\\s*(\\d+)").find(block)?.groupValues?.get(1)
