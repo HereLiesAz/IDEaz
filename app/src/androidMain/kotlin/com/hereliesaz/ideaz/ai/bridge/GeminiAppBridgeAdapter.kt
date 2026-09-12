@@ -16,6 +16,7 @@ import com.hereliesaz.ideaz.utils.RepoSnapshot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import java.io.File
@@ -94,8 +95,6 @@ class GeminiAppBridgeAdapter(
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             if (streams.size > 1) putParcelableArrayListExtra(Intent.EXTRA_STREAM, streams)
             else putExtra(Intent.EXTRA_STREAM, streams.first())
-            // Kept for apps/versions that honor it. The accessibility driver also
-            // types the same text because Gemini can drop EXTRA_TEXT with streams.
             putExtra(Intent.EXTRA_TEXT, protocol)
         }
 
@@ -121,11 +120,6 @@ class GeminiAppBridgeAdapter(
         return applyForReview(patch, response)
     }
 
-    /**
-     * Once mutation begins this block is non-cancellable until the checkpoint is
-     * either reviewable or restored. A user cancelling the chat cannot strand a
-     * half-applied external-app edit outside IDEaz's approval flow.
-     */
     private suspend fun applyForReview(patch: String, response: String): String =
         withContext(Dispatchers.IO + NonCancellable) {
             val checkpoint = tools.createEditCheckpoint("IDEaz: checkpoint before installed Gemini edit")
@@ -222,18 +216,19 @@ class GeminiAppBridgeAdapter(
     }
 }
 
-/** API fallback for GitHub builds when the installed-app bridge is unavailable. */
 class FallbackAdapter(
     private val primary: ConversationalAiClient,
     private val fallback: ConversationalAiClient,
 ) : ConversationalAiClient {
     override suspend fun chat(messages: List<ChatMessage>): String = try {
         primary.chat(messages)
+    } catch (_: TimeoutCancellationException) {
+        fallback.chat(messages)
     } catch (e: CancellationException) {
         throw e
     } catch (e: AiEditApprovalRequiredException) {
         throw e
-    } catch (_: Throwable) {
+    } catch (_: Exception) {
         fallback.chat(messages)
     }
 }
