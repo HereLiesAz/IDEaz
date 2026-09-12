@@ -29,7 +29,7 @@ object AiAdapterFactory {
 
         if (model.id == AiModels.GEMINI_FLASH && BuildConfig.EXTERNAL_AI_AUTOMATION) {
             val bridge: ConversationalAiClient = GeminiAppBridgeAdapter(context, tools)
-            val key = settings.getApiKey(model.requiredKey).orEmpty()
+            val key = settings.getApiKey(model.providerKey).orEmpty()
             if (key.isBlank()) return bridge
 
             val wireModel = settings.getWireModelOverride(model.id) ?: model.defaultWireModel
@@ -50,7 +50,7 @@ object AiAdapterFactory {
         tools: IdeTools,
         settings: SettingsViewModel,
     ): ConversationalAiClient? {
-        val key = settings.getApiKey(model.requiredKey).orEmpty()
+        val key = settings.getApiKey(model.providerKey).orEmpty()
         if (key.isBlank()) return null
         val wireModel = settings.getWireModelOverride(model.id) ?: model.defaultWireModel
 
