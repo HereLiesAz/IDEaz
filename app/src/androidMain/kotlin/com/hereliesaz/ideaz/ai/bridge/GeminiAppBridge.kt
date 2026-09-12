@@ -14,6 +14,7 @@ object GeminiAppBridge {
     @Volatile var promptSubmitted: Boolean = false
     @Volatile var baselineCopyActions: Int = 0
     @Volatile var baselineSnapshot: String = ""
+    @Volatile var observedGenerating: Boolean = false
 
     val channel: Channel<String> = Channel(
         capacity = 1,
@@ -33,6 +34,7 @@ object GeminiAppBridge {
         promptSubmitted = false
         baselineCopyActions = 0
         baselineSnapshot = ""
+        observedGenerating = false
         while (channel.tryReceive().getOrNull() != null) { /* drain */ }
         while (decisionChannel.tryReceive().getOrNull() != null) { /* drain */ }
     }
