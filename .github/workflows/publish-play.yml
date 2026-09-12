@@ -94,10 +94,7 @@ jobs:
       - name: Read package name from build config
         id: pkg
         env:
-          # Passed via env: rather than interpolated straight into the script -
-          # $VAR is never re-parsed by the shell, unlike raw ${{ }} text
-          # substitution, which would let a repo variable containing shell
-          # metacharacters inject commands into this step.
+          # Keep the documented override working for nonstandard Android layouts.
           ANDROID_BUILD_FILE_VAR: ${{ vars.ANDROID_BUILD_FILE }}
         run: |
           BUILD_FILE="${ANDROID_BUILD_FILE_VAR:-app/build.gradle.kts}"
@@ -125,11 +122,9 @@ jobs:
           echo "$KEYSTORE_PRIVATE" > private.key
           echo "$KEYSTORE_CHAIN" > chain.crt
 
-          # Create PKCS12 keystore.
           openssl pkcs12 -export -in chain.crt -inkey private.key -out release.keystore \
             -name "$KEY_ALIAS" -passout env:KEYSTORE_PASSWORD
 
-          # Verify quietly — verbose output would leak certificate metadata into the log.
           echo "Verifying generated keystore..."
           keytool -list -keystore release.keystore -storepass "$KEYSTORE_PASSWORD" > /dev/null
 
@@ -146,19 +141,16 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          # KEYSTORE_FILE / KEY_PASSWORD also exported into GITHUB_ENV above.
-          # See "Read package name from build config" above for why these ride
-          # in via env: rather than direct ${{ }} interpolation.
           BUILD_NUMBER_OVERRIDE_VAR: ${{ vars.BUILD_NUMBER_OVERRIDE }}
           PLAY_BUNDLE_COMMAND_VAR: ${{ vars.PLAY_BUNDLE_COMMAND }}
+          # Legacy/documented override retained for existing repository setups.
+          BUNDLE_COMMAND_VAR: ${{ vars.BUNDLE_COMMAND }}
         run: |
           set -e
           test -f version.properties || { echo "version.properties is required" >&2; exit 1; }
-          # -PversionBuild must be a value that only ever grows - Play Store
-          # rejects any upload whose versionCode doesn't strictly increase.
           BUILD_NUMBER="${BUILD_NUMBER_OVERRIDE_VAR:-$(git rev-list --count HEAD)}"
           [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || { echo "Invalid build component" >&2; exit 1; }
-          BUNDLE_COMMAND="${PLAY_BUNDLE_COMMAND_VAR:-./gradlew bundlePlay}"
+          BUNDLE_COMMAND="${PLAY_BUNDLE_COMMAND_VAR:-${BUNDLE_COMMAND_VAR:-./gradlew bundlePlay}}"
           $BUNDLE_COMMAND -PversionBuild=$BUILD_NUMBER --build-cache
 
       - name: Locate Play AAB
