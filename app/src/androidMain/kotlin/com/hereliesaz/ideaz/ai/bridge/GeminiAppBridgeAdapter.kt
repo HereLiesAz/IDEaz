@@ -11,11 +11,11 @@ import com.hereliesaz.ideaz.ai.AiEditApprovalRequiredException
 import com.hereliesaz.ideaz.ai.ChatMessage
 import com.hereliesaz.ideaz.ai.ChatPart
 import com.hereliesaz.ideaz.ai.ConversationalAiClient
-import com.hereliesaz.ideaz.ai.GeminiAdapter
 import com.hereliesaz.ideaz.ai.IdeTools
 import com.hereliesaz.ideaz.utils.RepoSnapshot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import java.io.File
@@ -121,48 +121,53 @@ class GeminiAppBridgeAdapter(
         return applyForReview(patch, response)
     }
 
-    private suspend fun applyForReview(patch: String, response: String): String = withContext(Dispatchers.IO) {
-        val checkpoint = tools.createEditCheckpoint("IDEaz: checkpoint before installed Gemini edit")
-        var expectedFingerprint: String? = null
-        try {
-            tools.captureToolEdit(checkpoint, "apply_patch", mapOf("patch" to patch))
-            expectedFingerprint = tools.reviewEdits(checkpoint).contentFingerprint.also {
-                tools.updateEditCheckpointFingerprint(checkpoint, it)
-            }
-            tools.markEditMutationStarted(checkpoint)
+    /**
+     * Once mutation begins this block is non-cancellable until the checkpoint is
+     * either reviewable or restored. A user cancelling the chat cannot strand a
+     * half-applied external-app edit outside IDEaz's approval flow.
+     */
+    private suspend fun applyForReview(patch: String, response: String): String =
+        withContext(Dispatchers.IO + NonCancellable) {
+            val checkpoint = tools.createEditCheckpoint("IDEaz: checkpoint before installed Gemini edit")
+            var expectedFingerprint: String? = null
+            try {
+                tools.captureToolEdit(checkpoint, "apply_patch", mapOf("patch" to patch))
+                expectedFingerprint = tools.reviewEdits(checkpoint).contentFingerprint.also {
+                    tools.updateEditCheckpointFingerprint(checkpoint, it)
+                }
+                tools.markEditMutationStarted(checkpoint)
 
-            val result = tools.applyPatch(patch)
-            if (result.startsWith("Error:")) {
-                tools.restoreEditCheckpoint(checkpoint, expectedFingerprint)
-                return@withContext "$response\n\nIDEaz could not apply Gemini's patch: $result"
-            }
+                val result = tools.applyPatch(patch)
+                val review = tools.reviewEdits(checkpoint)
+                expectedFingerprint = review.contentFingerprint
+                tools.updateEditCheckpointFingerprint(checkpoint, review.contentFingerprint)
+                tools.markEditAwaitingReview(checkpoint)
 
-            val review = tools.reviewEdits(checkpoint)
-            tools.updateEditCheckpointFingerprint(checkpoint, review.contentFingerprint)
-            tools.markEditAwaitingReview(checkpoint)
+                if (result.startsWith("Error:")) {
+                    tools.restoreEditCheckpoint(checkpoint, review.contentFingerprint)
+                    return@withContext "$response\n\nIDEaz could not apply Gemini's patch: $result"
+                }
+                if (review.validationErrors.isNotEmpty()) {
+                    tools.restoreEditCheckpoint(checkpoint, review.contentFingerprint)
+                    return@withContext "$response\n\nIDEaz rejected and restored the patch: ${review.validationErrors.joinToString()}"
+                }
+                if (review.changedFiles.isEmpty()) {
+                    tools.discardEditCheckpoint(checkpoint)
+                    return@withContext response
+                }
 
-            if (review.validationErrors.isNotEmpty()) {
-                tools.restoreEditCheckpoint(checkpoint, review.contentFingerprint)
-                return@withContext "$response\n\nIDEaz rejected and restored the patch: ${review.validationErrors.joinToString()}"
+                throw AiEditApprovalRequiredException(
+                    AiEditApproval(review = review, response = response, source = "Gemini app")
+                )
+            } catch (e: AiEditApprovalRequiredException) {
+                throw e
+            } catch (e: Exception) {
+                expectedFingerprint?.let { fingerprint ->
+                    runCatching { tools.restoreEditCheckpoint(checkpoint, fingerprint) }
+                }
+                "$response\n\nIDEaz could not safely apply the patch: ${e.message}"
             }
-            if (review.changedFiles.isEmpty()) {
-                tools.discardEditCheckpoint(checkpoint)
-                return@withContext response
-            }
-
-            throw AiEditApprovalRequiredException(
-                AiEditApproval(review = review, response = response, source = "Gemini app")
-            )
-        } catch (e: CancellationException) {
-            expectedFingerprint?.let { runCatching { tools.restoreEditCheckpoint(checkpoint, it) } }
-            throw e
-        } catch (e: AiEditApprovalRequiredException) {
-            throw e
-        } catch (e: Exception) {
-            expectedFingerprint?.let { runCatching { tools.restoreEditCheckpoint(checkpoint, it) } }
-            "$response\n\nIDEaz could not safely apply the patch: ${e.message}"
         }
-    }
 
     companion object {
         private const val RESPONSE_TIMEOUT_MS = 120_000L
