@@ -8,6 +8,7 @@ import android.provider.Settings
 import android.view.WindowManager
 import androidx.preference.PreferenceManager
 import com.hereliesaz.ideaz.BuildConfig
+import com.hereliesaz.ideaz.MainActivity
 import com.hereliesaz.ideaz.services.ExternalAiOverlayService
 
 /**
@@ -21,12 +22,12 @@ import com.hereliesaz.ideaz.services.ExternalAiOverlayService
  * in, so we request adjacent/bounded launch and fall back naturally when Android
  * refuses it.
  */
-enum class ExternalAiWindowMode(val wireName: String) {
-    OVERLAY_SHELL("overlay_shell"),
-    FREEFORM("freeform"),
-    BUBBLE("bubble"),
-    EMBEDDED("embedded"),
-    FULLSCREEN("fullscreen");
+enum class ExternalAiWindowMode(val wireName: String, val displayName: String) {
+    OVERLAY_SHELL("overlay_shell", "IDEaz frame"),
+    FREEFORM("freeform", "Freeform window"),
+    BUBBLE("bubble", "Compact frame"),
+    EMBEDDED("embedded", "Adjacent / embedded"),
+    FULLSCREEN("fullscreen", "Fullscreen");
 
     companion object {
         fun fromWireName(value: String?): ExternalAiWindowMode =
@@ -82,6 +83,19 @@ object ExternalAiWindowHost {
         if (!BuildConfig.EXTERNAL_AI_OVERLAY) return
         runCatching {
             context.stopService(Intent(context, ExternalAiOverlayService::class.java))
+        }
+    }
+
+    /** Bring the existing IDEaz task forward after an explicit external-app handoff. */
+    fun returnToIdeaz(context: Context) {
+        runCatching {
+            context.startActivity(
+                Intent(context, MainActivity::class.java).addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+                )
+            )
         }
     }
 
