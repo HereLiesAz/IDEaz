@@ -66,10 +66,6 @@ object ExternalAiWindowHost {
                 }
             }
             ExternalAiWindowMode.BUBBLE -> {
-                // Android does not expose a public API that lets one app forcibly
-                // bubble a third-party app. A compact four-sided overlay shell
-                // produces the same floating-window illusion while leaving the
-                // target's live surface and touch handling entirely its own.
                 if (startShell(context, label, compact = true)) {
                     context.startActivity(intent)
                 } else {
@@ -85,10 +81,7 @@ object ExternalAiWindowHost {
     fun stopShell(context: Context) {
         if (!BuildConfig.EXTERNAL_AI_OVERLAY) return
         runCatching {
-            context.startService(
-                Intent(context, ExternalAiOverlayService::class.java)
-                    .setAction(ExternalAiOverlayService.ACTION_HIDE)
-            )
+            context.stopService(Intent(context, ExternalAiOverlayService::class.java))
         }
     }
 
