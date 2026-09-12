@@ -12,6 +12,9 @@ object BridgeHeuristics {
     )
     private val sendHints = listOf("send", "submit", "run")
     private val copyHints = listOf("copy")
+    private val generatingHints = listOf(
+        "stop response", "stop generating", "cancel response", "stop generation",
+    )
     private val chromeStrings = listOf(
         "Enter a prompt here", "Listening", "Tap to talk", "Ask Gemini"
     )
@@ -26,6 +29,7 @@ object BridgeHeuristics {
     fun isInputHint(hint: String?): Boolean = matches(hint, inputHints)
     fun isSendHint(hint: String?): Boolean = matches(hint, sendHints)
     fun isCopyHint(hint: String?): Boolean = matches(hint, copyHints)
+    fun isGeneratingHint(hint: String?): Boolean = matches(hint, generatingHints)
 
     private fun matches(hint: String?, needles: List<String>): Boolean {
         val normalized = hint?.lowercase() ?: return false

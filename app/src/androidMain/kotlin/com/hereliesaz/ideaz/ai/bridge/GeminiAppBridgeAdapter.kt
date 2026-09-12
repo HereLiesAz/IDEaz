@@ -17,6 +17,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import java.io.File
@@ -24,18 +26,21 @@ import java.io.File
 /**
  * Uses the installed Gemini consumer app as an IDEaz AI backend.
  *
- * The app gets a redacted `project.txt` snapshot and the user's current request.
- * The accessibility driver types/submits the prompt and captures the reply. When
- * the reply contains a unified diff, it enters the exact same checkpoint/review/
- * explicit-approval path as the API adapters; external-app automation never gets
- * a private back door around edit review.
+ * The app gets a redacted `project.txt` snapshot, the full IDEaz conversation,
+ * and every binary reference attached to the current user turn. Accessibility
+ * automation is serialized process-wide because the consumer app exposes one
+ * foreground composer, not independently addressable sessions.
  */
 class GeminiAppBridgeAdapter(
     private val context: Context,
     private val tools: IdeTools,
 ) : ConversationalAiClient {
 
-    override suspend fun chat(messages: List<ChatMessage>): String {
+    override suspend fun chat(messages: List<ChatMessage>): String = BRIDGE_MUTEX.withLock {
+        chatLocked(messages)
+    }
+
+    private suspend fun chatLocked(messages: List<ChatMessage>): String {
         check(BuildConfig.EXTERNAL_AI_AUTOMATION) {
             "Installed-app automation is not available in this IDEaz distribution."
         }
@@ -43,16 +48,17 @@ class GeminiAppBridgeAdapter(
             "IDEaz External AI accessibility service is not enabled."
         }
 
-        val packageName = resolveGeminiPackage(context)
-            ?: error("Gemini app is not installed.")
         val lastUser = messages.lastOrNull { it.role == "user" }
             ?: error("No user message to send to Gemini.")
         val projectDir = File(tools.projectPath())
         val snapshot = withContext(Dispatchers.IO) { RepoSnapshot.build(projectDir) }
+        val transcript = serializeConversation(messages)
 
         val protocol = """
             You are acting as IDEaz's coding agent for the attached project.txt.
-            Study the project and answer the user's request.
+            Study the project and continue the conversation below. Earlier turns
+            may have come from another provider; treat them as authoritative
+            conversation history rather than relying on the consumer app's own chat.
 
             If NO file change is required, answer normally.
             If file changes ARE required, end your answer with ONE complete unified
@@ -60,8 +66,8 @@ class GeminiAppBridgeAdapter(
             with standard --- a/path and +++ b/path headers. Do not omit unchanged
             context needed for the patch to apply.
 
-            User request:
-            ${lastUser.content.ifBlank { "(see attached image/file)" }}
+            IDEAZ CONVERSATION:
+            $transcript
         """.trimIndent()
 
         val staged = mutableListOf<File>()
@@ -77,26 +83,31 @@ class GeminiAppBridgeAdapter(
         val projectUri = withContext(Dispatchers.IO) {
             stage("project.txt", snapshot.text.toByteArray(Charsets.UTF_8))
         }
-        val userAttachment = lastUser.parts.firstNotNullOfOrNull { part ->
-            when (part) {
-                is ChatPart.Image -> part.mimeType to part.bytes
-                is ChatPart.FileBlob -> part.mimeType to part.bytes
-                is ChatPart.Text -> null
+        val attachmentUris = withContext(Dispatchers.IO) {
+            lastUser.parts.mapIndexedNotNull { index, part ->
+                when (part) {
+                    is ChatPart.Image -> stage("reference-$index.${extensionFor(part.mimeType)}", part.bytes)
+                    is ChatPart.FileBlob -> stage(
+                        part.fileName?.takeIf { safeAttachmentName(it) }
+                            ?: "reference-$index.${extensionFor(part.mimeType)}",
+                        part.bytes,
+                    )
+                    is ChatPart.Text -> null
+                }
             }
         }
-        val attachmentUri = userAttachment?.let { (mime, bytes) ->
-            withContext(Dispatchers.IO) { stage("reference.${extensionFor(mime)}", bytes) }
-        }
 
-        val streams = arrayListOf(projectUri).apply { attachmentUri?.let(::add) }
+        val streams = arrayListOf(projectUri).apply { addAll(attachmentUris) }
         val share = Intent(if (streams.size > 1) Intent.ACTION_SEND_MULTIPLE else Intent.ACTION_SEND).apply {
             type = "*/*"
-            setPackage(packageName)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             if (streams.size > 1) putParcelableArrayListExtra(Intent.EXTRA_STREAM, streams)
             else putExtra(Intent.EXTRA_STREAM, streams.first())
             putExtra(Intent.EXTRA_TEXT, protocol)
         }
+        val packageName = resolveGeminiPackage(context, share)
+            ?: error("No installed Gemini-capable activity can accept this request.")
+        share.setPackage(packageName)
 
         GeminiAppBridge.reset()
         GeminiAppBridge.pendingPrompt = protocol
@@ -112,8 +123,11 @@ class GeminiAppBridgeAdapter(
         } finally {
             GeminiAppBridge.isWaiting = false
             GeminiAppBridge.phase = GeminiAppBridge.BridgePhase.IDLE
-            withContext(Dispatchers.Main) { ExternalAiWindowHost.stopShell(context) }
-            withContext(Dispatchers.IO) { staged.forEach { it.delete() } }
+            withContext(NonCancellable + Dispatchers.Main) {
+                ExternalAiWindowHost.stopShell(context)
+                ExternalAiWindowHost.returnToIdeaz(context)
+            }
+            withContext(NonCancellable + Dispatchers.IO) { staged.forEach { it.delete() } }
         }
 
         val patch = extractUnifiedDiff(response) ?: return response
@@ -165,6 +179,7 @@ class GeminiAppBridgeAdapter(
 
     companion object {
         private const val RESPONSE_TIMEOUT_MS = 120_000L
+        private val BRIDGE_MUTEX = Mutex()
         private val GEMINI_PACKAGES = listOf(
             "com.google.android.apps.bard",
             "com.google.android.googlequicksearchbox",
@@ -182,12 +197,41 @@ class GeminiAppBridgeAdapter(
             }
         }
 
-        fun resolveGeminiPackage(context: Context): String? {
+        /** True only when the installed package exposes an activity for our handoff. */
+        fun isBridgeAvailable(context: Context): Boolean {
+            if (!BuildConfig.EXTERNAL_AI_AUTOMATION || !isAccessibilityServiceEnabled(context)) return false
+            val probe = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, "IDEaz availability check")
+            }
+            return resolveGeminiPackage(context, probe) != null
+        }
+
+        fun resolveGeminiPackage(context: Context, shareIntent: Intent): String? {
             val pm = context.packageManager
             return GEMINI_PACKAGES.firstOrNull { pkg ->
-                runCatching { pm.getApplicationInfo(pkg, 0) }.isSuccess
+                Intent(shareIntent).setPackage(pkg).resolveActivity(pm) != null
             }
         }
+
+        private fun serializeConversation(messages: List<ChatMessage>): String =
+            messages.joinToString("\n\n") { message ->
+                val role = when (message.role) {
+                    "model", "assistant" -> "ASSISTANT"
+                    else -> "USER"
+                }
+                val body = message.parts.joinToString("\n") { part ->
+                    when (part) {
+                        is ChatPart.Text -> part.text
+                        is ChatPart.Image -> "[attached image: ${part.mimeType}]"
+                        is ChatPart.FileBlob -> "[attached file: ${part.fileName ?: part.mimeType}]"
+                    }
+                }.ifBlank { "(no text)" }
+                "$role:\n$body"
+            }
+
+        private fun safeAttachmentName(name: String): Boolean =
+            name.isNotBlank() && name == File(name).name && '/' !in name && '\\' !in name
 
         private fun extractUnifiedDiff(response: String): String? {
             val fenced = Regex("```(?:diff|patch)\\s*([\\s\\S]*?)```", RegexOption.IGNORE_CASE)

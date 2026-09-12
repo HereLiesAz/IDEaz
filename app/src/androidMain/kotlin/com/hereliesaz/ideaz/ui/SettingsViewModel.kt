@@ -6,58 +6,47 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.saveable.Saver
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
-import androidx.core.content.edit
-import com.hereliesaz.ideaz.utils.SecurityUtils
+import com.hereliesaz.ideaz.BuildConfig
 import com.hereliesaz.ideaz.utils.AndroidKeystoreCredentialStore
 import com.hereliesaz.ideaz.utils.CredentialStore
+import com.hereliesaz.ideaz.utils.SecurityUtils
+import java.io.File
+import java.io.FileOutputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
-import java.io.File
-import java.io.FileOutputStream
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.saveable.Saver
+import kotlinx.serialization.encodeToString
 
 // Define AI models and their requirements.
 //
-// supportsImages: whether the provider accepts image parts in prompts.
-//   - true: Gemini cloud (vision-capable), Gemini-app bridge (forwards one
-//           image via EXTRA_STREAM), OpenAI-compat vision models.
-//   - false: Nano (text-only), non-vision OpenAI-compat models (Groq Llama
-//            text, Cerebras Llama text, default Mistral Small).
-//   The Settings UI uses this to disable "Reference" attachment mode when
-//   the active provider can't actually use the bytes.
+// providerKey is the credential slot used by a provider API. requiredKey is the
+// setup-time gate: in GitHub builds Gemini can be supplied by the installed-app
+// bridge and therefore does not require an API key, while Play remains API-only.
+//
+// supportsImages: whether the provider accepts image/reference parts in prompts.
 data class AiModel(
     val id: String,
     val displayName: String,
-    val requiredKey: String,
+    val providerKey: String,
     /** Wire model id sent to the provider. Overridable per-provider in Settings. */
     val defaultWireModel: String,
     val supportsImages: Boolean = false,
-)
+) {
+    val requiredKey: String
+        get() = if (id == "GEMINI_FLASH" && BuildConfig.EXTERNAL_AI_AUTOMATION) "" else providerKey
+}
 
-/**
- * The registered cloud providers.
- *
- * Every entry here is BYO-key and speaks one of three adapters: [GeminiAdapter],
- * [AnthropicAdapter], or the single [OpenAiCompatibleAdapter] that serves every
- * `/chat/completions` provider.
- *
- * Wire model ids are **pinned**, not discovered. An earlier design resolved them
- * at runtime by regex-matching the provider's `/models` listing and taking the
- * newest by publish date, which made the model choice nondeterministic and, for
- * OpenAI, routinely selected a non-chat variant (`gpt-4o-transcribe`,
- * `gpt-4o-audio-preview`) because the filter matched those too. Pin a known-good
- * id and let the user override it in Settings when they want something else.
- */
+/** Registered conversational AI providers. */
 object AiModels {
     const val GEMINI_FLASH = "GEMINI_FLASH"
     const val GROQ_LLAMA = "GROQ_LLAMA"
@@ -101,13 +90,7 @@ object AiModels {
         defaultWireModel = "mistral-small-latest",
     )
 
-    /** UI display order. */
     val availableModels = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL)
-
-    /**
-     * Capability-ranked order for auto-selecting a default. `defaultModelId()`
-     * walks this and picks the first entry whose `requiredKey` is actually saved.
-     */
     val defaultRanking = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL)
 
     fun findById(id: String?): AiModel? = availableModels.find { it.id == id }
@@ -141,24 +124,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     companion object {
         private const val TAG = "SettingsViewModel"
-        const val KEY_API_KEY = "api_key" // Jules
+        const val KEY_API_KEY = "api_key"
         const val KEY_APP_NAME = "app_name"
         const val KEY_REPO_DESCRIPTION = "repo_description"
         const val KEY_GITHUB_USER = "github_user"
         const val KEY_BRANCH_NAME = "branch_name"
         const val KEY_PROJECT_LIST = "project_list"
         const val KEY_PROJECT_PATHS = "project_paths"
-        const val KEY_GOOGLE_API_KEY = "google_api_key" // Gemini
+        const val KEY_GOOGLE_API_KEY = "google_api_key"
         const val KEY_GITHUB_TOKEN = "github_token"
-        const val KEY_JULES_PROJECT_ID = "jules_project_id" // Google Cloud Project ID (Number)
+        const val KEY_JULES_PROJECT_ID = "jules_project_id"
 
-        // Free-tier OpenAI-compatible providers (multi-provider-ai spec).
         const val KEY_GROQ_API_KEY = "groq_api_key"
         const val KEY_CEREBRAS_API_KEY = "cerebras_api_key"
         const val KEY_HF_API_KEY = "hf_api_key"
         const val KEY_MISTRAL_API_KEY = "mistral_api_key"
 
-        // Paid-tier OpenAI-compatible providers
         const val KEY_OPENAI_API_KEY = "openai_api_key"
         const val KEY_ANTHROPIC_API_KEY = "anthropic_api_key"
         const val KEY_DEEPSEEK_API_KEY = "deepseek_api_key"
@@ -178,11 +159,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             KEY_KEY_PASS,
         )
 
-        // One-shot flag: true after the app has explained the Gemini-app
-        // bridge during first-run on a device that lacks Gemini Nano.
         const val KEY_BRIDGE_FIRST_RUN_SHOWN = "bridge_first_run_shown"
         const val KEY_CRASH_REPORTING_FIRST_RUN_SHOWN = "crash_reporting_first_run_shown"
-
 
         const val KEY_REPO_CAN_PUSH = "repo_can_push"
         const val KEY_REPO_IS_ADMIN = "repo_is_admin"
@@ -190,12 +168,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_PR_REQUIRED = "pr_required"
 
         const val KEY_AI_ASSIGNMENT_DEFAULT = "ai_assignment_default"
-        // Only ever consulted as an isJulesAssigned() yes/no check for the AI
-        // rail's Prompt popup (see MainViewModel.sendPrompt) - never used to
-        // pick a model the way "Default"/"Overlay Chat" are. Renamed from
-        // "Contextless Chat" (which implied a full model choice, with the
-        // picked model actually ignored for anything but Jules) to describe
-        // what it really does.
         const val KEY_AI_ASSIGNMENT_CONTEXTLESS = "ai_assignment_contextless"
         const val KEY_AI_ASSIGNMENT_OVERLAY = "ai_assignment_overlay"
 
@@ -220,11 +192,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_KEY_PASS = "key_pass"
         const val KEY_LAST_PROMPT = "last_prompt"
 
-        // "Project Initialization" was removed from this list: it had no
-        // effect anywhere in the app (its stored value was read only as an
-        // "is Jules assigned to *something*" membership check, never to
-        // route project-init work through a specific model - there is no
-        // project-init AI flow this app routes by model choice at all).
         val aiTasks = mapOf(
             KEY_AI_ASSIGNMENT_DEFAULT to "Default",
             KEY_AI_ASSIGNMENT_CONTEXTLESS to "Prompt Popup (Jules routing)",
@@ -241,11 +208,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _apiKey = MutableStateFlow(getApiKey())
     val apiKey = _apiKey.asStateFlow()
 
-    // Set whenever a secure-credential save/read fails, so the Settings UI can
-    // show the actual underlying reason (a Keystore/SharedPreferences
-    // exception message) instead of a bare "could not be saved" - there's no
-    // adb/logcat access on most devices this ships to, so this is often the
-    // only diagnostic surface available for a real on-device failure.
     var lastCredentialError: String? = null
         private set
 
@@ -277,16 +239,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         sharedPreferences.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
     }
 
-    // --- GETTERS/SETTERS ---
-
     fun getShowCancelWarning() = sharedPreferences.getBoolean(KEY_SHOW_CANCEL_WARNING, true)
     fun setShowCancelWarning(show: Boolean) = sharedPreferences.edit { putBoolean(KEY_SHOW_CANCEL_WARNING, show) }
 
-    // Defaults to off: this sends the full build log (file paths, code
-    // excerpts) to whichever provider is the "Default" AI assignment - not
-    // necessarily Jules, despite what this setting used to be labelled - with
-    // no per-event confirmation. That should be something the user turns on
-    // deliberately, not a silent default every project inherits.
     fun isAutoDebugBuildsEnabled() = sharedPreferences.getBoolean(KEY_AUTO_DEBUG_BUILDS, false)
     fun setAutoDebugBuildsEnabled(enabled: Boolean) = sharedPreferences.edit { putBoolean(KEY_AUTO_DEBUG_BUILDS, enabled) }
 
@@ -320,11 +275,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _apiKey.value = trimmed
         return saved
     }
-    /**
-     * Per-provider override for the wire model id sent to the API, or null to use
-     * the pinned default in [AiModels]. Lets a user point a provider at a newer or
-     * cheaper model without an app update, while keeping the default deterministic.
-     */
+
     fun getWireModelOverride(modelId: String): String? =
         sharedPreferences.getString(wireModelKey(modelId), null)?.takeIf { it.isNotBlank() }
 
@@ -368,18 +319,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             .let { legacy }
     }
 
-    /**
-     * Generic string-pref setter. Used by the free-provider rows in Settings
-     * so each provider's key gets persisted under its own KEY_* constant
-     * without growing a save method per provider.
-     */
     fun saveString(keyName: String, value: String): Boolean {
         val trimmed = value.trim()
         if (keyName in SECURE_CREDENTIAL_KEYS) {
-            // The actual credential write and the best-effort legacy-plaintext
-            // cleanup are two independent operations - a cleanup hiccup must
-            // never report the save itself as failed when the real secure
-            // write already succeeded.
             val saved = runCatching {
                 if (trimmed.isEmpty()) credentialStore.remove(keyName) else credentialStore.put(keyName, trimmed)
             }.onFailure {
@@ -395,10 +337,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         return true
     }
 
-    /**
-     * Has the Gemini-app bridge first-run explainer been shown? Returns true
-     * after the first time [markBridgeFirstRunShown] is called.
-     */
     fun hasShownBridgeFirstRun(): Boolean =
         sharedPreferences.getBoolean(KEY_BRIDGE_FIRST_RUN_SHOWN, false)
 
@@ -406,14 +344,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         sharedPreferences.edit { putBoolean(KEY_BRIDGE_FIRST_RUN_SHOWN, true) }
     }
 
-    /**
-     * Has the crash-reporting disclosure been shown? [isReportIdeErrorsEnabled]
-     * defaults to true (CrashHandler would otherwise report a crash before the
-     * user ever opens Settings and discovers the toggle exists), so this dialog
-     * is the actual point of consent - shown once, unconditionally, on first
-     * launch, explaining what gets sent to a public GitHub repo and letting the
-     * user opt out on the spot rather than after the fact.
-     */
     fun hasShownCrashReportingFirstRun(): Boolean =
         sharedPreferences.getBoolean(KEY_CRASH_REPORTING_FIRST_RUN_SHOWN, false)
 
@@ -423,25 +353,18 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun saveAiAssignment(taskKey: String, modelId: String) = sharedPreferences.edit { putString(taskKey, modelId) }
     fun getAiAssignment(taskKey: String): String? {
-        // An explicit "Default" choice from the AI Assignments dropdown always
-        // wins; absent that, fall back to the best-ranked model the user has
-        // actually entered a key for, so a freshly installed app defaults to
-        // whichever provider the user already configured rather than an
-        // always-Gemini assumption. If no key has been entered anywhere,
-        // Gemini remains the fallback - unchanged from the prior behavior.
         val defaultModelId = sharedPreferences.getString(KEY_AI_ASSIGNMENT_DEFAULT, null) ?: defaultModelId()
         if (taskKey == KEY_AI_ASSIGNMENT_DEFAULT) return defaultModelId
         return sharedPreferences.getString(taskKey, defaultModelId)
     }
 
-    /** Highest-ranked model in [AiModels.defaultRanking] whose required key is actually saved. */
+    /** Highest-ranked configured API model; falls back to Gemini, whose GitHub path may be keyless. */
     private fun defaultModelId(): String =
         AiModels.defaultRanking
-            .firstOrNull { it.requiredKey.isNotEmpty() && !getApiKey(it.requiredKey).isNullOrBlank() }
+            .firstOrNull { it.providerKey.isNotEmpty() && !getApiKey(it.providerKey).isNullOrBlank() }
             ?.id
             ?: AiModels.GEMINI_FLASH
 
-    // --- SIGNING ---
     fun importKeystore(context: Context, uri: Uri): String? {
         return try {
             val destFile = File(context.filesDir, "user_release.keystore")
@@ -458,28 +381,26 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             null
         }
     }
+
     fun saveSigningCredentials(storePass: String, alias: String, keyPass: String): Boolean {
-        // Alias is just a label, not a secret; the two passwords are.
         val storePassSaved = saveString(KEY_KEYSTORE_PASS, storePass)
         sharedPreferences.edit { putString(KEY_KEY_ALIAS, alias) }
         val keyPassSaved = saveString(KEY_KEY_PASS, keyPass)
         return storePassSaved && keyPassSaved
     }
+
     fun getKeystorePath() = sharedPreferences.getString(KEY_KEYSTORE_PATH, null)
     fun getKeystorePass() = getApiKey(KEY_KEYSTORE_PASS) ?: "android"
     fun getKeyAlias() = sharedPreferences.getString(KEY_KEY_ALIAS, "androiddebugkey") ?: "androiddebugkey"
     fun getKeyPass() = getApiKey(KEY_KEY_PASS) ?: "android"
+
     fun clearSigningConfig() {
         sharedPreferences.edit { remove(KEY_KEYSTORE_PATH).remove(KEY_KEY_ALIAS) }
         runCatching { credentialStore.remove(KEY_KEYSTORE_PASS) }
         runCatching { credentialStore.remove(KEY_KEY_PASS) }
-        // The keystore itself (imported into filesDir by importKeystore) is the
-        // release signing key - clearing the prefs that point at it must not
-        // leave the actual key file behind on disk indefinitely.
         runCatching { File(getApplication<Application>().filesDir, "user_release.keystore").delete() }
     }
 
-    // --- EXPORT/IMPORT ---
     fun exportSettings(context: Context, uri: Uri, password: String) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -564,10 +485,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 if (export.keystore != null) {
                     val bytes = android.util.Base64.decode(export.keystore.contentBase64, android.util.Base64.NO_WRAP)
                     val destFile = File(context.filesDir, export.keystore.filename)
-                    // The filename comes from the imported blob, unvalidated. Without
-                    // this check, a crafted "../"-laden filename could write outside
-                    // filesDir entirely - the same class of bug the Zip Slip fix in
-                    // BackupManager/RemoteBuildManager addresses, left open here.
                     val canonicalDestDir = context.filesDir.canonicalFile.toPath()
                     val canonicalDestFile = destFile.canonicalFile.toPath()
                     if (!canonicalDestFile.startsWith(canonicalDestDir)) {
@@ -592,12 +509,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    // --- PROMPTS ---
     fun saveLastPrompt(prompt: String) = sharedPreferences.edit { putString(KEY_LAST_PROMPT, prompt) }
     fun getLastPrompt() = sharedPreferences.getString(KEY_LAST_PROMPT, "")
 
-    // --- PROJECTS ---
     private fun loadLocalProjects() { _localProjects.value = getProjectList().toList() }
+
     fun addProject(projectName: String) {
         if (projectName.isBlank()) return
         val projects = getProjectList().toMutableSet()
@@ -605,6 +521,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         sharedPreferences.edit { putStringSet(KEY_PROJECT_LIST, projects) }
         loadLocalProjects()
     }
+
     fun removeProject(projectName: String) {
         if (projectName.isBlank()) return
         val projects = getProjectList().toMutableSet()
@@ -612,58 +529,62 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         sharedPreferences.edit { putStringSet(KEY_PROJECT_LIST, projects) }
         loadLocalProjects()
     }
+
     fun getProjectList() = sharedPreferences.getStringSet(KEY_PROJECT_LIST, emptySet()) ?: emptySet()
 
     private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+
     private fun getProjectPaths(): Map<String, String> {
         val jsonStr = sharedPreferences.getString(KEY_PROJECT_PATHS, "{}")
         return try { json.decodeFromString<Map<String, String>>(jsonStr ?: "{}") } catch (e: Exception) { emptyMap() }
     }
+
     fun saveProjectPath(name: String, path: String) {
         val paths = getProjectPaths().toMutableMap()
         paths[name] = path
         sharedPreferences.edit { putString(KEY_PROJECT_PATHS, json.encodeToString(paths)) }
     }
+
     fun getProjectPath(name: String): File {
         val path = getProjectPaths()[name]
         if (!path.isNullOrBlank()) return File(path)
         return getApplication<Application>().filesDir.resolve(name)
     }
+
     fun removeProjectPath(name: String) {
         val paths = getProjectPaths().toMutableMap()
         if (paths.remove(name) != null) {
             sharedPreferences.edit { putString(KEY_PROJECT_PATHS, json.encodeToString(paths)) }
         }
     }
+
     fun saveProjectConfig(appName: String, githubUser: String, branchName: String) {
         sharedPreferences.edit { putString(KEY_APP_NAME, appName).putString(KEY_GITHUB_USER, githubUser).putString(KEY_BRANCH_NAME, branchName) }
         if (appName.isNotBlank()) addProject(appName)
     }
+
     fun getAppName() = sharedPreferences.getString(KEY_APP_NAME, null)
 
-    /**
-     * Description for the project's GitHub repository, captured in Create mode
-     * and used later by the first Deploy — which is when the repository is
-     * actually made. Create is local and offline, so there is nothing to attach
-     * it to at the time the user types it.
-     */
     fun saveRepoDescription(description: String) =
         sharedPreferences.edit { putString(KEY_REPO_DESCRIPTION, description) }
 
     fun getRepoDescription() =
         sharedPreferences.getString(KEY_REPO_DESCRIPTION, null)?.takeIf { it.isNotBlank() }
             ?: "Created with IDEaz"
+
     fun setAppName(appName: String) {
         sharedPreferences.edit { putString(KEY_APP_NAME, appName) }
         _currentAppName.value = appName
     }
+
     fun getGithubUser() = sharedPreferences.getString(KEY_GITHUB_USER, null)
     fun setGithubUser(githubUser: String) = sharedPreferences.edit { putString(KEY_GITHUB_USER, githubUser) }
     fun getBranchName() = sharedPreferences.getString(KEY_BRANCH_NAME, "main") ?: "main"
     fun saveBranchName(branchName: String) = sharedPreferences.edit { putString(KEY_BRANCH_NAME, branchName) }
-    // --- REPO & VERSION ---
+
     fun saveRepoPermissions(canPush: Boolean, isAdmin: Boolean) = sharedPreferences.edit { putBoolean(KEY_REPO_CAN_PUSH, canPush).putBoolean(KEY_REPO_IS_ADMIN, isAdmin) }
     fun canPushToRepo() = sharedPreferences.getBoolean(KEY_REPO_CAN_PUSH, true)
+
     fun getAppVersion(): String {
         return try {
             val pInfo = getApplication<Application>().packageManager.getPackageInfo(getApplication<Application>().packageName, 0)
