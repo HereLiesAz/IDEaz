@@ -67,6 +67,13 @@ class IdeazAccessibilityService : AccessibilityService() {
 
         val send = findClickable(root, BridgeHeuristics::isSendHint) ?: return
         if (!send.isEnabled) return
+
+        // Capture the pre-submit tree so an old Copy button or an old answer can
+        // never satisfy completion for this request. Gemini exposes a new Copy
+        // affordance only when the newly generated answer is complete.
+        GeminiAppBridge.baselineCopyActions = countClickable(root, BridgeHeuristics::isCopyHint)
+        GeminiAppBridge.baselineSnapshot = collectText(root).trim()
+
         if (send.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
             GeminiAppBridge.promptSubmitted = true
             GeminiAppBridge.phase = GeminiAppBridge.BridgePhase.AWAIT_RESPONSE
@@ -77,7 +84,8 @@ class IdeazAccessibilityService : AccessibilityService() {
     private fun scheduleCapture() {
         val root = targetRoot() ?: return
         val snapshot = collectText(root).trim()
-        if (snapshot.isBlank() || snapshot == lastSnapshot) return
+        if (!isCompletedResponse(root, snapshot) || snapshot == lastSnapshot) return
+
         lastSnapshot = snapshot
         stableJob?.let(handler::removeCallbacks)
         stableJob = Runnable { captureStableResponse(snapshot) }.also {
@@ -85,18 +93,34 @@ class IdeazAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun captureStableResponse(snapshot: String) {
+    private fun captureStableResponse(candidateSnapshot: String) {
         if (!GeminiAppBridge.isWaiting ||
             GeminiAppBridge.phase != GeminiAppBridge.BridgePhase.AWAIT_RESPONSE
         ) return
 
-        val root = targetRoot()
-        val copy = root?.let { findClickable(it, BridgeHeuristics::isCopyHint) }
-        if (copy != null && copy.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-            handler.postDelayed({ deliverClipboardOrScrape(snapshot) }, CLIPBOARD_DELAY_MS)
-        } else {
-            deliverScraped(snapshot)
+        val root = targetRoot() ?: return
+        val currentSnapshot = collectText(root).trim()
+
+        // Revalidate after the stability delay. A 2.5 s streaming pause is not a
+        // completion signal; the tree must still be the same completed response.
+        if (currentSnapshot != candidateSnapshot || !isCompletedResponse(root, currentSnapshot)) {
+            lastSnapshot = ""
+            scheduleCapture()
+            return
         }
+
+        val copy = findClickable(root, BridgeHeuristics::isCopyHint)
+        if (copy != null && copy.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+            handler.postDelayed({ deliverClipboardOrScrape(currentSnapshot) }, CLIPBOARD_DELAY_MS)
+        } else {
+            deliverScraped(currentSnapshot)
+        }
+    }
+
+    private fun isCompletedResponse(root: AccessibilityNodeInfo, snapshot: String): Boolean {
+        if (snapshot.isBlank() || snapshot == GeminiAppBridge.baselineSnapshot) return false
+        if (containsHint(root, BridgeHeuristics::isGeneratingHint)) return false
+        return countClickable(root, BridgeHeuristics::isCopyHint) > GeminiAppBridge.baselineCopyActions
     }
 
     private fun deliverClipboardOrScrape(snapshot: String) {
@@ -155,13 +179,38 @@ class IdeazAccessibilityService : AccessibilityService() {
     ): AccessibilityNodeInfo? {
         var found: AccessibilityNodeInfo? = null
         walk(root) { node ->
-            val hint = node.contentDescription?.toString()
-                ?: node.text?.toString()
-                ?: node.hintText?.toString()
+            val hint = nodeHint(node)
             if (node.isClickable && matcher(hint)) found = node
         }
         return found
     }
+
+    private fun countClickable(
+        root: AccessibilityNodeInfo,
+        matcher: (String?) -> Boolean,
+    ): Int {
+        var count = 0
+        walk(root) { node ->
+            if (node.isClickable && matcher(nodeHint(node))) count++
+        }
+        return count
+    }
+
+    private fun containsHint(
+        root: AccessibilityNodeInfo,
+        matcher: (String?) -> Boolean,
+    ): Boolean {
+        var found = false
+        walk(root) { node ->
+            if (!found && matcher(nodeHint(node))) found = true
+        }
+        return found
+    }
+
+    private fun nodeHint(node: AccessibilityNodeInfo): String? =
+        node.contentDescription?.toString()
+            ?: node.text?.toString()
+            ?: node.hintText?.toString()
 
     private fun setInputText(field: AccessibilityNodeInfo, text: String): Boolean {
         val args = Bundle().apply {
@@ -226,7 +275,7 @@ class IdeazAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val INPUT_STABLE_MS = 500L
-        private const val RESPONSE_STABLE_MS = 2_500L
+        private const val RESPONSE_STABLE_MS = 1_250L
         private const val CLIPBOARD_DELAY_MS = 300L
     }
 }
