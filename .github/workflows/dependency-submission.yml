@@ -34,7 +34,7 @@ jobs:
       # foojay-resolver was removed, so the jvmToolchain(21) request must be satisfied
       # by an installed JDK rather than auto-downloaded.
       - name: Set up JDK 21
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           java-version: '21'
           distribution: 'temurin'
