@@ -1,60 +1,81 @@
 # Authentication & Security
 
 ## 1. Overview
-IDEaz currently operates on a **Bring Your Own Key (BYOK)** model. It does not have a centralized backend for user accounts. Authentication is handled locally via keys stored on the device.
 
-## 2. API Key Management
+IDEaz has no centralized user-account backend. Hosted provider APIs and GitHub use user-supplied credentials stored locally. The GitHub APK has one exception to the BYO-API-key rule: it may use a supported installed Gemini app after the user explicitly enables IDEaz's package-scoped accessibility bridge.
 
-### Storage Mechanism
-*   **Secure credentials:** Every provider token/key, plus the app-signing passwords, are stored as AES-GCM ciphertext in the dedicated `ideaz_secure_credentials` preferences file (`AndroidKeystoreCredentialStore`). Its non-exportable AES key is generated and retained by Android Keystore. Preference keys are hashed (SHA-256), so neither credentials nor provider names are stored in plaintext there. The full set of secure keys (`SettingsViewModel.SECURE_CREDENTIAL_KEYS`): Jules API key, GitHub PAT, Google AI Studio (Gemini) key, and the seven free/paid OpenAI-compatible provider keys (Groq, Cerebras, Hugging Face, Mistral, OpenAI, Anthropic, DeepSeek), plus the keystore and key-signing passwords. Everything else (theme, log level, AI-provider *assignment* choices, project paths, GitHub username/branch, etc.) stays in ordinary default `SharedPreferences` since none of it is a secret.
-*   **Encryption detail:** `Cipher.init(ENCRYPT_MODE, key)` is called with **no caller-supplied IV** — the AndroidKeyStore provider generates one internally and it's read back via `cipher.iv` before being stored alongside the ciphertext. An AndroidKeyStore-backed key created with `setRandomizedEncryptionRequired(true)` (the default) rejects a caller-provided IV outright (`InvalidAlgorithmParameterException`); this bit a full pass of secure-credential saves in production for a stretch before being caught and fixed. See `encryptCredential`/`decryptCredential` in `AndroidKeystoreCredentialStore.kt` for the reasoning, and don't reintroduce a caller-supplied IV on the encrypt path.
-*   **Migration:** Reading a legacy plaintext credential (from before a given key was moved into `SECURE_CREDENTIAL_KEYS`, or from an older app version) first writes it successfully to the secure store, then removes the default-preferences value. A failed secure write leaves the legacy value intact rather than converting a security migration into a credential shredder.
-*   **Failure visibility:** Every secure-credential read/write/migration failure is logged with the underlying exception (`SettingsViewModel.lastCredentialError`) and surfaced directly in the Settings screen's save-result Toast (e.g. "GitHub Token Save Failed: <reason>"), since most devices this ships to have no adb/logcat access. A cleanup-only failure (removing an already-migrated legacy plaintext entry) is logged but never reported as a save failure — only the real credential write's own outcome determines success.
-*   **Backup:** Both default credential preferences and the secure ciphertext preferences are excluded from cloud backup and device transfer because restored ciphertext would not have its original Keystore key.
-*   **Explicit export:** User-requested settings export may include the token only inside the `SecurityUtils` payload protected by a password of at least eight characters. Routine logs, WorkManager data, notifications, and automatic backups do not include it.
+## 2. Credential storage
 
-### Supported Keys
-1.  **GitHub Personal Access Token (PAT)**
-    *   **Key:** `KEY_GITHUB_TOKEN`
-    *   **Scope Required:** `repo`, `workflow`, `contents: write`.
-    *   **Usage:**
-        *   **Git:** `GitManager` (JGit) uses `UsernamePasswordCredentialsProvider` for cloning/pushing private repos.
-        *   **API:** `GitHubApiClient` for Releases, Forking, Secrets, and Reporting bugs.
-        *   **Header:** `Authorization: Bearer <TOKEN>`
-        *   **Save side effect:** saving a valid token immediately triggers `MainViewModel.fetchGitHubRepos()`, refreshing the Clone tab's repo list without waiting for the tab to remount.
-2.  **Google AI Studio API Key (Gemini)**
-    *   **Key:** `google_api_key`
-    *   **Usage:** Authenticating requests to the Gemini API (`GeminiApiClient`).
-    *   **Header:** `x-goog-api-key: <KEY>`
-3.  **Jules Project ID**
-    *   **Key:** `KEY_JULES_PROJECT_ID`
-    *   **Usage:** Identifying the project context for Jules API calls.
-4.  **Jules API Key**
-    *   **Usage:** Used for all calls to `jules.googleapis.com`.
-    *   **Header:** `X-Goog-Api-Key: <KEY>`
-    *   **Interceptor:** `AuthInterceptor` injects the key from `SettingsViewModel` into every request.
-5.  **Free-tier OpenAI-compatible providers** — Groq (`KEY_GROQ_API_KEY`), Cerebras (`KEY_CEREBRAS_API_KEY`), Hugging Face Inference (`KEY_HF_API_KEY`, also gates on-device model downloads), Mistral (`KEY_MISTRAL_API_KEY`).
-6.  **Paid-tier providers** — OpenAI (`KEY_OPENAI_API_KEY`) and DeepSeek (`KEY_DEEPSEEK_API_KEY`) route through `AiAdapterFactory`/`OpenAiCompatibleAdapter` like the free-tier providers above (six total on the OpenAI-compatible wire format). Anthropic (`KEY_ANTHROPIC_API_KEY`) is the seventh provider key but does **not** go through `OpenAiCompatibleAdapter` — `AiAdapterFactory` routes it to a dedicated `AnthropicAdapter` instead, since Claude's Messages API uses a different request/response shape than the OpenAI-compatible `/chat/completions` format the other six share.
-    *   Each key is entered once in Settings and selected as the app's default model, or (for Jules specifically) via the "Prompt Popup (Jules routing)" AI Assignment — see §2.1.
+Every provider key/token plus signing passwords is stored through `AndroidKeystoreCredentialStore`: AES-GCM ciphertext in dedicated preferences protected by a non-exportable Android Keystore key. Legacy plaintext entries are migrated only after the secure write succeeds. Automatic backup/device transfer excludes credential stores; explicit settings export can include credentials only inside the user-password-protected `SecurityUtils` payload.
 
-### 2.1 Default model selection
-`SettingsViewModel.getAiAssignment(KEY_AI_ASSIGNMENT_DEFAULT)` no longer hardcodes Gemini. When the user hasn't explicitly chosen a "Default" AI assignment, it walks `AiModels.defaultRanking` (Gemini → Anthropic → OpenAI → DeepSeek → Groq → Cerebras → HF → Mistral → Gemini CLI → Gemini App Bridge → on-device model → Gemini Nano) and picks the highest-ranked model whose required key is actually saved, falling back to Gemini only when no provider key has been entered anywhere. Jules is deliberately excluded from this ranking — the chat tab (and every other consumer of the "Default" assignment) can't construct a Jules client, which has its own session-based lifecycle instead of the shared `ConversationalAiClient` contract every other entry implements; auto-selecting it as "Default" used to make every chat message fail. An explicit "Default" choice from the AI Assignments dropdown always wins over the ranked auto-pick.
+Failures are logged and surfaced through `SettingsViewModel.lastCredentialError`, because a handset running IDEaz often has no convenient adb/logcat surface.
 
-## 3. Keystore (Android Signing)
-*   **Format:** JKS / Keystore file.
-*   **Credentials:** Store Password, Key Alias, Key Password.
-*   **Management:**
-    *   Imported via SAF (`SettingsViewModel.importKeystore`).
-    *   Stored in `filesDir/user_release.keystore`.
-    *   Used by `ApkSign` build step.
+### Credential slots
 
-## 4. Security Best Practices
-*   **No Hardcoding:** Never hardcode API keys or tokens in the source code.
-*   **Log Redaction:** Ensure logs (especially those sent to AI or GitHub) do not contain raw API keys. The `LoggingInterceptor` handles basic redaction of sensitive headers.
-*   **Permissions:** The app requests sensitive permissions (Accessibility, Overlay, Post Notifications, Install Unknown Apps). Broad storage permissions (`MANAGE_EXTERNAL_STORAGE`, `READ/WRITE_EXTERNAL_STORAGE`) and `PACKAGE_USAGE_STATS`/`QUERY_ALL_PACKAGES` were removed during the P0.2 permission-minimization pass; SAF pickers cover file access instead, and package visibility is scoped to a `<queries>` block naming only the specific packages IDEaz needs to see. Respect the user's trust and only use the remaining permissions for their intended purpose.
-*   **Encryption:** Use `SecurityUtils` (AES+PBKDF2) for exporting settings.
-*   **At-rest secrets:** Use `AndroidKeystoreCredentialStore` for every key in `SECURE_CREDENTIAL_KEYS` (§2); never copy them back into default preferences for convenience.
+* `KEY_GITHUB_TOKEN` — GitHub API/JGit operations.
+* `KEY_GOOGLE_API_KEY` — Gemini API / AI Studio credential.
+* `KEY_API_KEY` — Jules.
+* `KEY_GROQ_API_KEY`, `KEY_CEREBRAS_API_KEY`, `KEY_HF_API_KEY`, `KEY_MISTRAL_API_KEY`.
+* `KEY_OPENAI_API_KEY`, `KEY_ANTHROPIC_API_KEY`, `KEY_DEEPSEEK_API_KEY`.
+* `KEY_KEYSTORE_PASS`, `KEY_KEY_PASS` — Android signing secrets.
 
-## 5. Social Sign-On (Planned)
-*   **Status:** Not Implemented.
-*   **Goal:** Future phases may implement Google Sign-In to simplify the onboarding process, but the BYOK model for API usage will likely remain.
+Non-secret preferences such as theme, model assignment, project paths and branch names remain in ordinary default `SharedPreferences`.
+
+## 2.1 AI provider requirement vs API credential
+
+`AiModel` deliberately distinguishes two concepts:
+
+* `providerKey` — the credential slot an API transport uses.
+* `requiredKey` — the setup-time requirement in the current distribution.
+
+For every provider except Gemini they are the same. Gemini differs by distribution:
+
+| Distribution | Gemini transport | Setup requirement |
+|---|---|---|
+| Google Play | Gemini API | `KEY_GOOGLE_API_KEY` required |
+| GitHub APK | Installed Gemini app | no API key required when the bridge is used |
+| GitHub APK with AI Studio key | Installed app primary, Gemini API fallback | key optional but used as fallback |
+
+This distinction is important: making GitHub Gemini keyless must never accidentally make the Play API path keyless, and making setup keyless must not hide a saved AI Studio key from `AiAdapterFactory` when constructing the fallback client.
+
+## 2.2 Installed Gemini bridge
+
+The GitHub build's bridge is not an authentication token substitute smuggled into Play. It is a separate transport with a separate trust boundary:
+
+* registered only by GitHub `debug`/`release` manifests;
+* absent from the Play manifest;
+* requires the user to enable IDEaz's accessibility service;
+* accessibility events are restricted in XML to supported Gemini packages and additionally checked against the active bridge target;
+* activates only while an IDEaz request is in flight;
+* verifies that a candidate package actually resolves the explicit share intent before choosing it;
+* serializes bridge requests process-wide because the consumer app exposes one foreground composer;
+* shares a redacted, bounded project snapshot plus the IDEaz conversation and explicit current-turn attachments;
+* returns any mutation through the same checkpoint/review/approval contract as API providers.
+
+The bridge does not grant IDEaz a Google account credential, OAuth token, or API key.
+
+## 2.3 Default model selection
+
+An explicit AI Assignment wins. Otherwise `SettingsViewModel.defaultModelId()` ranks configured API providers by saved `providerKey`; when none is configured it falls back to Gemini. On Play that fallback still requires the Gemini API key at setup/use time. On GitHub it can be satisfied by the installed-app transport.
+
+## 3. GitHub credential
+
+The GitHub personal access token is used only for GitHub-backed actions such as private-repository git/API access and publishing. Local project creation, preview, editing and local commits do not require a GitHub account. Deploy/publish is where a missing token becomes relevant.
+
+## 4. Android signing
+
+A custom keystore is imported through SAF into app-private storage. Store/key passwords use the secure credential store; the alias is ordinary metadata. CI release signing uses repository secrets and environment variables documented in `build_pipeline.md`.
+
+## 5. Security rules
+
+* Never hardcode credentials.
+* Never move a secure credential back into default preferences for convenience.
+* Redact secrets from logs, repo snapshots and issue reports.
+* Do not broaden package visibility or accessibility scope without a concrete target that requires it.
+* Keep privileged external-AI services and permissions in GitHub-only manifests; Play must remain mechanically free of that surface.
+* Preserve project-root containment when constructing any payload that can leave the device; `RepoSnapshot` rejects symlinks and canonical paths outside the project.
+* Use `SecurityUtils` only for user-requested portable settings export, not routine credential persistence.
+
+## 6. Social sign-on
+
+Not implemented. If account sign-on is added later, it does not erase the distribution boundary above: Play provider access must continue to use supported provider mechanisms, while GitHub-only installed-app automation remains a separately disclosed feature.
