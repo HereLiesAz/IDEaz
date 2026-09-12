@@ -1,6 +1,7 @@
 package com.hereliesaz.ideaz.utils
 
 import java.io.File
+import java.nio.file.Files
 
 /**
  * Flattens a project directory into a single annotated text blob suitable for
@@ -11,8 +12,8 @@ import java.io.File
  *
  * SECURITY: this text is sent to a third-party app, so secret files are skipped
  * entirely and remaining file contents are run through [LogSanitizer] to redact
- * tokens/keys/passwords. Binary files and oversized projects are truncated with
- * an explicit marker so the AI knows the picture is incomplete.
+ * tokens/keys/passwords. Binary files, symlinks, paths that canonicalize outside
+ * the project, and oversized projects are omitted.
  */
 object RepoSnapshot {
 
@@ -74,7 +75,8 @@ object RepoSnapshot {
             return Result("(no project files yet)", 0, emptyList(), false)
         }
 
-        val files = collectFiles(base)
+        val skipped = mutableListOf<String>()
+        val files = collectFiles(base, skipped)
         val sb = StringBuilder()
         sb.append("PROJECT FILE TREE\n")
         sb.append(tree(base))
@@ -83,7 +85,6 @@ object RepoSnapshot {
         var included = 0
         var bytes = sb.length
         var truncated = false
-        val skipped = mutableListOf<String>()
 
         for (file in files) {
             val rel = file.relativeTo(base).path.replace(File.separatorChar, '/')
@@ -108,41 +109,75 @@ object RepoSnapshot {
 
         if (skipped.isNotEmpty()) {
             sb.append("\n===== NOT INCLUDED =====\n")
-            skipped.forEach { sb.append("- ").append(it).append('\n') }
+            skipped.distinct().forEach { sb.append("- ").append(it).append('\n') }
         }
 
-        return Result(sb.toString(), included, skipped, truncated)
+        return Result(sb.toString(), included, skipped.distinct(), truncated)
     }
 
-    private fun collectFiles(base: File): List<File> {
+    private fun collectFiles(base: File, skipped: MutableList<String>): List<File> {
         val out = mutableListOf<File>()
+        val basePath = base.toPath()
+
         fun walk(dir: File) {
             val children = dir.listFiles()?.sortedWith(compareBy({ it.isFile }, { it.name })) ?: return
-            for (c in children) {
-                if (c.isDirectory) {
-                    if (c.name !in SKIP_DIRS) walk(c)
-                } else {
-                    out.add(c)
+            for (child in children) {
+                val rel = runCatching {
+                    child.absoluteFile.relativeTo(base.absoluteFile).path.replace(File.separatorChar, '/')
+                }.getOrDefault(child.name)
+
+                if (Files.isSymbolicLink(child.toPath())) {
+                    skipped.add("$rel (symlink — withheld)")
+                    continue
+                }
+
+                val canonical = runCatching { child.canonicalFile }.getOrElse {
+                    skipped.add("$rel (unresolvable — withheld)")
+                    continue
+                }
+                if (!canonical.toPath().startsWith(basePath)) {
+                    skipped.add("$rel (outside project — withheld)")
+                    continue
+                }
+
+                if (canonical.isDirectory) {
+                    if (canonical.name !in SKIP_DIRS) walk(canonical)
+                } else if (canonical.isFile) {
+                    out.add(canonical)
                 }
             }
         }
+
         walk(base)
         return out
     }
 
     private fun tree(base: File, maxEntries: Int = 400): String {
         val sb = StringBuilder()
+        val basePath = base.toPath()
         var count = 0
+
         fun walk(dir: File, prefix: String) {
             val children = dir.listFiles()?.sortedWith(compareBy({ it.isFile }, { it.name })) ?: return
-            for (c in children) {
-                if (count >= maxEntries) { sb.append(prefix).append("…(truncated)\n"); return }
-                if (c.isDirectory && c.name in SKIP_DIRS) continue
+            for (child in children) {
+                if (count >= maxEntries) {
+                    sb.append(prefix).append("…(truncated)\n")
+                    return
+                }
+                if (Files.isSymbolicLink(child.toPath())) continue
+                val canonical = runCatching { child.canonicalFile }.getOrNull() ?: continue
+                if (!canonical.toPath().startsWith(basePath)) continue
+                if (canonical.isDirectory && canonical.name in SKIP_DIRS) continue
+
                 count++
-                sb.append(prefix).append(c.name).append(if (c.isDirectory) "/" else "").append('\n')
-                if (c.isDirectory) walk(c, "$prefix  ")
+                sb.append(prefix)
+                    .append(canonical.name)
+                    .append(if (canonical.isDirectory) "/" else "")
+                    .append('\n')
+                if (canonical.isDirectory) walk(canonical, "$prefix  ")
             }
         }
+
         walk(base, "")
         return sb.toString()
     }
