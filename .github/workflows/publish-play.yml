@@ -1,6 +1,8 @@
 name: Publish AAB to Play
 
 # Manual, signed App Bundle build + (optional) upload to the Google Play Console.
+# The dedicated `play` build type is release-grade but omits the GitHub
+# distribution's external-app accessibility/overlay surface.
 #
 # Safe by default: track=internal, status=draft, publish=false. With publish=false
 # the job only builds and uploads the .aab as a workflow artifact — nothing reaches
@@ -139,7 +141,7 @@ jobs:
             printf '%s\n' "${DELIM}"
           } >> "$GITHUB_ENV"
 
-      - name: Build signed AAB
+      - name: Build signed Play AAB
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -148,36 +150,32 @@ jobs:
           # See "Read package name from build config" above for why these ride
           # in via env: rather than direct ${{ }} interpolation.
           BUILD_NUMBER_OVERRIDE_VAR: ${{ vars.BUILD_NUMBER_OVERRIDE }}
-          BUNDLE_COMMAND_VAR: ${{ vars.BUNDLE_COMMAND }}
+          PLAY_BUNDLE_COMMAND_VAR: ${{ vars.PLAY_BUNDLE_COMMAND }}
         run: |
           set -e
           test -f version.properties || { echo "version.properties is required" >&2; exit 1; }
           # -PversionBuild must be a value that only ever grows - Play Store
           # rejects any upload whose versionCode doesn't strictly increase.
-          # This previously read the static `build` field out of
-          # version.properties, which nothing in this pipeline ever
-          # increments/commits back, so every publish attempt would try to
-          # reuse the exact same versionCode as the last one.
           BUILD_NUMBER="${BUILD_NUMBER_OVERRIDE_VAR:-$(git rev-list --count HEAD)}"
           [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || { echo "Invalid build component" >&2; exit 1; }
-          BUNDLE_COMMAND="${BUNDLE_COMMAND_VAR:-./gradlew bundleRelease}"
+          BUNDLE_COMMAND="${PLAY_BUNDLE_COMMAND_VAR:-./gradlew bundlePlay}"
           $BUNDLE_COMMAND -PversionBuild=$BUILD_NUMBER --build-cache
 
-      - name: Locate AAB
+      - name: Locate Play AAB
         id: aab
         run: |
-          AAB=$(find . -path '*/build/outputs/bundle/*/*.aab' -print | sort | head -n 1)
+          AAB=$(find app/build/outputs/bundle/play -name '*.aab' -print | sort | head -n 1)
           if [ -z "$AAB" ]; then
-            echo "No .aab produced!" >&2
+            echo "No Play .aab produced!" >&2
             exit 1
           fi
-          echo "Found bundle: $AAB"
+          echo "Found Play bundle: $AAB"
           echo "path=$AAB" >> "$GITHUB_OUTPUT"
 
-      - name: Upload AAB artifact
+      - name: Upload Play AAB artifact
         uses: actions/upload-artifact@v7
         with:
-          name: app-release-aab
+          name: ideaz-play-aab
           path: ${{ steps.aab.outputs.path }}
           if-no-files-found: error
 

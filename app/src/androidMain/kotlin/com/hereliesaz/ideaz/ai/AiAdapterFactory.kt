@@ -1,6 +1,9 @@
 package com.hereliesaz.ideaz.ai
 
 import android.content.Context
+import com.hereliesaz.ideaz.BuildConfig
+import com.hereliesaz.ideaz.ai.bridge.FallbackAdapter
+import com.hereliesaz.ideaz.ai.bridge.GeminiAppBridgeAdapter
 import com.hereliesaz.ideaz.ui.AiModel
 import com.hereliesaz.ideaz.ui.AiModels
 import com.hereliesaz.ideaz.ui.SettingsViewModel
@@ -10,27 +13,35 @@ import kotlinx.coroutines.withContext
 /**
  * Maps a registered [AiModel] to a concrete [ConversationalAiClient].
  *
- * Three adapters serve every provider: [GeminiAdapter], [AnthropicAdapter], and
- * the single [OpenAiCompatibleAdapter] behind every `/chat/completions` endpoint.
- * Wire model ids are pinned in [AiModels] and overridable per provider in
- * Settings — nothing is discovered at runtime.
- *
- * Returns null only when the provider's key is missing.
+ * Play builds use only documented provider APIs. GitHub builds may additionally
+ * route the Gemini assignment through the installed Gemini app; when an AI
+ * Studio key exists the API client is retained as an automatic fallback.
  */
 object AiAdapterFactory {
 
-    /**
-     * Build a client for [model], wrapped so the AI is handed the project and
-     * told to study it before helping.
-     */
     fun create(
         model: AiModel,
         context: Context,
         tools: IdeTools,
         settings: SettingsViewModel,
     ): ConversationalAiClient? {
-        val base = createRaw(model, tools, settings) ?: return null
         val appName = settings.getAppName()?.takeIf { it.isNotBlank() } ?: "this project"
+
+        if (model.id == AiModels.GEMINI_FLASH && BuildConfig.EXTERNAL_AI_AUTOMATION) {
+            val bridge: ConversationalAiClient = GeminiAppBridgeAdapter(context, tools)
+            val key = settings.getApiKey(model.requiredKey).orEmpty()
+            if (key.isBlank()) return bridge
+
+            val wireModel = settings.getWireModelOverride(model.id) ?: model.defaultWireModel
+            val apiFallback = RepoAwareClient(
+                GeminiAdapter(key, tools, wireModel),
+                tools,
+                appName,
+            )
+            return FallbackAdapter(bridge, apiFallback)
+        }
+
+        val base = createRaw(model, tools, settings) ?: return null
         return RepoAwareClient(base, tools, appName)
     }
 
@@ -45,16 +56,13 @@ object AiAdapterFactory {
 
         return when (model.id) {
             AiModels.GEMINI_FLASH -> GeminiAdapter(key, tools, wireModel)
-
             AiModels.ANTHROPIC_CLAUDE -> AnthropicAdapter(key, tools, { wireModel })
-
             AiModels.OPENAI_GPT4O -> openAiCompat("https://api.openai.com/v1", key, wireModel, tools)
             AiModels.DEEPSEEK_CODER -> openAiCompat("https://api.deepseek.com", key, wireModel, tools)
             AiModels.GROQ_LLAMA -> openAiCompat("https://api.groq.com/openai/v1", key, wireModel, tools)
             AiModels.CEREBRAS_LLAMA -> openAiCompat("https://api.cerebras.ai/v1", key, wireModel, tools)
             AiModels.HF_INFERENCE -> openAiCompat("https://router.huggingface.co/v1", key, wireModel, tools)
             AiModels.MISTRAL_SMALL -> openAiCompat("https://api.mistral.ai/v1", key, wireModel, tools)
-
             else -> null
         }
     }
@@ -72,12 +80,6 @@ object AiAdapterFactory {
     )
 }
 
-/**
- * Wraps any [ConversationalAiClient] so the model is always given the project and
- * told to study it before helping — independent of provider. The instruction and
- * a compact file tree are merged into the first user message each request (no
- * extra turn, so role alternation stays valid for every backend).
- */
 private class RepoAwareClient(
     private val delegate: ConversationalAiClient,
     private val tools: IdeTools,
@@ -105,7 +107,6 @@ private class RepoAwareClient(
     }
 }
 
-/** Builds the provider-agnostic "study the project first" system preamble. */
 object AiRepoContext {
     fun systemPreamble(appName: String, repoMap: String): String = """
         You are an expert AI pair-programmer embedded in IDEaz, a visual IDE. You are

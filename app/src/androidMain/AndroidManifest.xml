@@ -3,18 +3,9 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-        The core loop - render the project, tap an element, prompt the AI, reload -
-        happens entirely inside this app's own WebView and needs no permissions at
-        all. POST_NOTIFICATIONS is the only one left, and only so long-running work
-        (clone, deploy) can report progress while the app is backgrounded.
-
-        Deliberately removed, and not to be re-added without a target that needs them:
-          SYSTEM_ALERT_WINDOW                 - select mode is an in-app Compose layer
-          FOREGROUND_SERVICE_MEDIA_PROJECTION - screenshots were Android-target only
-          FOREGROUND_SERVICE_SPECIAL_USE      - was the overlay service
-          REQUEST_INSTALL_PACKAGES            - was in-app APK sideload / self-update
-          BIND_ACCESSIBILITY_SERVICE (x2)     - element inspection + Gemini app bridge
-          <queries>                           - only the accessibility bridge needed it
+        This is the policy-safe manifest shared by every distribution. The
+        GitHub debug/release builds merge their external-AI automation surface
+        from src/debug and src/release respectively; the Play build does not.
     -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
@@ -41,6 +32,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Safe in both distributions: used only when the user explicitly
+             shares a staged project/image into another app. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/provider_paths" />
+        </provider>
 
         <!--
             Isolated process so a crash in the main process can still be reported.
