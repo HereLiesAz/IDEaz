@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- Resource source set kept explicit alongside src/play/AndroidManifest.xml.
-         App name intentionally remains IDEaz so Play and GitHub builds are drop-in
-         replacements signed with the same key/package. -->
-</resources>
