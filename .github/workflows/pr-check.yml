@@ -7,16 +7,13 @@ name: PR Check
 # in git history/TODO.md) - this workflow exists specifically so removing
 # that trigger didn't also remove pre-merge validation entirely.
 #
-# Deliberately narrower than build-and-release.yml: no release signing, no
-# artifact packaging, no publishing. Just enough to catch a build break or a
-# broken test before merge.
+# Deliberately narrower than build-and-release.yml: no release signing and no
+# publishing. The Play bundle is still assembled here because `play` has its
+# own manifest/build-type contract and must not be allowed to rot separately.
 
 on:
   pull_request:
 
-# Keyed on the PR number only, and this workflow has exactly one trigger
-# type (pull_request), so there's no push-vs-pull_request ref mismatch to
-# chase here - a push to an open PR simply supersedes the previous check.
 concurrency:
   group: pr-check-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -61,56 +58,33 @@ jobs:
         if: ${{ hashFiles('**/gradlew') != '' }}
         run: chmod +x gradlew
 
-      # The element -> source chain is the product's whole premise and none of
-      # it is Kotlin, so Gradle cannot see it. It broke silently once already:
-      # the jsx-runtime shim dropped jsxDEV's `source` argument, which produced
-      # no crash and no warning, only source resolution that always answered
-      # null. Node is preinstalled on ubuntu-latest; this costs a second.
       - name: Verify the JSX source chain
         run: node webruntime/src/test/js/jsx-source-chain.test.mjs
 
-      # A direct A<->B import cycle used to deadlock ideaz-loader.js forever,
-      # silently: loadModule's inputCache returned the still-pending outer
-      # promise for the second, re-entrant call, so it could only settle by
-      # completing itself first. Also not Kotlin, also invisible to Gradle.
       - name: Verify import cycles degrade instead of hanging the preview
         run: node webruntime/src/test/js/loader-import-cycle.test.mjs
 
-      # jsxs() used to spread array children into createElement's variadic
-      # arguments, which changed an element's shape versus real React's own
-      # jsx-runtime (an empty list became `undefined` children instead of
-      # `[]`) and silenced key warnings that only fire for array children.
       - name: Verify jsxs() array children match real React's shape
         run: node webruntime/src/test/js/jsx-array-children.test.mjs
 
-      # sourceOf() in ideaz-bridge.js used to check data-ideaz-source before
-      # the React fiber's own per-element source and return immediately -
-      # node.closest() walks every ancestor, so one data-ideaz-source near
-      # the app root silently overrode every tap beneath it.
       - name: Verify the bridge prefers the fiber source over data-ideaz-source
         run: node webruntime/src/test/js/bridge-source-priority.test.mjs
 
-      - name: Compile, unit test, and lint
+      - name: Compile GitHub + Play, unit test, and lint
         shell: bash
         run: |
           set +e
-          # Same bounded-timeout + live-streaming pattern as build-and-release.yml.
-          # This job originally skipped the thread-dump watchdog on the theory
-          # that it "just needs to fail loudly instead of hanging silently" -
-          # it then reproduced the exact testDebugUnitTest teardown hang this
-          # session spent hours root-causing, with zero diagnostic output,
-          # because there was no watchdog. Carrying the watchdog over here too.
           (
-            timeout --kill-after=1m 20m bash -eo pipefail -c \
-              './gradlew assembleDebug testDebugUnitTest desktopMainClasses lintDebug --continue' 2>&1 | tee build.log
+            timeout --kill-after=1m 25m bash -eo pipefail -c \
+              './gradlew assembleDebug bundlePlay testDebugUnitTest desktopMainClasses lintDebug --continue' 2>&1 | tee build.log
             echo "${PIPESTATUS[0]}" > /tmp/build_exit_code
           ) &
           BUILD_PID=$!
 
           (
-            sleep 480
+            sleep 600
             if kill -0 "$BUILD_PID" 2>/dev/null; then
-              echo "::warning::Still running after 8 min - dumping JVM thread stacks"
+              echo "::warning::Still running after 10 min - dumping JVM thread stacks"
               JCMD="${JAVA_HOME:+$JAVA_HOME/bin/jcmd}"
               JCMD="${JCMD:-jcmd}"
               for pid in $("$JCMD" -l 2>/dev/null | awk '{print $1}'); do
@@ -128,6 +102,6 @@ jobs:
 
           EXIT_CODE=$(cat /tmp/build_exit_code 2>/dev/null || echo 1)
           if [ "$EXIT_CODE" -eq 124 ]; then
-            echo "PR check timed out after 20 minutes" >&2
+            echo "PR check timed out after 25 minutes" >&2
           fi
           exit "$EXIT_CODE"
