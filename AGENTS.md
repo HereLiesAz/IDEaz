@@ -72,7 +72,6 @@ The `docs/` folder contains the documentation for this project. These files are 
 ## Recent Changes (Summary)
 
 *   **Phase 0 triage in progress.** Removing dead code paths (React Native, Flutter, Python, Zipline / Redwood, on-device toolchain, `VirtualDisplay`-based `AndroidProjectHost`, Jules CLI, Gemini CLI, "Race to Build") to regain a green build before Phase 1.
-*   **Architecture pivot.** Primary project host is `WebProjectHost`. A future arbitrary Android-target inspection loop remains separate Phase-2 work.
-*   **AI distribution split.** Google Play is provider-API/BYO-key only. GitHub `debug`/`release` builds may use the explicitly enabled, package-scoped installed-Gemini bridge, with Gemini API fallback when an AI Studio key exists. Both paths share the same edit-review contract.
-*   **Build distribution split.** GitHub Releases stay on `release`; Play publishes the dedicated policy-safe `play` build via `bundlePlay`.
-*   **Build pipeline pivot.** User-project builds remain remote-only via GitHub Actions. The on-device toolchain and Maven Aether resolver are gone.
+*   **Architecture pivot.** Primary host is `WebProjectHost` (PWA target loop, Phase 1). Android target loop returns in Phase 2 on top of `IdeazOverlayService` + `IdeazAccessibilityService` (no more `VirtualDisplay`).
+*   **AI providers pivot.** Phase 1 default is **Gemini** (BYO-key, conversational, tool-use). Jules moves to Phase 2 (Android target only). The Jules CLI is gone; `JulesApiClient` (HTTP) is the only Jules path.
+*   **Build pipeline pivot.** Remote-only via GitHub Actions. The on-device toolchain and Maven Aether resolver are gone.

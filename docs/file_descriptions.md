@@ -1,9 +1,12 @@
 # File Descriptions
 
 A map of what is actually here, regenerated against the tree rather than
-maintained by hand. The previous version described files that no longer existed
-and omitted live distribution-specific code. An agent orienting itself here
-should be able to trust that a named file is part of the current tree.
+maintained by hand. The previous version described 107 Kotlin files, 39 of which
+no longer existed — `AIDelegate.kt`, `BuildDelegate.kt`, `OverlayDelegate.kt`,
+`ScreenshotService.kt`, `RemoteBuildManager.kt`, the whole on-device model stack,
+the Jules and Gemini-app-bridge adapters, `ProjectType.kt`, and more. An agent
+orienting itself with that file would have spent its first tool calls opening
+files that are not there.
 
 For *why* the pieces fit together the way they do, read
 [`architecture.md`](architecture.md). This file only says where things live.
@@ -13,17 +16,13 @@ For *why* the pieces fit together the way they do, read
 *   `AGENTS.md` — instructions for AI agents working on IDEaz itself.
 *   `README.md` — what the product is.
 *   `build.gradle.kts`, `settings.gradle.kts` — Gradle build and repositories.
-    The root build also defines the GitHub `debug`/`release` versus Google Play
-    `play` distribution split and mirrors the `play` build type into `:webruntime`.
-*   `version.properties` — four-component version source of truth. Feature-sized
-    releases advance `minor`; small fixes advance `patch`.
+*   `version.properties` — four-component version source of truth. **Only ever
+    edited to bump `minor` upward.**
 *   `get_version.sh` — version string for CI workflows.
-*   `.github/workflows/pr-check.yml` — the pre-merge gate: JavaScript bridge tests,
-    GitHub APK compile, Play bundle compile, Android unit tests, desktop classes,
-    and Android lint.
-*   `.github/workflows/build-and-release.yml` — GitHub-release APK channel.
-*   `.github/workflows/publish-play.yml` — dedicated `bundlePlay` AAB build and
-    optional Play upload.
+*   `.github/workflows/pr-check.yml` — the only pre-merge gate: JSX source-chain
+    test, then `assembleDebug testDebugUnitTest desktopMainClasses lintDebug`.
+*   `.github/workflows/build-and-release.yml` — builds and publishes on push to
+    `master` and on manual dispatch. See `docs/build_pipeline.md` §6.
 *   `.github/workflows/dependency-submission.yml` — submits the release-runtime
     dependency graph, deliberately excluding build-tool configurations.
 
@@ -41,35 +40,32 @@ Assets-only dynamic feature module carrying the in-browser runtime. No Kotlin.
 *   `src/main/assets/ideaz-runtime/*.js` — vendored React 18.3.1 (development
     build — `_debugSource` only exists there), React-DOM, Babel standalone, and
     the common ecosystem libraries the import map resolves.
-*   `src/test/js/*.test.mjs` — runtime regression tests for JSX source metadata,
-    import cycles, array children and bridge source priority.
+*   `src/test/js/jsx-source-chain.test.mjs` — end-to-end assertion that a tap can
+    still resolve to a file and line: runs the shipped Babel and React over real
+    JSX through the real shim. No mocks, because a mock passed against the broken
+    shim.
 
 ## app/
 
 *   `build.gradle.kts` — KMP module: `androidTarget()` plus `jvm("desktop")`.
-*   `src/androidMain/AndroidManifest.xml` — policy-safe common manifest: base
-    activity/services plus the FileProvider used for explicit external-app
-    attachment sharing.
-*   `src/debug/AndroidManifest.xml`, `src/release/AndroidManifest.xml` — GitHub
-    distribution additions: installed-AI accessibility service, overlay service,
-    package visibility, overlay and special-use foreground-service permissions.
-*   `src/play/AndroidManifest.xml` — deliberately empty overlay: Play inherits only
-    the common policy-safe manifest.
-*   `src/{debug,release,play}/res/values/distribution.xml` — channel-specific
-    resources matching the compile-time distribution flags.
+*   `src/androidMain/AndroidManifest.xml` — `POST_NOTIFICATIONS`, `MainActivity`,
+    `CrashReportingService`. Nothing else is declared.
 *   `src/androidMain/assets/ideaz-bridge.js` — injected into the preview. Collects
     DOM context for a tapped element and walks the React fiber tree for
     `_debugSource`, falling back to a `data-ideaz-source` attribute, then a
     selector.
-*   `src/androidMain/assets/templates/react/` — bundled React/Vite starter.
+*   `src/androidMain/assets/templates/react/` — the one bundled starter. A
+    Vite-shaped React app, because that is the shape the preview pipeline is for.
 
 ### commonMain — platform-agnostic
 
 *   `platform/Platform.kt` — `expect object Platform`. Logging, Base64, and a
     debug-build flag: the only three things that pinned otherwise-portable code
     to Android.
-*   `ui/delegates/SelectionDelegate.kt` — owns in-preview select mode and the tap
-    gesture that starts the web edit loop.
+*   `ui/delegates/SelectionDelegate.kt` — owns select mode, the tap gesture that
+    starts the edit loop. Replaced `OverlayDelegate`, which needed a
+    `TYPE_APPLICATION_OVERLAY` window, a foreground service, a persistent
+    notification and a MediaProjection screenshot pipeline to do the same job.
 *   `ui/Dependency.kt`, `ui/ProjectMetadata.kt` — small shared models.
 
 ### jvmSharedMain — shared by both JVM targets
@@ -79,70 +75,59 @@ rules out JGit, OkHttp and Retrofit; this source set is the intermediate both
 JVM targets depend on.
 
 **AI**
-*   `ai/IdeTools.kt` — AI tool surface plus immutable out-of-tree edit checkpoints,
-    review fingerprints and guarded restore.
+*   `ai/IdeTools.kt` — the tool surface the AI acts through, plus the checkpoint
+    machinery: an immutable out-of-tree snapshot taken before any mutation,
+    durable across process death, fingerprint-gated before restore.
 *   `ai/AiEditApproval.kt` — a pending validated edit awaiting an explicit user
     decision. Every provider shares this one contract.
-*   `ai/ConversationalAiClient.kt` — provider-agnostic conversational interface.
-*   `ai/AnthropicAdapter.kt`, `ai/OpenAiCompatibleAdapter.kt` — cloud adapters;
-    the OpenAI-compatible one serves OpenAI, DeepSeek, Groq, Cerebras, Hugging
-    Face and Mistral.
-*   `ai/ToolSchema.kt` — provider-neutral tool-argument description.
-*   `utils/RepoSnapshot.kt` — redacted, bounded snapshot for providers with no
-    file tools. Rejects symlinks and canonical paths outside the project root.
+*   `ai/ConversationalAiClient.kt` — provider-agnostic interface; callers pass the
+    whole history so implementations keep multi-turn context.
+*   `ai/AnthropicAdapter.kt`, `ai/OpenAiCompatibleAdapter.kt` — two of the three
+    adapters. The OpenAI-compatible one serves OpenAI, DeepSeek, Groq, Cerebras,
+    Hugging Face and Mistral.
+*   `ai/ToolSchema.kt` — provider-neutral tool-argument description each adapter
+    converts to its native schema.
 
 **GitHub and git**
 *   `api/GithubApiClient.kt`, `api/models.kt`, `api/AuthInterceptor.kt` — Retrofit
     client for the GitHub API.
-*   `git/GitManager.kt` — JGit wrapper.
-*   `utils/GithubSecretBox.kt` — libsodium-compatible sealed box over BouncyCastle.
+*   `git/GitManager.kt` — JGit wrapper. Also raises the rejections JGit reports as
+    ordinary return values (non-fast-forward push, conflicting merge).
+*   `utils/GithubSecretBox.kt` — libsodium-compatible sealed box over BouncyCastle,
+    so Actions can decrypt with the repository key.
 
 **Project and state**
-*   `utils/ProjectAnalyzer.kt` — `isPreviewable` and `findWebEntryPoint`.
-*   `models/IdeazProjectConfig.kt` — `.ideaz/config.json`.
-*   `models/ElementContext.kt` — DOM context captured on tap.
-*   `models/OperationState.kt` — one lifecycle for long-running operations.
-*   `ui/delegates/StateDelegate.kt` — UI state, including edit-review lifecycle.
-*   `ui/web/WebProjectUrlUtils.kt` — asset-loader origin and root mount rules.
-*   `utils/RepoMapper.kt`, `utils/SourceContextHelper.kt`, `utils/LogSanitizer.kt`,
-    `utils/OperationController.kt`, `utils/ErrorCollector.kt`, `utils/VersionUtils.kt`
-    — supporting utilities.
+*   `utils/ProjectAnalyzer.kt` — `isPreviewable` and `findWebEntryPoint`. The only
+    questions asked of a directory.
+*   `models/IdeazProjectConfig.kt` — `.ideaz/config.json`: branch, owner,
+    timestamp.
+*   `models/ElementContext.kt` — the DOM context `ideaz-bridge.js` captures on tap.
+*   `models/OperationState.kt` — one lifecycle for every long-running operation.
+*   `ui/delegates/StateDelegate.kt` — UI state, including the checkpoint lifecycle.
+*   `ui/web/WebProjectUrlUtils.kt` — the asset-loader origin, with the project
+    mounted at its **root** so `/src/main.jsx` resolves.
+*   `utils/RepoMapper.kt`, `utils/RepoSnapshot.kt` — the file tree and the
+    flattened blob handed to models without file tools.
+*   `utils/SourceContextHelper.kt`, `utils/LogSanitizer.kt`,
+    `utils/OperationController.kt`, `utils/ErrorCollector.kt`,
+    `utils/VersionUtils.kt` — supporting utilities.
 
 ### androidMain — the phone IDE
 
 **Rendering**
-*   `ui/web/WebProjectHost.kt` — WebView host with per-project storage isolation
-    and origin-scoped JS interfaces.
+*   `ui/web/WebProjectHost.kt` — the WebView host. Per-project storage isolation
+    on switch, plain-language net-error translation, and the `Ideaz`/`IdeazBridge`
+    interfaces scoped to the asset-loader origin.
 *   `ui/web/WebProjectPathHandler.kt` — serves the project at the origin root.
-*   `ui/web/WebViewBridge.kt` — receives DOM element context from JavaScript.
-
-**AI routing and installed-app host**
-*   `ai/AiAdapterFactory.kt` — model id → adapter. Google Play uses documented
-    provider APIs; GitHub builds may route Gemini through the installed app and
-    retain the API client as fallback when a key exists.
-*   `ai/GeminiAdapter.kt` — Gemini API adapter.
-*   `ai/AttachmentResolver.kt` — resolves prompt attachments at submit time.
-*   `ai/bridge/GeminiAppBridgeAdapter.kt` — serialized installed-Gemini handoff:
-    redacted repo snapshot, full conversation, reference attachments, response
-    capture, unified-diff extraction, and the normal edit-review gate.
-*   `ai/bridge/GeminiAppBridge.kt` — process-local bridge session state/mailbox.
-*   `ai/bridge/BridgeHeuristics.kt` — version-tolerant composer/send/copy/generation
-    accessibility matching.
-*   `ai/bridge/ExternalAiWindowHost.kt` — persisted GitHub-only presentation mode
-    (frame, compact frame, freeform, adjacent/embedded best effort, fullscreen)
-    and return-to-IDEaz behavior.
-*   `services/IdeazAccessibilityService.kt` — GitHub-only driver restricted by
-    manifest config to the supported Gemini packages and active only for an
-    in-flight bridge request.
-*   `services/ExternalAiOverlayService.kt` — non-touchable IDEaz frame around the
-    live external app; registered only by GitHub build manifests.
-*   `res/xml/external_ai_accessibility_config.xml` — package-scoped accessibility
-    event configuration for the external Gemini bridge.
+    Project content is `no-store`; the bundled runtime is cacheable and segmented
+    by `VERSION_CODE` so an upgrade cannot serve stale runtime JS.
+*   `ui/web/WebViewBridge.kt` — receives `IdeazBridge.onElementTapped(json)`.
 
 **The loop**
-*   `ui/MainViewModel.kt` — preview, chat, checkpoints, git and projects.
-*   `ui/ContextualChatOverlay.kt` — tapped-element chat and edit approval controls.
-*   `ui/SelectionOverlay.kt` — transparent in-app tap-catcher for web select mode.
+*   `ui/MainViewModel.kt` — the brain: preview, chat, checkpoints, git, projects.
+*   `ui/ContextualChatOverlay.kt` — the panel that opens on tap: what was tapped,
+    the conversation, and the approve/reject controls for the AI's edit.
+*   `ui/SelectionOverlay.kt` — transparent tap-catcher while select mode is on.
 *   `ui/MainScreen.kt`, `ui/IdeNavHost.kt`, `ui/IdeNavRail.kt`,
     `ui/IdeBottomSheet.kt` — shell, navigation, log ticker.
 *   `ui/AiChatTab.kt`, `ui/PromptPopup.kt`, `ui/ContextlessChatInput.kt`,
@@ -150,28 +135,36 @@ JVM targets depend on.
 
 **Tools, not the workspace**
 *   `ui/FileExplorerScreen.kt`, `ui/FileContentScreen.kt`, `ui/CodeEditor.kt`,
-    `ui/editor/EditorViewModel.kt`, `ui/editor/EditorSetup.kt` — file browser/editor.
-*   `ui/GitScreen.kt`, `ui/delegates/GitDelegate.kt` — git UI and wrapper.
+    `ui/editor/EditorViewModel.kt`, `ui/editor/EditorSetup.kt` — file browser and
+    Sora editor, for when the AI gets stuck.
+*   `ui/GitScreen.kt`, `ui/delegates/GitDelegate.kt` — git UI and off-main-thread
+    wrapper.
 *   `ui/project/SetupTab.kt`, `ui/project/CloneTab.kt`, `ui/project/LoadTab.kt`,
     `ui/delegates/RepoDelegate.kt` — create, clone, load, initialize.
-*   `ui/SettingsScreen.kt`, `ui/SettingsViewModel.kt` — provider credentials,
-    assignments, permissions and GitHub-only external-AI window preference.
+*   `ui/SettingsScreen.kt`, `ui/SettingsViewModel.kt` — settings and preferences.
 
-**Utilities and services**
+**Utilities**
 *   `utils/AndroidKeystoreCredentialStore.kt` — AES-GCM persistence behind a
-    non-exportable Keystore key.
-*   `utils/ProjectConfigManager.kt` — `.ideaz/` config, Pages workflow,
+    non-exportable Keystore key, backing every provider key, the GitHub token and
+    the signing passwords.
+*   `utils/ProjectConfigManager.kt` — `.ideaz/` config, the Pages workflow,
     `AGENTS_SETUP.md`, `version.properties`.
-*   `utils/TemplateManager.kt` — copies the bundled React starter.
+*   `utils/TemplateManager.kt` — copies the bundled React starter into an empty
+    project directory.
 *   `utils/ProjectAssetImporter.kt` — copies a SAF-picked file into `assets/`.
 *   `utils/ProjectFileObserver.kt` — watches the tree and triggers preview reloads.
 *   `utils/BackupManager.kt`, `utils/SecurityUtils.kt`, `utils/CrashHandler.kt`,
     `utils/GithubIssueReporter.kt`, `utils/LogcatReader.kt` — backup, crypto,
     crash capture and reporting.
-*   `services/CrashReportingService.kt` — files opted-in crashes as GitHub issues
-    from a separate `:crash_reporter` process.
+*   `services/CrashReportingService.kt` — files crashes as GitHub issues from a
+    separate `:crash_reporter` process, so it survives the main one dying.
+*   `ai/AiAdapterFactory.kt` — model id → adapter, wrapped in the client that
+    injects the "study the project first" preamble and the repo map.
+*   `ai/GeminiAdapter.kt` — the third adapter.
+*   `ai/AttachmentResolver.kt` — resolves prompt attachments at submit time.
 
 ### desktopMain
 
-*   `Main.kt` — `./gradlew :app:run` desktop host.
-*   `platform/Platform.desktop.kt` — desktop `actual`.
+*   `Main.kt` — `./gradlew :app:run`. Exists so the app can be launched and
+    tested without a handset. The shared UI lands here as `commonMain` grows.
+*   `platform/Platform.desktop.kt` — the desktop `actual`.

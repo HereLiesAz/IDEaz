@@ -1,102 +1,107 @@
-# Manifest and Distribution Surface
+# Manifest: Screen Component Listing and Backend Infrastructure
 
-IDEaz has one common Android manifest plus distribution-specific overlays.
+---
 
-| Source | Distribution | Purpose |
-|---|---|---|
-| `app/src/androidMain/AndroidManifest.xml` | all | Policy-safe common app surface |
-| `app/src/debug/AndroidManifest.xml` | GitHub/debug | Installed-AI accessibility + overlay host |
-| `app/src/release/AndroidManifest.xml` | GitHub/release | Installed-AI accessibility + overlay host |
-| `app/src/play/AndroidManifest.xml` | Play | Intentionally empty overlay; inherits common surface only |
+## I. MainScreen (com.hereliesaz.ideaz.ui.MainScreen)
 
-## Common manifest
+* **Scaffold**
+    * Description (Looks Like): Full-screen container with the theme's background color.
+    * Description (Does): Provides the base layout structure for the entire screen.
+    * Conditions (Applies To): Always present.
+* **Cancel Task Dialog (AlertDialog)**
+    * Description (Looks Like): Modal pop-up with title "Cancel Task," a confirmation message, and "Confirm"/"Dismiss" buttons (`AzButton`).
+    * Description (Does): Confirms or cancels an active AI task, resetting progress on confirmation.
+    * Conditions (Applies To): `viewModel.showCancelDialog` is true.
+* **IdeNavRail**
+    * Description (Looks Like): A vertical navigation strip on the left side of the screen.
+    * Description (Does): Hosts primary navigation links and mode controls.
+    * Conditions (Applies To): Always present.
+* **IDE Content (NavHost)**
+    * Description (Looks Like): The main content area that displays the current screen (MainIdeScreen, ProjectScreen, or SettingsScreen).
+    * Description (Does): Handles navigation between the application's primary views.
+    * Conditions (Applies To): `isIdeVisible` is true (Sheet is up OR current route is "settings" OR current route is "project_settings").
+* **IdeBottomSheet**
+    * Description (Looks Like): A bottom-anchored, drag-responsive sheet.
+    * Description (Does): Contains the `LiveOutputBottomCard` to display build and AI logs.
+    * Conditions (Applies To): `isBottomSheetVisible` is true (Current route is "main" or "build").
+* **ContextlessChatInput**
+    * Description (Looks Like): A horizontal text input field fixed to the bottom of the screen, overlaid on the sheet's peek space.
+    * Description (Does): Accepts user text input and sends it as a prompt to the ViewModel.
+    * Conditions (Applies To): `isChatVisible` is true (Sheet detent is `Peek` or `Halfway`).
 
-The common manifest declares:
+---
 
-* `POST_NOTIFICATIONS` — progress/results for long-running work.
-* `MainApplication`.
-* `MainActivity` — launcher activity, `singleTask`.
-* `FileProvider` — non-exported, grant-on-demand provider used when IDEaz explicitly stages and shares the redacted project snapshot or prompt attachments to another app.
-* `CrashReportingService` — non-exported, isolated `:crash_reporter` process. It is used only after the user-facing crash-reporting disclosure/setting allows it.
+## V. SettingsScreen (com.hereliesaz.ideaz.ui.SettingsScreen)
 
-No external-AI accessibility or overlay permission is present in this common manifest.
+* **Scrollable Column with Haze Effect**
+    * Description (Looks Like): Standard vertical scrolling settings list.
+* **Saved Settings and Credentials Section**
+    * **Save Settings / Load Settings buttons**: export/import all settings (including every secure credential) as a password-protected encrypted file via `SecurityUtils`.
+* **Signing Configuration Section**
+    * **Select Custom Keystore**: SAF picker; imports a `.keystore`/`.jks` file to `filesDir/user_release.keystore`.
+    * **Keystore Password / Key Alias / Key Password** fields, a **Save** button, and **Reset to Default** (reverts to the debug keystore).
+* **API Keys Section**
+    * **Jules API Key**, **GitHub Personal Access Token**, **AI Studio API Key** (Gemini), **Google Cloud Project Number** — each with a "Get Key" link to the provider's key-issuance page. Saving the GitHub token also refreshes the Clone tab's repo list (`fetchGitHubRepos()`).
+    * **Free Providers** (Groq, Cerebras, Hugging Face, Mistral) and **Paid Providers** (OpenAI, Anthropic, DeepSeek) — one row each (`FreeProviderKeyRow`), same shape as the keys above: masked input, "Get Key" link, per-row Save.
+    * **Gemini App (Accessibility)**: status button showing whether the Gemini-app accessibility bridge is granted; tapping it when ungranted opens Accessibility settings.
+    * Every save/failure Toast in this section reports the actual underlying error (`SettingsViewModel.lastCredentialError`) on failure — see [`auth.md`](auth.md) §2 for why that matters on devices with no adb access.
+* **AI Assignments Section**
+    * One dropdown per task (Default, Project Initialization, Contextless Chat, Overlay Chat) listing every `AiModel` in `AiModels.availableModels`. An unset "Default" resolves automatically to the highest-ranked provider the user has a key for (`auth.md` §2.1), not a hardcoded model.
+* **On-device Models Section** (`OnDeviceModelsSection`)
+    * Lists locally-downloadable models, gated on AICore support / RAM-ABI requirements / a saved Hugging Face token where the model requires one.
+* **Permissions Section**
+    * An **"Open App Info"** button and explanatory text at the top: Android can label Accessibility/Overlay grants "restricted" for a sideloaded app until the user visits system App Info and enables them via its overflow menu — this jumps straight there.
+    * Overlay, Accessibility, and Post Notifications checks, each with a one-line description of why IDEaz needs it. The Screen Capture (MediaProjection) row and Install Unknown Apps check were removed — in-app updates and screen capture were dormant/removed during permission minimization. Broad storage permissions were removed entirely (P0.2 permission-minimization); SAF pickers cover file access instead.
+* **Preferences Section**
+    * **Show Cancel Warning Checkbox**: Toggles cancellation dialog.
+    * **Auto-report IDE internal errors Checkbox**: Toggles the automated GitHub issue reporting feature (`GithubIssueReporter`).
+    * **Auto-debug build failures with Jules Checkbox**.
+    * **Report IDE errors to HereLiesAz/IDEaz Checkbox**.
+* **Theme Dropdown**
+    * ... (Auto, Dark, Light, System)
+* **Log Level Dropdown**
+    * ... (Info, Debug, Verbose)
+* **Updates Section**
+    * **Check for Experimental Updates** button; an `AlertDialog` shows update progress/prompts to install when one is found.
 
-## GitHub APK manifest additions
+---
 
-`debug` and `release` add the installed-AI host:
+## VII. Invisible Backend Infrastructure
 
-* `FOREGROUND_SERVICE`
-* `FOREGROUND_SERVICE_SPECIAL_USE`
-* `SYSTEM_ALERT_WINDOW`
-* package visibility for the supported Gemini packages
-* `IdeazAccessibilityService`
-* `ExternalAiOverlayService`
+### A. ViewModels and State Management
 
-### `IdeazAccessibilityService`
+* **Class: MainViewModel (AndroidViewModel)**
+    * Description (Does): Centralizes application logic. Uses Delegates (`AIDelegate`, `BuildDelegate`, etc.) to handle specific domains.
+    * **Implements:** `handleIdeError` to route internal crashes to the `GithubIssueReporter` (via API) while routing build failures to the AI Debugger.
+* **Class: SettingsViewModel**
+    * Description (Does): Manages settings, secure-credential storage (`SECURE_CREDENTIAL_KEYS`, `AndroidKeystoreCredentialStore`), the ranked default-AI-model resolution (`AiModels.defaultRanking`), and `lastCredentialError` for surfacing real save/read failures in the UI (see [`auth.md`](auth.md)).
 
-* `android:exported="true"` because Android binds accessibility services through the system-managed `BIND_ACCESSIBILITY_SERVICE` contract.
-* Uses `@xml/external_ai_accessibility_config`.
-* The XML restricts events to the supported Gemini packages with `android:packageNames`.
-* The service code additionally ignores events unless an IDEaz external-AI request is actively in flight and the event package matches that request's resolved target package.
-* Purpose: submit IDEaz's explicitly prepared prompt into the supported installed AI app and capture the newly completed response. It is not the future arbitrary-app inspection service described by the Android-target roadmap.
+### B. Services and Inter-Process Communication (IPC)
 
-### `ExternalAiOverlayService`
+* **Class: BuildService (Service)**
+    * **Type:** `android:exported="false"`, `android:foregroundServiceType="dataSync"`. Runs in the main app process — no `android:process` attribute (a prior version of this doc claimed `:build_process`, which was never in the manifest).
+    * Description (Does): Dispatches and polls a remote GitHub Actions build via `RemoteBuildManager`, then sideloads the resulting APK. (The on-device build toolchain was removed in Phase 0.)
+* **Class: IdeazOverlayService (Service)**
+    * **Type:** `android:exported="false"`, `android:foregroundServiceType="specialUse"` (with a `FOREGROUND_SERVICE_TYPE_SPECIAL_USE_DESCRIPTION` property, not a `permission` attribute — a prior version of this doc claimed one).
+    * **Permissions:** `SYSTEM_ALERT_WINDOW`.
+    * Description (Does): Hosts the main UI overlay (`OverlayView`) as a system alert window.
+* **Class: ScreenshotService (Service)**
+    * **Type:** `android:exported="false"`, `android:foregroundServiceType="mediaProjection"`.
+    * Description (Does): Android-target screen capture (Phase 2), started only when `OverlayDelegate.isScreenCaptureEnabled()` - never reached on web/PWA projects.
+* **Class: IdeazAccessibilityService (AccessibilityService)**
+    * **Type:** `android:exported="true"`.
+    * **Permissions:** `BIND_ACCESSIBILITY_SERVICE` (system-only — an app cannot bind to another app's accessibility service without holding this itself, so `exported="true"` here does not open the service to arbitrary callers).
+    * Description (Does): Retrieves Node Info for inspection (Select-mode tap-to-inspect).
+* **Class: GeminiAppBridgeAccessibilityService (AccessibilityService)**
+    * **Type:** `android:exported="true"`, same `BIND_ACCESSIBILITY_SERVICE` gating as above.
+    * Description (Does): Drives the Gemini App Bridge - relays prompts/responses through the Gemini app's own UI via accessibility node interaction, for the "Gemini App (Accessibility)" AI provider option.
+* **Class: CrashReportingService (Service)**
+    * **Type:** `android:exported="false"`, `android:process=":crash_reporter"`.
+    * Description (Does): Handles fatal/non-fatal error reporting in an isolated process so it survives a main-process crash.
 
-* `android:exported="false"`.
-* `android:foregroundServiceType="specialUse"` with a special-use description property.
-* Purpose: draw non-touchable IDEaz chrome around the live external AI app for the GitHub-only frame presentation modes.
-* Requires `SYSTEM_ALERT_WINDOW`; Settings shows that permission only in builds where the service exists.
+### E. Core Utilities
 
-## Google Play manifest
-
-The `play` build type inherits only the common manifest. It does **not** declare:
-
-* `SYSTEM_ALERT_WINDOW`
-* `FOREGROUND_SERVICE_SPECIAL_USE`
-* `IdeazAccessibilityService`
-* `ExternalAiOverlayService`
-* Gemini package-visibility queries used by the GitHub host
-
-The shared Settings UI is gated by `BuildConfig.EXTERNAL_AI_AUTOMATION`, so Play users do not see controls for permissions or services their build does not contain.
-
-## SettingsScreen
-
-The Settings screen contains:
-
-* encrypted settings import/export;
-* project backup import/export;
-* signing configuration;
-* provider/API credentials;
-* AI assignments;
-* common notification permission;
-* GitHub-only external-AI presentation/permission controls when `EXTERNAL_AI_AUTOMATION` is true;
-* preferences, theme and log level.
-
-For GitHub builds the external-AI section exposes the persisted window mode (`IDEaz frame`, `Compact frame`, `Freeform window`, `Adjacent / embedded`, or `Fullscreen`) and the overlay/accessibility grants needed by the relevant modes.
-
-## Invisible backend infrastructure
-
-### `MainViewModel`
-
-Coordinates project lifecycle, preview, chat, edit checkpoints/review, git and long-running operations. AI client construction is centralized in `AiAdapterFactory`.
-
-### `SettingsViewModel`
-
-Owns preferences and secure credentials. `AiModel.providerKey` names a provider's API credential; `AiModel.requiredKey` is the distribution-aware setup requirement. Thus Play's Gemini assignment requires an AI Studio key while GitHub's installed-app Gemini route may satisfy setup without one.
-
-### `CrashReportingService`
-
-Non-exported service in a separate process so opted-in fatal/non-fatal issue reporting can survive failure of the main process.
-
-### `FileProvider`
-
-The provider is common because explicit file sharing itself is policy-safe. The installed-Gemini bridge is what consumes it in GitHub builds; Play retains no accessibility automation path merely because the provider exists.
-
-## Security boundary
-
-The distribution split must remain mechanical rather than a runtime promise:
-
-* privileged GitHub-only permissions/services belong in `src/debug` and `src/release`, not `androidMain`;
-* the Play build type must keep `EXTERNAL_AI_AUTOMATION=false` and `EXTERNAL_AI_OVERLAY=false`;
-* Play publishing must build `bundlePlay`;
-* CI must compile both the GitHub and Play variants so either manifest cannot quietly rot.
+* **Class: GithubIssueReporter**
+    * Description (Does): Utilities to post GitHub issues. Takes a `Throwable` and `contextMessage`, creates a formatted markdown bug report, and posts it to the `HereLiesAz/IDEaz` GitHub repo via API. Falls back to a browser intent if the API fails.
+* **Class: MainActivity**
+    * Description (Does): Registers a `packageInstallReceiver` to detect when the user's app is installed/updated and launches it immediately.

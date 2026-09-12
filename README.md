@@ -51,18 +51,12 @@ to a selector — the AI is told which it is getting.
 
 **AI**
 
-Eight hosted providers sit behind three adapter families — Gemini, Claude, and
+Bring your own key. Eight providers behind three adapters — Gemini, Claude, and
 one OpenAI-compatible client covering OpenAI, DeepSeek, Groq, Cerebras, Hugging
 Face and Mistral. Model ids are pinned and overridable in Settings.
 
-The **Google Play build** is API-only and uses BYO provider keys. The **GitHub
-APK** can additionally use a supported installed Gemini app after the user
-explicitly enables IDEaz's package-scoped accessibility bridge; no AI Studio key
-is required for that path, though a saved key becomes its automatic API fallback.
-
-Every mutation still goes through the same contract: the AI writes behind a
-checkpoint, you see what changed, and nothing reaches the preview until you
-approve it.
+Every provider goes through the same contract: the AI writes behind a checkpoint,
+you see what changed, and nothing reaches the preview until you approve it.
 
 **Git**
 
@@ -70,8 +64,12 @@ Every project is a git repository and git is the source of truth. A new project
 is `git init`-ed and gets an initial commit before it has any remote.
 
 You do **not** need a GitHub account to start. Create a project, scaffold it,
-edit it with the AI, and commit locally. **Deploy** is the action that asks for a
-GitHub token, and it creates the repository for you on first publish.
+edit it with the AI, and commit — all offline. **Deploy** is the one action that
+asks for a token, and it creates the repository for you on first publish. That is
+the only place in the app where a token has an obvious purpose, so it is the only
+place that asks.
+
+
 
 ---
 
