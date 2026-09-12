@@ -94,3 +94,52 @@ subprojects {
         }
     }
 }
+
+// Distribution split.
+//
+// `release` remains the GitHub distribution so the existing GitHub-release
+// pipeline, artifact names, and update path do not change. `play` is cloned from
+// the fully configured release build only after :app's own DSL has finished, then
+// compile-time disables the external-app automation/overlay surface. GitHub-only
+// permissions/services live in src/debug + src/release manifests, so the Play AAB
+// does not declare them at all.
+project(":app") {
+    plugins.withId("com.android.application") {
+        extensions.getByType<com.android.build.api.variant.ApplicationAndroidComponentsExtension>()
+            .finalizeDsl { android ->
+                android.buildTypes.getByName("debug").apply {
+                    buildConfigField("String", "DISTRIBUTION", "\"github\"")
+                    buildConfigField("boolean", "EXTERNAL_AI_AUTOMATION", "true")
+                    buildConfigField("boolean", "EXTERNAL_AI_OVERLAY", "true")
+                }
+                val release = android.buildTypes.getByName("release").apply {
+                    buildConfigField("String", "DISTRIBUTION", "\"github\"")
+                    buildConfigField("boolean", "EXTERNAL_AI_AUTOMATION", "true")
+                    buildConfigField("boolean", "EXTERNAL_AI_OVERLAY", "true")
+                }
+                android.buildTypes.create("play").apply {
+                    initWith(release)
+                    matchingFallbacks += listOf("release")
+                    buildConfigField("String", "DISTRIBUTION", "\"play\"")
+                    buildConfigField("boolean", "EXTERNAL_AI_AUTOMATION", "false")
+                    buildConfigField("boolean", "EXTERNAL_AI_OVERLAY", "false")
+                }
+            }
+    }
+}
+
+// Dynamic features must expose the same named build type as the base app. The
+// Play variant contains exactly the same bundled web runtime assets; only the
+// base app's privileged manifest surface differs.
+project(":webruntime") {
+    plugins.withId("com.android.dynamic-feature") {
+        extensions.getByType<com.android.build.api.variant.DynamicFeatureAndroidComponentsExtension>()
+            .finalizeDsl { android ->
+                val release = android.buildTypes.getByName("release")
+                android.buildTypes.create("play").apply {
+                    initWith(release)
+                    matchingFallbacks += listOf("release")
+                }
+            }
+    }
+}
