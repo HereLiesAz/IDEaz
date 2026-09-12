@@ -88,7 +88,7 @@ class GeminiAppBridgeAdapter(
                 when (part) {
                     is ChatPart.Image -> stage("reference-$index.${extensionFor(part.mimeType)}", part.bytes)
                     is ChatPart.FileBlob -> stage(
-                        part.fileName?.takeIf(::safeAttachmentName)
+                        part.fileName?.takeIf { safeAttachmentName(it) }
                             ?: "reference-$index.${extensionFor(part.mimeType)}",
                         part.bytes,
                     )
@@ -123,11 +123,11 @@ class GeminiAppBridgeAdapter(
         } finally {
             GeminiAppBridge.isWaiting = false
             GeminiAppBridge.phase = GeminiAppBridge.BridgePhase.IDLE
-            withContext(Dispatchers.Main) {
+            withContext(NonCancellable + Dispatchers.Main) {
                 ExternalAiWindowHost.stopShell(context)
                 ExternalAiWindowHost.returnToIdeaz(context)
             }
-            withContext(Dispatchers.IO) { staged.forEach { it.delete() } }
+            withContext(NonCancellable + Dispatchers.IO) { staged.forEach { it.delete() } }
         }
 
         val patch = extractUnifiedDiff(response) ?: return response
