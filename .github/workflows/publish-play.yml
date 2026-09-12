@@ -1,8 +1,18 @@
 name: Publish AAB to Play
 
-# Manual, signed Play-only App Bundle build + optional upload.
-# The Play build type is release-grade but omits the GitHub distribution's
-# external-app accessibility/overlay surface.
+# Manual, signed App Bundle build + (optional) upload to the Google Play Console.
+# The dedicated `play` build type is release-grade but omits the GitHub
+# distribution's external-app accessibility/overlay surface.
+#
+# Safe by default: track=internal, status=draft, publish=false. With publish=false
+# the job only builds and uploads the .aab as a workflow artifact — nothing reaches
+# Play. Set publish=true to push it to the chosen track.
+#
+# Required repo secrets (see docs/build_pipeline.md §"Publishing to Google Play"):
+#   KEYSTORE_PRIVATE, KEYSTORE_CHAIN, KEYSTORE_PASSWORD, KEY_ALIAS  (upload signing)
+#   PLAY_SERVICE_ACCOUNT_JSON                                       (Play Publisher API)
+#   GOOGLE_SERVICES_API_KEY, PROJECT_ID, CLIENT_ID                 (google-services, optional)
+
 on:
   workflow_dispatch:
     inputs:
@@ -10,14 +20,20 @@ on:
         description: "Play track to release on"
         type: choice
         default: internal
-        options: [internal, alpha, beta, production]
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
       status:
         description: "Release status on the track"
         type: choice
         default: draft
-        options: [draft, completed]
+        options:
+          - draft
+          - completed
       publish:
-        description: "Upload to Play? (off = build artifact only)"
+        description: "Upload to Play? (off = build + attach .aab artifact only)"
         type: boolean
         default: false
 
@@ -33,9 +49,16 @@ jobs:
 
     steps:
       - name: Guard publish against non-default branch
+        # Play rejects any upload whose versionCode doesn't strictly increase,
+        # and this workflow derives versionCode from git rev-list --count HEAD -
+        # a feature-branch dispatch with publish=true can burn versionCodes
+        # ahead of master, permanently locking master out of Play until enough
+        # further commits land to exceed what the branch already claimed.
+        # build-and-release.yml already guards its release publish the same
+        # way; this workflow had no equivalent check.
         if: ${{ inputs.publish && github.ref_name != github.event.repository.default_branch }}
         run: |
-          echo "Error: publish=true is only allowed from the default branch." >&2
+          echo "Error: publish=true is only allowed when dispatched from the default branch (got '${{ github.ref_name }}')." >&2
           exit 1
 
       - name: Checkout
@@ -68,11 +91,22 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Read package name
+      - name: Read package name from build config
         id: pkg
+        env:
+          # Passed via env: rather than interpolated straight into the script -
+          # $VAR is never re-parsed by the shell, unlike raw ${{ }} text
+          # substitution, which would let a repo variable containing shell
+          # metacharacters inject commands into this step.
+          ANDROID_BUILD_FILE_VAR: ${{ vars.ANDROID_BUILD_FILE }}
         run: |
-          APPLICATION_ID=$(grep -m1 'applicationId *=' app/build.gradle.kts | sed -E 's/.*"(.*)".*/\1/')
-          test -n "$APPLICATION_ID" || { echo "Could not resolve applicationId" >&2; exit 1; }
+          BUILD_FILE="${ANDROID_BUILD_FILE_VAR:-app/build.gradle.kts}"
+          APPLICATION_ID=$(grep -m1 'applicationId *=' "$BUILD_FILE" | sed -E 's/.*"(.*)".*/\1/')
+          if [ -z "$APPLICATION_ID" ]; then
+            echo "Could not read applicationId from configured Android build file" >&2
+            exit 1
+          fi
+          echo "Resolved package name: $APPLICATION_ID"
           echo "application_id=$APPLICATION_ID" >> "$GITHUB_OUTPUT"
 
       - name: Prepare Keystore from Secrets
@@ -83,38 +117,59 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           set -e
-          test -n "$KEYSTORE_PRIVATE" && test -n "$KEYSTORE_CHAIN" || {
-            echo "KEYSTORE_PRIVATE / KEYSTORE_CHAIN are required." >&2
+          if [ -z "$KEYSTORE_PRIVATE" ] || [ -z "$KEYSTORE_CHAIN" ]; then
+            echo "Error: KEYSTORE_PRIVATE / KEYSTORE_CHAIN are required to sign a release bundle." >&2
             exit 1
-          }
-          printf '%s\n' "$KEYSTORE_PRIVATE" > private.key
-          printf '%s\n' "$KEYSTORE_CHAIN" > chain.crt
+          fi
+          echo "Reconstructing Keystore from Secrets..."
+          echo "$KEYSTORE_PRIVATE" > private.key
+          echo "$KEYSTORE_CHAIN" > chain.crt
+
+          # Create PKCS12 keystore.
           openssl pkcs12 -export -in chain.crt -inkey private.key -out release.keystore \
             -name "$KEY_ALIAS" -passout env:KEYSTORE_PASSWORD
+
+          # Verify quietly — verbose output would leak certificate metadata into the log.
+          echo "Verifying generated keystore..."
           keytool -list -keystore release.keystore -storepass "$KEYSTORE_PASSWORD" > /dev/null
+
           echo "KEYSTORE_FILE=$(pwd)/release.keystore" >> "$GITHUB_ENV"
-          echo "KEY_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          DELIM="DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
+          {
+            printf '%s\n' "KEY_PASSWORD<<${DELIM}"
+            printf '%s\n' "$KEYSTORE_PASSWORD"
+            printf '%s\n' "${DELIM}"
+          } >> "$GITHUB_ENV"
 
       - name: Build signed Play AAB
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          # KEYSTORE_FILE / KEY_PASSWORD also exported into GITHUB_ENV above.
+          # See "Read package name from build config" above for why these ride
+          # in via env: rather than direct ${{ }} interpolation.
           BUILD_NUMBER_OVERRIDE_VAR: ${{ vars.BUILD_NUMBER_OVERRIDE }}
           PLAY_BUNDLE_COMMAND_VAR: ${{ vars.PLAY_BUNDLE_COMMAND }}
         run: |
           set -e
           test -f version.properties || { echo "version.properties is required" >&2; exit 1; }
+          # -PversionBuild must be a value that only ever grows - Play Store
+          # rejects any upload whose versionCode doesn't strictly increase.
           BUILD_NUMBER="${BUILD_NUMBER_OVERRIDE_VAR:-$(git rev-list --count HEAD)}"
           [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || { echo "Invalid build component" >&2; exit 1; }
           BUNDLE_COMMAND="${PLAY_BUNDLE_COMMAND_VAR:-./gradlew bundlePlay}"
-          $BUNDLE_COMMAND -PversionBuild="$BUILD_NUMBER" --build-cache --stacktrace
+          $BUNDLE_COMMAND -PversionBuild=$BUILD_NUMBER --build-cache
 
       - name: Locate Play AAB
         id: aab
         run: |
           AAB=$(find app/build/outputs/bundle/play -name '*.aab' -print | sort | head -n 1)
-          test -n "$AAB" || { echo "No Play .aab produced" >&2; exit 1; }
+          if [ -z "$AAB" ]; then
+            echo "No Play .aab produced!" >&2
+            exit 1
+          fi
+          echo "Found Play bundle: $AAB"
           echo "path=$AAB" >> "$GITHUB_OUTPUT"
 
       - name: Upload Play AAB artifact
@@ -126,7 +181,7 @@ jobs:
 
       - name: Publish to Google Play
         if: ${{ inputs.publish }}
-        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # ratchet:r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: ${{ steps.pkg.outputs.application_id }}
