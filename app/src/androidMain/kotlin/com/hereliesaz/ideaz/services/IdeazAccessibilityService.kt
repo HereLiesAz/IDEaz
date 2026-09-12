@@ -68,11 +68,9 @@ class IdeazAccessibilityService : AccessibilityService() {
         val send = findClickable(root, BridgeHeuristics::isSendHint) ?: return
         if (!send.isEnabled) return
 
-        // Capture the pre-submit tree so an old Copy button or an old answer can
-        // never satisfy completion for this request. Gemini exposes a new Copy
-        // affordance only when the newly generated answer is complete.
         GeminiAppBridge.baselineCopyActions = countClickable(root, BridgeHeuristics::isCopyHint)
         GeminiAppBridge.baselineSnapshot = collectText(root).trim()
+        GeminiAppBridge.observedGenerating = false
 
         if (send.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
             GeminiAppBridge.promptSubmitted = true
@@ -84,6 +82,13 @@ class IdeazAccessibilityService : AccessibilityService() {
     private fun scheduleCapture() {
         val root = targetRoot() ?: return
         val snapshot = collectText(root).trim()
+        val generating = containsHint(root, BridgeHeuristics::isGeneratingHint)
+        if (generating) {
+            GeminiAppBridge.observedGenerating = true
+            stableJob?.let(handler::removeCallbacks)
+            lastSnapshot = ""
+            return
+        }
         if (!isCompletedResponse(root, snapshot) || snapshot == lastSnapshot) return
 
         lastSnapshot = snapshot
@@ -101,8 +106,6 @@ class IdeazAccessibilityService : AccessibilityService() {
         val root = targetRoot() ?: return
         val currentSnapshot = collectText(root).trim()
 
-        // Revalidate after the stability delay. A 2.5 s streaming pause is not a
-        // completion signal; the tree must still be the same completed response.
         if (currentSnapshot != candidateSnapshot || !isCompletedResponse(root, currentSnapshot)) {
             lastSnapshot = ""
             scheduleCapture()
@@ -120,7 +123,9 @@ class IdeazAccessibilityService : AccessibilityService() {
     private fun isCompletedResponse(root: AccessibilityNodeInfo, snapshot: String): Boolean {
         if (snapshot.isBlank() || snapshot == GeminiAppBridge.baselineSnapshot) return false
         if (containsHint(root, BridgeHeuristics::isGeneratingHint)) return false
-        return countClickable(root, BridgeHeuristics::isCopyHint) > GeminiAppBridge.baselineCopyActions
+        val copyActions = countClickable(root, BridgeHeuristics::isCopyHint)
+        return copyActions > GeminiAppBridge.baselineCopyActions ||
+            (GeminiAppBridge.observedGenerating && copyActions > 0)
     }
 
     private fun deliverClipboardOrScrape(snapshot: String) {
@@ -172,7 +177,6 @@ class IdeazAccessibilityService : AccessibilityService() {
         return hinted ?: fallback
     }
 
-    /** Last matching clickable node tends to be the newest response's affordance. */
     private fun findClickable(
         root: AccessibilityNodeInfo,
         matcher: (String?) -> Boolean,
