@@ -2,7 +2,7 @@
 composeMultiplatform = "1.11.1"
 cmpLifecycle = "2.11.0"
 cmpNavigation = "2.9.2"
-agp = "9.3.2"
+agp = "9.4.0"
 aznavrail = "11.20"
 coreKtx = "1.19.0"
 googleGenai = "1.70.0"
