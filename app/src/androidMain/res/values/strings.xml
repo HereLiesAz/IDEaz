@@ -7,7 +7,7 @@
 <string name="accessibility_service_label">IDEaz Inspection Service</string>
 <string name="accessibility_service_description">Allows IDEaz to inspect the UI layout to provide contextual AI assistance.</string>
 <string name="gemini_bridge_service_label">IDEaz Gemini App Bridge</string>
-<string name="gemini_bridge_service_description">Reads the rendered response from the Gemini app when you send a prompt from IDEaz, so you can use Gemini without an API key. Only active while a prompt is in flight; only reads the Gemini app\'s window.</string>
+<string name="gemini_bridge_service_description">Allows IDEaz to enter your requested prompt into the Gemini app and read its response while installed-app AI mode is actively running. It ignores other apps and is idle between requests.</string>
     <string name="deploy_instruction_gh_pages">Deployed! Enable GitHub Pages in repo settings.</string>
     <!-- Title for the :webruntime install-time dynamic feature module (shown by Play). -->
     <string name="webruntime_title">Web preview runtime</string>
