@@ -18,11 +18,8 @@ class RepoSnapshotTest {
 
         val r = RepoSnapshot.build(dir)
 
-        // .env is withheld entirely.
         assertFalse("secret file contents leaked", r.text.contains("SECRET=abc123"))
         assertTrue(r.skipped.any { it.contains(".env") })
-
-        // A normal source file is included, but its token is redacted.
         assertTrue(r.text.contains("Config.kt"))
         assertFalse("raw token leaked", r.text.contains("ghp_1234567890abcdefABCDEFghij"))
         assertTrue(r.text.contains("REDACTED"))
@@ -48,5 +45,20 @@ class RepoSnapshotTest {
         assertTrue(r.text.contains("PROJECT FILE TREE"))
         assertTrue(r.text.contains("a.txt"))
         assertTrue(r.text.contains("alpha"))
+    }
+
+    @Test
+    fun skipsSymlinkThatEscapesProject() {
+        val dir = tmp()
+        val outside = Files.createTempFile("outside-secret", ".txt").toFile().apply {
+            writeText("DO_NOT_EXPORT_THIS")
+        }
+        val link = File(dir, "innocent.txt").toPath()
+        Files.createSymbolicLink(link, outside.toPath())
+
+        val r = RepoSnapshot.build(dir)
+
+        assertFalse("symlink target leaked", r.text.contains("DO_NOT_EXPORT_THIS"))
+        assertTrue(r.skipped.any { it.contains("innocent.txt") && it.contains("symlink") })
     }
 }
