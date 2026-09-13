@@ -1,8 +1,5 @@
 name: '😈 Glee Audit'
 
-# Audits each newly opened PR exactly once. All audit logic is centralized in
-# HereLiesAz/workflows-starter-template and Jules automation is disabled there.
-
 on:
   pull_request_target:
     types: [opened]
