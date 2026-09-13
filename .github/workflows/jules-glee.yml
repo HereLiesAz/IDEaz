@@ -1,0 +1,19 @@
+name: '😈 Glee Audit'
+
+# Audits each newly opened PR exactly once. All audit logic is centralized in
+# HereLiesAz/workflows-starter-template and Jules automation is disabled there.
+
+on:
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  glee:
+    uses: HereLiesAz/workflows-starter-template/.github/workflows/jules-glee-reusable.yml@main
+    secrets:
+      JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
