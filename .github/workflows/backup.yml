@@ -1,148 +1,24 @@
-name: "Context Backup (Universal Surgical)"
-
+# centralized-by: HereLiesAz/workflows
+# central-source-path: .github/workflows/backup.yml
+# central-source-sha256: 3a4f16e99f43e7ff92c92791ff368bc12e612766d692ac424a0c843deea01c71
+# This file intentionally contains no repository secrets.
+name: Context Backup (Universal Surgical) [central proxy]
 on:
   workflow_dispatch:
-
 permissions:
   contents: read
-
+  id-token: write
 jobs:
-  surgical-extraction:
+  central-dispatch:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Generate Surgical Context
+      - name: Dispatch to HereLiesAz/workflows
+        env:
+          WORKFLOWS_GATEWAY_URL: ${{ vars.WORKFLOWS_GATEWAY_URL }}
+          EVENT_JSON: ${{ toJSON(github.event) }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+          VARS_JSON: ${{ toJSON(vars) }}
+          SOURCE_WORKFLOW_PATH: .github/workflows/backup.yml
+          SOURCE_SHA256: 3a4f16e99f43e7ff92c92791ff368bc12e612766d692ac424a0c843deea01c71
         shell: bash
-        run: |
-          TIMESTAMP=$(date +'%Y%m%d_%H%M%S')
-          OUTFILE="project_backup_surgical_${TIMESTAMP}.txt"
-          MANIFEST="skipped_files.tmp"
-
-          # --- CONFIGURATION ---
-          
-          # 1. TRASH (Dead to us. Never listed, never read.)
-          TRASH_DIRS="build out bin obj .gradle .idea .vscode .git node_modules captures captured .cxx generated build_test libs venv __pycache__ .dart_tool .next .nuxt dist site-packages .pytest_cache"
-          TRASH_FILES="package-lock.json yarn.lock local.properties .DS_Store Thumbs.db"
-
-          # 2. WHITELIST (We read the content of these.)
-          EXTENSIONS=(
-              # JVM / Android
-              "kt" "kts" "java" "xml" "gradle" "properties" "pro" "toml"
-              
-              # NDK / Native
-              "cpp" "c" "cc" "h" "hpp" "ld" "S" "cmake" "in"
-              
-              # Web (JS/TS/Frameworks)
-              "js" "jsx" "ts" "tsx" "html" "css" "vue" "svelte" "json"
-              
-              # Flutter / Dart
-              "dart" "arb"
-              
-              # Python
-              "py" "ipynb" "ini" "cfg"
-              
-              # Config / Data / Docs (UPDATED)
-              "yaml" "yml" "sql" "env"
-              "md" "markdown" "rst" "adoc" "txt"
-          )
-          
-          # Specific critical filenames
-          CRITICAL_FILES=("CMakeLists.txt" "Android.mk" "Application.mk" "Makefile" "Dockerfile" "docker-compose.yml" "requirements.txt" "Gemfile" "Rakefile" "LICENSE" "README")
-
-          echo -e "\033[36m[+] Starting Universal Surgical Extraction...\033[0m"
-
-          # Helper: Check for binary content
-          is_binary() {
-              if head -c 512 "$1" | grep -qP '\x00'; then return 0; else return 1; fi
-          }
-
-          # 1. FIND ALL "ALIVE" FILES (Everything except Trash Dirs)
-          if [ -d ".git" ]; then
-              # Git is smarter about ignoring trash, so we use it if possible
-              FILES=$(git ls-files -c -o --exclude-standard)
-          else
-              FILES=$(find . -type f)
-          fi
-
-          touch "$OUTFILE"
-          touch "$MANIFEST"
-
-          echo "$FILES" > filelist.tmp
-          
-          while IFS= read -r file; do
-              # A. TRASH FILTER (Double Check)
-              SKIP=0
-              for trash in $TRASH_DIRS; do
-                  if [[ "$file" == *"/$trash/"* ]] || [[ "$file" == "$trash/"* ]] || [[ "$file" == *"/$trash" ]]; then
-                      SKIP=1; break
-                  fi
-              done
-              basename=$(basename "$file")
-              for trash in $TRASH_FILES; do
-                  if [[ "$basename" == "$trash" ]]; then SKIP=1; break; fi
-              done
-              if [[ "$SKIP" -eq 1 ]]; then continue; fi
-
-              # B. WHITELIST CHECK
-              IS_WHITELISTED=0
-              ext="${file##*.}"
-              
-              # Check extension
-              for valid_ext in "${EXTENSIONS[@]}"; do
-                  if [[ "$ext" == "$valid_ext" ]]; then IS_WHITELISTED=1; break; fi
-              done
-              
-              # Check filename
-              if [[ "$IS_WHITELISTED" -eq 0 ]]; then
-                  for valid_name in "${CRITICAL_FILES[@]}"; do
-                      if [[ "$basename" == "$valid_name" ]]; then IS_WHITELISTED=1; break; fi
-                  done
-              fi
-
-              # C. ACTION
-              if [[ "$IS_WHITELISTED" -eq 1 ]]; then
-                  # It's on the list. Add CONTENT.
-                  echo ">>> $file" >> "$OUTFILE"
-                  if is_binary "$file"; then
-                      echo "[BINARY CONTENT REDACTED]" >> "$OUTFILE"
-                  else
-                      cat "$file" >> "$OUTFILE" 2>>/dev/null || echo "[READ ERROR]" >> "$OUTFILE"
-                  fi
-                  echo -e "\n\n" >> "$OUTFILE"
-              else
-                  # It's not trash, but not whitelisted. Add to MANIFEST.
-                  echo "$file" >> "$MANIFEST"
-              fi
-
-          done < filelist.tmp
-          rm filelist.tmp
-
-          # D. APPEND MANIFEST
-          echo -e "\n\n==================================================================" >> "$OUTFILE"
-          echo "       SKIPPED FILES REPORT (The Grey Zone)" >> "$OUTFILE"
-          echo "       (Files present in repo but extensions not whitelisted)" >> "$OUTFILE"
-          echo "==================================================================" >> "$OUTFILE"
-          
-          if [ -s "$MANIFEST" ]; then
-              cat "$MANIFEST" >> "$OUTFILE"
-          else
-              echo "(None)" >> "$OUTFILE"
-          fi
-          rm "$MANIFEST"
-
-          # STATS
-          SIZE_KB=$(du -k "$OUTFILE" | cut -f1)
-          echo -e "\033[32m[+] Final Payload Size: ${SIZE_KB} KB\033[0m"
-          echo "BACKUP_FILE=$OUTFILE" >> $GITHUB_ENV
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: surgical-backup
-          path: ${{ env.BACKUP_FILE }}
-          retention-days: 1
+        run: "set -euo pipefail\n[[ -n \"${WORKFLOWS_GATEWAY_URL:-}\" ]] || { echo \"Repository variable WORKFLOWS_GATEWAY_URL is not configured.\" >&2; exit 1; }\noidc_response=\"$(curl --fail-with-body --silent --show-error -H \"Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}\" \"${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=hereliesaz-workflows\")\"\noidc_token=\"$(jq -r '.value // empty' <<<\"$oidc_response\")\"\n[[ -n \"$oidc_token\" ]] || { echo \"GitHub did not issue an OIDC token.\" >&2; exit 1; }\necho \"::add-mask::$oidc_token\"\npayload=\"$(jq -n   --arg repository \"$GITHUB_REPOSITORY\" --arg repository_id \"$GITHUB_REPOSITORY_ID\"   --arg repository_owner \"$GITHUB_REPOSITORY_OWNER\" --arg repository_owner_id \"$GITHUB_REPOSITORY_OWNER_ID\"   --arg sha \"$GITHUB_SHA\" --arg ref \"$GITHUB_REF\" --arg ref_name \"$GITHUB_REF_NAME\" --arg ref_type \"$GITHUB_REF_TYPE\"   --arg head_ref \"$GITHUB_HEAD_REF\" --arg base_ref \"$GITHUB_BASE_REF\" --arg actor \"$GITHUB_ACTOR\" --arg actor_id \"$GITHUB_ACTOR_ID\"   --arg event_name \"$GITHUB_EVENT_NAME\" --arg run_id \"$GITHUB_RUN_ID\" --arg run_number \"$GITHUB_RUN_NUMBER\" --arg run_attempt \"$GITHUB_RUN_ATTEMPT\"   --arg workflow_ref \"$GITHUB_WORKFLOW_REF\" --arg workflow_name \"$GITHUB_WORKFLOW\" --arg source_workflow_path \"$SOURCE_WORKFLOW_PATH\"   --arg source_sha256 \"$SOURCE_SHA256\" --argjson event \"$EVENT_JSON\" --argjson inputs \"$INPUTS_JSON\" --argjson vars \"$VARS_JSON\"   '{repository:$repository,repository_id:$repository_id,repository_owner:$repository_owner,repository_owner_id:$repository_owner_id,sha:$sha,check_sha:($event.pull_request.head.sha // $sha),ref:$ref,ref_name:$ref_name,ref_type:$ref_type,head_ref:$head_ref,base_ref:$base_ref,actor:$actor,actor_id:$actor_id,event_name:$event_name,event:$event,inputs:$inputs,vars:$vars,run_id:$run_id,run_number:$run_number,run_attempt:$run_attempt,workflow_ref:$workflow_ref,workflow_name:$workflow_name,source_workflow_path:$source_workflow_path,source_sha256:$source_sha256}')\"\ncurl --fail-with-body --silent --show-error -X POST \"${WORKFLOWS_GATEWAY_URL%/}/dispatch\" -H \"Authorization: Bearer ${oidc_token}\" -H \"Content-Type: application/json\" --data-binary \"$payload\""
