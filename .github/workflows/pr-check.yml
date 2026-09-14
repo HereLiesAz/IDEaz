@@ -1,107 +1,24 @@
-name: PR Check
-
-# The only pre-merge gate in this repo: compiles the app, runs its unit
-# tests, and runs lint against every pull request. build-and-release.yml
-# deliberately no longer triggers on pull_request (it used to, alongside a
-# push trigger, and the two independent un-deduped builds that produced are
-# in git history/TODO.md) - this workflow exists specifically so removing
-# that trigger didn't also remove pre-merge validation entirely.
-#
-# Deliberately narrower than build-and-release.yml: no release signing and no
-# publishing. The Play bundle is still assembled here because `play` has its
-# own manifest/build-type contract and must not be allowed to rot separately.
-
+# centralized-by: HereLiesAz/workflows
+# central-source-path: .github/workflows/pr-check.yml
+# central-source-sha256: 8d0bee7aa3ab78d04396737b8f3fdde27eb3f4164f501979a811cac647b569b7
+# This file intentionally contains no repository secrets.
+name: PR Check [central proxy]
 on:
   pull_request:
-
-concurrency:
-  group: pr-check-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
 permissions:
   contents: read
-
+  id-token: write
 jobs:
-  check:
+  central-dispatch:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Inject Google Services
+      - name: Dispatch to HereLiesAz/workflows
         env:
-          GOOGLE_SERVICES_API_KEY: ${{ secrets.GOOGLE_SERVICES_API_KEY }}
-          PROJECT_ID: ${{ secrets.PROJECT_ID }}
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-        run: |
-          TEMPLATE=$(find . -name 'google-services.json.template' -print -quit)
-          if [ -n "$TEMPLATE" ]; then
-            TARGET=${TEMPLATE%.template}
-            echo "Injecting ${TEMPLATE} into ${TARGET}"
-            sed -e 's/{{\([^}]*\)}}/${\1}/g' "$TEMPLATE" | envsubst > "$TARGET"
-          fi
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v6
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
-      - name: Setup Gradle
-        if: ${{ hashFiles('**/gradlew') != '' }}
-        uses: gradle/actions/setup-gradle@v6
-        with:
-          cache-read-only: false
-          cache-provider: basic
-
-      - name: Grant execute permission for Gradle wrapper
-        if: ${{ hashFiles('**/gradlew') != '' }}
-        run: chmod +x gradlew
-
-      - name: Verify the JSX source chain
-        run: node webruntime/src/test/js/jsx-source-chain.test.mjs
-
-      - name: Verify import cycles degrade instead of hanging the preview
-        run: node webruntime/src/test/js/loader-import-cycle.test.mjs
-
-      - name: Verify jsxs() array children match real React's shape
-        run: node webruntime/src/test/js/jsx-array-children.test.mjs
-
-      - name: Verify the bridge prefers the fiber source over data-ideaz-source
-        run: node webruntime/src/test/js/bridge-source-priority.test.mjs
-
-      - name: Compile GitHub + Play, unit test, and lint
+          WORKFLOWS_GATEWAY_URL: ${{ vars.WORKFLOWS_GATEWAY_URL }}
+          EVENT_JSON: ${{ toJSON(github.event) }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+          VARS_JSON: ${{ toJSON(vars) }}
+          SOURCE_WORKFLOW_PATH: .github/workflows/pr-check.yml
+          SOURCE_SHA256: 8d0bee7aa3ab78d04396737b8f3fdde27eb3f4164f501979a811cac647b569b7
         shell: bash
-        run: |
-          set +e
-          (
-            timeout --kill-after=1m 25m bash -eo pipefail -c \
-              './gradlew assembleDebug bundlePlay testDebugUnitTest desktopMainClasses lintDebug --continue' 2>&1 | tee build.log
-            echo "${PIPESTATUS[0]}" > /tmp/build_exit_code
-          ) &
-          BUILD_PID=$!
-
-          (
-            sleep 600
-            if kill -0 "$BUILD_PID" 2>/dev/null; then
-              echo "::warning::Still running after 10 min - dumping JVM thread stacks"
-              JCMD="${JAVA_HOME:+$JAVA_HOME/bin/jcmd}"
-              JCMD="${JCMD:-jcmd}"
-              for pid in $("$JCMD" -l 2>/dev/null | awk '{print $1}'); do
-                echo "===== $JCMD $pid Thread.print ====="
-                "$JCMD" "$pid" Thread.print 2>&1 || true
-              done
-            fi
-          ) &
-          WATCHDOG_PID=$!
-
-          wait "$BUILD_PID"
-          pkill -P "$WATCHDOG_PID" 2>/dev/null || true
-          kill "$WATCHDOG_PID" 2>/dev/null || true
-          wait "$WATCHDOG_PID" 2>/dev/null || true
-
-          EXIT_CODE=$(cat /tmp/build_exit_code 2>/dev/null || echo 1)
-          if [ "$EXIT_CODE" -eq 124 ]; then
-            echo "PR check timed out after 25 minutes" >&2
-          fi
-          exit "$EXIT_CODE"
+        run: "set -euo pipefail\n[[ -n \"${WORKFLOWS_GATEWAY_URL:-}\" ]] || { echo \"Repository variable WORKFLOWS_GATEWAY_URL is not configured.\" >&2; exit 1; }\noidc_response=\"$(curl --fail-with-body --silent --show-error -H \"Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}\" \"${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=hereliesaz-workflows\")\"\noidc_token=\"$(jq -r '.value // empty' <<<\"$oidc_response\")\"\n[[ -n \"$oidc_token\" ]] || { echo \"GitHub did not issue an OIDC token.\" >&2; exit 1; }\necho \"::add-mask::$oidc_token\"\npayload=\"$(jq -n   --arg repository \"$GITHUB_REPOSITORY\" --arg repository_id \"$GITHUB_REPOSITORY_ID\"   --arg repository_owner \"$GITHUB_REPOSITORY_OWNER\" --arg repository_owner_id \"$GITHUB_REPOSITORY_OWNER_ID\"   --arg sha \"$GITHUB_SHA\" --arg ref \"$GITHUB_REF\" --arg ref_name \"$GITHUB_REF_NAME\" --arg ref_type \"$GITHUB_REF_TYPE\"   --arg head_ref \"$GITHUB_HEAD_REF\" --arg base_ref \"$GITHUB_BASE_REF\" --arg actor \"$GITHUB_ACTOR\" --arg actor_id \"$GITHUB_ACTOR_ID\"   --arg event_name \"$GITHUB_EVENT_NAME\" --arg run_id \"$GITHUB_RUN_ID\" --arg run_number \"$GITHUB_RUN_NUMBER\" --arg run_attempt \"$GITHUB_RUN_ATTEMPT\"   --arg workflow_ref \"$GITHUB_WORKFLOW_REF\" --arg workflow_name \"$GITHUB_WORKFLOW\" --arg source_workflow_path \"$SOURCE_WORKFLOW_PATH\"   --arg source_sha256 \"$SOURCE_SHA256\" --argjson event \"$EVENT_JSON\" --argjson inputs \"$INPUTS_JSON\" --argjson vars \"$VARS_JSON\"   '{repository:$repository,repository_id:$repository_id,repository_owner:$repository_owner,repository_owner_id:$repository_owner_id,sha:$sha,check_sha:($event.pull_request.head.sha // $sha),ref:$ref,ref_name:$ref_name,ref_type:$ref_type,head_ref:$head_ref,base_ref:$base_ref,actor:$actor,actor_id:$actor_id,event_name:$event_name,event:$event,inputs:$inputs,vars:$vars,run_id:$run_id,run_number:$run_number,run_attempt:$run_attempt,workflow_ref:$workflow_ref,workflow_name:$workflow_name,source_workflow_path:$source_workflow_path,source_sha256:$source_sha256}')\"\ncurl --fail-with-body --silent --show-error -X POST \"${WORKFLOWS_GATEWAY_URL%/}/dispatch\" -H \"Authorization: Bearer ${oidc_token}\" -H \"Content-Type: application/json\" --data-binary \"$payload\""
