@@ -1,18 +1,8 @@
-name: Publish AAB to Play
-
-# Manual, signed App Bundle build + (optional) upload to the Google Play Console.
-# The dedicated `play` build type is release-grade but omits the GitHub
-# distribution's external-app accessibility/overlay surface.
-#
-# Safe by default: track=internal, status=draft, publish=false. With publish=false
-# the job only builds and uploads the .aab as a workflow artifact — nothing reaches
-# Play. Set publish=true to push it to the chosen track.
-#
-# Required repo secrets (see docs/build_pipeline.md §"Publishing to Google Play"):
-#   KEYSTORE_PRIVATE, KEYSTORE_CHAIN, KEYSTORE_PASSWORD, KEY_ALIAS  (upload signing)
-#   PLAY_SERVICE_ACCOUNT_JSON                                       (Play Publisher API)
-#   GOOGLE_SERVICES_API_KEY, PROJECT_ID, CLIENT_ID                 (google-services, optional)
-
+# centralized-by: HereLiesAz/workflows
+# central-source-path: .github/workflows/publish-play.yml
+# central-source-sha256: 9f62916fd29cb8ceed1a342fe12a5e7d3edeea9b81603064406163ed81453127
+# This file intentionally contains no repository secrets.
+name: Publish AAB to Play [central proxy]
 on:
   workflow_dispatch:
     inputs:
@@ -37,146 +27,20 @@ on:
         type: boolean
         default: false
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
-
+permissions:
+  contents: read
+  id-token: write
 jobs:
-  bundle-and-publish:
+  central-dispatch:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
     steps:
-      - name: Guard publish against non-default branch
-        # Play rejects any upload whose versionCode doesn't strictly increase,
-        # and this workflow derives versionCode from git rev-list --count HEAD -
-        # a feature-branch dispatch with publish=true can burn versionCodes
-        # ahead of master, permanently locking master out of Play until enough
-        # further commits land to exceed what the branch already claimed.
-        # build-and-release.yml already guards its release publish the same
-        # way; this workflow had no equivalent check.
-        if: ${{ inputs.publish && github.ref_name != github.event.repository.default_branch }}
-        run: |
-          echo "Error: publish=true is only allowed when dispatched from the default branch (got '${{ github.ref_name }}')." >&2
-          exit 1
-
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Inject Google Services
+      - name: Dispatch to HereLiesAz/workflows
         env:
-          GOOGLE_SERVICES_API_KEY: ${{ secrets.GOOGLE_SERVICES_API_KEY }}
-          PROJECT_ID: ${{ secrets.PROJECT_ID }}
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-        run: |
-          TEMPLATE=$(find . -name 'google-services.json.template' -print -quit)
-          if [ -n "$TEMPLATE" ]; then
-            sed -e 's/{{\([^}]*\)}}/${\1}/g' "$TEMPLATE" | envsubst > "${TEMPLATE%.template}"
-          fi
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v6
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
-        with:
-          cache-read-only: false
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      - name: Read package name from build config
-        id: pkg
-        env:
-          # Keep the documented override working for nonstandard Android layouts.
-          ANDROID_BUILD_FILE_VAR: ${{ vars.ANDROID_BUILD_FILE }}
-        run: |
-          BUILD_FILE="${ANDROID_BUILD_FILE_VAR:-app/build.gradle.kts}"
-          APPLICATION_ID=$(grep -m1 'applicationId *=' "$BUILD_FILE" | sed -E 's/.*"(.*)".*/\1/')
-          if [ -z "$APPLICATION_ID" ]; then
-            echo "Could not read applicationId from configured Android build file" >&2
-            exit 1
-          fi
-          echo "Resolved package name: $APPLICATION_ID"
-          echo "application_id=$APPLICATION_ID" >> "$GITHUB_OUTPUT"
-
-      - name: Prepare Keystore from Secrets
-        env:
-          KEYSTORE_PRIVATE: ${{ secrets.KEYSTORE_PRIVATE }}
-          KEYSTORE_CHAIN: ${{ secrets.KEYSTORE_CHAIN }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: |
-          set -e
-          if [ -z "$KEYSTORE_PRIVATE" ] || [ -z "$KEYSTORE_CHAIN" ]; then
-            echo "Error: KEYSTORE_PRIVATE / KEYSTORE_CHAIN are required to sign a release bundle." >&2
-            exit 1
-          fi
-          echo "Reconstructing Keystore from Secrets..."
-          echo "$KEYSTORE_PRIVATE" > private.key
-          echo "$KEYSTORE_CHAIN" > chain.crt
-
-          openssl pkcs12 -export -in chain.crt -inkey private.key -out release.keystore \
-            -name "$KEY_ALIAS" -passout env:KEYSTORE_PASSWORD
-
-          echo "Verifying generated keystore..."
-          keytool -list -keystore release.keystore -storepass "$KEYSTORE_PASSWORD" > /dev/null
-
-          echo "KEYSTORE_FILE=$(pwd)/release.keystore" >> "$GITHUB_ENV"
-          DELIM="DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
-          {
-            printf '%s\n' "KEY_PASSWORD<<${DELIM}"
-            printf '%s\n' "$KEYSTORE_PASSWORD"
-            printf '%s\n' "${DELIM}"
-          } >> "$GITHUB_ENV"
-
-      - name: Build signed Play AAB
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          BUILD_NUMBER_OVERRIDE_VAR: ${{ vars.BUILD_NUMBER_OVERRIDE }}
-          PLAY_BUNDLE_COMMAND_VAR: ${{ vars.PLAY_BUNDLE_COMMAND }}
-          # Legacy/documented override retained for existing repository setups.
-          BUNDLE_COMMAND_VAR: ${{ vars.BUNDLE_COMMAND }}
-        run: |
-          set -e
-          test -f version.properties || { echo "version.properties is required" >&2; exit 1; }
-          BUILD_NUMBER="${BUILD_NUMBER_OVERRIDE_VAR:-$(git rev-list --count HEAD)}"
-          [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || { echo "Invalid build component" >&2; exit 1; }
-          BUNDLE_COMMAND="${PLAY_BUNDLE_COMMAND_VAR:-${BUNDLE_COMMAND_VAR:-./gradlew bundlePlay}}"
-          $BUNDLE_COMMAND -PversionBuild=$BUILD_NUMBER --build-cache
-
-      - name: Locate Play AAB
-        id: aab
-        run: |
-          AAB=$(find app/build/outputs/bundle/play -name '*.aab' -print | sort | head -n 1)
-          if [ -z "$AAB" ]; then
-            echo "No Play .aab produced!" >&2
-            exit 1
-          fi
-          echo "Found Play bundle: $AAB"
-          echo "path=$AAB" >> "$GITHUB_OUTPUT"
-
-      - name: Upload Play AAB artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: ideaz-play-aab
-          path: ${{ steps.aab.outputs.path }}
-          if-no-files-found: error
-
-      - name: Publish to Google Play
-        if: ${{ inputs.publish }}
-        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # ratchet:r0adkll/upload-google-play@v1
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: ${{ steps.pkg.outputs.application_id }}
-          releaseFiles: ${{ steps.aab.outputs.path }}
-          track: ${{ inputs.track }}
-          status: ${{ inputs.status }}
+          WORKFLOWS_GATEWAY_URL: ${{ vars.WORKFLOWS_GATEWAY_URL }}
+          EVENT_JSON: ${{ toJSON(github.event) }}
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+          VARS_JSON: ${{ toJSON(vars) }}
+          SOURCE_WORKFLOW_PATH: .github/workflows/publish-play.yml
+          SOURCE_SHA256: 9f62916fd29cb8ceed1a342fe12a5e7d3edeea9b81603064406163ed81453127
+        shell: bash
+        run: "set -euo pipefail\n[[ -n \"${WORKFLOWS_GATEWAY_URL:-}\" ]] || { echo \"Repository variable WORKFLOWS_GATEWAY_URL is not configured.\" >&2; exit 1; }\noidc_response=\"$(curl --fail-with-body --silent --show-error -H \"Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}\" \"${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=hereliesaz-workflows\")\"\noidc_token=\"$(jq -r '.value // empty' <<<\"$oidc_response\")\"\n[[ -n \"$oidc_token\" ]] || { echo \"GitHub did not issue an OIDC token.\" >&2; exit 1; }\necho \"::add-mask::$oidc_token\"\npayload=\"$(jq -n   --arg repository \"$GITHUB_REPOSITORY\" --arg repository_id \"$GITHUB_REPOSITORY_ID\"   --arg repository_owner \"$GITHUB_REPOSITORY_OWNER\" --arg repository_owner_id \"$GITHUB_REPOSITORY_OWNER_ID\"   --arg sha \"$GITHUB_SHA\" --arg ref \"$GITHUB_REF\" --arg ref_name \"$GITHUB_REF_NAME\" --arg ref_type \"$GITHUB_REF_TYPE\"   --arg head_ref \"$GITHUB_HEAD_REF\" --arg base_ref \"$GITHUB_BASE_REF\" --arg actor \"$GITHUB_ACTOR\" --arg actor_id \"$GITHUB_ACTOR_ID\"   --arg event_name \"$GITHUB_EVENT_NAME\" --arg run_id \"$GITHUB_RUN_ID\" --arg run_number \"$GITHUB_RUN_NUMBER\" --arg run_attempt \"$GITHUB_RUN_ATTEMPT\"   --arg workflow_ref \"$GITHUB_WORKFLOW_REF\" --arg workflow_name \"$GITHUB_WORKFLOW\" --arg source_workflow_path \"$SOURCE_WORKFLOW_PATH\"   --arg source_sha256 \"$SOURCE_SHA256\" --argjson event \"$EVENT_JSON\" --argjson inputs \"$INPUTS_JSON\" --argjson vars \"$VARS_JSON\"   '{repository:$repository,repository_id:$repository_id,repository_owner:$repository_owner,repository_owner_id:$repository_owner_id,sha:$sha,check_sha:($event.pull_request.head.sha // $sha),ref:$ref,ref_name:$ref_name,ref_type:$ref_type,head_ref:$head_ref,base_ref:$base_ref,actor:$actor,actor_id:$actor_id,event_name:$event_name,event:$event,inputs:$inputs,vars:$vars,run_id:$run_id,run_number:$run_number,run_attempt:$run_attempt,workflow_ref:$workflow_ref,workflow_name:$workflow_name,source_workflow_path:$source_workflow_path,source_sha256:$source_sha256}')\"\ncurl --fail-with-body --silent --show-error -X POST \"${WORKFLOWS_GATEWAY_URL%/}/dispatch\" -H \"Authorization: Bearer ${oidc_token}\" -H \"Content-Type: application/json\" --data-binary \"$payload\""
