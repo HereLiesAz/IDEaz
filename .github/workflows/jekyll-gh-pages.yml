@@ -4,6 +4,10 @@ name: Deploy Jekyll with GitHub Pages dependencies preinstalled
 on:
   # Runs on pushes targeting the default branch
   push:
+    paths-ignore:
+      - '.github/workflows/**'
+      - '.version-state.json'
+      - 'version.properties'
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
