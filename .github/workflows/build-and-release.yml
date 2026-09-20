@@ -3,6 +3,10 @@ name: Merged Build & Release
 on:
   push:
     branches: [ "master" ]
+    paths-ignore:
+      - '.github/workflows/**'
+      - '.version-state.json'
+      - 'version.properties'
   workflow_dispatch:
 
 # ⚡ Concurrency: queues a new run behind the current one instead of
