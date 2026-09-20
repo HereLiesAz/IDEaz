@@ -16,6 +16,10 @@ name: Dependency Submission
 on:
   push:
     branches: [ "master" ]
+    paths-ignore:
+      - '.github/workflows/**'
+      - '.version-state.json'
+      - 'version.properties'
   workflow_dispatch:
 
 permissions:
