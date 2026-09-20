@@ -1,0 +1,535 @@
+name: Merged Build & Release
+
+on:
+  push:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+# ⚡ Concurrency: queues a new run behind the current one instead of
+# running in parallel.
+#
+# This workflow only ever triggers on push to master, so a single fixed
+# group covers every real build (regular pushes and PR merges alike -
+# a merge is itself a push to master). Previously it also triggered on
+# push to every branch plus every pull_request event, which meant a
+# push to an open PR branch fired two independent, un-deduped builds no
+# matter how the concurrency group was keyed (two failed attempts at
+# fixing this the "keep the extra triggers, key around them" way are in
+# git history/TODO.md). Removing the extra triggers entirely fixes it
+# at the root instead of chasing key-matching bugs.
+#
+# cancel-in-progress is deliberately false: this workflow force-pushes a
+# release tag before uploading the built artifact (see "Publish Debug
+# Build" / "Publish Latest Release" below), so a run that gets cancelled
+# between those two steps can leave a tag pointing at a commit with no
+# matching asset, or a release retargeted but still carrying the previous
+# build. Queuing instead of cancelling means a second master push waits
+# for the first run to finish (including its release publish) before
+# starting - a small delay, not a correctness risk. The eventual queued
+# run still publishes the newest commit.
+concurrency:
+  group: ${{ github.workflow }}-master
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      checks: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Inject Google Services
+        env:
+          GOOGLE_SERVICES_API_KEY: ${{ secrets.GOOGLE_SERVICES_API_KEY }}
+          PROJECT_ID: ${{ secrets.PROJECT_ID }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+        run: |
+          TEMPLATE=$(find . -name 'google-services.json.template' -print -quit)
+          if [ -n "$TEMPLATE" ]; then
+            TARGET=${TEMPLATE%.template}
+            echo "Injecting ${TEMPLATE} into ${TARGET}"
+            sed -e 's/{{\([^}]*\)}}/${\1}/g' "$TEMPLATE" | envsubst > "$TARGET"
+          fi
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        if: ${{ hashFiles('**/gradlew') != '' }}
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: false
+          # Enhanced Caching (the default) injects hooks straight into the Gradle
+          # process via an init script and does its own network-backed syncing to
+          # Gradle Inc's proprietary caching backend - distinct from, and running
+          # earlier than, the plain actions/cache save we see afterward in "Post
+          # Setup Gradle". Build with Gradle hung silently for ~20-30 min twice in
+          # a row, always right after a task failure and always inside this same
+          # ./gradlew process, with no further output. Switch to the open-source
+          # `basic` provider (a thin actions/cache wrapper, no in-process network
+          # calls) to rule this in or out as the cause.
+          cache-provider: basic
+
+      - name: Grant execute permission for Gradle wrapper
+        if: ${{ hashFiles('**/gradlew') != '' }}
+        run: chmod +x gradlew
+
+      - name: Prepare Keystore from Secrets
+        env:
+          KEYSTORE_PRIVATE: ${{ secrets.KEYSTORE_PRIVATE }}
+          KEYSTORE_CHAIN: ${{ secrets.KEYSTORE_CHAIN }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          set -e
+          if [ -n "$KEYSTORE_PRIVATE" ] && [ -n "$KEYSTORE_CHAIN" ]; then
+             echo "Reconstructing Keystore from Secrets..."
+             echo "$KEYSTORE_PRIVATE" > private.key
+             echo "$KEYSTORE_CHAIN" > chain.crt
+
+             # Create PKCS12 Keystore.
+             openssl pkcs12 -export -in chain.crt -inkey private.key -out release.keystore \
+               -name "$KEY_ALIAS" -passout env:KEYSTORE_PASSWORD
+
+             # Verify the keystore immediately to catch password/format issues.
+             # Suppress verbose output — it would leak certificate metadata
+             # (subject, issuer, fingerprints, validity) into the public log.
+             echo "Verifying generated keystore..."
+             keytool -list -keystore release.keystore -storepass "$KEYSTORE_PASSWORD" > /dev/null
+
+             echo "KEYSTORE_FILE=$(pwd)/release.keystore" >> "$GITHUB_ENV"
+             # Ensure Gradle uses the same password for the key as the store (OpenSSL default behavior)
+             # Using heredoc for safe environment variable export. printf avoids
+             # echo's handling of leading '-' or backslashes in the password.
+             DELIM="DELIMITER_${{ github.run_id }}_${{ github.run_attempt }}"
+             {
+               printf '%s\n' "KEY_PASSWORD<<${DELIM}"
+               printf '%s\n' "$KEYSTORE_PASSWORD"
+               printf '%s\n' "${DELIM}"
+             } >> "$GITHUB_ENV"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+             # The human-triggered "Latest Release" path exists specifically to
+             # publish a genuinely release-signed build. Silently falling back to
+             # debug signing here (as this used to) meant a missing/expired
+             # KEYSTORE_PRIVATE/KEYSTORE_CHAIN secret would publish a debug-signed
+             # APK under the non-prerelease "Latest Release" with no indication
+             # anything was wrong - matches the hard-fail publish-play.yml already
+             # does for the same condition.
+             echo "Error: KEYSTORE_PRIVATE / KEYSTORE_CHAIN are required to sign the 'Latest Release' build (workflow_dispatch)." >&2
+             exit 1
+          else
+             echo "Warning: KEYSTORE_PRIVATE or KEYSTORE_CHAIN not set. Skipping release signing setup (debug signing will be used)."
+          fi
+
+      - name: Build with Gradle
+        id: gradle-build
+        shell: bash
+        env:
+           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+           KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+           # KEYSTORE_FILE is set in previous step if successful
+           # Passed as env vars rather than interpolated straight into the script
+           # below ($VAR is never re-parsed by the shell, unlike raw ${{ }} text
+           # substitution) - a repo variable containing shell metacharacters
+           # would otherwise inject commands into this step.
+           BUILD_NUMBER_OVERRIDE_VAR: ${{ vars.BUILD_NUMBER_OVERRIDE }}
+           BUILD_COMMAND_VAR: ${{ vars.BUILD_COMMAND }}
+        run: |
+          set +e
+          test -f version.properties || { echo "version.properties is required" >&2; exit 1; }
+          # -PversionBuild is meant to be a value that only ever grows (see
+          # the comment on `versionBuildOverride` in app/build.gradle.kts:
+          # "CI passes git rev-list --count HEAD"). This previously read the
+          # `build` field out of version.properties instead - a value that
+          # nothing in this pipeline ever increments or commits back - so
+          # every CI build baked in the exact same versionCode/versionName
+          # regardless of how many commits/builds actually happened.
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          export BUILD_NUMBER="${BUILD_NUMBER_OVERRIDE_VAR:-$COMMIT_COUNT}"
+
+          BUILD_COMMAND="${BUILD_COMMAND_VAR}"
+          if [ -z "$BUILD_COMMAND" ]; then
+            # No --build-cache here (unlike other workflows' Gradle invocations):
+            # this is the one workflow that runs :app:packageRelease, and three
+            # separate merges now (all Jackson-family dependency bumps, most
+            # recently PR #853) have hit an opaque, stack-trace-free
+            # `PackageAndroidArtifact$IncrementalSplitterRunnable` failure here
+            # that never reproduces locally with --stacktrace on, nor in
+            # pr-check.yml's `check` job (which never runs packageRelease at
+            # all). setup-gradle's cache-provider persists Gradle's own
+            # local task-output build cache across runs via GitHub's cache
+            # backend - a bump touching this many dependency jars at once is a
+            # plausible way for a stale cached task output to go undetected by
+            # its own cache key and feed inconsistent input to packaging. This
+            # doesn't skip the dependency-jar cache (still fast, unaffected),
+            # only the specific mechanism most likely to be the actual carrier
+            # of stale state across runs.
+            # bundleDebug/bundleRelease alongside build(): :app depends on the
+            # install-time dynamic-feature module :webruntime for its ~4.5MB
+            # bundled JS runtime, and `build` does not include the bundle
+            # tasks by default. The AAB these produce is fed to the "Fuse
+            # release APK" step below, which is the only thing that makes the
+            # runtime end up in the single APK this workflow publishes - see
+            # that step for why assembleRelease's own APK output can't be
+            # published directly.
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              BUNDLE_TASK="bundleRelease"
+            else
+              BUNDLE_TASK="bundleDebug"
+            fi
+            if [ -x ./gradlew ]; then BUILD_COMMAND="./gradlew build $BUNDLE_TASK -PversionBuild=$BUILD_NUMBER"
+            elif [ -f package.json ]; then BUILD_COMMAND="npm ci && npm test && npm run build"
+            elif [ -f pyproject.toml ]; then BUILD_COMMAND="python -m build"
+            else echo "Set the BUILD_COMMAND repository variable" >&2; exit 1
+            fi
+          fi
+          # Requested regardless of where BUILD_COMMAND came from (default or
+          # the repo variable override) - the IncrementalSplitterRunnable
+          # failure above has now happened three times with nothing more
+          # diagnostic than its bare class name, since this step never asked
+          # Gradle for one. --stacktrace is Gradle-only: appending it
+          # unconditionally would break the npm/python fallback branches
+          # above, and any non-Gradle BUILD_COMMAND override, with an
+          # unrecognized-option failure instead of an actual build.
+          case "$BUILD_COMMAND" in
+            *gradlew*) BUILD_COMMAND="$BUILD_COMMAND --stacktrace" ;;
+          esac
+          echo "Running configured build command"
+          # Stream to the console live via `tee` (not just to build.log) and bound
+          # runtime with `timeout`: a wedged build previously produced ZERO visible
+          # output and silently ate the default 6h job ceiling, twice, with no way
+          # to tell what it was stuck on. `timeout` exits 124 on expiry.
+          #
+          # --kill-after=1m: `timeout` only sends SIGTERM at the deadline and then
+          # WAITS for the process to exit - if the JVM/Gradle daemon ignores or is
+          # too wedged to act on SIGTERM, it would still run until GitHub's 6h job
+          # ceiling, recreating the exact blind hang this exists to prevent. Force
+          # a SIGKILL one minute after SIGTERM if it hasn't exited by then.
+          #
+          # Run it in a subshell backgrounded so a watchdog can dump JVM thread
+          # stacks partway through: two runs have now hung for 20-30+ min with
+          # zero output right after all Gradle tasks finish (once on a lint
+          # failure, once on test failures - both times losing 3h/6h/30m/30m to a
+          # silent freeze), and switching off Gradle's Enhanced Caching provider
+          # didn't fix it either. This repo's tasks normally finish inside ~7-8
+          # min, so at 12 min (comfortably past that, comfortably before the 30
+          # min ceiling) dump every JVM's threads to find out what's actually
+          # blocked instead of guessing again.
+          (
+            timeout --kill-after=1m 30m bash -eo pipefail -c "$BUILD_COMMAND" 2>&1 | tee build.log
+            echo "${PIPESTATUS[0]}" > /tmp/build_exit_code
+          ) &
+          BUILD_PID=$!
+
+          (
+            sleep 720
+            if kill -0 "$BUILD_PID" 2>/dev/null; then
+              echo "::warning::Build still running after 12 min - dumping JVM thread stacks"
+              JCMD="${JAVA_HOME:+$JAVA_HOME/bin/jcmd}"
+              JCMD="${JCMD:-jcmd}"
+              for pid in $("$JCMD" -l 2>/dev/null | awk '{print $1}'); do
+                echo "===== $JCMD $pid Thread.print ====="
+                "$JCMD" "$pid" Thread.print 2>&1 || true
+              done
+            fi
+          ) &
+          WATCHDOG_PID=$!
+
+          wait "$BUILD_PID"
+          # Killing $WATCHDOG_PID alone reaps only the backgrounded subshell,
+          # not the `sleep 720` running as its child - that orphan survives,
+          # keeps holding this step's inherited stdout pipe, and can silently
+          # stall the runner's log streaming for however long is left of the
+          # sleep. pkill -P kills every direct child of the subshell first.
+          pkill -P "$WATCHDOG_PID" 2>/dev/null || true
+          kill "$WATCHDOG_PID" 2>/dev/null || true
+          wait "$WATCHDOG_PID" 2>/dev/null || true
+
+          EXIT_CODE=$(cat /tmp/build_exit_code 2>/dev/null || echo 1)
+          if [ "$EXIT_CODE" -eq 124 ]; then
+            echo "Build timed out after 30 minutes" >&2
+          fi
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          exit "$EXIT_CODE"
+
+      # ------------------------------------------------------------------
+      # FAILURE HANDLING
+      # ------------------------------------------------------------------
+      - name: Report build failure
+        if: failure() && steps.gradle-build.outcome == 'failure'
+        uses: actions/github-script@v9.0.0
+        with:
+          github-token: ${{ secrets.GH_TOKEN || github.token }}
+          script: |
+            const fs = require('fs');
+            let logTail = 'Log file not found.';
+            try { logTail = fs.readFileSync('build.log', 'utf8').slice(-4000); } catch (error) {}
+
+            const title = `Build failure on ${context.ref}`;
+            // Reuse the existing open issue instead of filing a new one on
+            // every flaky/failing push - without this, a run of failures
+            // produces a run of identical open issues. Matched by title
+            // rather than a label, since attaching a label that doesn't
+            // already exist in the repo would make issue creation itself
+            // fail.
+            // listForRepo returns pull requests alongside issues, and without
+            // per_page/pagination only checked the first (default) page - both
+            // silently correct only by accident of this repo's current low
+            // issue+PR count. Filter out PRs and paginate explicitly so dedup
+            // keeps working once that count grows.
+            const existing = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+            const match = existing.find((issue) => !issue.pull_request && issue.title === title);
+            const body = `The configured build failed.\n\n**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n**Log tail:**\n\`\`\`text\n${logTail}\n\`\`\``;
+
+            if (match) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: match.number,
+                body: `Failed again.\n\n${body}`,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+              });
+            }
+
+      # ------------------------------------------------------------------
+      # RELEASE STEPS (push to master, or a manual run against master -
+      # there's no pull_request trigger left to exclude)
+      # ------------------------------------------------------------------
+      - name: Fuse release APK
+        # Every APK this workflow has ever published to GitHub Releases has
+        # been missing the entire ~4.5MB web runtime (Babel, React, the
+        # in-browser loader) that every preview depends on - confirmed by
+        # inspecting a real assembleRelease output: `assets/ideaz-runtime/`
+        # is entirely absent from :app's own APK.
+        #
+        # :webruntime is an install-time dynamic-feature module (see its
+        # AndroidManifest's `<dist:fusing include="true"/>`), which is a
+        # bundletool concept: it controls whether the module gets merged into
+        # a *standalone* APK that bundletool generates from an .aab for
+        # devices below API 21. This app's minSdk is 30, so bundletool never
+        # produces a standalone APK for it, and the fusing flag has never had
+        # anything to act on. A plain `./gradlew assembleRelease` isn't
+        # bundletool at all - it's Gradle's per-module APK packaging, which
+        # produces :app's base APK and :webruntime's feature APK as two
+        # separate files, and the artifact-selection step below has always
+        # picked the base one (it sorts first alphabetically). The Play
+        # publish path (publish-play.yml) never hit this: it uploads the .aab
+        # directly and Play's own delivery infrastructure installs the
+        # install-time module alongside the base at install time.
+        #
+        # The fix is the same tool AGP itself uses to test dynamic-feature
+        # delivery: build the .aab (see the bundleDebug/bundleRelease task
+        # added to the Gradle command above), then ask bundletool for a
+        # *universal* APK, which is the one APK-set mode that genuinely fuses
+        # every install-time module into a single, ordinary, sideloadable
+        # file - verified locally: unzipping a universal APK built this way
+        # shows all 21 vendored runtime files under `assets/ideaz-runtime/`.
+        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == github.event.repository.default_branch
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          # KEYSTORE_FILE is set by "Prepare Keystore from Secrets" above when
+          # release-signing secrets are configured; unset for the debug build.
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VARIANT="release"
+            AAB="app/build/outputs/bundle/release/app-release.aab"
+            KS="${KEYSTORE_FILE:?KEYSTORE_FILE must be set to fuse a release build - see 'Prepare Keystore from Secrets'}"
+            KS_PASS="$KEYSTORE_PASSWORD"
+            KS_ALIAS="$KEY_ALIAS"
+            KEY_PASS_VALUE="$KEY_PASSWORD"
+          else
+            VARIANT="debug"
+            AAB="app/build/outputs/bundle/debug/app-debug.aab"
+            # AGP's well-known, unsecret debug keystore - same credentials
+            # app/build.gradle.kts's own `debug` signingConfig uses.
+            KS="app/debug.keystore"
+            KS_PASS="android"
+            KS_ALIAS="androiddebugkey"
+            KEY_PASS_VALUE="android"
+          fi
+          test -f "$AAB" || { echo "Expected bundle not found: $AAB" >&2; exit 1; }
+
+          BUNDLETOOL_VERSION="1.18.3"
+          curl -sSL --fail -o bundletool.jar \
+            "https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar"
+
+          java -jar bundletool.jar build-apks \
+            --bundle="$AAB" \
+            --output=fused.apks \
+            --mode=universal \
+            --ks="$KS" \
+            --ks-pass="pass:$KS_PASS" \
+            --ks-key-alias="$KS_ALIAS" \
+            --key-pass="pass:$KEY_PASS_VALUE" \
+            --overwrite
+
+          unzip -p fused.apks universal.apk > "fused-$VARIANT.apk"
+
+          # The whole point of this step - fail loudly here rather than
+          # publish a second silently-broken APK.
+          # NOTE: the listing is captured into a variable before grep runs,
+          # rather than piped directly (`unzip -l ... | grep -q ...`). Piping
+          # into `grep -q` lets grep exit as soon as it finds a match, which
+          # can SIGPIPE the still-writing `unzip -l` process; under
+          # `set -o pipefail` that surfaces as a spurious pipeline failure
+          # even though the pattern was actually found.
+          LISTING=$(unzip -l "fused-$VARIANT.apk")
+          if ! grep -q 'assets/ideaz-runtime/' <<< "$LISTING"; then
+            echo "::error::fused-$VARIANT.apk is missing assets/ideaz-runtime/ - the web runtime did not survive fusing" >&2
+            exit 1
+          fi
+          echo "FUSED_APK=$(pwd)/fused-$VARIANT.apk" >> "$GITHUB_ENV"
+
+      - name: Prepare Release Variables
+        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == github.event.repository.default_branch
+        id: release_vars
+        shell: bash
+        env:
+          # See the "Build with Gradle" step above for why these ride in via
+          # env: rather than direct ${{ }} interpolation into the script.
+          BUILD_NUMBER_OVERRIDE_VAR: ${{ vars.BUILD_NUMBER_OVERRIDE }}
+          RELEASE_ARTIFACT_PATH_VAR: ${{ vars.RELEASE_ARTIFACT_PATH }}
+        run: |
+          set -euo pipefail
+          test -f version.properties || { echo "version.properties is required" >&2; exit 1; }
+          get_version_part() { sed -n "s/^$1=//p" version.properties | tail -n 1; }
+          MAJOR=$(get_version_part major)
+          MINOR=$(get_version_part minor)
+          PATCH=$(get_version_part patch)
+          # Same derivation as the "Build with Gradle" step above, so the
+          # artifact filename/release notes match what's actually baked into
+          # the compiled APK's versionCode/versionName.
+          BUILD_NUMBER="${BUILD_NUMBER_OVERRIDE_VAR:-$(git rev-list --count HEAD)}"
+          for value in "$MAJOR" "$MINOR" "$PATCH" "$BUILD_NUMBER"; do
+            [[ "$value" =~ ^[0-9]+$ ]] || { echo "Invalid version.properties" >&2; exit 1; }
+          done
+          VERSION_NAME="$MAJOR.$MINOR.$PATCH.$BUILD_NUMBER"
+          # Debug builds (every push to master) and the real "Latest Release"
+          # (manual workflow_dispatch only, see the two Publish steps below)
+          # get separate tags/releases so an ordinary push never overwrites
+          # the deliberately-published release.
+          DEBUG_TAG_NAME="debug-v$MAJOR.$MINOR"
+          RELEASE_TAG_NAME="v$MAJOR.$MINOR"
+          REPOSITORY_NAME="${GITHUB_REPOSITORY##*/}"
+          ARTIFACT_GLOB="${RELEASE_ARTIFACT_PATH_VAR}"
+          if [ -n "$ARTIFACT_GLOB" ]; then
+            ARTIFACT=$(find . -path "$ARTIFACT_GLOB" -type f | sort | head -n 1)
+          elif [ -n "${FUSED_APK:-}" ] && [ -f "$FUSED_APK" ]; then
+            # The "Fuse release APK" step above already built exactly the
+            # file this trigger publishes - a single APK with :webruntime's
+            # assets genuinely fused in, not one of :app's/:webruntime's
+            # separate per-module outputs. Use it directly instead of
+            # re-deriving which loose build/outputs/ file to guess at.
+            ARTIFACT="$FUSED_APK"
+          else
+            # A plain glob+sort over both build variants picks whichever path
+            # sorts first alphabetically - 'debug' < 'release' - regardless of
+            # which one this trigger is about to publish. That silently shipped
+            # a debug-signed, unminified APK as the human-triggered, non-
+            # prerelease "Latest Release". Prefer the variant this trigger
+            # actually publishes (debug on push, release on workflow_dispatch);
+            # only fall back to the broad search for non-Android build types
+            # (npm/python/etc) that have no debug/release split, or if the
+            # fuse step above didn't run for some reason.
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              PREFERRED_PATH='*/release/*'
+            else
+              PREFERRED_PATH='*/debug/*'
+            fi
+            ARTIFACT=$(find . -path "$PREFERRED_PATH" -type f \( -name '*.apk' -o -name '*.aab' \) | sort | head -n 1)
+            if [ -z "$ARTIFACT" ]; then
+              ARTIFACT=$(find . -type f \( -path '*/build/outputs/*' -o -path '*/build/libs/*' -o -path '*/dist/*' -o -path '*/target/*' \) \( -name '*.apk' -o -name '*.aab' -o -name '*.jar' -o -name '*.zip' \) | sort | head -n 1)
+            fi
+          fi
+          test -n "$ARTIFACT" || { echo "No releasable artifact found" >&2; exit 1; }
+          EXTENSION="${ARTIFACT##*.}"
+          TARGET_NAME="${REPOSITORY_NAME}-${VERSION_NAME}.${EXTENSION}"
+          cp "$ARTIFACT" "$TARGET_NAME"
+          echo "DEBUG_TAG_NAME=$DEBUG_TAG_NAME" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG_NAME=$RELEASE_TAG_NAME" >> "$GITHUB_ENV"
+          echo "ARTIFACT_FILE=$TARGET_NAME" >> "$GITHUB_ENV"
+
+      - name: Publish Debug Build
+        if: success() && github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Force update tag to point to current commit
+          git tag -fa $DEBUG_TAG_NAME -m "Latest Debug Build"
+          git push origin $DEBUG_TAG_NAME --force
+
+          # Check if release exists
+          if gh release view $DEBUG_TAG_NAME > /dev/null 2>&1; then
+             echo "Updating existing debug release..."
+             gh release edit $DEBUG_TAG_NAME --prerelease \
+               --title "Latest Debug Build ($DEBUG_TAG_NAME)" \
+               --notes "Auto-build from commit $GITHUB_SHA" \
+               --target $GITHUB_SHA
+             gh release upload $DEBUG_TAG_NAME "$ARTIFACT_FILE" --clobber
+          else
+             echo "Creating new debug release..."
+             gh release create $DEBUG_TAG_NAME "$ARTIFACT_FILE" --prerelease \
+               --title "Latest Debug Build ($DEBUG_TAG_NAME)" \
+               --notes "Auto-build from commit $GITHUB_SHA" \
+               --target $GITHUB_SHA
+          fi
+
+      # Deliberate, human-triggered promotion to "Latest Release" - never
+      # runs on an ordinary push, only when someone runs this workflow via
+      # workflow_dispatch. Unlike the debug build, it's not marked
+      # prerelease: it's meant to be an actual vetted release.
+      - name: Publish Latest Release
+        if: success() && github.event_name == 'workflow_dispatch' && github.ref_name == github.event.repository.default_branch
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Force update tag to point to current commit
+          git tag -fa $RELEASE_TAG_NAME -m "Latest Release"
+          git push origin $RELEASE_TAG_NAME --force
+
+          # Check if release exists
+          if gh release view $RELEASE_TAG_NAME > /dev/null 2>&1; then
+             echo "Updating existing release..."
+             gh release edit $RELEASE_TAG_NAME --prerelease=false \
+               --title "Latest Release ($RELEASE_TAG_NAME)" \
+               --notes "Release build from commit $GITHUB_SHA" \
+               --target $GITHUB_SHA
+             gh release upload $RELEASE_TAG_NAME "$ARTIFACT_FILE" --clobber
+          else
+             echo "Creating new release..."
+             gh release create $RELEASE_TAG_NAME "$ARTIFACT_FILE" \
+               --title "Latest Release ($RELEASE_TAG_NAME)" \
+               --notes "Release build from commit $GITHUB_SHA" \
+               --target $GITHUB_SHA
+          fi
