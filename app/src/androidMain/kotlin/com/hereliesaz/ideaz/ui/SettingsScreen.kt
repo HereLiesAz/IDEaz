@@ -69,7 +69,7 @@ import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.ideaz.BuildConfig
 import com.hereliesaz.ideaz.ai.bridge.ExternalAiWindowHost
 import com.hereliesaz.ideaz.ai.bridge.ExternalAiWindowMode
-import com.hereliesaz.ideaz.utils.isAccessibilityServiceEnabled
+import com.hereliesaz.ideaz.ai.bridge.GeminiAppBridgeAdapter
 import java.io.File
 import kotlinx.coroutines.launch
 
@@ -699,7 +699,7 @@ fun SettingsScreen(
                     mutableStateOf(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context) else true)
                 }
                 val hasAccessibility by remember(refreshTrigger) {
-                    mutableStateOf(isAccessibilityServiceEnabled(context, ".services.IdeazAccessibilityService"))
+                    mutableStateOf(GeminiAppBridgeAdapter.isAccessibilityServiceEnabled(context))
                 }
 
                 ExternalAiWindowModeDropdown(

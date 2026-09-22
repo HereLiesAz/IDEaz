@@ -29,9 +29,10 @@ data class AiToolSpec(
 /**
  * The set of tools the AI can invoke against the project sandbox. Adapters
  * read from [all] and translate to their wire format. Tool dispatch itself
- * lives in each adapter (currently [GeminiAdapter.dispatchTool] and
- * [OpenAiCompatibleAdapter.dispatchTool]) so each adapter can decode args
- * from its provider's native shape.
+ * lives in each adapter: [GeminiAdapter.dispatchTool] wraps [dispatchIdeTool]
+ * with provider-specific decoding, while [OpenAiCompatibleAdapter] and
+ * [AnthropicAdapter] call [dispatchIdeTool] directly, so each adapter can
+ * decode args from its provider's native shape.
  */
 object IdeToolSchema {
     val readFile = AiToolSpec(

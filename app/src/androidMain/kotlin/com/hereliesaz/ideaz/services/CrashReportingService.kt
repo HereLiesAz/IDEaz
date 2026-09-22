@@ -12,6 +12,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Reports fatal crashes and batched non-fatal errors as GitHub Issues.
@@ -43,6 +45,7 @@ class CrashReportingService : Service() {
     }
 
     private var lastReportTime = 0L
+    private val batchMutex = Mutex()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -69,11 +72,16 @@ class CrashReportingService : Service() {
 
         serviceScope.launch {
             if (!isFatal) {
-                val now = System.currentTimeMillis()
-                if (now - lastReportTime < BATCH_DELAY_MS) {
-                    delay(BATCH_DELAY_MS - (now - lastReportTime))
+                // Serialized so overlapping onStartCommand launches can't both read
+                // the same stale lastReportTime and fire together, defeating the
+                // batching this delay exists for.
+                batchMutex.withLock {
+                    val now = System.currentTimeMillis()
+                    if (now - lastReportTime < BATCH_DELAY_MS) {
+                        delay(BATCH_DELAY_MS - (now - lastReportTime))
+                    }
+                    lastReportTime = System.currentTimeMillis()
                 }
-                lastReportTime = System.currentTimeMillis()
             }
 
             try {

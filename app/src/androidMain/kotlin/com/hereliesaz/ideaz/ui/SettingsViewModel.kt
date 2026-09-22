@@ -6,8 +6,6 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.saveable.Saver
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -194,7 +192,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
         val aiTasks = mapOf(
             KEY_AI_ASSIGNMENT_DEFAULT to "Default",
-            KEY_AI_ASSIGNMENT_CONTEXTLESS to "Prompt Popup (Jules routing)",
+            KEY_AI_ASSIGNMENT_CONTEXTLESS to "Prompt Popup",
             KEY_AI_ASSIGNMENT_OVERLAY to "Overlay Chat"
         )
     }

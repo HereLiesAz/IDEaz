@@ -54,19 +54,23 @@ The `docs/` folder contains the documentation for this project. These files are 
 *   **`docs/UI_UX.md`**: Visual design and interaction patterns.
 *   **`docs/architecture.md`**: High-level system architecture.
 *   **`docs/auth.md`**: Authentication mechanisms.
-*   **`docs/blueprint.md`**: Core vision and roadmap.
+*   **`docs/AZNAVRAIL_COMPLETE_GUIDE.md`**: Guide to the AzNavRail UI library.
+*   **`docs/blueprint.md`**: Core vision and roadmap (historical/phased — see its own staleness note).
 *   **`docs/build_pipeline.md`**: Remote-build pipeline (GitHub Actions).
 *   **`docs/conduct.md`**: Code of conduct for agents.
 *   **`docs/data_layer.md`**: Data storage, API, and state management.
 *   **`docs/error_handling.md`**: Strategy for handling and reporting errors.
+*   **`docs/external-ai-app-host.md`**: Installed-AI-app overlay/bridge automation.
 *   **`docs/fauxpas.md`**: Common mistakes and anti-patterns.
 *   **`docs/manifest.md`**: AndroidManifest explanation.
 *   **`docs/misc.md`**: Miscellaneous info (templates, logs).
 *   **`docs/performance.md`**: Performance guidelines.
 *   **`docs/platform_decision_helper.md`**: PWA vs Android-native decision.
+*   **`docs/privacy-license-telemetry-review.md`**: What IDEaz collects and transmits by default.
 *   **`docs/screens.md`**: Overview of application screens.
 *   **`docs/task_flow.md`**: Operational workflows.
 *   **`docs/testing.md`**: Testing strategy.
+*   **`docs/ux_userflow_audit.md`**: UX/user-flow audit and release-blocker tracking.
 *   **`docs/workflow.md`**: CI/CD and build processes.
 
 ## Recent Changes (Summary)

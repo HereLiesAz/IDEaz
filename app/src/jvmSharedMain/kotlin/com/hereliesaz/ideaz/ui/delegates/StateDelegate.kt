@@ -352,7 +352,6 @@ class StateDelegate(
         _aiLog.value = emptyList()
         _pureBuildLog.value = emptyList()
         _systemLog.value = emptyList()
-        clearChatHistory()
     }
 
     // --- Internal Helpers ---

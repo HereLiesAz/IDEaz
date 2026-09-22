@@ -28,13 +28,13 @@ title: IDEaz - The Post-Code IDE
         <div class="feature-card">
             <h3>Natural Language</h3>
             <p>
-                Don't write XML or Kotlin. Just select a component and tell <strong>Jules</strong> (the AI) what you want. "Make this button blue," "Add a login screen here."
+                Don't write JSX or CSS by hand. Just select a component and tell the AI what you want. "Make this button blue," "Add a login screen here."
             </p>
         </div>
         <div class="feature-card">
-            <h3>Race to Build</h3>
+            <h3>Your Choice of AI</h3>
             <p>
-                A dual-build strategy that races local compilation against remote cloud builds. Whichever finishes first is instantly installed on your device.
+                Gemini, Claude, OpenAI, DeepSeek, Groq, Cerebras, Hugging Face, or Mistral — bring your own API key. Every edit is checkpointed and reviewable before it lands.
             </p>
         </div>
     </div>
@@ -47,14 +47,13 @@ title: IDEaz - The Post-Code IDE
         <li><strong>Run App:</strong> Launch your project on the device.</li>
         <li><strong>Visual Select:</strong> Tap any UI element to inspect it.</li>
         <li><strong>AI Prompt:</strong> Describe your changes in plain English.</li>
-        <li><strong>AI Edit:</strong> Jules accesses the source code and implements changes.</li>
-        <li><strong>Compile & Run:</strong> The app rebuilds automatically.</li>
+        <li><strong>AI Edit:</strong> The AI reads and edits your project's source directly.</li>
+        <li><strong>Reload:</strong> The live preview updates instantly, no rebuild step.</li>
     </ol>
 
     <h2>Architecture</h2>
     <p>
-        IDEaz leverages a unique "Repository-Less" architecture on the device. It connects directly to GitHub, treating the remote repository as the source of truth.
-        The device handles the UI and lightweight logic, while heavy lifting is offloaded to the cloud.
+        Every project is a real git repository living on your device, and git is the source of truth from the very first commit — you don't need a GitHub account to start. Pages you build render live in an embedded preview as you edit; when you're ready, connect a GitHub account and publish to GitHub Pages with one tap.
     </p>
 
 </div>

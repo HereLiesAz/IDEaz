@@ -33,7 +33,7 @@ fun PromptPopup(
 
     // Provider capability check for the chip's "Reference" mode.
     val defaultModelId = viewModel.settingsViewModel.getAiAssignment(
-        SettingsViewModel.KEY_AI_ASSIGNMENT_OVERLAY
+        SettingsViewModel.KEY_AI_ASSIGNMENT_CONTEXTLESS
     )
     val defaultModel = AiModels.findById(defaultModelId) ?: AiModels.GEMINI
     val providerSupportsImages = defaultModel.supportsImages

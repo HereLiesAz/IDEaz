@@ -26,9 +26,14 @@ It's batteries-included: router + zustand + react-query + axios +
 styled-components. Delete what you don't need; Redux Toolkit and Emotion are also
 available in the preview runtime if you prefer them.
 
-> **Library versions are pinned to match IDEaz's bundled runtime**, so what you
-> see in the preview matches a real build. The bundled set is: react, react-dom,
-> react-router(-dom), zustand, @reduxjs/toolkit, react-redux, axios,
-> @tanstack/react-query, styled-components, @emotion/react, @emotion/styled.
-> Importing a library outside that set works in a real build but not in the
-> in-app preview.
+> **Library versions are pinned to match IDEaz's bundled runtime where practical**,
+> so what you see in the preview matches a real build. The bundled set is:
+> react, react-dom, react-router(-dom), zustand, @reduxjs/toolkit, react-redux,
+> axios, @tanstack/react-query, styled-components, @emotion/react,
+> @emotion/styled. Importing a library outside that set works in a real build
+> but not in the in-app preview. A pin can lag the in-app preview's vendored
+> copy when the template's own version carries a known vulnerability the
+> preview runtime doesn't (see `axios` — the template pins the current patched
+> release even though the in-app preview still vendors an older 1.x); such
+> drift doesn't affect the API surface, only unobserved behavior differences
+> between preview and build.

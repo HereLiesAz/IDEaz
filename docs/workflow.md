@@ -26,18 +26,19 @@ The on-device toolchain (`aapt2`, `d8`, `kotlinc`, Maven Aether) was removed in 
 
 ## 3. AI Coding Loop
 
-| Phase | Provider | Adapter | Style |
-|---|---|---|---|
-| 1 (default) | Gemini | `GeminiAdapter` (`ConversationalAiClient`) | Chat with tool-use (`read_file`, `write_file`, `list_files`, `apply_patch`); writes directly to working tree; user commits manually |
-| 1 (optional) | On-device model | `LocalLlmAdapter` (`ConversationalAiClient`) | Bounded JSON tool loop over the same four sandboxed project tools; malformed structured output degrades to text chat |
-| 2 | Jules | `JulesAdapter` (`AgenticAiClient`) | PR-based; auto-merge (configurable); rebuild on merge |
-| 3+ | Claude / OpenAI | new adapters | Same `ConversationalAiClient` interface |
+| Provider | Adapter | Style |
+|---|---|---|
+| Gemini | `GeminiAdapter` (`ConversationalAiClient`) | Chat with tool-use (`read_file`, `write_file`, `list_files`, `apply_patch`); writes directly to working tree; user commits manually |
+| Claude | `AnthropicAdapter` (`ConversationalAiClient`) | Same tool-use contract as `GeminiAdapter` |
+| OpenAI, DeepSeek, Groq, Cerebras, Hugging Face, Mistral | `OpenAiCompatibleAdapter` (`ConversationalAiClient`) | Same tool-use contract, one OpenAI-compatible client shared across all six |
+
+Per-task model assignment (Default / Prompt Popup / Overlay Chat) is configured in Settings and routed by `MainViewModel.sendChatMessage`'s `taskKey` parameter.
 
 ## 4. The Error Handling Loop
 
 ### 4.1 User-Code Error
 *   **Detection:** Build fails on Actions; failure not classified as IDE-internal.
-*   **Action:** Build log routed back into the active AI session (Gemini chat in Phase 1; Jules session in Phase 2). Cycle repeats.
+*   **Action:** Build log routed back into the active AI chat session. Cycle repeats.
 
 ### 4.2 IDE Infrastructure Error
 *   **Detection:** Stack trace from `com.hereliesaz.ideaz.*`, or `BuildService` exception.

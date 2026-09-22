@@ -316,6 +316,7 @@ class GitManager(private val projectDir: File) {
         Git.open(projectDir).use { git ->
             val repository = git.repository
             val ref = repository.findRef(branch)
+                ?: throw GitOperationRejectedException("No such branch: $branch")
             git.merge().include(ref).call()
         }
     }

@@ -6,6 +6,7 @@ import com.google.genai.Client
 import com.google.genai.types.Blob
 import com.google.genai.types.Content
 import com.google.genai.types.Part
+import com.hereliesaz.ideaz.ai.DEFAULT_GEMINI_MODEL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -13,7 +14,7 @@ object GeminiApiClient {
 
     private const val TAG = "GeminiApiClient"
     private const val IMAGE_TAG = "[IMAGE: data:image/png;base64,"
-    private const val MODEL = "gemini-2.0-flash"
+    private val MODEL = DEFAULT_GEMINI_MODEL
 
     /**
      * One-shot Gemini call used by the contextual chat overlay.

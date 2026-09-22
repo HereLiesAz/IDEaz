@@ -41,7 +41,6 @@ fun IdeBottomSheet(
     controller: AzSheetController,
     viewModel: MainViewModel,
     screenHeight: Dp,
-    onSendPrompt: (String) -> Unit
 ) {
     val detent by controller.detentFlow.collectAsState()
 
@@ -112,7 +111,6 @@ fun IdeBottomSheet(
                     editReview = editReview,
                     isChatLoading = isChatLoading,
                     onClearLog = { viewModel.clearLog() },
-                    onSendPrompt = onSendPrompt,
                     viewModel = viewModel,
                     screenHeight = screenHeight,
                 )
@@ -159,7 +157,6 @@ private fun ExpandedContent(
     editReview: com.hereliesaz.ideaz.ui.delegates.EditReviewState?,
     isChatLoading: Boolean,
     onClearLog: () -> Unit,
-    onSendPrompt: (String) -> Unit,
     viewModel: MainViewModel,
     screenHeight: Dp
 ) {

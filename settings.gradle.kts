@@ -17,7 +17,8 @@ pluginManagement {
 // plugin; they come from real app dependencies — google-genai (Jackson at runtime;
 // Netty via grpc-netty on the unit-test classpath), Robolectric (BouncyCastle), and
 // AGP's androidLintTool (commons-lang3 + BouncyCastle) — and are now pinned to patched
-// versions via resolutionStrategy in app/build.gradle.kts.)
+// versions via the root-level `subprojects { configurations.all { resolutionStrategy { ... } } }`
+// block in this repo's root build.gradle.kts, so every module inherits the same pins.)
 //
 // Gradle still resolves the jvmToolchain(21) request in app/build.gradle.kts,
 // just from locally-installed JDKs (CI installs one via actions/setup-java).

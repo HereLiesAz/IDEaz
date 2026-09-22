@@ -34,7 +34,10 @@ fun GitScreen(
     var showRegenerateConfirm by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        viewModel.refreshGitData()
+        // refreshGitData() can correct the persisted branch name (e.g. the repo
+        // was switched by external tooling) - re-read it afterwards so the
+        // confirmation dialog below doesn't show a stale value.
+        viewModel.refreshGitData(onComplete = { selectedBranch = settingsViewModel.getBranchName() })
     }
 
     if (showStashDialog) {
