@@ -12,7 +12,6 @@ import com.hereliesaz.ideaz.api.GitHubRepoResponse
 import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.services.CrashReportingService
 import com.hereliesaz.ideaz.ui.delegates.*
-import com.hereliesaz.ideaz.ui.editor.EditorViewModel
 import com.hereliesaz.ideaz.utils.ErrorCollector
 import com.hereliesaz.ideaz.ui.web.WebProjectUrlUtils
 import com.hereliesaz.ideaz.R
@@ -68,15 +67,6 @@ class MainViewModel(
     application: Application,
     val settingsViewModel: SettingsViewModel
 ) : AndroidViewModel(application) {
-
-    // --- Sub-ViewModels ---
-
-    /**
-     * Lazy instantiation of [EditorViewModel] to avoid overhead if the editor is not used.
-     */
-    val editorViewModel: EditorViewModel by lazy {
-        EditorViewModel()
-    }
 
     // --- Core Infrastructure ---
 
@@ -171,7 +161,11 @@ class MainViewModel(
     fun sendChatMessage(text: String) = sendChatMessage(text, emptyList())
 
 
-    fun sendChatMessage(text: String, referenceParts: List<com.hereliesaz.ideaz.ai.ChatPart>) {
+    fun sendChatMessage(
+        text: String,
+        referenceParts: List<com.hereliesaz.ideaz.ai.ChatPart>,
+        taskKey: String = SettingsViewModel.KEY_AI_ASSIGNMENT_DEFAULT,
+    ) {
         // An edit is waiting on the user. Previously this returned silently, so the
         // send button kept working and kept doing nothing - the single worst bug in
         // the visual-select loop. Say so instead, in the conversation, where the
@@ -192,7 +186,7 @@ class MainViewModel(
         // Route through the AI provider factory so the user's chosen default
         // model (Gemini, Nano, Groq, Cerebras, HF, Mistral, etc.) backs the
         // chat tab the same way it backs contextual prompts.
-        val modelId = settingsViewModel.getAiAssignment(SettingsViewModel.KEY_AI_ASSIGNMENT_DEFAULT)
+        val modelId = settingsViewModel.getAiAssignment(taskKey)
         val model = AiModels.findById(modelId) ?: AiModels.GEMINI
         val projectDir = settingsViewModel.getProjectPath(appName)
         val tools = IdeTools(projectDir)
@@ -497,7 +491,7 @@ class MainViewModel(
      *
      * **Logic:**
      * 1. Retrieves unique, non-fatal errors collected by [ErrorCollector].
-     * 2. If errors exist, starts the [CrashReportingService] with an intent to report them to the configured backend (GitHub/Jules).
+     * 2. If errors exist, starts the [CrashReportingService] with an intent to report them as a GitHub issue.
      * This ensures that "silent" errors don't pile up without user/dev visibility.
      */
     fun flushNonFatalErrors() {
@@ -565,11 +559,15 @@ class MainViewModel(
         // index.html" diagnostic despite the gate having just admitted it.
         stateDelegate.setCurrentWebUrl(WebProjectUrlUtils.localProjectUrl(entryPoint))
         stateDelegate.setTargetAppVisible(true)
-        editorViewModel.setProjectDir(projectDir)
     }
 
     // GIT Operations
-    fun refreshGitData() { viewModelScope.launch { gitDelegate.refreshGitData() } }
+    fun refreshGitData(onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            gitDelegate.refreshGitData()
+            onComplete()
+        }
+    }
     fun gitFetch() { viewModelScope.launch { gitDelegate.fetch() } }
     fun gitPull() { viewModelScope.launch { gitDelegate.pull() } }
     fun gitPush() { viewModelScope.launch(Dispatchers.IO) { gitDelegate.push() } }
@@ -715,7 +713,7 @@ class MainViewModel(
         if (p.isNullOrBlank() && referenceParts.isEmpty()) return
         val text = p.orEmpty()
         lastPrompt = text
-        sendChatMessage(text, referenceParts)
+        sendChatMessage(text, referenceParts, SettingsViewModel.KEY_AI_ASSIGNMENT_CONTEXTLESS)
     }
 
     fun submitContextualPrompt(p: String) {
@@ -727,7 +725,7 @@ class MainViewModel(
             // particular to jump straight to `source` when the bridge resolved one.
             "ELEMENT CONTEXT:\n$context\n\nREQUEST:\n$p"
         } else p
-        sendChatMessage(richPrompt, emptyList())
+        sendChatMessage(richPrompt, emptyList(), SettingsViewModel.KEY_AI_ASSIGNMENT_OVERLAY)
     }
 
 

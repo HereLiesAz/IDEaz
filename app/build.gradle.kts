@@ -283,11 +283,11 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
     }
 
     androidResources {
-        // The bundled Android template ships .github/workflows/build-apk.yml
-        // (assets/templates/android). aapt's default asset filter contains ".*",
-        // which drops every dot-prefixed entry — the workflow would never reach
-        // the APK and scaffolded projects would have no CI. This is the default
-        // list minus ".*"; .git and friends stay excluded by their own entries.
+        // aapt's default asset filter contains ".*", which drops every
+        // dot-prefixed entry from assets/templates/react (e.g. any future
+        // .github/workflows file bundled alongside it) before it reaches the
+        // APK. This is the default list minus ".*"; .git and friends stay
+        // excluded by their own entries.
         ignoreAssetsPatterns.clear()
         ignoreAssetsPatterns.addAll(
             listOf(

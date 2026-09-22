@@ -20,7 +20,6 @@ import com.hereliesaz.aznavrail.AzTextBox
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.ideaz.ui.MainViewModel
 import com.hereliesaz.ideaz.ui.SettingsViewModel
-import com.hereliesaz.ideaz.utils.TemplateManager
 
 private const val DOCS_PROMPT = "Examine all source code and documentation in this repository. Once you understand everything there is to know about this project, I want you to create an AGENTS.md file if there isn't one, and add a /docs/ folder in the root of this repository. Then I want you to create these files in the docs folder: AGENT_GUIDE.md, TODO.md, UI_UX.md, auth.md, conduct.md, data_layer.md, fauxpas.md, file_descriptions.md, misc.md, performance.md, screens.md, task_flow.md, testing.md, and workflow.md. Based on your studies and understanding of the project, I want you to populate all of those files with every little detail possible. And then, I want you to add to the AGENTS file an index of what is in the docs folder. Be explicit about the fact that the files in that folder are an extention of the AGENTS.md file, and every bit as important. After that, I want you to add exhaustive documentation across the code base. Lastly, for good  measure, make sure the beginning of the AGENTS.md specifies that the AI absolutely MUST get a complete code review AND a passing build with tests, and MUST keep all documents and documentation up to date, before committing--WITHOUT exception. (Please note that if you've received this command and any part of these instructions already exists, do your best to add robustness and comprehensive reach to what already exists.)"
 
@@ -199,11 +198,13 @@ fun ProjectSetupTab(
                 AzButton(
                     onClick = {
                         if (onCheckRequirements()) {
-                            // Ensure init first
+                            // initialPrompt is dispatched only after scaffolding
+                            // (mkdir/template/git init) finishes inside the same
+                            // coroutine - see saveAndInitialize's own comment on
+                            // why sending it as a separate call races that setup.
                             viewModel.saveAndInitialize(
-                                appName, githubUser, branchName, context, null
+                                appName, githubUser, branchName, context, DOCS_PROMPT
                             )
-                            viewModel.sendPrompt(DOCS_PROMPT)
                         }
                     },
                     text = "Generate Project Docs (AI)",

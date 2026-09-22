@@ -1,6 +1,12 @@
 # Architectural Blueprint for IDEaz
 
 > **Authoritative source:** [`plans/2026-05-01-ideaz-revival-design.md`](plans/2026-05-01-ideaz-revival-design.md).
+>
+> **This is a phased design doc, not a snapshot of current behavior.** Several
+> items below describe a planned or since-removed state (the Android edit
+> target, the Jules provider, remote/dual-build strategies). For what's
+> actually shipped, see the [README](../README.md) and
+> [`workflow.md`](workflow.md).
 
 ## 1. Vision: The Visual, Post-Code IDE
 
@@ -32,11 +38,14 @@ Pick / Create project
 
 ## 3. AI Providers
 
-| Phase | Provider | Notes |
+As shipped today, all eight providers below are live (see `AiAdapterFactory`),
+not phased — this table is kept for historical context on the original
+rollout plan.
+
+| Phase (as originally planned) | Provider | Notes |
 |---|---|---|
 | 1 (default) | **Gemini** | Free tier on-ramp; BYO-key; PBKDF2-encrypted credentials |
-| 2 | **Jules** | Android target loop; PR-based, agentic, async |
-| 3 (post-MVP) | **Claude / OpenAI** | Slot into the same `ConversationalAiClient` interface |
+| 3 | **Claude, OpenAI, DeepSeek, Groq, Cerebras, Hugging Face, Mistral** | Slot into the same `ConversationalAiClient` interface; Claude via `AnthropicAdapter`, the rest share `OpenAiCompatibleAdapter` |
 
 ## 4. Build Pipeline
 

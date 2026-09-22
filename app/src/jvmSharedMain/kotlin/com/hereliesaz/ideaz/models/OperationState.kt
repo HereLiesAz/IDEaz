@@ -54,7 +54,7 @@ data class OperationProgress(
     }
 }
 
-/** True for the three states where [OperationController.retry] can apply. */
+/** True only for a [OperationState.Failed] whose own [OperationState.Failed.retryable] flag allows [OperationController.retry]. */
 fun OperationState<*>.isRetryable(): Boolean =
     this is OperationState.Failed && retryable
 

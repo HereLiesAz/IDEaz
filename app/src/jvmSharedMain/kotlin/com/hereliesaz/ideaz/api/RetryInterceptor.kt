@@ -1,12 +1,13 @@
 package com.hereliesaz.ideaz.api
 
-import android.util.Log
 import okhttp3.Interceptor
 import okhttp3.Response
 import java.io.IOException
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
+import java.util.logging.Level
+import java.util.logging.Logger
 
 class RetryInterceptor(
     private val maxRetries: Int = 5,
@@ -14,7 +15,7 @@ class RetryInterceptor(
     private val maxDelayMs: Long = 30000
 ) : Interceptor {
 
-    private val TAG = "RetryInterceptor"
+    private val log = Logger.getLogger("RetryInterceptor")
     private val retryableStatuses = listOf(408, 429, 500, 502, 503, 504)
 
     override fun intercept(chain: Interceptor.Chain): Response {
@@ -35,12 +36,12 @@ class RetryInterceptor(
                 // it OPEN — closing it here would hand the caller a closed body that
                 // throws IllegalStateException when read.
                 if (attempt < maxRetries) {
-                    Log.w(TAG, "Request failed with code ${response.code}. Closing and retrying...")
+                    log.warning("Request failed with code ${response.code}. Closing and retrying...")
                     response.close()
                 }
 
             } catch (e: IOException) {
-                Log.w(TAG, "Request failed with exception: ${e.message}. Retrying...", e)
+                log.log(Level.WARNING, "Request failed with exception: ${e.message}. Retrying...", e)
                 exception = e
                 // Network error, retry
             }
@@ -49,7 +50,7 @@ class RetryInterceptor(
             if (attempt > maxRetries) break
 
             val delay = calculateDelay(attempt, response)
-            Log.d(TAG, "Retrying attempt $attempt in ${delay}ms...")
+            log.fine("Retrying attempt $attempt in ${delay}ms...")
             try {
                 TimeUnit.MILLISECONDS.sleep(delay)
             } catch (e: InterruptedException) {

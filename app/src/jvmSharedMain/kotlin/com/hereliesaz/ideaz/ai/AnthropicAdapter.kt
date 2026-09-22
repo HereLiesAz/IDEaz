@@ -35,8 +35,8 @@ class AnthropicAdapter(
 
         val history = messages.map { it.toAnthropicMessage() }.toMutableList()
 
-        // Same checkpoint/review/approval contract LocalLlmAdapter and
-        // GeminiAdapter use — see AiEditApproval's doc comment.
+        // Same checkpoint/review/approval contract GeminiAdapter and
+        // OpenAiCompatibleAdapter use — see AiEditApproval's doc comment.
         var editCheckpoint: IdeEditCheckpoint? = null
         var expectedEditFingerprint: String? = null
 

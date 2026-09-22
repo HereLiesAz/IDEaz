@@ -390,6 +390,7 @@ object GitHubApiClient {
 
         val client = OkHttpClient.Builder()
             .addInterceptor(authInterceptor)
+            .addInterceptor(RetryInterceptor())
             .addInterceptor(loggingInterceptor)
             .build()
 

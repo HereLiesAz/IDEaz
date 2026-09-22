@@ -242,7 +242,6 @@ fun MainScreen(viewModel: MainViewModel) {
                     controller = sheetController,
                     viewModel = viewModel,
                     screenHeight = screenHeight,
-                    onSendPrompt = { viewModel.sendPrompt(it) }
                 )
             }
         }

@@ -12,7 +12,6 @@ import com.hereliesaz.aznavrail.model.AzButtonShape
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.lang.EmptyLanguage
 import com.hereliesaz.ideaz.ui.editor.EditorSetup
-import com.hereliesaz.ideaz.ui.editor.EditorViewModel
 import java.io.File
 
 /**
@@ -42,7 +41,6 @@ private fun loadFile(file: File): FileLoadResult {
 @Composable
 fun FileContentScreen(
     filePath: String,
-    viewModel: EditorViewModel? = null
 ) {
     val file = File(filePath)
     // Re-probed only when filePath changes, not on every recomposition -
@@ -102,11 +100,7 @@ fun FileContentScreen(
                         setEditorLanguage(EmptyLanguage())
                     }
                     subscribeAlways(io.github.rosemoe.sora.event.ContentChangeEvent::class.java) {
-                        val newText = this.text.toString()
-                        fileContent = newText
-                        if (file.extension == "kt") {
-                            viewModel?.onCodeChange(newText)
-                        }
+                        fileContent = this.text.toString()
                     }
                 }
             },
