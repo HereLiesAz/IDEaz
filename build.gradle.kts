@@ -48,8 +48,8 @@ subprojects {
                 "org.bouncycastle:bcpkix-jdk18on:1.86",
                 "org.bouncycastle:bcutil-jdk18on:1.86",
                 "org.apache.commons:commons-lang3:3.20.0",
-                "com.google.protobuf:protobuf-java:4.36.1",
-                "com.google.protobuf:protobuf-kotlin:4.36.1",
+                "com.google.protobuf:protobuf-java:4.36.2",
+                "com.google.protobuf:protobuf-kotlin:4.36.2",
             )
             dependencySubstitution {
                 substitute(module("com.google.protobuf:protobuf-javalite"))
