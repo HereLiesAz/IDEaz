@@ -143,9 +143,12 @@ if (versionPropsFile.exists()) {
     versionPropsFile.inputStream().use { versionProps.load(it) }
 }
 
-val major = versionProps.getProperty("major", "1").toInt()
-val minor = versionProps.getProperty("minor", "0").toInt()
-val patch = versionProps.getProperty("patch", "0").toInt()
+// The central HereLiesAz/workflows release executors rewrite version.properties'
+// canonical `versionMajor`/`versionMinor`/`versionPatch` keys (the legacy
+// `major`/`minor`/`patch` keys are kept only as a fallback for older checkouts).
+val major = (versionProps.getProperty("versionMajor") ?: versionProps.getProperty("major", "1")).toInt()
+val minor = (versionProps.getProperty("versionMinor") ?: versionProps.getProperty("minor", "0")).toInt()
+val patch = (versionProps.getProperty("versionPatch") ?: versionProps.getProperty("patch", "0")).toInt()
 
 // versionCode override for CI: pass `-PversionBuild=<n>` (CI passes
 // `git rev-list --count HEAD`, a value that only ever grows).
@@ -184,6 +187,14 @@ val buildNumber = versionBuildOverride
     ?: gitCommitCount
     ?: (versionProps.getProperty("build", "0").toInt() + 1)
 
+// Central release executors (android-play-release / android-github-release in
+// HereLiesAz/workflows) pass the exact versionCode/versionName they publish:
+// `-PversionCodeOverride=<n>` and `-PversionName=<name>`. When present these win
+// over the local packed formula below, so Play's next-free versionCode and the
+// GitHub release tag match what is baked into the artifact.
+val versionCodeOverride = project.findProperty("versionCodeOverride")?.toString()?.toIntOrNull()
+val versionNameOverride = project.findProperty("versionName")?.toString()?.takeIf { it.isNotBlank() }
+
 extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
     namespace = "com.hereliesaz.ideaz"
     compileSdk = 37
@@ -208,8 +219,8 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
         // ...6926, not ...66326) - harmless for the arithmetic (plain addition, not
         // string concatenation, so the total stays correctly monotonic), just not
         // cleanly human-readable past two build digits.
-        versionCode = major * 1000000 + minor * 10000 + patch * 100 + buildNumber
-        versionName = "$major.$minor.$patch.$buildNumber"
+        versionCode = versionCodeOverride ?: (major * 1000000 + minor * 10000 + patch * 100 + buildNumber)
+        versionName = versionNameOverride ?: "$major.$minor.$patch.$buildNumber"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
