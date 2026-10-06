@@ -1,0 +1,22 @@
+# IDEaz: built, signed and published by HereLiesAz/workflows (.github/workflows/android-github-release.yml):
+# a GitHub Release with the signed universal APK (:webruntime fused in).
+# Replaces the old local build-and-release.yml.
+# This file is the trigger contract; the central sync replaces it with a tracker.
+name: IDEaz Android GitHub Release
+on:
+  push:
+    branches: [master]
+    paths:
+      - "app/**"
+      - "webruntime/**"
+      - "gradle/**"
+      - "*.gradle.kts"
+      - "gradle.properties"
+      - "scripts/central-release-build.sh"
+  workflow_dispatch:
+permissions: {}
+jobs:
+  hand-off:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "IDEaz Android GitHub Release runs centrally in HereLiesAz/workflows."

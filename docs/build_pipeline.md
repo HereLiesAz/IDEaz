@@ -49,7 +49,7 @@ IDEaz has two Android distributions from one source tree:
 
 The split is deliberate. The GitHub APK may expose the explicitly enabled installed-Gemini accessibility/overlay host. The Play bundle inherits only the policy-safe common manifest and uses provider APIs.
 
-[`build-and-release.yml`](../.github/workflows/build-and-release.yml) owns the GitHub APK channel. [`publish-play.yml`](../.github/workflows/publish-play.yml) owns the Play AAB channel.
+Both channels now release through the central HereLiesAz/workflows executors. [`android-github-release.yml`](../.github/workflows/android-github-release.yml) is the trigger contract for the GitHub APK channel and [`android-play-release.yml`](../.github/workflows/android-play-release.yml) for the Play AAB channel; both fire on pushes to `master` that touch the app build, or manually. The executors run [`scripts/central-release-build.sh`](../scripts/central-release-build.sh) (`aab` → `:app:bundlePlay`; `apk` → `:app:bundleRelease` fused into a universal APK by bundletool) and pass the canonical version as `-PversionCodeOverride` / `-PversionName`, which `app/build.gradle.kts` prefers over its packed formula. Sections 6.0 and 6.4 below describe the retired local `build-and-release.yml` / `publish-play.yml` and are kept for history.
 
 ### 6.0 GitHub-Release APK channel
 
