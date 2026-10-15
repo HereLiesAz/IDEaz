@@ -43,9 +43,9 @@ class OpenAiCompatibleAdapterTest {
         server.shutdown()
     }
 
-    private fun adapter() = OpenAiCompatibleAdapter(
+    private fun adapter(apiKey: String = "test-key") = OpenAiCompatibleAdapter(
         baseUrl = server.url("/").toString().removeSuffix("/"),
-        apiKey = "test-key",
+        apiKey = apiKey,
         modelResolver = { "test-model" },
         tools = tools,
         httpClient = OkHttpClient.Builder().build(),
@@ -80,6 +80,18 @@ class OpenAiCompatibleAdapterTest {
           ]
         }
     """.trimIndent()
+
+    @Test
+    fun `keyless providers get no Authorization header, keyed ones get a bearer`() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(finalTextResponse))
+        server.enqueue(MockResponse().setResponseCode(200).setBody(finalTextResponse))
+
+        adapter(apiKey = "").chat(listOf(ChatMessage("user", "hi")))
+        assertEquals(null, server.takeRequest().getHeader("Authorization"))
+
+        adapter().chat(listOf(ChatMessage("user", "hi")))
+        assertEquals("Bearer test-key", server.takeRequest().getHeader("Authorization"))
+    }
 
     @Test
     fun `successful round trip applies the edit and requires review, not a silent reload`() = runBlocking {

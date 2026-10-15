@@ -32,6 +32,8 @@ import kotlinx.serialization.encodeToString
 // bridge and therefore does not require an API key, while Play remains API-only.
 //
 // supportsImages: whether the provider accepts image/reference parts in prompts.
+// keyless: the provider answers anonymous requests (the same hosted endpoints The Aive
+// ships keyless), so it has no credential slot (providerKey is empty).
 data class AiModel(
     val id: String,
     val displayName: String,
@@ -39,9 +41,10 @@ data class AiModel(
     /** Wire model id sent to the provider. Overridable per-provider in Settings. */
     val defaultWireModel: String,
     val supportsImages: Boolean = false,
+    val keyless: Boolean = false,
 ) {
     val requiredKey: String
-        get() = if (id == "GEMINI_FLASH" && BuildConfig.EXTERNAL_AI_AUTOMATION) "" else providerKey
+        get() = if (keyless || (id == "GEMINI_FLASH" && BuildConfig.EXTERNAL_AI_AUTOMATION)) "" else providerKey
 }
 
 /** Registered conversational AI providers. */
@@ -54,6 +57,10 @@ object AiModels {
     const val OPENAI_GPT4O = "OPENAI_GPT4O"
     const val ANTHROPIC_CLAUDE = "ANTHROPIC_CLAUDE"
     const val DEEPSEEK_CODER = "DEEPSEEK_CODER"
+    const val KILO_FREE = "KILO_FREE"
+    const val LLM7_DEFAULT = "LLM7_DEFAULT"
+    const val OVHCLOUD_FREE = "OVHCLOUD_FREE"
+    const val THE_AIVE = "THE_AIVE"
 
     val GEMINI = AiModel(
         GEMINI_FLASH, "Gemini 2.0 Flash", SettingsViewModel.KEY_GOOGLE_API_KEY,
@@ -88,7 +95,30 @@ object AiModels {
         defaultWireModel = "mistral-small-latest",
     )
 
-    val availableModels = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL)
+    // Keyless: anonymous, heavily rate-limited, so ranked last. Endpoints and models mirror
+    // The Aive's HostedLlmProviders keyless entries.
+    val KILO = AiModel(
+        KILO_FREE, "Kilo Gateway · Free (keyless)", providerKey = "",
+        defaultWireModel = "kilo-auto/free", keyless = true,
+    )
+    val LLM7 = AiModel(
+        LLM7_DEFAULT, "LLM7 · Default (keyless)", providerKey = "",
+        // LLM7's alias for whatever it currently serves; named models come and go.
+        defaultWireModel = "default", keyless = true,
+    )
+    val OVHCLOUD = AiModel(
+        OVHCLOUD_FREE, "OVHcloud · gpt-oss-120b (keyless)", providerKey = "",
+        defaultWireModel = "gpt-oss-120b", keyless = true,
+    )
+
+    // Runs on whatever provider is linked in The Aive (installed separately, same signing key).
+    // Keys live in The Aive, so there is no slot here; the wire model is The Aive's choice.
+    val AIVE = AiModel(
+        THE_AIVE, "The Aive (linked provider)", providerKey = "",
+        defaultWireModel = "",
+    )
+
+    val availableModels = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL, KILO, LLM7, OVHCLOUD, AIVE)
     val defaultRanking = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL)
 
     fun findById(id: String?): AiModel? = availableModels.find { it.id == id }

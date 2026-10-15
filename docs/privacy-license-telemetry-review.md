@@ -18,6 +18,14 @@ configured**, via that provider's own API — never to any IDEaz-operated
 endpoint. There is no local buffering, queuing, or store of prompt/response
 content outside the in-memory chat history the UI already shows.
 
+Two choices route prompts elsewhere, and only when the user selects them:
+
+- **Keyless models** (Kilo Gateway, LLM7, OVHcloud) are called without a key.
+  These anonymous free tiers may log prompts.
+- **The Aive** receives the redacted project snapshot and the conversation, and
+  forwards them to whichever provider the user linked in The Aive
+  (`docs/aive-integration.md`).
+
 ## Crash / error reporting — the one real default-on data flow
 
 `CrashHandler.handleCrash` and a build-failure heuristic in
