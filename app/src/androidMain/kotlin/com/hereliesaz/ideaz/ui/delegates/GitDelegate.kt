@@ -200,10 +200,12 @@ class GitDelegate(
                 onLog("[GIT] Stash Error: no project loaded.\n")
                 return@withContext false
             }
-            git.stash(message)
+            val created = git.stash(message)
             refreshGitData()
-            onLog("[GIT] Stashed changes.\n")
-            true
+            // Untracked files are never stashed, so "nothing to stash" can be
+            // true while the status list still shows them.
+            onLog(if (created) "[GIT] Stashed changes.\n" else "[GIT] Nothing to stash (untracked files are not stashed).\n")
+            created
         } catch (e: Exception) {
             onLog("[GIT] Stash Error: ${e.message}\n")
             false

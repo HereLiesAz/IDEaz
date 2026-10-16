@@ -288,16 +288,23 @@ class GitManager(private val projectDir: File) {
     }
 
     /**
-     * Checks out an existing branch.
+     * Checks out [branch]. A name that exists only as `origin/<branch>` - which
+     * [getBranches] lists alongside local ones - gets a local branch tracking it,
+     * as `git switch` does; JGit alone fails with RefNotFoundException for it.
      *
      * @param branch The name of the branch to check out.
      */
     fun checkout(branch: String) {
         Git.open(projectDir).use { git ->
+            val repository = git.repository
             val cmd = git.checkout().setName(branch)
-            // If the branch doesn't exist locally but exists on remote, JGit might handle it if we set start point.
-            // But simple checkout usually requires local branch.
-            // For now, let's just try to check out.
+            if (repository.findRef("refs/heads/$branch") == null &&
+                repository.findRef("refs/remotes/origin/$branch") != null
+            ) {
+                cmd.setCreateBranch(true)
+                    .setStartPoint("refs/remotes/origin/$branch")
+                    .setUpstreamMode(org.eclipse.jgit.api.CreateBranchCommand.SetupUpstreamMode.TRACK)
+            }
             cmd.call()
         }
     }
@@ -390,6 +397,23 @@ class GitManager(private val projectDir: File) {
     }
 
     /**
+     * Local branches whose commits are not all on `origin`: no
+     * `refs/remotes/origin/<name>` at all, or ahead of it. Empty means deleting
+     * the local copy loses no commit.
+     */
+    fun unpushedBranches(): List<String> {
+        val local = Git.open(projectDir).use { git ->
+            git.branchList().call().map { it.name }
+        }
+        return local.mapNotNull { ref ->
+            val name = ref.removePrefix("refs/heads/")
+            val remote = "refs/remotes/origin/$name"
+            val hasRemote = Git.open(projectDir).use { it.repository.findRef(remote) != null }
+            if (!hasRemote || isAhead(ref, remote)) name else null
+        }
+    }
+
+    /**
      * Initializes a new Git repository in the project directory.
      */
     fun init() {
@@ -447,13 +471,23 @@ class GitManager(private val projectDir: File) {
     }
 
     /**
-     * Adds a remote to the repository configuration.
+     * Adds a remote to the repository configuration, and makes it the upstream
+     * of the current branch (same name) when that branch has none yet, so the
+     * link Deploy creates is recorded the way `git push -u` records it (JGit's
+     * own pull/push fall back to the same name without it; other git clients
+     * and ahead/behind counts do not).
      */
     fun addRemote(name: String, url: String) {
         Git.open(projectDir).use { git ->
             val config = git.repository.config
             config.setString("remote", name, "url", url)
             config.setString("remote", name, "fetch", "+refs/heads/*:refs/remotes/$name/*")
+            val branch = git.repository.fullBranch?.takeIf { it.startsWith("refs/heads/") }
+                ?.removePrefix("refs/heads/")
+            if (branch != null && config.getString("branch", branch, "remote") == null) {
+                config.setString("branch", branch, "remote", name)
+                config.setString("branch", branch, "merge", "refs/heads/$branch")
+            }
             config.save()
         }
     }
@@ -492,15 +526,17 @@ class GitManager(private val projectDir: File) {
     }
 
     /**
-     * Stashes current changes (dirty working directory).
+     * Stashes current changes to tracked files (untracked files stay put).
      *
      * @param message The optional message for the stash entry.
+     * @return true when a stash entry was created; false when there was nothing
+     *   to stash (JGit returns no commit then).
      */
-    fun stash(message: String? = null) {
+    fun stash(message: String? = null): Boolean {
         Git.open(projectDir).use { git ->
             val cmd = git.stashCreate()
             if (message != null) cmd.setWorkingDirectoryMessage(message)
-            cmd.call()
+            return cmd.call() != null
         }
     }
 

@@ -1124,44 +1124,69 @@ class MainViewModel(
     }
 
     /**
-     * Syncs changes to remote repository before deleting local files.
-     * Prevents data loss.
+     * Commits and pushes a project, then deletes the local copy - but only when
+     * nothing would be lost. When the project has no GitHub remote, no token is
+     * set, the push fails, or any local branch has commits GitHub lacks, nothing
+     * is deleted and [onConfirmNeeded] receives the reason; the UI asks the user
+     * and calls back with [force] = true only after an explicit confirmation.
+     *
+     * Previously a missing token only logged a warning and deleted anyway, so a
+     * local-only project (every project until its first Deploy) lost all its
+     * commits, and one with a token but no remote could not be deleted at all.
      */
-    fun syncAndDeleteProject(n: String) {
+    fun syncAndDeleteProject(n: String, force: Boolean = false, onConfirmNeeded: (String) -> Unit = {}) {
         if (n.isBlank()) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val projectDir = settingsViewModel.getProjectPath(n)
-                if (projectDir.exists()) {
+                if (projectDir.exists() && !force) {
                     logHandler.onBuildLog("Syncing project '$n' before deletion...\n")
-                    try {
-                        val git = GitManager(projectDir)
-
-                        if (git.hasChanges()) {
-                            git.addAll()
-                            git.commit("Sync before delete")
-                        }
-
-                        val token = settingsViewModel.getGithubToken()
-                        val user = settingsViewModel.getGithubUser() ?: "git"
-
-                        if (!token.isNullOrBlank()) {
-                            git.push(user, token) { p, t -> logHandler.onGitProgress(p, t) }
-                            logHandler.onBuildLog("Project synced successfully.\n")
-                        } else {
-                            logHandler.onBuildLog("Warning: No GitHub token found. Skipping push.\n")
-                        }
-                    } catch (e: Exception) {
-                        logHandler.onBuildLog("Sync failed: ${e.message}. Aborting deletion.\n")
-                        throw e
+                    val risk = syncBeforeDelete(n, projectDir)
+                    if (risk != null) {
+                        logHandler.onBuildLog("Not deleted: $risk\n")
+                        withContext(Dispatchers.Main) { onConfirmNeeded(risk) }
+                        return@launch
                     }
+                    logHandler.onBuildLog("Project synced successfully.\n")
                 }
                 performLocalDeletion(n)
                 logHandler.onBuildLog("Project '$n' deleted.\n")
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 logHandler.onBuildLog("Error syncing/deleting project: ${e.message}\n")
             }
         }
+    }
+
+    /** Commits and pushes [projectDir]; returns why deleting it would lose work, or null when it would not. */
+    private fun syncBeforeDelete(name: String, projectDir: File): String? {
+        val git = GitManager(projectDir)
+        if (!git.isRepo()) return "'$name' is not a git repository, so none of it is on GitHub."
+        try {
+            if (git.hasChanges()) {
+                git.addAll()
+                git.commit("Sync before delete")
+            }
+        } catch (e: Exception) {
+            return "its changes could not be committed (${e.message})."
+        }
+        if (git.remoteUrl("origin") == null) {
+            return "'$name' has never been deployed, so this device holds the only copy."
+        }
+        val token = settingsViewModel.getGithubToken()
+        if (token.isNullOrBlank()) return "no GitHub token is set, so local commits could not be pushed."
+        val user = settingsViewModel.getGithubUser() ?: "git"
+        try {
+            git.push(user, token) { p, t -> logHandler.onGitProgress(p, t) }
+        } catch (e: Exception) {
+            return "the push failed (${e.message}), so local commits may exist only on this device."
+        }
+        val unpushed = runCatching { git.unpushedBranches() }
+            .getOrElse { return "could not check for unpushed branches (${it.message})." }
+        if (unpushed.isNotEmpty()) {
+            return "these branches have commits that are not on GitHub: ${unpushed.joinToString(", ")}."
+        }
+        return null
     }
 
     private suspend fun performLocalDeletion(n: String) {

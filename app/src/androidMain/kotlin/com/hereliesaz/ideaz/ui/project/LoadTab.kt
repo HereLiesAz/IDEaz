@@ -43,20 +43,25 @@ fun ProjectLoadTab(
 
     var showDeleteDialog by remember { mutableStateOf(false) }
     var projectToDelete by remember { mutableStateOf<String?>(null) }
+    // Set when the sync before deletion found work that exists only on this
+    // device; deleting then needs a second, explicit confirmation.
+    var unsafeDelete by remember { mutableStateOf<Pair<String, String>?>(null) }
 
     if (showDeleteDialog && projectToDelete != null) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("Delete Project?") },
-            text = { Text("Are you sure you want to delete '${projectToDelete}'? Uncommitted changes are synced to GitHub first, if a token is configured. This action cannot be undone.") },
+            text = { Text("Are you sure you want to delete '${projectToDelete}'? Changes are committed and pushed to GitHub first; if anything cannot be pushed, you will be asked again. This action cannot be undone.") },
             confirmButton = {
                 TextButton(
                     onClick = {
                         // syncAndDeleteProject, not deleteProject: commits and
                         // pushes any pending work before removing the local
-                        // copy, aborting the deletion if that sync fails -
-                        // deleteProject has no such protection at all.
-                        projectToDelete?.let { viewModel.syncAndDeleteProject(it) }
+                        // copy, and deletes nothing it could not push without
+                        // the second confirmation below.
+                        projectToDelete?.let { name ->
+                            viewModel.syncAndDeleteProject(name) { reason -> unsafeDelete = name to reason }
+                        }
                         showDeleteDialog = false
                     },
                     colors = ButtonDefaults.textButtonColors(
@@ -69,6 +74,32 @@ fun ProjectLoadTab(
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    unsafeDelete?.let { (name, reason) ->
+        AlertDialog(
+            onDismissRequest = { unsafeDelete = null },
+            title = { Text("Delete work that is not on GitHub?") },
+            text = { Text("'$name' was not deleted: $reason Deleting it now permanently loses that work.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.syncAndDeleteProject(name, force = true)
+                        unsafeDelete = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Delete anyway")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { unsafeDelete = null }) {
+                    Text("Keep project")
                 }
             }
         )

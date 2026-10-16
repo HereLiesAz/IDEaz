@@ -152,4 +152,87 @@ class GitManagerTest {
         assertTrue(git.getStatus().isNotEmpty())
         assertTrue(git.getBranches().isEmpty())
     }
+
+    /** A bare repository standing in for GitHub, and a working copy linked to it with one pushed commit. */
+    private fun publishedRepo(): Pair<File, GitManager> {
+        val bare = tempFolder.newFolder("origin.git")
+        org.eclipse.jgit.api.Git.init().setBare(true).setDirectory(bare).call().close()
+        val dir = tempFolder.newFolder("work")
+        val git = GitManager(dir)
+        git.init()
+        File(dir, "index.html").writeText("<h1>one</h1>")
+        git.addAll()
+        git.commit("one")
+        git.addRemote("origin", bare.toURI().toString())
+        git.push()
+        return bare to git
+    }
+
+    @Test
+    fun addRemoteMakesItTheCurrentBranchUpstream() {
+        val (_, git) = publishedRepo()
+        val branch = git.getCurrentBranch()!!
+        val config = org.eclipse.jgit.api.Git.open(File(tempFolder.root, "work")).use { it.repository.config }
+        assertEquals("origin", config.getString("branch", branch, "remote"))
+        assertEquals("refs/heads/$branch", config.getString("branch", branch, "merge"))
+    }
+
+    @Test
+    fun unpushedBranchesFindsLocalOnlyAndAheadBranches() {
+        val (_, git) = publishedRepo()
+        assertTrue(git.unpushedBranches().isEmpty())
+
+        val dir = File(tempFolder.root, "work")
+        File(dir, "index.html").writeText("<h1>two</h1>")
+        git.addAll()
+        git.commit("two")
+        assertEquals(listOf(git.getCurrentBranch()), git.unpushedBranches())
+
+        git.push()
+        git.createAndCheckoutBranch("experiment")
+        assertEquals(listOf("experiment"), git.unpushedBranches())
+    }
+
+    @Test
+    fun unpushedBranchesListsEveryBranchWithoutARemote() {
+        val dir = tempFolder.newFolder("local_only")
+        val git = GitManager(dir)
+        git.init()
+        File(dir, "a.txt").writeText("a")
+        git.addAll()
+        git.commit("a")
+        assertEquals(listOf(git.getCurrentBranch()), git.unpushedBranches())
+    }
+
+    @Test
+    fun checkoutOfARemoteOnlyBranchCreatesATrackingBranch() {
+        val (bare, git) = publishedRepo()
+        val other = tempFolder.newFolder("other")
+        org.eclipse.jgit.api.Git.cloneRepository().setURI(bare.toURI().toString())
+            .setDirectory(other).setBranch(git.getCurrentBranch()).call().use { clone ->
+                clone.checkout().setCreateBranch(true).setName("feature").call()
+                File(other, "f.txt").writeText("f")
+                clone.add().addFilepattern(".").call()
+                clone.commit().setMessage("f").setSign(false)
+                    .setAuthor("t", "t@t").setCommitter("t", "t@t").call()
+                clone.push().setRemote("origin").add("feature").call()
+            }
+        git.fetch()
+        assertTrue("feature" in git.getBranches())
+
+        git.checkout("feature")
+
+        assertEquals("feature", git.getCurrentBranch())
+        assertTrue(File(tempFolder.root, "work/f.txt").exists())
+        assertTrue(git.unpushedBranches().isEmpty())
+    }
+
+    @Test
+    fun stashReportsWhetherAnythingWasStashed() {
+        val (_, git) = publishedRepo()
+        assertFalse(git.stash("nothing"))
+        File(tempFolder.root, "work/index.html").writeText("<h1>changed</h1>")
+        assertTrue(git.stash("something"))
+        assertFalse(git.hasChanges())
+    }
 }
