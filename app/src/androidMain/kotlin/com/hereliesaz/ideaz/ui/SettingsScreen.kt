@@ -67,10 +67,13 @@ import com.hereliesaz.aznavrail.AzButton
 import com.hereliesaz.aznavrail.AzTextBox
 import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.ideaz.BuildConfig
+import com.hereliesaz.ideaz.ai.aive.AivePairingCode
+import com.hereliesaz.ideaz.ai.aive.AiveRelayClient
 import com.hereliesaz.ideaz.ai.bridge.ExternalAiWindowHost
 import com.hereliesaz.ideaz.ai.bridge.ExternalAiWindowMode
 import com.hereliesaz.ideaz.ai.bridge.GeminiAppBridgeAdapter
 import java.io.File
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 private const val TAG = "SettingsScreen"
@@ -607,6 +610,9 @@ fun SettingsScreen(
             )
 
             Spacer(modifier = Modifier.height(24.dp))
+            AivePairingSection(settingsViewModel)
+
+            Spacer(modifier = Modifier.height(24.dp))
             Text("Paid Providers", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
             Spacer(modifier = Modifier.height(4.dp))
             Text(
@@ -828,6 +834,112 @@ fun SettingsScreen(
             Text("Log Level", color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.semantics { heading() })
             LogLevelDropdown(settingsViewModel = settingsViewModel)
         }
+    }
+}
+
+/** Pairing with The Aive on another device through the relay; see docs/aive-integration.md. */
+@Composable
+private fun AivePairingSection(settingsViewModel: SettingsViewModel) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val settingsVersion by settingsViewModel.settingsVersion.collectAsState()
+    var saved by remember(settingsVersion) { mutableStateOf(settingsViewModel.getAivePairingCode().orEmpty()) }
+    var code by remember(settingsVersion) { mutableStateOf(saved) }
+    var status by remember { mutableStateOf<String?>(null) }
+    var testing by remember { mutableStateOf(false) }
+    val pairedRelay = AivePairingCode.parseOrNull(saved)?.relay
+
+    Text("The Aive on another device", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+    Spacer(modifier = Modifier.height(4.dp))
+    Text(
+        "Paste the pairing code from The Aive's Remote access screen. It is a secret: anyone holding it can use your Aive. " +
+            "IDEaz uses The Aive installed on this device first and this pairing otherwise.",
+        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+        style = MaterialTheme.typography.bodySmall,
+    )
+    Spacer(modifier = Modifier.height(4.dp))
+    Text(
+        if (pairedRelay != null) "Paired through $pairedRelay" else "Not paired",
+        color = MaterialTheme.colorScheme.onBackground,
+        style = MaterialTheme.typography.labelSmall,
+    )
+    status?.let {
+        Text(it, color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.bodySmall)
+    }
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        AzTextBox(
+            modifier = Modifier.weight(1f),
+            value = code,
+            onValueChange = { code = it },
+            hint = "Aive pairing code",
+            secret = true,
+            onSubmit = {
+                val error = settingsViewModel.saveAivePairingCode(code)
+                if (error == null) {
+                    saved = code.trim()
+                    code = saved
+                    status = if (saved.isEmpty()) "Pairing removed." else "Pairing saved."
+                } else {
+                    status = error
+                }
+            },
+            submitButtonContent = { Text("Save") },
+        )
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        AzButton(
+            onClick = {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                val pasted = clipboard.primaryClip
+                    ?.takeIf { it.itemCount > 0 }
+                    ?.getItemAt(0)?.coerceToText(context)?.toString()
+                    ?.trim()
+                if (pasted.isNullOrEmpty()) status = "The clipboard is empty." else code = pasted
+            },
+            text = "Paste",
+            shape = AzButtonShape.NONE,
+        )
+        AzButton(
+            onClick = {
+                if (!testing) {
+                    val parsed = try {
+                        AivePairingCode.parse(code.ifBlank { saved })
+                    } catch (e: IllegalArgumentException) {
+                        status = e.message ?: "Invalid pairing code."
+                        null
+                    }
+                    if (parsed != null) {
+                        testing = true
+                        status = "Testing..."
+                        scope.launch {
+                            val client = AiveRelayClient(parsed)
+                            status = try {
+                                "Connected: your Aive answered in ${client.ping()} ms."
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                e.message ?: "The test failed."
+                            } finally {
+                                client.close()
+                                testing = false
+                            }
+                        }
+                    }
+                }
+            },
+            text = "Test connection",
+            shape = AzButtonShape.NONE,
+        )
+        AzButton(
+            onClick = {
+                val error = settingsViewModel.saveAivePairingCode("")
+                saved = ""
+                code = ""
+                status = error ?: "Pairing removed."
+            },
+            text = "Remove",
+            shape = AzButtonShape.NONE,
+        )
     }
 }
 
