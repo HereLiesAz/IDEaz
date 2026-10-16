@@ -12,12 +12,17 @@ import android.os.Message
 import android.os.Messenger
 import android.os.ParcelFileDescriptor
 import com.hereliesaz.ideaz.ai.aive.AiveRemoteProtocol as P
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.atomic.AtomicLong
@@ -42,13 +47,30 @@ class AiveRemoteClient(context: Context) {
         val isFinished: Boolean get() = status == "Completed" || status == "Failed" || status == "Cancelled"
     }
 
-    /** Runs [prompt] on The Aive's linked provider, or on [providerId] when given. */
+    /**
+     * Runs [prompt] on The Aive's linked provider, or on [providerId] when given.
+     *
+     * The prompt goes through a pipe, which holds about 64 KB; a larger prompt
+     * blocks its write until The Aive reads. That write used to run inline, so
+     * a service that errored or never read hung this call past its timeout
+     * (a blocking write cannot be cancelled, and our own read end kept the pipe
+     * open). Now the write runs on its own, outside the caller's scope, and the
+     * call waits only for the reply within [PROMPT_TIMEOUT_MS]. Our read end is
+     * closed as soon as the request is sent (the service holds its own copy),
+     * and both ends are closed when the call ends, so the writer fails with
+     * EPIPE once The Aive drops its copy too.
+     */
     suspend fun prompt(prompt: String, providerId: String? = null, model: String? = null): String {
         val (readEnd, writeEnd) = ParcelFileDescriptor.createPipe()
+        val bytes = prompt.toByteArray(Charsets.UTF_8)
+        var writer: Job? = null
         val reply = try {
             call(P.MSG_PROMPT, PROMPT_TIMEOUT_MS, afterSend = {
-                withContext(Dispatchers.IO) {
-                    ParcelFileDescriptor.AutoCloseOutputStream(writeEnd).use { it.write(prompt.toByteArray(Charsets.UTF_8)) }
+                runCatching { readEnd.close() }
+                writer = pipeWriters.launch {
+                    runCatching {
+                        ParcelFileDescriptor.AutoCloseOutputStream(writeEnd).use { it.write(bytes) }
+                    }
                 }
             }) {
                 putParcelable(P.KEY_PROMPT_FD, readEnd)
@@ -56,7 +78,8 @@ class AiveRemoteClient(context: Context) {
                 model?.let { putString(P.KEY_MODEL, it) }
             }
         } finally {
-            readEnd.close()
+            writer?.cancel()
+            runCatching { readEnd.close() }
             runCatching { writeEnd.close() }
         }
         return reply.getString(P.KEY_TEXT).orEmpty()
@@ -65,13 +88,16 @@ class AiveRemoteClient(context: Context) {
     /**
      * Queues an orchestrated workflow in The Aive. The Aive launches it when it next shows its UI,
      * so call [openAive] afterwards. [repositoryUrl] must be `https://github.com/owner/name`.
+     *
+     * @return the run id when The Aive's reply carries one ([P.KEY_RUN_ID]), else null.
      */
-    suspend fun launchWorkflow(projectName: String, objective: String, repositoryUrl: String? = null) {
-        call(P.MSG_LAUNCH_WORKFLOW, REQUEST_TIMEOUT_MS) {
+    suspend fun launchWorkflow(projectName: String, objective: String, repositoryUrl: String? = null): String? {
+        val reply = call(P.MSG_LAUNCH_WORKFLOW, REQUEST_TIMEOUT_MS) {
             putString(P.KEY_PROJECT_NAME, projectName)
             putString(P.KEY_OBJECTIVE, objective)
             repositoryUrl?.let { putString(P.KEY_REPOSITORY_URL, it) }
         }
+        return reply.getString(P.KEY_RUN_ID)?.takeIf { it.isNotBlank() }
     }
 
     /** One request/reply within [timeoutMs]; the binding is always released. */
@@ -132,8 +158,7 @@ class AiveRemoteClient(context: Context) {
     fun openAive(): Boolean {
         val pkg = installedPackage(context) ?: return false
         val launch = context.packageManager.getLaunchIntentForPackage(pkg) ?: return false
-        context.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        return true
+        return runCatching { context.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
     }
 
     /** Binds, sends one request, and completes with the reply's data once it arrives. */
@@ -149,6 +174,19 @@ class AiveRemoteClient(context: Context) {
             override fun onServiceDisconnected(name: ComponentName) {
                 reply.completeExceptionally(IllegalStateException("The Aive disconnected"))
             }
+
+            // Without these a dead or refused binding waited out the whole timeout.
+            override fun onBindingDied(name: ComponentName) {
+                val failure = IllegalStateException("The Aive's service died")
+                connected.completeExceptionally(failure)
+                reply.completeExceptionally(failure)
+            }
+
+            override fun onNullBinding(name: ComponentName) {
+                val failure = IllegalStateException("The Aive refused the connection")
+                connected.completeExceptionally(failure)
+                reply.completeExceptionally(failure)
+            }
         }
         val replyTo = Messenger(Handler(Looper.getMainLooper()) { message ->
             if (message.data.getLong(P.KEY_REQUEST_ID) == requestId) {
@@ -161,14 +199,20 @@ class AiveRemoteClient(context: Context) {
             }
             true
         })
-        withContext(Dispatchers.Main) { bind(connection) }
+        // Registered before binding: a cancellation that lands while
+        // withContext(Main) returns from bind() used to escape before this was
+        // attached, leaving a BIND_AUTO_CREATE binding to The Aive alive until
+        // process death. Unbinding a connection that never bound just throws,
+        // which runCatching absorbs.
         reply.invokeOnCompletion {
             Handler(Looper.getMainLooper()).post { runCatching { context.unbindService(connection) } }
         }
         try {
+            withContext(Dispatchers.Main) { bind(connection) }
             send(connected.await(), what, requestId, replyTo, fill)
         } catch (failure: Throwable) {
             reply.completeExceptionally(failure)
+            if (failure is CancellationException) throw failure
         }
         return reply
     }
@@ -203,6 +247,12 @@ class AiveRemoteClient(context: Context) {
         private const val PROMPT_TIMEOUT_MS = 180_000L
         private const val REQUEST_TIMEOUT_MS = 15_000L
         private val nextRequestId = AtomicLong(1)
+
+        /**
+         * Prompt pipe writers. Not the caller's scope: a write blocked on a
+         * full pipe cannot be cancelled, and the caller must not wait for it.
+         */
+        private val pipeWriters = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
         /** Play and GitHub package names of The Aive, in preference order. */
         val PACKAGES = listOf("com.hereliesaz.aive", "com.hereliesaz.haive")

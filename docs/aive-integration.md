@@ -24,8 +24,8 @@ The Aive runs the prompt on its linked provider. If no provider is linked, the r
 Typing `/aive <objective>` in the chat does the following:
 
 1. The objective is queued in The Aive. The project name is the IDEaz app name, and `origin` is passed along when it is a GitHub repository; credentials are stripped from the URL.
-2. IDEaz opens The Aive, which launches the workflow through the same path as its own launch form.
-3. IDEaz watches the run and posts to the chat when the workflow waits for approval and when it completes, fails or is cancelled.
+2. IDEaz opens The Aive, which launches the workflow through the same path as its own launch form. If The Aive cannot be opened, the chat says the workflow is only queued and starts when you open The Aive.
+3. IDEaz watches the run and posts to the chat when the workflow waits for approval and when it completes, fails or is cancelled. It follows the run id when The Aive's launch reply carries one; otherwise the first run with the same objective seen while still unfinished, so an earlier finished run with that objective is ignored.
 
 ## Keyless models
 

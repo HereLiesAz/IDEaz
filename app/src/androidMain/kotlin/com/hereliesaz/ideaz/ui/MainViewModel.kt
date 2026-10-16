@@ -278,12 +278,24 @@ class MainViewModel(
                 val repositoryUrl = withContext(Dispatchers.IO) {
                     gitHubOriginUrl(settingsViewModel.getProjectPath(appName))
                 }
-                client.launchWorkflow(projectName = appName, objective = objective, repositoryUrl = repositoryUrl)
-                client.openAive()
-                stateDelegate.appendChatMessage(ChatMessage("model", "Sent to The Aive. It plans and runs the workflow there.", AIVE_LABEL))
+                val runId = client.launchWorkflow(projectName = appName, objective = objective, repositoryUrl = repositoryUrl)
+                // The Aive starts a queued workflow only when it shows its UI.
+                val opened = client.openAive()
+                stateDelegate.appendChatMessage(
+                    ChatMessage(
+                        "model",
+                        if (opened) {
+                            "Sent to The Aive and opened it. It plans and runs the workflow there."
+                        } else {
+                            "Queued in The Aive, but IDEaz could not open it. The workflow starts when you open The Aive."
+                        },
+                        AIVE_LABEL,
+                    )
+                )
                 var reported: String? = null
+                val tracker = AiveRunTracker(objective, runId)
                 client.watchRun()
-                    .filter { it.objective == objective }
+                    .filter { tracker.accept(it) }
                     .collect { run ->
                         val milestone = when {
                             run.isFinished -> "The Aive's workflow ${run.status.lowercase()} (${run.tasksDone}/${run.tasksTotal} tasks)."
@@ -1372,6 +1384,22 @@ interface LogHandler {
     fun onProgress(p: Int?)
     fun onGitProgress(p: Int, t: String)
     fun onOverlayLog(msg: String)
+}
+
+/**
+ * Picks out the run a `/aive` command started from The Aive's status stream:
+ * by [runId] when The Aive returned one; otherwise the first run with this
+ * objective seen while still unfinished. A finished run before that is an
+ * earlier run with the same objective (a re-sent command, or one The Aive is
+ * still showing), and used to end the watch at once with its result.
+ */
+internal class AiveRunTracker(private val objective: String, private var runId: String?) {
+    fun accept(run: AiveRemoteClient.RunStatus): Boolean {
+        runId?.let { return run.runId == it }
+        if (run.objective.trim() != objective.trim() || run.isFinished) return false
+        if (run.runId.isNotEmpty()) runId = run.runId
+        return true
+    }
 }
 
 /** `/aive <objective>` in the chat sends the objective to The Aive as a workflow. */
