@@ -135,6 +135,8 @@ fun SettingsScreen(
             if (newPath != null) {
                 keystorePath = newPath
                 Toast.makeText(context, "Keystore imported", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "Keystore import failed: the file could not be read.", Toast.LENGTH_LONG).show()
             }
         }
     }

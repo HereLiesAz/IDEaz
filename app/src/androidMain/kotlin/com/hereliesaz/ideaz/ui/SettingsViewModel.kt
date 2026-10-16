@@ -215,6 +215,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val LOG_LEVEL_VERBOSE = "verbose"
 
         const val KEY_KEYSTORE_PATH = "keystore_path"
+        /** The only name a keystore is stored under; excluded in backup_rules / data_extraction_rules. */
+        const val KEYSTORE_FILENAME = "user_release.keystore"
         const val KEY_KEYSTORE_PASS = "keystore_pass"
         const val KEY_KEY_ALIAS = "key_alias"
         const val KEY_KEY_PASS = "key_pass"
@@ -393,19 +395,29 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             ?.id
             ?: AiModels.GEMINI_FLASH
 
+    /**
+     * Copies the picked keystore to [KEYSTORE_FILENAME] and records its path.
+     * Returns null - recording nothing - when it could not be read or copied:
+     * this used to save the path even when openInputStream returned null, and
+     * a copy failing mid-stream left a truncated file that stayed in use. The
+     * copy goes to a temporary file first and replaces the keystore only once
+     * complete.
+     */
     fun importKeystore(context: Context, uri: Uri): String? {
+        val destFile = File(context.filesDir, KEYSTORE_FILENAME)
+        val partFile = File(context.filesDir, "$KEYSTORE_FILENAME.part")
         return try {
-            val destFile = File(context.filesDir, "user_release.keystore")
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                FileOutputStream(destFile).use { output ->
-                    input.copyTo(output)
-                }
-            }
+            val input = context.contentResolver.openInputStream(uri)
+                ?: throw java.io.IOException("Could not open $uri")
+            input.use { source -> FileOutputStream(partFile).use { source.copyTo(it) } }
+            if (partFile.length() == 0L) throw java.io.IOException("The keystore file is empty")
+            if (!partFile.renameTo(destFile)) throw java.io.IOException("Could not replace $KEYSTORE_FILENAME")
             val path = destFile.absolutePath
             sharedPreferences.edit { putString(KEY_KEYSTORE_PATH, path) }
             path
         } catch (e: Exception) {
             Log.e(TAG, "Failed to import keystore", e)
+            partFile.delete()
             null
         }
     }
@@ -426,7 +438,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         sharedPreferences.edit { remove(KEY_KEYSTORE_PATH).remove(KEY_KEY_ALIAS) }
         runCatching { credentialStore.remove(KEY_KEYSTORE_PASS) }
         runCatching { credentialStore.remove(KEY_KEY_PASS) }
-        runCatching { File(getApplication<Application>().filesDir, "user_release.keystore").delete() }
+        runCatching { File(getApplication<Application>().filesDir, KEYSTORE_FILENAME).delete() }
     }
 
     fun exportSettings(context: Context, uri: Uri, password: String) {
@@ -512,12 +524,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
                 if (export.keystore != null) {
                     val bytes = android.util.Base64.decode(export.keystore.contentBase64, android.util.Base64.NO_WRAP)
-                    val destFile = File(context.filesDir, export.keystore.filename)
-                    val canonicalDestDir = context.filesDir.canonicalFile.toPath()
-                    val canonicalDestFile = destFile.canonicalFile.toPath()
-                    if (!canonicalDestFile.startsWith(canonicalDestDir)) {
-                        throw java.io.IOException("Keystore filename is outside the target directory: ${export.keystore.filename}")
-                    }
+                    // Always under KEYSTORE_FILENAME, whatever name the export
+                    // carries: that is the one name the backup and
+                    // device-transfer rules exclude. Restoring under the exported
+                    // name ("release.jks") put the signing key into cloud backups.
+                    val destFile = File(context.filesDir, KEYSTORE_FILENAME)
                     FileOutputStream(destFile).use { it.write(bytes) }
                     sharedPreferences.edit { putString(KEY_KEYSTORE_PATH, destFile.absolutePath) }
                 }

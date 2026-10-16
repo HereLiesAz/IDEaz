@@ -17,8 +17,15 @@ class RetryInterceptor(
 
     private val log = Logger.getLogger("RetryInterceptor")
     private val retryableStatuses = listOf(408, 429, 500, 502, 503, 504)
+    private val idempotentMethods = setOf("GET", "HEAD", "PUT", "DELETE", "OPTIONS", "TRACE")
 
     override fun intercept(chain: Interceptor.Chain): Response {
+        // POST/PATCH are not idempotent: a timeout or 5xx after the server
+        // already acted (created the repository, filed the issue) would act
+        // twice on a retry. Only methods that are safe to repeat are retried.
+        if (chain.request().method !in idempotentMethods) {
+            return chain.proceed(chain.request())
+        }
         var attempt = 0
         var response: Response? = null
         var exception: IOException? = null

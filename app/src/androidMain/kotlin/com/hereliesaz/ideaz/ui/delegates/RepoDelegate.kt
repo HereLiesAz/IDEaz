@@ -1,23 +1,15 @@
 package com.hereliesaz.ideaz.ui.delegates
 
 import android.app.Application
-import android.content.Context
-import android.util.Log
 import com.hereliesaz.ideaz.api.CreateRepoRequest
-import com.hereliesaz.ideaz.api.CreateSecretRequest
 import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.api.GitHubRepoResponse
-import com.hereliesaz.ideaz.api.GitHubPermissions
-import com.hereliesaz.ideaz.api.Source
 import com.hereliesaz.ideaz.git.GitManager
-import com.hereliesaz.ideaz.ui.AiModels
 import com.hereliesaz.ideaz.ui.ProjectMetadata
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.utils.DeployIgnore
-import com.hereliesaz.ideaz.utils.GithubSecretBox
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ProjectConfigManager
-import com.hereliesaz.ideaz.utils.RepoMapper
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,7 +22,6 @@ import java.io.File
  * - **Discovery:** listing repositories from Jules/GitHub.
  * - **Creation:** Creating new repos, forking existing ones.
  * - **Setup:** Initializing local project state and ensuring config files exist.
- * - **Security:** Encrypting and uploading secrets to GitHub Actions.
  *
  * @param application The Application context.
  * @param settingsViewModel ViewModel for accessing settings.
