@@ -320,4 +320,41 @@ class IdeToolsTest {
         assertTrue(refreshed.validationErrors.isEmpty())
         tools.discardEditCheckpoint(checkpoint)
     }
+
+    // --- patch target capture ---
+
+    @Test
+    fun `patchTargetPaths reads headers, not removed lines that look like headers`() {
+        val patch = "--- a/notes.md\n+++ b/notes.md\n@@ -1,2 +1,1 @@\n--- ../escape.md\n keep\n"
+        assertEquals(listOf("notes.md"), patchTargetPaths(patch))
+    }
+
+    @Test
+    fun `patchTargetPaths refuses renames, copies, quoted and prefix-less paths`() {
+        listOf(
+            "diff --git a/app.js b/moved.js\nsimilarity index 100%\nrename from app.js\nrename to moved.js\n",
+            "diff --git a/app.js b/copy.js\ncopy from app.js\ncopy to copy.js\n--- a/app.js\n+++ b/copy.js\n@@ -1 +1 @@\n-a\n+b\n",
+            "--- \"a/sp ace.js\"\n+++ \"b/sp ace.js\"\n@@ -1 +1 @@\n-a\n+b\n",
+            // JGit strips the first component, so this would patch app.js at the root.
+            "--- src/app.js\n+++ src/app.js\n@@ -1 +1 @@\n-a\n+b\n",
+            "--- a/app.js\n+++ b/app.js\n",
+        ).forEach { patch ->
+            try {
+                patchTargetPaths(patch)
+                fail("accepted: $patch")
+            } catch (expected: IllegalArgumentException) {
+            }
+        }
+    }
+
+    @Test
+    fun `a rename-only patch is refused before anything moves`() {
+        tempFolder.newFile("app.js").writeText("a\n")
+        val result = tools.applyPatch(
+            "diff --git a/app.js b/moved.js\nsimilarity index 100%\nrename from app.js\nrename to moved.js\n"
+        )
+        assertTrue(result, result.startsWith("Error:"))
+        assertTrue(File(tempFolder.root, "app.js").exists())
+        assertFalse(File(tempFolder.root, "moved.js").exists())
+    }
 }

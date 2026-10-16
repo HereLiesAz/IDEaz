@@ -22,6 +22,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.concurrent.TimeUnit
 
 private val MUTATING_TOOLS = setOf("write_file", "apply_patch")
 
@@ -221,7 +222,17 @@ class OpenAiCompatibleAdapter(
     companion object {
         const val MAX_TOOL_ROUNDS = 10
         private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
-        internal val sharedClient: OkHttpClient = OkHttpClient.Builder().build()
+        // The calls are not streamed: nothing arrives until the whole
+        // completion (a full write_file body included) is generated, which
+        // routinely takes longer than OkHttp's 10 s default read timeout. That
+        // timeout failed the round and rolled back earlier rounds' edits.
+        // Shared by AnthropicAdapter.
+        internal val sharedClient: OkHttpClient = OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.MINUTES)
+            .callTimeout(6, TimeUnit.MINUTES)
+            .build()
         internal val JSON = Json { ignoreUnknownKeys = true; isLenient = true }
     }
 }

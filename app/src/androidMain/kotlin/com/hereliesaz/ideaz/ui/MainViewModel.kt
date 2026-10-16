@@ -387,9 +387,42 @@ class MainViewModel(
         restoreEdit(checkpointId, EditReviewStatus.UNDONE)
     }
 
+    /**
+     * After a Reject/Undo hit [EditReviewState.restoreConflict]: restores the
+     * pre-edit files anyway, overwriting the changes made since review.
+     */
+    fun forceRestoreEdit(checkpointId: String) {
+        val state = stateDelegate.editReview.value ?: return
+        if (!state.restoreConflict) return
+        val target = if (state.status == EditReviewStatus.APPROVED) EditReviewStatus.UNDONE else EditReviewStatus.REJECTED
+        restoreEdit(checkpointId, target, force = true)
+    }
+
+    /**
+     * After a Reject/Undo hit [EditReviewState.restoreConflict]: keeps the
+     * files as they are now and retires the checkpoint. Writes nothing.
+     */
+    fun keepCurrentFiles(checkpointId: String) {
+        val state = stateDelegate.editReview.value ?: return
+        if (!state.restoreConflict || state.approval.review.checkpoint.checkpointId != checkpointId) return
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    IdeTools(File(state.approval.review.checkpoint.projectPath))
+                        .discardEditCheckpoint(state.approval.review.checkpoint)
+                }
+            }
+            stateDelegate.setEditReview(null)
+            stateDelegate.appendChatMessage(
+                ChatMessage.error("Kept the current files; the edit was not rolled back.")
+            )
+        }
+    }
+
     private fun restoreEdit(
         checkpointId: String,
         targetStatus: EditReviewStatus,
+        force: Boolean = false,
     ) {
         val state = stateDelegate.editReview.value ?: return
         val approval = state.approval
@@ -404,34 +437,28 @@ class MainViewModel(
                 withContext(Dispatchers.IO) {
                     IdeTools(File(approval.review.checkpoint.projectPath)).restoreEditCheckpoint(
                         approval.review.checkpoint,
-                        approval.review.contentFingerprint,
+                        // null skips the fingerprint check: the user confirmed
+                        // overwriting what changed since review.
+                        if (force) null else approval.review.contentFingerprint,
                     )
                 }
-                stateDelegate.setEditReview(state.copy(status = targetStatus))
+                stateDelegate.setEditReview(state.copy(status = targetStatus, restoreConflict = false))
                 stateDelegate.triggerFileTreeReload()
                 stateDelegate.triggerWebHardReload()
             } catch (e: IllegalStateException) {
                 // restoreEditCheckpoint's fingerprint check throws exactly this
                 // when the files changed since review (protecting against
-                // clobbering an intervening manual edit). Previously this just
-                // restored the review card to its stale PENDING/APPROVED state
-                // verbatim - since nothing about the underlying mismatch ever
-                // changes, every future Reject/Undo attempt hit the identical
-                // failure forever, permanently blocking the chat tab (a new
-                // message is refused while a review is pending). The user's
-                // intent here is unambiguous - discard this review - and doing
-                // so never writes to disk, so it's always safe: clean up the
-                // checkpoint bookkeeping and clear the card instead of leaving
-                // it stuck.
-                withContext(Dispatchers.IO) {
-                    runCatching {
-                        IdeTools(File(approval.review.checkpoint.projectPath))
-                            .discardEditCheckpoint(approval.review.checkpoint)
-                    }
-                }
-                stateDelegate.setEditReview(null)
+                // clobbering an intervening manual edit). Retrying can never
+                // succeed, and this used to discard the checkpoint and clear the
+                // card - leaving a *rejected* edit in the working tree with no
+                // way back. Keep the checkpoint and let the user decide:
+                // forceRestoreEdit() or keepCurrentFiles().
+                stateDelegate.setEditReview(state.copy(restoreConflict = true))
                 stateDelegate.appendChatMessage(
-                    ChatMessage.error("Discarded: the project changed after review, so nothing was restored.")
+                    ChatMessage.error(
+                        "Nothing was restored: the files changed after review. Restore anyway " +
+                            "(overwrites those later changes) or keep the current files."
+                    )
                 )
             } catch (_: Exception) {
                 stateDelegate.setEditReview(state)
