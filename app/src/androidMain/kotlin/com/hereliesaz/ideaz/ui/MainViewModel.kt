@@ -26,6 +26,7 @@ import com.hereliesaz.ideaz.ai.GeminiAdapter
 import com.hereliesaz.ideaz.ai.GeminiConsultant
 import com.hereliesaz.ideaz.ai.IdeTools
 import com.hereliesaz.ideaz.ai.aive.AiveRemoteClient
+import com.hereliesaz.ideaz.ai.aive.AiveTransports
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -271,7 +272,7 @@ class MainViewModel(
     private fun launchAiveWorkflow(appName: String, objective: String) {
         stateDelegate.appendChatMessage(ChatMessage("user", "/aive $objective"))
         stateDelegate.setChatFailure(null)
-        val client = AiveRemoteClient(getApplication())
+        val client = AiveTransports.create(getApplication(), settingsViewModel)
         aiveWatch?.cancel()
         aiveWatch = viewModelScope.launch {
             try {
@@ -280,18 +281,15 @@ class MainViewModel(
                 }
                 val runId = client.launchWorkflow(projectName = appName, objective = objective, repositoryUrl = repositoryUrl)
                 // The Aive starts a queued workflow only when it shows its UI.
-                val opened = client.openAive()
-                stateDelegate.appendChatMessage(
-                    ChatMessage(
-                        "model",
-                        if (opened) {
-                            "Sent to The Aive and opened it. It plans and runs the workflow there."
-                        } else {
-                            "Queued in The Aive, but IDEaz could not open it. The workflow starts when you open The Aive."
-                        },
-                        AIVE_LABEL,
-                    )
-                )
+                val message = if (client.isRemote) {
+                    // The Aive is on another device: nothing to open from here.
+                    "Queued on your Aive device. It starts when you open The Aive there."
+                } else if (client.openAive()) {
+                    "Sent to The Aive and opened it. It plans and runs the workflow there."
+                } else {
+                    "Queued in The Aive, but IDEaz could not open it. The workflow starts when you open The Aive."
+                }
+                stateDelegate.appendChatMessage(ChatMessage("model", message, AIVE_LABEL))
                 var reported: String? = null
                 val tracker = AiveRunTracker(objective, runId)
                 client.watchRun()
