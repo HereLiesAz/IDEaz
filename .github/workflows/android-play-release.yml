@@ -1,6 +1,8 @@
-# IDEaz: built, signed and published by HereLiesAz/workflows (.github/workflows/android-play-release.yml):
-# the policy-safe `play` AAB (:app:bundlePlay) to Google Play on the shared tracks.
-# This file is the trigger contract; the central sync replaces it with a tracker.
+# centralized-by: HereLiesAz/workflows
+# central-source-path: .github/workflows/android-play-release.yml
+# central-source-sha256: c7e122f70a64cbbe2e7ea3f19b61c68313686693ada5e2b804f766f2fc7bb361
+# This file intentionally contains no repository secrets.
+# central-run-tracker: HereLiesAz/workflows
 name: IDEaz Android Play Release
 on:
   push:
@@ -15,7 +17,14 @@ on:
   workflow_dispatch:
 permissions: {}
 jobs:
-  hand-off:
+  central:
+    name: Hand-off
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     steps:
-      - run: echo "IDEaz Android Play Release runs centrally in HereLiesAz/workflows."
+      - name: Point to central result
+        env:
+          STATUS_CONTEXT: .github/workflows/android-play-release.yml
+          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: "set -euo pipefail\n# The build runs in HereLiesAz/workflows. Its result is reported on this commit as the\n# commit status named below: pending when the central run starts, then success or\n# failure. This job only points there and ends, so it never holds a runner while the\n# central run waits for one. (Trackers that followed the central run job-by-job held a\n# runner each for the whole build; under the account's concurrent-job limit they\n# starved the very runs they were waiting on: 2026-10-01, illumera waited 3h to start.)\n# No status at all means the gateway intentionally skipped this event.\n{\n  echo \"### Runs in HereLiesAz/workflows\"\n  echo\n  echo \"Result: commit status \\`$STATUS_CONTEXT\\` on \\`$TARGET_SHA\\`.\"\n  echo \"Central runs: $GITHUB_SERVER_URL/HereLiesAz/workflows/actions\"\n} >> \"$GITHUB_STEP_SUMMARY\"\necho \"Result is reported as commit status '$STATUS_CONTEXT' on $TARGET_SHA.\"\n"
