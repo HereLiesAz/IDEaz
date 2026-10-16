@@ -61,4 +61,15 @@ class RepoSnapshotTest {
         assertFalse("symlink target leaked", r.text.contains("DO_NOT_EXPORT_THIS"))
         assertTrue(r.skipped.any { it.contains("innocent.txt") && it.contains("symlink") })
     }
+
+    @Test
+    fun credentialStoresAreSecretFiles() {
+        listOf(
+            ".npmrc", ".netrc", "_netrc", ".pypirc", ".git-credentials", ".htpasswd",
+            "credentials.json", "client_secret.json", "service-account-prod.json", "AuthKey_ABC.p8", "putty.ppk",
+        ).forEach { assertTrue(it, RepoSnapshot.isSecret(it)) }
+        listOf("package.json", "credentials.js", "README.md", "accounts.json").forEach {
+            assertFalse(it, RepoSnapshot.isSecret(it))
+        }
+    }
 }

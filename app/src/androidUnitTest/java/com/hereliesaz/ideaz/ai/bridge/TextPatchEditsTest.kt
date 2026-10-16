@@ -30,4 +30,26 @@ class TextPatchEditsTest {
         )
         assertEquals("USER:\nhi\n\nASSISTANT:\nhello", transcript)
     }
+
+    @Test
+    fun `a fence inside a markdown diff does not end the block`() {
+        val md = "--- a/README.md\n+++ b/README.md\n@@ -1,3 +1,3 @@\n ```sh\n-npm i\n+npm ci\n ```"
+        assertEquals(md, TextPatchEdits.extractUnifiedDiff("Here:\n```diff\n$md\n```\nDone."))
+    }
+
+    @Test
+    fun `a final context line that is a lone space survives`() {
+        val withBlankContext = "--- a/app.js\n+++ b/app.js\n@@ -1,2 +1,2 @@\n-old\n+new\n "
+        assertEquals(withBlankContext, TextPatchEdits.extractUnifiedDiff("```diff\n$withBlankContext\n```"))
+        assertEquals(withBlankContext, TextPatchEdits.extractUnifiedDiff("Done.\n$withBlankContext\n\n"))
+    }
+
+    @Test
+    fun `every fenced diff block is kept`() {
+        val second = "--- a/b.js\n+++ b/b.js\n@@ -1 +1 @@\n-x\n+y"
+        assertEquals(
+            "$diff\n$second",
+            TextPatchEdits.extractUnifiedDiff("```diff\n$diff\n```\nand\n```patch\n$second\n```"),
+        )
+    }
 }

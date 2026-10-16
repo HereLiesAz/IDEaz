@@ -11,6 +11,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import com.hereliesaz.ideaz.BuildConfig
+import com.hereliesaz.ideaz.ai.aive.AivePairingCode
 import com.hereliesaz.ideaz.utils.AndroidKeystoreCredentialStore
 import com.hereliesaz.ideaz.utils.CredentialStore
 import com.hereliesaz.ideaz.utils.SecurityUtils
@@ -111,7 +112,8 @@ object AiModels {
         defaultWireModel = "gpt-oss-120b", keyless = true,
     )
 
-    // Runs on whatever provider is linked in The Aive (installed separately, same signing key).
+    // Runs on whatever provider is linked in The Aive: installed here (same signing key), or on
+    // another device through the relay once a pairing code is saved.
     // Keys live in The Aive, so there is no slot here; the wire model is The Aive's choice.
     val AIVE = AiModel(
         THE_AIVE, "The Aive (linked provider)", providerKey = "",
@@ -172,6 +174,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_ANTHROPIC_API_KEY = "anthropic_api_key"
         const val KEY_DEEPSEEK_API_KEY = "deepseek_api_key"
 
+        /** The Aive pairing code for a remote device. A bearer secret (room token + key), so it is kept like an API key. */
+        const val KEY_AIVE_PAIRING_CODE = "aive_pairing_code"
+
         private val SECURE_CREDENTIAL_KEYS = setOf(
             KEY_GOOGLE_API_KEY,
             KEY_HF_API_KEY,
@@ -183,6 +188,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             KEY_OPENAI_API_KEY,
             KEY_ANTHROPIC_API_KEY,
             KEY_DEEPSEEK_API_KEY,
+            KEY_AIVE_PAIRING_CODE,
             KEY_KEYSTORE_PASS,
             KEY_KEY_PASS,
         )
@@ -215,6 +221,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val LOG_LEVEL_VERBOSE = "verbose"
 
         const val KEY_KEYSTORE_PATH = "keystore_path"
+        /** The only name a keystore is stored under; excluded in backup_rules / data_extraction_rules. */
+        const val KEYSTORE_FILENAME = "user_release.keystore"
         const val KEY_KEYSTORE_PASS = "keystore_pass"
         const val KEY_KEY_ALIAS = "key_alias"
         const val KEY_KEY_PASS = "key_pass"
@@ -316,6 +324,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private fun wireModelKey(modelId: String) = "wire_model_$modelId"
 
+    fun getAivePairingCode(): String? = getApiKey(KEY_AIVE_PAIRING_CODE)?.takeIf { it.isNotBlank() }
+
+    /** Validates and stores [code] (blank removes it). Returns null on success, else a message for the user. */
+    fun saveAivePairingCode(code: String): String? {
+        val trimmed = code.trim()
+        if (trimmed.isNotEmpty()) {
+            try {
+                AivePairingCode.parse(trimmed)
+            } catch (e: IllegalArgumentException) {
+                return e.message ?: "Invalid pairing code."
+            }
+        }
+        return if (saveString(KEY_AIVE_PAIRING_CODE, trimmed)) null
+        else lastCredentialError?.let { "Could not store the pairing code: $it" } ?: "Could not store the pairing code."
+    }
+
     fun getApiKey() = getApiKey(KEY_API_KEY)
     fun getApiKey(keyName: String): String? {
         if (keyName !in SECURE_CREDENTIAL_KEYS) return sharedPreferences.getString(keyName, null)
@@ -393,19 +417,29 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             ?.id
             ?: AiModels.GEMINI_FLASH
 
+    /**
+     * Copies the picked keystore to [KEYSTORE_FILENAME] and records its path.
+     * Returns null - recording nothing - when it could not be read or copied:
+     * this used to save the path even when openInputStream returned null, and
+     * a copy failing mid-stream left a truncated file that stayed in use. The
+     * copy goes to a temporary file first and replaces the keystore only once
+     * complete.
+     */
     fun importKeystore(context: Context, uri: Uri): String? {
+        val destFile = File(context.filesDir, KEYSTORE_FILENAME)
+        val partFile = File(context.filesDir, "$KEYSTORE_FILENAME.part")
         return try {
-            val destFile = File(context.filesDir, "user_release.keystore")
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                FileOutputStream(destFile).use { output ->
-                    input.copyTo(output)
-                }
-            }
+            val input = context.contentResolver.openInputStream(uri)
+                ?: throw java.io.IOException("Could not open $uri")
+            input.use { source -> FileOutputStream(partFile).use { source.copyTo(it) } }
+            if (partFile.length() == 0L) throw java.io.IOException("The keystore file is empty")
+            if (!partFile.renameTo(destFile)) throw java.io.IOException("Could not replace $KEYSTORE_FILENAME")
             val path = destFile.absolutePath
             sharedPreferences.edit { putString(KEY_KEYSTORE_PATH, path) }
             path
         } catch (e: Exception) {
             Log.e(TAG, "Failed to import keystore", e)
+            partFile.delete()
             null
         }
     }
@@ -426,7 +460,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         sharedPreferences.edit { remove(KEY_KEYSTORE_PATH).remove(KEY_KEY_ALIAS) }
         runCatching { credentialStore.remove(KEY_KEYSTORE_PASS) }
         runCatching { credentialStore.remove(KEY_KEY_PASS) }
-        runCatching { File(getApplication<Application>().filesDir, "user_release.keystore").delete() }
+        runCatching { File(getApplication<Application>().filesDir, KEYSTORE_FILENAME).delete() }
     }
 
     fun exportSettings(context: Context, uri: Uri, password: String) {
@@ -512,12 +546,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
                 if (export.keystore != null) {
                     val bytes = android.util.Base64.decode(export.keystore.contentBase64, android.util.Base64.NO_WRAP)
-                    val destFile = File(context.filesDir, export.keystore.filename)
-                    val canonicalDestDir = context.filesDir.canonicalFile.toPath()
-                    val canonicalDestFile = destFile.canonicalFile.toPath()
-                    if (!canonicalDestFile.startsWith(canonicalDestDir)) {
-                        throw java.io.IOException("Keystore filename is outside the target directory: ${export.keystore.filename}")
-                    }
+                    // Always under KEYSTORE_FILENAME, whatever name the export
+                    // carries: that is the one name the backup and
+                    // device-transfer rules exclude. Restoring under the exported
+                    // name ("release.jks") put the signing key into cloud backups.
+                    val destFile = File(context.filesDir, KEYSTORE_FILENAME)
                     FileOutputStream(destFile).use { it.write(bytes) }
                     sharedPreferences.edit { putString(KEY_KEYSTORE_PATH, destFile.absolutePath) }
                 }

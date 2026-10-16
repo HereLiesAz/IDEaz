@@ -63,7 +63,9 @@ linked in The Aive, and edits come back as a diff that goes through the review
 gate. Typing `/aive <objective>` in the chat hands the objective to The Aive as an
 orchestrated workflow; IDEaz opens The Aive and reports in the chat when the
 workflow needs your approval and when it finishes. Both apps must be signed with
-the same key. See [docs/aive-integration.md](docs/aive-integration.md).
+the same key. The Aive can also be on another device: paste its pairing code in
+Settings and IDEaz talks to it through an end-to-end encrypted relay. See
+[docs/aive-integration.md](docs/aive-integration.md).
 
 The **Google Play build** is API-only and uses BYO provider keys. The **GitHub
 APK** can additionally use a supported installed Gemini app after the user
@@ -81,7 +83,9 @@ is `git init`-ed and gets an initial commit before it has any remote.
 
 You do **not** need a GitHub account to start. Create a project, scaffold it,
 edit it with the AI, and commit locally. **Deploy** is the action that asks for a
-GitHub token, and it creates the repository for you on first publish.
+GitHub token: it creates a private repository on first publish, pushes, and has
+the central HereLiesAz/workflows Worker build the commit and publish only the
+build output (see [`docs/workflow.md`](docs/workflow.md) §2.2).
 
 ---
 

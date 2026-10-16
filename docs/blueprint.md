@@ -51,7 +51,7 @@ rollout plan.
 
 There isn't one, by design. IDEaz renders the working tree directly, so a project has no build step to run, remotely or otherwise.
 
-The remote pipeline described here — force-pushed `android_ci.yml` + `release.yml`, artifact polling, `PackageInstaller` sideload — served the Android edit target and went with it. The only workflow IDEaz writes now is `web_ci_pages.yml`, on the explicit Deploy action, to publish to GitHub Pages.
+The remote pipeline described here — force-pushed `android_ci.yml` + `release.yml`, artifact polling, `PackageInstaller` sideload — served the Android edit target and went with it. IDEaz writes no workflow now: Deploy pushes to a private repository and the central HereLiesAz/workflows Worker builds and publishes the output (see `docs/workflow.md` §2.2).
 
 ## 5. Error Handling
 

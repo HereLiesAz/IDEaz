@@ -42,7 +42,8 @@ data class GitHubRepoResponse(
     @SerialName("html_url") val htmlUrl: String,
     @SerialName("clone_url") val cloneUrl: String,
     @SerialName("default_branch") val defaultBranch: String? = "main",
-    val permissions: GitHubPermissions? = null
+    val permissions: GitHubPermissions? = null,
+    val private: Boolean? = null
 )
 
 @Serializable
@@ -177,11 +178,15 @@ data class ForkRepoRequest(
     @SerialName("default_branch_only") val defaultBranchOnly: Boolean = true
 )
 
+/** One entry of `GET /repos/{owner}/{repo}/commits/{ref}/statuses`, newest first. */
 @Serializable
-data class GitHubPagesResponse(
-    val status: String?, // "built", "building", "errored", or null
-    @SerialName("html_url") val htmlUrl: String?
+data class GitHubCommitStatus(
+    val state: String, // "pending", "success", "failure" or "error"
+    val context: String,
+    val description: String? = null,
+    @SerialName("target_url") val targetUrl: String? = null
 )
+
 // --- END NEW ---
 
 // --- Pull Request Data Classes (PR-based Android loop) ---
@@ -254,11 +259,13 @@ interface GitHubApi {
         @Body request: CreateSecretRequest
     ): retrofit2.Response<Unit>
 
-    @retrofit2.http.GET("repos/{owner}/{repo}/pages")
-    suspend fun getPages(
+    @retrofit2.http.GET("repos/{owner}/{repo}/commits/{ref}/statuses")
+    suspend fun listCommitStatuses(
         @Path("owner") owner: String,
-        @Path("repo") repo: String
-    ): retrofit2.Response<GitHubPagesResponse>
+        @Path("repo") repo: String,
+        @Path("ref") ref: String,
+        @retrofit2.http.Query("per_page") perPage: Int = 100
+    ): List<GitHubCommitStatus>
 
     // --- NEW: Create Issue Endpoint ---
     @POST("repos/{owner}/{repo}/issues")

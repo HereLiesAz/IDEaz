@@ -53,7 +53,7 @@ title: IDEaz - The Post-Code IDE
 
     <h2>Architecture</h2>
     <p>
-        Every project is a real git repository living on your device, and git is the source of truth from the very first commit — you don't need a GitHub account to start. Pages you build render live in an embedded preview as you edit; when you're ready, connect a GitHub account and publish to GitHub Pages with one tap.
+        Every project is a real git repository living on your device, and git is the source of truth from the very first commit — you don't need a GitHub account to start. Pages you build render live in an embedded preview as you edit; when you're ready, connect a GitHub account and publish with one tap — the source stays in a private repository; only the built site goes live.
     </p>
 
 </div>

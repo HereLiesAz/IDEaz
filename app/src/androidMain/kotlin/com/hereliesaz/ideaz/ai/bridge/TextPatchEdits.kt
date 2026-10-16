@@ -40,21 +40,46 @@ context needed for the patch to apply."""
             "$role:\n$body"
         }
 
+    /**
+     * The unified diff in [response]: every ```diff / ```patch fenced block that
+     * holds one, joined (a reply may split its edits across blocks; JGit applies
+     * a multi-file patch in one go), or else everything from the first `--- `
+     * line on.
+     *
+     * A fence only closes on a line that is exactly ``` - a diff of a Markdown
+     * file carries ``` inside its content lines, which always start with
+     * ' ', '+' or '-'. Only blank lines are trimmed from the ends: `trim()` used
+     * to strip a final context line that is a lone space, leaving the last hunk
+     * a line short so JGit rejected it.
+     */
     fun extractUnifiedDiff(response: String): String? {
-        val fenced = Regex("```(?:diff|patch)\\s*([\\s\\S]*?)```", RegexOption.IGNORE_CASE)
-            .find(response)
-            ?.groupValues
-            ?.getOrNull(1)
-            ?.trim()
-        if (!fenced.isNullOrBlank() &&
-            fenced.contains("--- ") && fenced.contains("+++ ") && fenced.contains("@@")
-        ) return fenced
+        val lines = response.replace("\r\n", "\n").lines()
+        val blocks = mutableListOf<String>()
+        var i = 0
+        while (i < lines.size) {
+            if (FENCE_OPEN.matches(lines[i])) {
+                val end = (i + 1 until lines.size).firstOrNull { lines[it].trimEnd() == "```" } ?: lines.size
+                val body = trimBlankLines(lines.subList(i + 1, end))
+                if (looksLikeDiff(body)) blocks += body
+                i = end + 1
+            } else {
+                i++
+            }
+        }
+        if (blocks.isNotEmpty()) return blocks.joinToString("\n")
 
-        val start = response.lineSequence().indexOfFirst { it.startsWith("--- ") }
+        val start = lines.indexOfFirst { it.startsWith("--- ") }
         if (start < 0) return null
-        val raw = response.lineSequence().drop(start).joinToString("\n").trim()
-        return raw.takeIf { it.contains("+++ ") && it.contains("@@") }
+        return trimBlankLines(lines.drop(start)).takeIf { looksLikeDiff(it) }
     }
+
+    private val FENCE_OPEN = Regex("""^\s*```\s*(?:diff|patch)\s*$""", RegexOption.IGNORE_CASE)
+
+    private fun looksLikeDiff(text: String) =
+        text.contains("--- ") && text.contains("+++ ") && text.contains("@@")
+
+    private fun trimBlankLines(lines: List<String>): String =
+        lines.dropWhile { it.isEmpty() }.dropLastWhile { it.isEmpty() }.joinToString("\n")
 
     /**
      * Applies [patch] behind a checkpoint. Returns [response] (with a note) when nothing changed or

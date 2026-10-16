@@ -33,6 +33,7 @@ prefer Emotion over styled-components). Import them and they resolve in the
 preview with no setup; add them to `package.json` so a real build picks them up.
 
 ## Deploy
-Pushing to `main` builds and publishes to GitHub Pages
-(`.github/workflows/deploy.yml`); enable Pages → "GitHub Actions" once in repo
-settings. `HashRouter` keeps routing working on static hosting with no rewrites.
+IDEaz's **Deploy** pushes the project to its own private repository and asks
+the central HereLiesAz/workflows Worker to build that commit (`npm run build`)
+and publish only `dist/` to Cloudflare Pages; the project carries no workflow.
+`HashRouter` keeps routing working on static hosting with no rewrites.

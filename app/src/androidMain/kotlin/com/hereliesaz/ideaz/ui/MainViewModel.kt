@@ -9,12 +9,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.api.GitHubRepoResponse
+import com.hereliesaz.ideaz.api.WebDeployClient
 import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.services.CrashReportingService
 import com.hereliesaz.ideaz.ui.delegates.*
 import com.hereliesaz.ideaz.utils.ErrorCollector
 import com.hereliesaz.ideaz.ui.web.WebProjectUrlUtils
-import com.hereliesaz.ideaz.R
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ProjectFileObserver
 import com.hereliesaz.ideaz.utils.VersionUtils
@@ -26,6 +26,7 @@ import com.hereliesaz.ideaz.ai.GeminiAdapter
 import com.hereliesaz.ideaz.ai.GeminiConsultant
 import com.hereliesaz.ideaz.ai.IdeTools
 import com.hereliesaz.ideaz.ai.aive.AiveRemoteClient
+import com.hereliesaz.ideaz.ai.aive.AiveTransports
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -271,19 +272,28 @@ class MainViewModel(
     private fun launchAiveWorkflow(appName: String, objective: String) {
         stateDelegate.appendChatMessage(ChatMessage("user", "/aive $objective"))
         stateDelegate.setChatFailure(null)
-        val client = AiveRemoteClient(getApplication())
+        val client = AiveTransports.create(getApplication(), settingsViewModel)
         aiveWatch?.cancel()
         aiveWatch = viewModelScope.launch {
             try {
                 val repositoryUrl = withContext(Dispatchers.IO) {
                     gitHubOriginUrl(settingsViewModel.getProjectPath(appName))
                 }
-                client.launchWorkflow(projectName = appName, objective = objective, repositoryUrl = repositoryUrl)
-                client.openAive()
-                stateDelegate.appendChatMessage(ChatMessage("model", "Sent to The Aive. It plans and runs the workflow there.", AIVE_LABEL))
+                val runId = client.launchWorkflow(projectName = appName, objective = objective, repositoryUrl = repositoryUrl)
+                // The Aive starts a queued workflow only when it shows its UI.
+                val message = if (client.isRemote) {
+                    // The Aive is on another device: nothing to open from here.
+                    "Queued on your Aive device. It starts when you open The Aive there."
+                } else if (client.openAive()) {
+                    "Sent to The Aive and opened it. It plans and runs the workflow there."
+                } else {
+                    "Queued in The Aive, but IDEaz could not open it. The workflow starts when you open The Aive."
+                }
+                stateDelegate.appendChatMessage(ChatMessage("model", message, AIVE_LABEL))
                 var reported: String? = null
+                val tracker = AiveRunTracker(objective, runId)
                 client.watchRun()
-                    .filter { it.objective == objective }
+                    .filter { tracker.accept(it) }
                     .collect { run ->
                         val milestone = when {
                             run.isFinished -> "The Aive's workflow ${run.status.lowercase()} (${run.tasksDone}/${run.tasksTotal} tasks)."
@@ -387,9 +397,42 @@ class MainViewModel(
         restoreEdit(checkpointId, EditReviewStatus.UNDONE)
     }
 
+    /**
+     * After a Reject/Undo hit [EditReviewState.restoreConflict]: restores the
+     * pre-edit files anyway, overwriting the changes made since review.
+     */
+    fun forceRestoreEdit(checkpointId: String) {
+        val state = stateDelegate.editReview.value ?: return
+        if (!state.restoreConflict) return
+        val target = if (state.status == EditReviewStatus.APPROVED) EditReviewStatus.UNDONE else EditReviewStatus.REJECTED
+        restoreEdit(checkpointId, target, force = true)
+    }
+
+    /**
+     * After a Reject/Undo hit [EditReviewState.restoreConflict]: keeps the
+     * files as they are now and retires the checkpoint. Writes nothing.
+     */
+    fun keepCurrentFiles(checkpointId: String) {
+        val state = stateDelegate.editReview.value ?: return
+        if (!state.restoreConflict || state.approval.review.checkpoint.checkpointId != checkpointId) return
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    IdeTools(File(state.approval.review.checkpoint.projectPath))
+                        .discardEditCheckpoint(state.approval.review.checkpoint)
+                }
+            }
+            stateDelegate.setEditReview(null)
+            stateDelegate.appendChatMessage(
+                ChatMessage.error("Kept the current files; the edit was not rolled back.")
+            )
+        }
+    }
+
     private fun restoreEdit(
         checkpointId: String,
         targetStatus: EditReviewStatus,
+        force: Boolean = false,
     ) {
         val state = stateDelegate.editReview.value ?: return
         val approval = state.approval
@@ -404,34 +447,28 @@ class MainViewModel(
                 withContext(Dispatchers.IO) {
                     IdeTools(File(approval.review.checkpoint.projectPath)).restoreEditCheckpoint(
                         approval.review.checkpoint,
-                        approval.review.contentFingerprint,
+                        // null skips the fingerprint check: the user confirmed
+                        // overwriting what changed since review.
+                        if (force) null else approval.review.contentFingerprint,
                     )
                 }
-                stateDelegate.setEditReview(state.copy(status = targetStatus))
+                stateDelegate.setEditReview(state.copy(status = targetStatus, restoreConflict = false))
                 stateDelegate.triggerFileTreeReload()
                 stateDelegate.triggerWebHardReload()
             } catch (e: IllegalStateException) {
                 // restoreEditCheckpoint's fingerprint check throws exactly this
                 // when the files changed since review (protecting against
-                // clobbering an intervening manual edit). Previously this just
-                // restored the review card to its stale PENDING/APPROVED state
-                // verbatim - since nothing about the underlying mismatch ever
-                // changes, every future Reject/Undo attempt hit the identical
-                // failure forever, permanently blocking the chat tab (a new
-                // message is refused while a review is pending). The user's
-                // intent here is unambiguous - discard this review - and doing
-                // so never writes to disk, so it's always safe: clean up the
-                // checkpoint bookkeeping and clear the card instead of leaving
-                // it stuck.
-                withContext(Dispatchers.IO) {
-                    runCatching {
-                        IdeTools(File(approval.review.checkpoint.projectPath))
-                            .discardEditCheckpoint(approval.review.checkpoint)
-                    }
-                }
-                stateDelegate.setEditReview(null)
+                // clobbering an intervening manual edit). Retrying can never
+                // succeed, and this used to discard the checkpoint and clear the
+                // card - leaving a *rejected* edit in the working tree with no
+                // way back. Keep the checkpoint and let the user decide:
+                // forceRestoreEdit() or keepCurrentFiles().
+                stateDelegate.setEditReview(state.copy(restoreConflict = true))
                 stateDelegate.appendChatMessage(
-                    ChatMessage.error("Discarded: the project changed after review, so nothing was restored.")
+                    ChatMessage.error(
+                        "Nothing was restored: the files changed after review. Restore anyway " +
+                            "(overwrites those later changes) or keep the current files."
+                    )
                 )
             } catch (_: Exception) {
                 stateDelegate.setEditReview(state)
@@ -628,12 +665,18 @@ class MainViewModel(
     }
 
     /**
-     * Triggers deployment for Web Projects (GitHub Pages).
+     * Publishes the open project.
+     *
+     * Commits and pushes to the project's own (private) repository, then asks
+     * the central HereLiesAz/workflows Worker to build exactly that commit and
+     * publish only its build output ([WebDeployClient]). The project carries no
+     * workflow, and its repository is never what gets served - which is what
+     * used to put `.env` files and `.ideaz/` history on GitHub Pages.
      */
     fun deployWebProject() {
         val appName = settingsViewModel.getAppName()
         viewModelScope.launch {
-            logHandler.onBuildLog("Deploying Web Project (Push to GitHub)...")
+            logHandler.onBuildLog("Deploying: push to GitHub, then build and publish centrally...")
             try {
                 if (appName.isNullOrBlank()) {
                     logHandler.onBuildLog("Deploy failed: no project is open.")
@@ -654,23 +697,18 @@ class MainViewModel(
                     return@launch
                 }
 
-                // Generate the Pages workflow / AGENTS_SETUP.md / version.properties
-                // before pushing. Creating a project is local-only, so the first
-                // Deploy is what writes and pushes these.
+                // Write .gitignore / AGENTS_SETUP.md / version.properties and
+                // untrack anything secret-shaped before the commit below, whose
+                // addAll() would otherwise sweep it up.
                 repoDelegate.forceUpdateInitFiles()
-                // Ensure latest changes are committed. Both commit() and push()
-                // return Boolean and never throw - they catch every failure
-                // internally and log it via onLog - so their result must be
-                // checked explicitly, or "Pushed successfully" gets logged (and
-                // a success Toast shown) on every single deploy failure: no git
-                // manager, no auth token, a rejected push, a network error, all
-                // of it. The specific reason is already in the build log from
-                // gitDelegate's own onLog calls immediately above this.
+                // Both commit() and push() return Boolean and never throw - they
+                // catch every failure internally and log it via onLog - so their
+                // result must be checked explicitly. The specific reason is
+                // already in the build log from gitDelegate's own onLog calls.
                 if (!gitDelegate.commit("Deploy: ${System.currentTimeMillis()}")) {
                     logHandler.onBuildLog("Deploy failed: could not commit changes. See the log above for details.")
                     return@launch
                 }
-                // Use default push (uses settings creds)
                 if (!gitDelegate.push()) {
                     logHandler.onBuildLog("Deploy failed: push did not complete. See the log above for details.")
                     withContext(Dispatchers.Main) {
@@ -678,19 +716,36 @@ class MainViewModel(
                     }
                     return@launch
                 }
-                logHandler.onBuildLog("Pushed successfully. GitHub Actions will handle deployment.")
-                logHandler.onBuildLog("[Instruction] Ensure 'GitHub Pages' is enabled in repository settings (Source: gh-pages branch).")
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(getApplication(), getApplication<Application>().getString(R.string.deploy_instruction_gh_pages), Toast.LENGTH_LONG).show()
+
+                val token = settingsViewModel.getGithubToken()
+                val projectDir = settingsViewModel.getProjectPath(appName)
+                val repository = withContext(Dispatchers.IO) { gitHubOriginUrl(projectDir) }
+                    ?.removePrefix("https://github.com/")
+                val sha = gitDelegate.getHeadSha()
+                if (token.isNullOrBlank() || repository == null || sha == null) {
+                    logHandler.onBuildLog("Pushed, but could not request a build: no token, GitHub origin or commit.")
+                    return@launch
                 }
 
-                // Start Polling for Deployment completion
-                val user = settingsViewModel.getGithubUser()
-                if (appName != null && user != null) {
-                    startWebDeploymentPolling(user, appName)
+                logHandler.onBuildLog("Pushed $sha to $repository. Requesting a central build...")
+                when (val result = WebDeployClient().requestDeploy(token, repository, sha)) {
+                    is WebDeployClient.Result.Accepted -> {
+                        logHandler.onBuildLog("Build requested. The site will be served at ${result.siteUrl}")
+                        startWebDeploymentPolling(token, repository, sha, result.statusContext)
+                    }
+                    is WebDeployClient.Result.Refused -> {
+                        // 403 for a repository the central owner does not hold:
+                        // the push still happened, only publishing is unavailable.
+                        logHandler.onBuildLog(
+                            "Pushed, but the central build was refused (${result.httpCode}): ${result.message}"
+                        )
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(getApplication(), "Pushed. Publishing was refused: ${result.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
                 }
-
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 logHandler.onBuildLog("Deploy failed: ${e.message}")
             }
         }
@@ -699,55 +754,53 @@ class MainViewModel(
     private var pollingJob: Job? = null
     private var aiveWatch: Job? = null
 
-    private fun startWebDeploymentPolling(user: String, repo: String) {
+    /**
+     * Follows the commit status the central build reports on [sha]. Keyed to
+     * the pushed commit, so a site built from an earlier push never reads as
+     * this deploy's success.
+     */
+    private fun startWebDeploymentPolling(token: String, repository: String, sha: String, context: String) {
         pollingJob?.cancel()
+        val (owner, repo) = repository.split("/", limit = 2).let { it[0] to it[1] }
         pollingJob = viewModelScope.launch {
-            logHandler.onBuildLog("Polling GitHub Pages status for $user/$repo...")
             val startTime = System.currentTimeMillis()
-            val timeout = 10 * 60 * 1000L // 10 minutes
+            val timeout = 15 * 60 * 1000L
+            var lastState: String? = null
 
             while (System.currentTimeMillis() - startTime < timeout) {
-                val token = settingsViewModel.getGithubToken()
-                if (token.isNullOrBlank()) {
-                    logHandler.onBuildLog("GitHub token missing, stopping poll.")
-                    break
-                }
-
                 try {
                     val service = GitHubApiClient.createService(token)
-                    val response = service.getPages(user, repo)
-
-                    if (response.isSuccessful) {
-                        val body = response.body()
-                        val status = body?.status
-                        val url = body?.htmlUrl
-
-                        if (status == "built" && url != null) {
+                    // Newest first; the first entry for the context is current.
+                    val status = service.listCommitStatuses(owner, repo, sha).firstOrNull { it.context == context }
+                    when (status?.state) {
+                        "success" -> {
                             // Don't swap the WebView to the public URL automatically — the user
-                            // is likely still iterating on local edits served from
-                            // appassets.androidplatform.net, and silently switching away from
-                            // them was a confusing surprise (userflow audit #11). Just announce
-                            // the deployed URL prominently; the user can open it in a browser
-                            // when they're ready.
+                            // is likely still iterating on local edits (userflow audit #11).
+                            val url = status?.targetUrl.orEmpty()
                             logHandler.onBuildLog("Deployment successful: $url")
                             logHandler.onAiLog("Deployment successful: $url (open in browser to verify the live site)")
-                            break
-                        } else {
-                            logHandler.onBuildLog("Deployment status: $status...")
+                            return@launch
                         }
-                    } else if (response.code() == 404) {
-                        logHandler.onBuildLog("Waiting for GitHub Pages to be available (404)...")
-                    } else {
-                        logHandler.onBuildLog("Error polling pages: Code ${response.code()}")
+                        "failure", "error" -> {
+                            logHandler.onBuildLog(
+                                "Deployment failed: ${status?.description.orEmpty()} ${status?.targetUrl.orEmpty()}".trim()
+                            )
+                            return@launch
+                        }
+                        else -> {
+                            val state = status?.state ?: "queued"
+                            if (state != lastState) logHandler.onBuildLog("Deployment status: $state...")
+                            lastState = state
+                        }
                     }
-
                 } catch (e: Exception) {
-                    logHandler.onBuildLog("Error polling pages: ${e.message}")
+                    if (e is CancellationException) throw e
+                    logHandler.onBuildLog("Error polling deployment status: ${e.message}")
                     android.util.Log.w("MainViewModel", "Operation failed", e)
                 }
-
-                delay(15_000) // 15 seconds
+                delay(15_000)
             }
+            logHandler.onBuildLog("Stopped waiting for the deployment after 15 minutes; it may still finish.")
         }
     }
 
@@ -901,7 +954,7 @@ class MainViewModel(
                 // below the AI's own checkpoints, and nothing to push when the
                 // user finally did connect an account.
                 //
-                // The initial commit is unconditional, not gated on whether the
+                // The initial commit is not gated on whether the
                 // starter was just scaffolded. An imported folder is the case
                 // that gating broke: files present, nothing scaffolded, so it got
                 // `init` and no commit - a repository with no HEAD, which is a
@@ -909,9 +962,16 @@ class MainViewModel(
                 // fine (verified in GitManagerTest), so there is nothing to guard.
                 val git = GitManager(projectDir)
                 if (!git.isRepo()) {
+                    // Before the first `git add`: an imported folder can hold a
+                    // .env or a keystore, and nothing may ever commit it.
+                    val ignored = runCatching { com.hereliesaz.ideaz.utils.DeployIgnore.ensure(projectDir) }
+                        .onFailure { logHandler.onBuildLog("[GIT] No initial commit: could not write .gitignore: ${it.message}\n") }
+                        .isSuccess
                     git.init()
-                    runCatching { git.addAll(); git.commit("Initial commit") }
-                        .onFailure { logHandler.onBuildLog("[GIT] Initial commit failed: ${it.message}\n") }
+                    if (ignored) {
+                        runCatching { git.addAll(); git.commit("Initial commit") }
+                            .onFailure { logHandler.onBuildLog("[GIT] Initial commit failed: ${it.message}\n") }
+                    }
                 }
             }
 
@@ -1101,44 +1161,69 @@ class MainViewModel(
     }
 
     /**
-     * Syncs changes to remote repository before deleting local files.
-     * Prevents data loss.
+     * Commits and pushes a project, then deletes the local copy - but only when
+     * nothing would be lost. When the project has no GitHub remote, no token is
+     * set, the push fails, or any local branch has commits GitHub lacks, nothing
+     * is deleted and [onConfirmNeeded] receives the reason; the UI asks the user
+     * and calls back with [force] = true only after an explicit confirmation.
+     *
+     * Previously a missing token only logged a warning and deleted anyway, so a
+     * local-only project (every project until its first Deploy) lost all its
+     * commits, and one with a token but no remote could not be deleted at all.
      */
-    fun syncAndDeleteProject(n: String) {
+    fun syncAndDeleteProject(n: String, force: Boolean = false, onConfirmNeeded: (String) -> Unit = {}) {
         if (n.isBlank()) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val projectDir = settingsViewModel.getProjectPath(n)
-                if (projectDir.exists()) {
+                if (projectDir.exists() && !force) {
                     logHandler.onBuildLog("Syncing project '$n' before deletion...\n")
-                    try {
-                        val git = GitManager(projectDir)
-
-                        if (git.hasChanges()) {
-                            git.addAll()
-                            git.commit("Sync before delete")
-                        }
-
-                        val token = settingsViewModel.getGithubToken()
-                        val user = settingsViewModel.getGithubUser() ?: "git"
-
-                        if (!token.isNullOrBlank()) {
-                            git.push(user, token) { p, t -> logHandler.onGitProgress(p, t) }
-                            logHandler.onBuildLog("Project synced successfully.\n")
-                        } else {
-                            logHandler.onBuildLog("Warning: No GitHub token found. Skipping push.\n")
-                        }
-                    } catch (e: Exception) {
-                        logHandler.onBuildLog("Sync failed: ${e.message}. Aborting deletion.\n")
-                        throw e
+                    val risk = syncBeforeDelete(n, projectDir)
+                    if (risk != null) {
+                        logHandler.onBuildLog("Not deleted: $risk\n")
+                        withContext(Dispatchers.Main) { onConfirmNeeded(risk) }
+                        return@launch
                     }
+                    logHandler.onBuildLog("Project synced successfully.\n")
                 }
                 performLocalDeletion(n)
                 logHandler.onBuildLog("Project '$n' deleted.\n")
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 logHandler.onBuildLog("Error syncing/deleting project: ${e.message}\n")
             }
         }
+    }
+
+    /** Commits and pushes [projectDir]; returns why deleting it would lose work, or null when it would not. */
+    private fun syncBeforeDelete(name: String, projectDir: File): String? {
+        val git = GitManager(projectDir)
+        if (!git.isRepo()) return "'$name' is not a git repository, so none of it is on GitHub."
+        try {
+            if (git.hasChanges()) {
+                git.addAll()
+                git.commit("Sync before delete")
+            }
+        } catch (e: Exception) {
+            return "its changes could not be committed (${e.message})."
+        }
+        if (git.remoteUrl("origin") == null) {
+            return "'$name' has never been deployed, so this device holds the only copy."
+        }
+        val token = settingsViewModel.getGithubToken()
+        if (token.isNullOrBlank()) return "no GitHub token is set, so local commits could not be pushed."
+        val user = settingsViewModel.getGithubUser() ?: "git"
+        try {
+            git.push(user, token) { p, t -> logHandler.onGitProgress(p, t) }
+        } catch (e: Exception) {
+            return "the push failed (${e.message}), so local commits may exist only on this device."
+        }
+        val unpushed = runCatching { git.unpushedBranches() }
+            .getOrElse { return "could not check for unpushed branches (${it.message})." }
+        if (unpushed.isNotEmpty()) {
+            return "these branches have commits that are not on GitHub: ${unpushed.joinToString(", ")}."
+        }
+        return null
     }
 
     private suspend fun performLocalDeletion(n: String) {
@@ -1297,6 +1382,22 @@ interface LogHandler {
     fun onProgress(p: Int?)
     fun onGitProgress(p: Int, t: String)
     fun onOverlayLog(msg: String)
+}
+
+/**
+ * Picks out the run a `/aive` command started from The Aive's status stream:
+ * by [runId] when The Aive returned one; otherwise the first run with this
+ * objective seen while still unfinished. A finished run before that is an
+ * earlier run with the same objective (a re-sent command, or one The Aive is
+ * still showing), and used to end the watch at once with its result.
+ */
+internal class AiveRunTracker(private val objective: String, private var runId: String?) {
+    fun accept(run: AiveRemoteClient.RunStatus): Boolean {
+        runId?.let { return run.runId == it }
+        if (run.objective.trim() != objective.trim() || run.isFinished) return false
+        if (run.runId.isNotEmpty()) runId = run.runId
+        return true
+    }
 }
 
 /** `/aive <objective>` in the chat sends the objective to The Aive as a workflow. */

@@ -164,6 +164,26 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `Aive pairing code is validated and stored outside default preferences`() {
+        val credentials = FakeCredentialStore()
+        viewModel = SettingsViewModel(application, credentials)
+        val code = com.hereliesaz.ideaz.ai.aive.AivePairingCode.encode(
+            "https://relay.example.workers.dev", "room-1", "client-token", ByteArray(32) { it.toByte() },
+        )
+
+        assertNotNull(viewModel.saveAivePairingCode("not a code"))
+        assertNull(viewModel.getAivePairingCode())
+
+        assertNull(viewModel.saveAivePairingCode("  $code  "))
+        assertEquals(code, viewModel.getAivePairingCode())
+        assertEquals(code, credentials.values[SettingsViewModel.KEY_AIVE_PAIRING_CODE])
+        assertFalse(PreferenceManager.getDefaultSharedPreferences(application).contains(SettingsViewModel.KEY_AIVE_PAIRING_CODE))
+
+        assertNull(viewModel.saveAivePairingCode(""))
+        assertNull(viewModel.getAivePairingCode())
+    }
+
+    @Test
     fun `signing passwords are stored securely, alias stays plain`() {
         val credentials = FakeCredentialStore()
         viewModel = SettingsViewModel(application, credentials)

@@ -253,16 +253,13 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
             signingConfig = signingConfigs.getByName("debug")
         }
         release {
-            // CI sets KEYSTORE_FILE (and matching password/alias env vars) to sign with
-            // the real release keystore. Local builds without those env vars fall back
-            // to the debug keystore so `./gradlew build` and `assembleRelease` work
-            // out of the box. The release signingConfig is only used when fully
-            // populated; otherwise the debug config takes over.
-            signingConfig = if (System.getenv("KEYSTORE_FILE") != null) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            // Signed only with the real release keystore: CI sets KEYSTORE_FILE (and
+            // matching password/alias env vars). There is no debug-keystore fallback -
+            // it produced a "release" APK signed with the public debug key, which
+            // anyone could update. Without a keystore, packaging a release or play
+            // variant fails (requireReleaseKeystore below); debug builds and unit
+            // tests are unaffected.
+            signingConfig = signingConfigs.getByName("release")
             // R8 strips unused library code (notably most of bcprov, of which only
             // the X25519/Salsa20/Poly1305/Blake2b primitives are reached). Keep
             // rules live in proguard-rules.pro.
@@ -323,6 +320,28 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
             pickFirsts.add("**/*.kotlin_module")
         }
     }
+}
+
+// Fails release/play packaging when no release keystore is configured, either
+// through KEYSTORE_FILE or AGP's injected signing property (the central release
+// workflow sets both). Checked when packaging runs, not at configuration, so
+// `assembleDebug` and `testDebugUnitTest` never need one.
+val releaseKeystoreEnv = providers.environmentVariable("KEYSTORE_FILE")
+val injectedKeystore = providers.gradleProperty("android.injected.signing.store.file")
+val requireReleaseKeystore = tasks.register("requireReleaseKeystore") {
+    val envKeystore = releaseKeystoreEnv
+    val injected = injectedKeystore
+    doLast {
+        if (envKeystore.orNull.isNullOrBlank() && injected.orNull.isNullOrBlank()) {
+            throw GradleException(
+                "No release keystore: set KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD. " +
+                    "Release and play builds are never signed with the debug key."
+            )
+        }
+    }
+}
+tasks.configureEach {
+    if (Regex("^(package|sign)(Release|Play)(Bundle)?$").matches(name)) dependsOn(requireReleaseKeystore)
 }
 
 androidComponents.onVariants { variant ->

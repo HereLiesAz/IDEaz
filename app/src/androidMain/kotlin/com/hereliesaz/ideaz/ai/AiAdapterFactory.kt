@@ -3,7 +3,7 @@ package com.hereliesaz.ideaz.ai
 import android.content.Context
 import com.hereliesaz.ideaz.BuildConfig
 import com.hereliesaz.ideaz.ai.aive.AiveAdapter
-import com.hereliesaz.ideaz.ai.aive.AiveRemoteClient
+import com.hereliesaz.ideaz.ai.aive.AiveTransports
 import com.hereliesaz.ideaz.ai.bridge.FallbackAdapter
 import com.hereliesaz.ideaz.ai.bridge.GeminiAppBridgeAdapter
 import com.hereliesaz.ideaz.ui.AiModel
@@ -45,7 +45,7 @@ object AiAdapterFactory {
 
         if (model.id == AiModels.THE_AIVE) {
             // The Aive injects no repo preamble of its own; AiveAdapter sends a project snapshot.
-            return AiveAdapter(AiveRemoteClient(context), tools)
+            return AiveAdapter(AiveTransports.create(context, settings), tools)
         }
 
         val base = createRaw(model, tools, settings) ?: return null

@@ -50,7 +50,7 @@ jobs:
         run: 'mkdir -p .antigravity'
 
       - name: 'Run Antigravity pull request review'
-        uses: 'google-github-actions/run-gemini-cli@v0' # ratchet:exclude
+        uses: 'google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489' # ratchet:google-github-actions/run-gemini-cli@v0
         id: 'antigravity_pr_review'
         env:
           GITHUB_TOKEN: '${{ steps.mint_identity_token.outputs.token || secrets.GH_TOKEN || github.token }}'

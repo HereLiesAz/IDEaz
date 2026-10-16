@@ -21,8 +21,14 @@ The on-device toolchain (`aapt2`, `d8`, `kotlinc`, Maven Aether) was removed in 
 ### 2.2 Initialization (Activation)
 *   **Trigger:** User clicks **Save & Initialize** on the Setup tab.
 *   **Actions:** Scaffold the directory from the bundled React starter if it has nothing previewable in it, then open the preview. Nothing is pushed.
-*   **Publishing is separate and explicit.** The rail's **Deploy** item runs `forceUpdateInitFiles`, which writes `.github/workflows/web_ci_pages.yml`, `AGENTS_SETUP.md` and `version.properties` — and only those, staged by exact path so unrelated uncommitted work is untouched.
-*   **Gone:** the Android `build.yml`/`release.yml` pair, `setup_env.sh` (a JDK + Android SDK bootstrap), and the two `antigravity-*.yml` files. Those last two installed an autonomous agent into the user's repository — `on: push`, `contents: write`, `pull-requests: write`, authenticated as the user — with no consent prompt anywhere on the path.
+*   **Publishing is separate and explicit.** The rail's **Deploy** item (`MainViewModel.deployWebProject`):
+    1. `RepoDelegate.ensureRemoteRepository` links `origin`, creating a **private** repository on first publish (an existing public one is reused, with a warning).
+    2. `forceUpdateInitFiles` writes or completes `.gitignore` (`utils/DeployIgnore`: `.env*`, `*.jks`, `*.keystore`, `*.p12`, `*.pem`, `*.key`, `.ideaz/`, `node_modules/`, `dist/`, `build/`, `out/`), `AGENTS_SETUP.md` and `version.properties`; deletes an unmodified copy of the old `web_ci_pages.yml`; and untracks (keeping on disk) anything `.gitignore` now excludes that an earlier commit swept up. Staged by exact path, so unrelated uncommitted work is untouched. A new project's `.gitignore` is written before its initial commit.
+    3. Commit and push, then `api/WebDeployClient` calls `POST https://workflows.hereliesaz.workers.dev/web-deploy` with the pushed SHA. The Worker (HereLiesAz/workflows, `worker/src/web-deploy.js`) checks the token can push to the repository and that HereLiesAz owns it, and dispatches its central `web-deploy.yml`: build the commit without deploy credentials, then publish **only the build output** (`dist/`, `build/` or `out/`; a no-build site minus dotfiles and secret-shaped files) to Cloudflare Pages.
+    4. IDEaz polls the commit status `ideaz/web-deploy` on that SHA; its `target_url` is the live site (`https://ideaz-<name>-<id>.pages.dev`).
+*   **Why not GitHub Pages:** Pages cannot serve a private repository on a free plan, and serving the repository itself is what used to publish `.env` files and `.ideaz/` history. The project carries no workflow at all.
+*   **Limit:** the Worker builds only repositories owned by HereLiesAz (its credentials are the owner's). For anyone else Deploy pushes to their private repository and reports the refusal.
+*   **Gone:** `web_ci_pages.yml` (it published the repository root on every push), the Android `build.yml`/`release.yml` pair, `setup_env.sh` (a JDK + Android SDK bootstrap), and the two `antigravity-*.yml` files. Those last two installed an autonomous agent into the user's repository — `on: push`, `contents: write`, `pull-requests: write`, authenticated as the user — with no consent prompt anywhere on the path.
 
 ## 3. AI Coding Loop
 
@@ -46,12 +52,9 @@ Per-task model assignment (Default / Prompt Popup / Overlay Chat) is configured 
 
 ## 5. CI/CD for IDEaz Itself
 
-The IDEaz project's own CI (`.github/workflows/`) builds the app on every push:
-*   **Lint:** against the regenerated `app/lint-baseline.xml`.
-*   **Unit tests:** `./gradlew :app:testDebugUnitTest`.
-*   **Assemble debug:** `./gradlew :app:assembleDebug`.
+Every pull request runs `.github/workflows/pr-ci.yml` in this repository: `./gradlew :app:testDebugUnitTest :app:assembleDebug` on JDK 21, no secrets. It ends with the HereLiesAz/workflows `ci-report` action, which records the result on the central ci-status ledger and marks the file as target-local CI for the central sync (HereLiesAz/workflows offers no reusable CI workflow; each repository runs its own).
 
-Release artifacts ship via tagged builds — every push updates a rolling "Latest Debug Build" prerelease, while the actual "Latest Release" only updates on a manually-triggered workflow run. See [`build_pipeline.md`](build_pipeline.md) §6.0 for the tag/trigger details.
+Releases are built centrally (`android-github-release.yml` / `android-play-release.yml` are trigger contracts for the HereLiesAz/workflows executors); see [`build_pipeline.md`](build_pipeline.md). Release and play variants require the release keystore — there is no debug-key fallback.
 
 The dependency-submission workflow publishes the resolved release-runtime graph for `:app` and `:webruntime`. It does not submit test, lint, Gradle, AGP, or plugin configurations as application dependencies. Those tools run only in CI and are maintained through pinned workflow/plugin versions and Dependabot; the submitted graph is the production APK/AAB software bill of materials.
 

@@ -161,7 +161,16 @@ private fun EditReviewCard(state: EditReviewState, viewModel: MainViewModel) {
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
-            when (state.status) {
+            if (state.restoreConflict && state.status != EditReviewStatus.PROCESSING) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { viewModel.forceRestoreEdit(checkpointId) }) {
+                        Text("Restore anyway")
+                    }
+                    OutlinedButton(onClick = { viewModel.keepCurrentFiles(checkpointId) }) {
+                        Text("Keep current files")
+                    }
+                }
+            } else when (state.status) {
                 EditReviewStatus.PENDING -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { viewModel.approveEdit(checkpointId) }) {
                         Text(if (review.validationErrors.isEmpty()) "Approve & reload" else "Recheck files")

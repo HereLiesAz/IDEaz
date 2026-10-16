@@ -1,7 +1,9 @@
 package com.hereliesaz.ideaz.api
 
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -73,6 +75,24 @@ class RetryInterceptorTest {
 
         assertEquals(404, response.code)
         assertEquals("nope", response.body.string())
+        assertEquals(1, server.requestCount)
+        response.close()
+    }
+
+    @Test
+    fun postIsNeverRetried() {
+        server.enqueue(MockResponse().setResponseCode(503).setBody("busy"))
+        server.enqueue(MockResponse().setResponseCode(201).setBody("created twice"))
+
+        val response = client(maxRetries = 3)
+            .newCall(
+                Request.Builder().url(server.url("/user/repos"))
+                    .post("{}".toRequestBody("application/json".toMediaType()))
+                    .build()
+            )
+            .execute()
+
+        assertEquals(503, response.code)
         assertEquals(1, server.requestCount)
         response.close()
     }
