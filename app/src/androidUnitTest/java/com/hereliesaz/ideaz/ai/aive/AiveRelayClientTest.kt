@@ -30,6 +30,7 @@ class AiveRelayClientTest {
     private lateinit var server: MockWebServer
     private lateinit var code: AivePairingCode
     private val clients = mutableListOf<AiveRelayClient>()
+    private val hostSockets = java.util.concurrent.CopyOnWriteArrayList<WebSocket>()
 
     @Before
     fun setUp() {
@@ -43,7 +44,9 @@ class AiveRelayClientTest {
     @After
     fun tearDown() {
         clients.forEach { it.close() }
-        server.shutdown()
+        // MockWebServer.shutdown() asserts if a server-side socket is still open.
+        hostSockets.forEach { runCatching { it.cancel() } }
+        runCatching { server.shutdown() }
     }
 
     private fun newClient() = AiveRelayClient(code).also { clients += it }
@@ -56,6 +59,7 @@ class AiveRelayClientTest {
         private val codec = AiveRelayCodec(code, sendDir = "h2c", recvDir = "c2h")
 
         override fun onOpen(webSocket: WebSocket, response: Response) {
+            hostSockets += webSocket
             greeting?.let { webSocket.send(it) }
         }
 
