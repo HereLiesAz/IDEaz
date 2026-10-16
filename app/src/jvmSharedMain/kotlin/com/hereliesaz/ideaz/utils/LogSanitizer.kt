@@ -6,7 +6,17 @@ package com.hereliesaz.ideaz.utils
 object LogSanitizer {
     private const val REDACTED = "***REDACTED***"
 
+    /** Names whose value is a secret: api_key, accessToken, DB_PASSWORD, client_secret, pwd... */
+    private const val SECRET_NAME = "[A-Za-z0-9_.-]*(?:key|token|secret|password|passwd|pwd)"
+
     private val REPLACEMENTS = listOf(
+        // Private keys, wherever they appear: a PEM block in any file, or one
+        // JSON-escaped onto a single line ("-----BEGIN ...-----\nMIIE..."). An
+        // unterminated block (a truncated log) is redacted to the end.
+        Regex("-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\\s\\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|\\z)") to REDACTED,
+        // Service-account style JSON: the whole private_key string, PEM or not.
+        Regex("(\"private_key\"\\s*:\\s*\")[^\"]*(\")") to "$1$REDACTED$2",
+
         // GitHub Tokens: classic (ghp_, gho_, etc.) and fine-grained PATs
         // (github_pat_...), GitHub's default format since 2022 - the classic
         // pattern alone never matched these.
@@ -22,6 +32,12 @@ object LogSanitizer {
         Regex("sk-ant-[a-zA-Z0-9_-]{20,}") to REDACTED,
         Regex("sk-[a-zA-Z0-9_-]{20,}") to REDACTED,
 
+        // Stripe secret and restricted keys (underscores, so sk- misses them).
+        Regex("\\b[sr]k_(?:live|test)_[A-Za-z0-9]{10,}") to REDACTED,
+
+        // AWS access key IDs (long-term AKIA, temporary ASIA).
+        Regex("\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b") to REDACTED,
+
         // Hugging Face (hf_...), Groq (gsk_...), and Cerebras (csk-...) keys.
         Regex("hf_[a-zA-Z0-9]{20,}") to REDACTED,
         Regex("gsk_[a-zA-Z0-9]{20,}") to REDACTED,
@@ -30,12 +46,19 @@ object LogSanitizer {
         // Bearer tokens - keep "Bearer " prefix
         Regex("(Bearer\\s+)[a-zA-Z0-9_\\-\\.]+") to "$1$REDACTED",
 
-        // Generic "key=", "token=", "password=", "secret="
-        // Captures: key=value, "key": "value", key:value
-        // Group 1: key + separator
-        // Group 2: value (implicitly matched by rest of regex, but we replace the whole match with Group 1 + REDACTED)
-        // Note: We exclude '&' from the value to correctly handle URL parameters
-        Regex("(?i)((?:key|token|api_?key|access_?token|secret|password|passwd|pwd)['\"]?\\s*[:=]\\s*['\"]?)([^\\s'\",&]+)") to "$1$REDACTED",
+        // Generic secrets by name. This used to redact any value after
+        // key/token/password and ':' or '=', which mangled ordinary source
+        // sent to the AI: JSX `key={item.id}`, TypeScript `token: string`,
+        // `password = input.value`. Now only values that are data:
+        // - a quoted literal of 6+ characters: `"password": "hunter22"`,
+        //   `const apiKey = 'abc123...'`;
+        Regex("(?i)(\\b$SECRET_NAME[\"']?\\s*[:=]\\s*([\"']))[^\"'\\s]{6,}(\\2)") to "$1$REDACTED$3",
+        // - an unquoted value written straight after '=' (env files, .properties,
+        //   query strings, `key=value` in logs), unless it starts like code;
+        Regex("(?i)(\\b$SECRET_NAME=)(?![{(\\[$`\"'])[^\\s'\",&;]+") to "$1$REDACTED",
+        // - a .netrc entry's `password <value>` (anchored on `machine`/`default`
+        //   so prose like "Password must be..." is left alone).
+        Regex("(?im)(^\\s*(?:machine\\s+\\S+|default)\\s+(?:login\\s+\\S+\\s+)?password\\s+)\\S+") to "$1$REDACTED",
 
         // URLs with credentials: protocol://user:pass@host
         // Group 1: protocol://

@@ -30,6 +30,10 @@ object RepoSnapshot {
         Regex("""(?i)^(id_rsa|id_ed25519)$"""),
         Regex("""(?i)^local\.properties$"""),
         Regex("""(?i)^secrets?\..+$"""),
+        // Credential stores for package managers, git and cloud SDKs.
+        Regex("""(?i)^(\.npmrc|\.netrc|_netrc|\.pypirc|\.git-credentials|\.htpasswd)$"""),
+        Regex("""(?i)^(credentials|client_secrets?|service[-_]?account.*)\.json$"""),
+        Regex("""(?i).*\.(p8|ppk)$"""),
     )
 
     /** Extensions treated as binary (never inlined as text). */
