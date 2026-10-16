@@ -52,12 +52,9 @@ Per-task model assignment (Default / Prompt Popup / Overlay Chat) is configured 
 
 ## 5. CI/CD for IDEaz Itself
 
-The IDEaz project's own CI (`.github/workflows/`) builds the app on every push:
-*   **Lint:** against the regenerated `app/lint-baseline.xml`.
-*   **Unit tests:** `./gradlew :app:testDebugUnitTest`.
-*   **Assemble debug:** `./gradlew :app:assembleDebug`.
+Every pull request runs `.github/workflows/pr-ci.yml` in this repository: `./gradlew :app:testDebugUnitTest :app:assembleDebug` on JDK 21, no secrets. It ends with the HereLiesAz/workflows `ci-report` action, which records the result on the central ci-status ledger and marks the file as target-local CI for the central sync (HereLiesAz/workflows offers no reusable CI workflow; each repository runs its own).
 
-Release artifacts ship via tagged builds — every push updates a rolling "Latest Debug Build" prerelease, while the actual "Latest Release" only updates on a manually-triggered workflow run. See [`build_pipeline.md`](build_pipeline.md) §6.0 for the tag/trigger details.
+Releases are built centrally (`android-github-release.yml` / `android-play-release.yml` are trigger contracts for the HereLiesAz/workflows executors); see [`build_pipeline.md`](build_pipeline.md). Release and play variants require the release keystore — there is no debug-key fallback.
 
 The dependency-submission workflow publishes the resolved release-runtime graph for `:app` and `:webruntime`. It does not submit test, lint, Gradle, AGP, or plugin configurations as application dependencies. Those tools run only in CI and are maintained through pinned workflow/plugin versions and Dependabot; the submitted graph is the production APK/AAB software bill of materials.
 

@@ -5,7 +5,7 @@
 Before committing ANY changes, you **MUST** strictly adhere to the following workflow. **NO EXCEPTIONS.**
 
 1.  **Code Review:** You must request and receive a complete code review.
-2.  **Verify Build & Tests:** You must run a full build and ensure all tests pass. Use `./gradlew build` or specific task like `./gradlew :app:assembleDebug`.
+2.  **Verify Build & Tests:** You must run a full build and ensure all tests pass. Use `./gradlew :app:testDebugUnitTest :app:assembleDebug` (what `pr-ci.yml` runs). A full `./gradlew build` also packages the release/play variants, which fail without a release keystore (`KEYSTORE_FILE`).
 3.  **Update documentation that is now wrong.** Correct anything your change
     falsified, in place. Do **not** append a changelog entry describing what you
     did — the commit already says that, and saying it twice is how `docs/TODO.md`
