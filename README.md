@@ -63,7 +63,9 @@ linked in The Aive, and edits come back as a diff that goes through the review
 gate. Typing `/aive <objective>` in the chat hands the objective to The Aive as an
 orchestrated workflow; IDEaz opens The Aive and reports in the chat when the
 workflow needs your approval and when it finishes. Both apps must be signed with
-the same key. See [docs/aive-integration.md](docs/aive-integration.md).
+the same key. The Aive can also be on another device: paste its pairing code in
+Settings and IDEaz talks to it through an end-to-end encrypted relay. See
+[docs/aive-integration.md](docs/aive-integration.md).
 
 The **Google Play build** is API-only and uses BYO provider keys. The **GitHub
 APK** can additionally use a supported installed Gemini app after the user

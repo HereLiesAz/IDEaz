@@ -25,6 +25,12 @@ Two choices route prompts elsewhere, and only when the user selects them:
 - **The Aive** receives the redacted project snapshot and the conversation, and
   forwards them to whichever provider the user linked in The Aive
   (`docs/aive-integration.md`).
+- **The Aive on another device**, when the user pastes a pairing code in
+  Settings, receives the same snapshot and conversation through a Cloudflare
+  relay. Frames are AES-256-GCM encrypted with a key that is in the pairing
+  code, so the relay sees ciphertext and metadata (room id, sizes, timing,
+  online state) only. The code is stored in the credential store with the API
+  keys.
 
 ## Crash / error reporting — the one real default-on data flow
 
