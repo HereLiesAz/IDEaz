@@ -9,6 +9,18 @@
     -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!--
+        The Aive's remote service (HereLiesAz/aive docs/Remote-API.md). The Aive defines this
+        signature permission; it is granted only when IDEaz and The Aive share a signing key.
+        Never declare it here: a second definition under a different key fails installation.
+    -->
+    <uses-permission android:name="com.hereliesaz.aive.permission.REMOTE" />
+
+    <queries>
+        <package android:name="com.hereliesaz.aive" />
+        <package android:name="com.hereliesaz.haive" />
+    </queries>
+
     <application
         android:name=".MainApplication"
         android:allowBackup="true"

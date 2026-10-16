@@ -25,10 +25,13 @@ import com.hereliesaz.ideaz.ai.ChatMessage
 import com.hereliesaz.ideaz.ai.GeminiAdapter
 import com.hereliesaz.ideaz.ai.GeminiConsultant
 import com.hereliesaz.ideaz.ai.IdeTools
+import com.hereliesaz.ideaz.ai.aive.AiveRemoteClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -183,6 +186,11 @@ class MainViewModel(
             return
         }
 
+        AIVE_WORKFLOW_COMMAND.matchEntire(text.trim())?.let { match ->
+            launchAiveWorkflow(appName, match.groupValues[1].trim())
+            return
+        }
+
         // Route through the AI provider factory so the user's chosen default
         // model (Gemini, Nano, Groq, Cerebras, HF, Mistral, etc.) backs the
         // chat tab the same way it backs contextual prompts.
@@ -255,6 +263,46 @@ class MainViewModel(
         }
     }
 
+
+    /**
+     * `/aive <objective>`: queues [objective] as an orchestrated workflow in The Aive, opens it,
+     * and reports the run's milestones (waiting on you, finished) back into the chat.
+     */
+    private fun launchAiveWorkflow(appName: String, objective: String) {
+        stateDelegate.appendChatMessage(ChatMessage("user", "/aive $objective"))
+        stateDelegate.setChatFailure(null)
+        val client = AiveRemoteClient(getApplication())
+        aiveWatch?.cancel()
+        aiveWatch = viewModelScope.launch {
+            try {
+                val repositoryUrl = withContext(Dispatchers.IO) {
+                    gitHubOriginUrl(settingsViewModel.getProjectPath(appName))
+                }
+                client.launchWorkflow(projectName = appName, objective = objective, repositoryUrl = repositoryUrl)
+                client.openAive()
+                stateDelegate.appendChatMessage(ChatMessage("model", "Sent to The Aive. It plans and runs the workflow there.", AIVE_LABEL))
+                var reported: String? = null
+                client.watchRun()
+                    .filter { it.objective == objective }
+                    .collect { run ->
+                        val milestone = when {
+                            run.isFinished -> "The Aive's workflow ${run.status.lowercase()} (${run.tasksDone}/${run.tasksTotal} tasks)."
+                            run.status == "AwaitingHuman" -> "The Aive's workflow is waiting for your approval in The Aive."
+                            else -> null
+                        }
+                        if (milestone != null && milestone != reported) {
+                            reported = milestone
+                            stateDelegate.appendChatMessage(ChatMessage("model", milestone, AIVE_LABEL))
+                        }
+                        if (run.isFinished) cancel()
+                    }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                stateDelegate.appendChatMessage(ChatMessage.error("Error: ${e.message}"))
+            }
+        }
+    }
 
     /** Approves validated local changes, records the model response, then reloads. */
     fun approveEdit(checkpointId: String) {
@@ -649,6 +697,7 @@ class MainViewModel(
     }
 
     private var pollingJob: Job? = null
+    private var aiveWatch: Job? = null
 
     private fun startWebDeploymentPolling(user: String, repo: String) {
         pollingJob?.cancel()
@@ -1248,4 +1297,22 @@ interface LogHandler {
     fun onProgress(p: Int?)
     fun onGitProgress(p: Int, t: String)
     fun onOverlayLog(msg: String)
+}
+
+/** `/aive <objective>` in the chat sends the objective to The Aive as a workflow. */
+private val AIVE_WORKFLOW_COMMAND = Regex("""(?s)^/aive\s+(\S.*)$""")
+private const val AIVE_LABEL = "The Aive"
+
+/** The project's `origin` as `https://github.com/owner/name`, or null when it is not on GitHub. */
+internal fun gitHubOriginUrl(projectDir: java.io.File): String? = runCatching {
+    org.eclipse.jgit.api.Git.open(projectDir).use { git ->
+        git.repository.config.getString("remote", "origin", "url")
+    }
+}.getOrNull()?.let(::normalizeGitHubUrl)
+
+/** `git@github.com:o/n.git`, `https://user:token@github.com/o/n` and similar, without credentials. */
+internal fun normalizeGitHubUrl(url: String): String? {
+    val match = Regex("""^(?:https://(?:[^@/]+@)?github\.com/|git@github\.com:|ssh://git@github\.com/)([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?/?$""")
+        .find(url.trim()) ?: return null
+    return "https://github.com/${match.groupValues[1]}/${match.groupValues[2]}"
 }

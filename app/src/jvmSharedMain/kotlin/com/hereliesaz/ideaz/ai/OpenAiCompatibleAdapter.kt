@@ -202,7 +202,8 @@ class OpenAiCompatibleAdapter(
 
         val request = Request.Builder()
             .url("${baseUrl.trimEnd('/')}/chat/completions")
-            .addHeader("Authorization", "Bearer $apiKey")
+            // Keyless providers reject an empty bearer token; send none.
+            .apply { if (apiKey.isNotBlank()) addHeader("Authorization", "Bearer $apiKey") }
             .addHeader("Accept", "application/json")
             .post(body.toRequestBody(jsonMediaType))
             .build()

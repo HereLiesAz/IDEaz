@@ -51,9 +51,19 @@ to a selector — the AI is told which it is getting.
 
 **AI**
 
-Eight hosted providers sit behind three adapter families — Gemini, Claude, and
-one OpenAI-compatible client covering OpenAI, DeepSeek, Groq, Cerebras, Hugging
-Face and Mistral. Model ids are pinned and overridable in Settings.
+Eight hosted providers sit behind three adapter families: Gemini, Claude, and
+one OpenAI-compatible client. That client covers OpenAI, DeepSeek, Groq, Cerebras,
+Hugging Face and Mistral, plus three keyless free tiers (Kilo Gateway, LLM7 and
+OVHcloud) that need no key. These are the same keyless tiers The Aive uses. They
+are anonymous, rate-limited, and may log prompts. Model ids are pinned and
+overridable in Settings.
+
+**The Aive** can serve as a model as well. It answers on whichever provider is
+linked in The Aive, and edits come back as a diff that goes through the review
+gate. Typing `/aive <objective>` in the chat hands the objective to The Aive as an
+orchestrated workflow; IDEaz opens The Aive and reports in the chat when the
+workflow needs your approval and when it finishes. Both apps must be signed with
+the same key. See [docs/aive-integration.md](docs/aive-integration.md).
 
 The **Google Play build** is API-only and uses BYO provider keys. The **GitHub
 APK** can additionally use a supported installed Gemini app after the user
