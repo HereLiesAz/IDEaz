@@ -32,8 +32,10 @@ import java.util.concurrent.atomic.AtomicLong
  * and unbinds; [watchRun] stays bound while collected. Binding needs both apps signed with the same
  * key (the service's permission is signature-level).
  */
-class AiveRemoteClient(context: Context) {
+class AiveRemoteClient(context: Context) : AiveTransport {
     private val context = context.applicationContext
+
+    override val isRemote: Boolean get() = false
 
     data class RunStatus(
         val runId: String,
@@ -60,7 +62,7 @@ class AiveRemoteClient(context: Context) {
      * and both ends are closed when the call ends, so the writer fails with
      * EPIPE once The Aive drops its copy too.
      */
-    suspend fun prompt(prompt: String, providerId: String? = null, model: String? = null): String {
+    override suspend fun prompt(prompt: String, providerId: String?, model: String?): String {
         val (readEnd, writeEnd) = ParcelFileDescriptor.createPipe()
         val bytes = prompt.toByteArray(Charsets.UTF_8)
         var writer: Job? = null
@@ -91,7 +93,7 @@ class AiveRemoteClient(context: Context) {
      *
      * @return the run id when The Aive's reply carries one ([P.KEY_RUN_ID]), else null.
      */
-    suspend fun launchWorkflow(projectName: String, objective: String, repositoryUrl: String? = null): String? {
+    override suspend fun launchWorkflow(projectName: String, objective: String, repositoryUrl: String?): String? {
         val reply = call(P.MSG_LAUNCH_WORKFLOW, REQUEST_TIMEOUT_MS) {
             putString(P.KEY_PROJECT_NAME, projectName)
             putString(P.KEY_OBJECTIVE, objective)
@@ -120,7 +122,7 @@ class AiveRemoteClient(context: Context) {
     }
 
     /** Status of the run The Aive shows, for as long as this is collected. */
-    fun watchRun(): Flow<RunStatus> = callbackFlow {
+    override fun watchRun(): Flow<RunStatus> = callbackFlow {
         val handler = Handler(Looper.getMainLooper()) { message ->
             if (message.what == P.MSG_RUN_STATUS) {
                 val data = message.data
@@ -155,7 +157,7 @@ class AiveRemoteClient(context: Context) {
     }.flowOn(Dispatchers.Main)
 
     /** Brings The Aive to the front, which launches queued workflows. False when not installed. */
-    fun openAive(): Boolean {
+    override fun openAive(): Boolean {
         val pkg = installedPackage(context) ?: return false
         val launch = context.packageManager.getLaunchIntentForPackage(pkg) ?: return false
         return runCatching { context.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
@@ -177,13 +179,13 @@ class AiveRemoteClient(context: Context) {
 
             // Without these a dead or refused binding waited out the whole timeout.
             override fun onBindingDied(name: ComponentName) {
-                val failure = IllegalStateException("The Aive's service died")
+                val failure = AiveUnavailableException("The Aive's service died")
                 connected.completeExceptionally(failure)
                 reply.completeExceptionally(failure)
             }
 
             override fun onNullBinding(name: ComponentName) {
-                val failure = IllegalStateException("The Aive refused the connection")
+                val failure = AiveUnavailableException("The Aive refused the connection")
                 connected.completeExceptionally(failure)
                 reply.completeExceptionally(failure)
             }
@@ -231,7 +233,7 @@ class AiveRemoteClient(context: Context) {
     }
 
     private fun bind(connection: ServiceConnection) {
-        val pkg = installedPackage(context) ?: error("The Aive is not installed.")
+        val pkg = installedPackage(context) ?: throw AiveUnavailableException("The Aive is not installed.")
         val bound = try {
             context.bindService(Intent(P.ACTION_BIND).setPackage(pkg), connection, Context.BIND_AUTO_CREATE)
         } catch (_: SecurityException) {
@@ -239,7 +241,7 @@ class AiveRemoteClient(context: Context) {
         }
         if (!bound) {
             runCatching { context.unbindService(connection) }
-            error("IDEaz cannot reach The Aive. Both apps must come from the same source (Play or GitHub) and be signed by the same key.")
+            throw AiveUnavailableException("IDEaz cannot reach The Aive. Both apps must come from the same source (Play or GitHub) and be signed by the same key.")
         }
     }
 
