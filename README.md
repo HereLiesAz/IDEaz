@@ -81,7 +81,9 @@ is `git init`-ed and gets an initial commit before it has any remote.
 
 You do **not** need a GitHub account to start. Create a project, scaffold it,
 edit it with the AI, and commit locally. **Deploy** is the action that asks for a
-GitHub token, and it creates the repository for you on first publish.
+GitHub token: it creates a private repository on first publish, pushes, and has
+the central HereLiesAz/workflows Worker build the commit and publish only the
+build output (see [`docs/workflow.md`](docs/workflow.md) §2.2).
 
 ---
 

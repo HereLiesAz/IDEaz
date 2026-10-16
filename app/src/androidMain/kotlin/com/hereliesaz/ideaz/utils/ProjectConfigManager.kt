@@ -48,28 +48,17 @@ object ProjectConfigManager {
         }
     }
 
-    fun ensureGitIgnore(projectDir: File) {
-        try {
-            val gitignore = File(projectDir, ".gitignore")
-            val ideazEntry = ".ideaz/"
-
-            if (gitignore.exists()) {
-                val content = gitignore.readText()
-                if (!content.contains(ideazEntry)) {
-                    gitignore.appendText("\n$ideazEntry\n")
-                }
-            } else {
-                gitignore.writeText("$ideazEntry\n")
-            }
-        } catch (e: Exception) {
-            android.util.Log.w("ProjectConfigManager", "Project config operation failed", e)
-        }
-    }
-
     // --- WORKFLOW CONTENT ---
 
-
-    private val WEB_CI_PAGES_YML = """
+    /**
+     * The Pages workflow IDEaz used to write, byte for byte. It published the
+     * repository root (`publish_dir: .`) on every push, which is how a `.env`
+     * or `.ideaz/` history reached the open web. Publishing now goes through the
+     * central Worker (see [com.hereliesaz.ideaz.api.WebDeployClient]) and a
+     * project carries no workflow, so this text is kept only to recognise -
+     * and remove - an unmodified copy of it.
+     */
+    private val LEGACY_WEB_CI_PAGES_YML = """
 name: Deploy to GitHub Pages
 
 on:
@@ -94,54 +83,52 @@ jobs:
           publish_dir: .
 """.trimIndent()
 
-
+    const val LEGACY_WORKFLOW_PATH = ".github/workflows/web_ci_pages.yml"
 
     /**
-     * The exact project-relative paths [ensureWorkflow]/[ensureAgentsSetupMd]/
-     * [ensureVersioning] can write, computed without touching disk. Used to
-     * preview "Regenerate CI Files" before the user confirms it.
+     * The exact project-relative paths `RepoDelegate.forceUpdateInitFiles`
+     * can touch, computed without touching disk. Used to preview
+     * "Regenerate CI Files" before the user confirms it.
      */
     fun initFileRelativePaths(): List<String> = listOf(
-        ".github/workflows/web_ci_pages.yml",
+        ".gitignore",
+        LEGACY_WORKFLOW_PATH,
         "AGENTS_SETUP.md",
         "version.properties",
     )
 
-    /** Returns the project-relative paths actually written, empty if nothing changed. */
-    fun ensureWorkflow(projectDir: File): List<String> {
-        // Only the Pages workflow is written. The two `antigravity-*` workflows
-        // that used to ride along are deliberately gone: they installed an
-        // autonomous agent into the user's repository - `on: push`, with
-        // `contents: write` and `pull-requests: write`, running an MCP server
-        // whose tool allowlist included create_or_update_file and push_files,
-        // authenticated as the user - with no consent prompt anywhere on the
-        // path. Whatever that is, it is not part of "initialise my project".
-        //
-        // This used to be gated on a ProjectType. The gate was also a bug
-        // magnet: PWA - the only selectable type - once fell through to
-        // `emptyList()` because the `when` still branched on a pre-split enum
-        // member, so Deploy wrote no workflow at all, then reported success and
-        // polled GitHub Pages for ten minutes for a site nothing would build.
-        val workflows = listOf("web_ci_pages.yml" to WEB_CI_PAGES_YML)
-
-        val written = mutableListOf<String>()
+    /**
+     * Writes or completes `.gitignore` (see [DeployIgnore]). Returns
+     * `[".gitignore"]` when it changed, empty otherwise.
+     */
+    fun ensureGitIgnore(projectDir: File): List<String> =
         try {
-            val workflowsDir = File(projectDir, ".github/workflows")
-            if (!workflowsDir.exists()) {
-                workflowsDir.mkdirs()
-            }
+            if (DeployIgnore.ensure(projectDir)) listOf(".gitignore") else emptyList()
+        } catch (e: Exception) {
+            android.util.Log.w("ProjectConfigManager", "Project config operation failed", e)
+            emptyList()
+        }
 
-            for ((filename, content) in workflows) {
-                val destFile = File(workflowsDir, filename)
-                if (!destFile.exists() || destFile.readText() != content) {
-                    destFile.writeText(content)
-                    written += ".github/workflows/$filename"
-                }
+    /**
+     * Deletes the Pages workflow IDEaz used to generate, but only an unmodified
+     * copy: a workflow the user edited is theirs. Returns the deleted path (to
+     * be staged as a removal), empty if there was nothing to delete.
+     *
+     * This used to be `ensureWorkflow`, which wrote that file on every Deploy.
+     * The `antigravity-*` workflows that once rode along were removed earlier
+     * for installing an autonomous agent into the user's repository without
+     * consent; the Pages workflow is removed for publishing the whole tree.
+     */
+    fun retireLegacyWorkflow(projectDir: File): List<String> {
+        try {
+            val file = File(projectDir, LEGACY_WORKFLOW_PATH)
+            if (file.isFile && file.readText().trimEnd() == LEGACY_WEB_CI_PAGES_YML.trimEnd()) {
+                if (file.delete()) return listOf(LEGACY_WORKFLOW_PATH)
             }
         } catch (e: Exception) {
             android.util.Log.w("ProjectConfigManager", "Project config operation failed", e)
         }
-        return written
+        return emptyList()
     }
 
     private const val AGENTS_MARKER = "<!-- ideaz-preview-contract -->"

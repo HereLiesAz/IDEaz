@@ -7,7 +7,7 @@ own repos.
 
 ## Template repositories
 - **`HereLiesAz/ideaz-web`** — vanilla HTML/CSS/JS static site. No build; renders
-  in the IDEaz preview and deploys to GitHub Pages as-is.
+  in the IDEaz preview and is published as-is (minus dotfiles and secret-shaped files).
 - **`HereLiesAz/ideaz-pwa`** — installable PWA: manifest, service worker, offline
   fallback. No build.
 - **`HereLiesAz/ideaz-react`** — the React starter mirrored below.
@@ -19,8 +19,9 @@ own repos.
 [`react`](./react) is a real Vite + React repo. **IDEaz previews the source
 directly** (no `npm install`, no build) using its in-browser runtime, which
 transpiles JSX/TSX and resolves the bundled libraries via an import map. To
-**deploy**, run a real build (`npm install && npm run build`); the template ships
-a GitHub Pages workflow that does this automatically on push.
+**deploy**, run a real build (`npm install && npm run build`). IDEaz's Deploy has
+the central HereLiesAz/workflows Worker do this and publish only `dist/`; the
+template ships no workflow of its own.
 
 It's batteries-included: router + zustand + react-query + axios +
 styled-components. Delete what you don't need; Redux Toolkit and Emotion are also

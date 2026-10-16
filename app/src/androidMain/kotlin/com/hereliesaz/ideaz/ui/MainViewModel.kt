@@ -9,12 +9,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.api.GitHubRepoResponse
+import com.hereliesaz.ideaz.api.WebDeployClient
 import com.hereliesaz.ideaz.git.GitManager
 import com.hereliesaz.ideaz.services.CrashReportingService
 import com.hereliesaz.ideaz.ui.delegates.*
 import com.hereliesaz.ideaz.utils.ErrorCollector
 import com.hereliesaz.ideaz.ui.web.WebProjectUrlUtils
-import com.hereliesaz.ideaz.R
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ProjectFileObserver
 import com.hereliesaz.ideaz.utils.VersionUtils
@@ -628,12 +628,18 @@ class MainViewModel(
     }
 
     /**
-     * Triggers deployment for Web Projects (GitHub Pages).
+     * Publishes the open project.
+     *
+     * Commits and pushes to the project's own (private) repository, then asks
+     * the central HereLiesAz/workflows Worker to build exactly that commit and
+     * publish only its build output ([WebDeployClient]). The project carries no
+     * workflow, and its repository is never what gets served - which is what
+     * used to put `.env` files and `.ideaz/` history on GitHub Pages.
      */
     fun deployWebProject() {
         val appName = settingsViewModel.getAppName()
         viewModelScope.launch {
-            logHandler.onBuildLog("Deploying Web Project (Push to GitHub)...")
+            logHandler.onBuildLog("Deploying: push to GitHub, then build and publish centrally...")
             try {
                 if (appName.isNullOrBlank()) {
                     logHandler.onBuildLog("Deploy failed: no project is open.")
@@ -654,23 +660,18 @@ class MainViewModel(
                     return@launch
                 }
 
-                // Generate the Pages workflow / AGENTS_SETUP.md / version.properties
-                // before pushing. Creating a project is local-only, so the first
-                // Deploy is what writes and pushes these.
+                // Write .gitignore / AGENTS_SETUP.md / version.properties and
+                // untrack anything secret-shaped before the commit below, whose
+                // addAll() would otherwise sweep it up.
                 repoDelegate.forceUpdateInitFiles()
-                // Ensure latest changes are committed. Both commit() and push()
-                // return Boolean and never throw - they catch every failure
-                // internally and log it via onLog - so their result must be
-                // checked explicitly, or "Pushed successfully" gets logged (and
-                // a success Toast shown) on every single deploy failure: no git
-                // manager, no auth token, a rejected push, a network error, all
-                // of it. The specific reason is already in the build log from
-                // gitDelegate's own onLog calls immediately above this.
+                // Both commit() and push() return Boolean and never throw - they
+                // catch every failure internally and log it via onLog - so their
+                // result must be checked explicitly. The specific reason is
+                // already in the build log from gitDelegate's own onLog calls.
                 if (!gitDelegate.commit("Deploy: ${System.currentTimeMillis()}")) {
                     logHandler.onBuildLog("Deploy failed: could not commit changes. See the log above for details.")
                     return@launch
                 }
-                // Use default push (uses settings creds)
                 if (!gitDelegate.push()) {
                     logHandler.onBuildLog("Deploy failed: push did not complete. See the log above for details.")
                     withContext(Dispatchers.Main) {
@@ -678,19 +679,36 @@ class MainViewModel(
                     }
                     return@launch
                 }
-                logHandler.onBuildLog("Pushed successfully. GitHub Actions will handle deployment.")
-                logHandler.onBuildLog("[Instruction] Ensure 'GitHub Pages' is enabled in repository settings (Source: gh-pages branch).")
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(getApplication(), getApplication<Application>().getString(R.string.deploy_instruction_gh_pages), Toast.LENGTH_LONG).show()
+
+                val token = settingsViewModel.getGithubToken()
+                val projectDir = settingsViewModel.getProjectPath(appName)
+                val repository = withContext(Dispatchers.IO) { gitHubOriginUrl(projectDir) }
+                    ?.removePrefix("https://github.com/")
+                val sha = gitDelegate.getHeadSha()
+                if (token.isNullOrBlank() || repository == null || sha == null) {
+                    logHandler.onBuildLog("Pushed, but could not request a build: no token, GitHub origin or commit.")
+                    return@launch
                 }
 
-                // Start Polling for Deployment completion
-                val user = settingsViewModel.getGithubUser()
-                if (appName != null && user != null) {
-                    startWebDeploymentPolling(user, appName)
+                logHandler.onBuildLog("Pushed $sha to $repository. Requesting a central build...")
+                when (val result = WebDeployClient().requestDeploy(token, repository, sha)) {
+                    is WebDeployClient.Result.Accepted -> {
+                        logHandler.onBuildLog("Build requested. The site will be served at ${result.siteUrl}")
+                        startWebDeploymentPolling(token, repository, sha, result.statusContext)
+                    }
+                    is WebDeployClient.Result.Refused -> {
+                        // 403 for a repository the central owner does not hold:
+                        // the push still happened, only publishing is unavailable.
+                        logHandler.onBuildLog(
+                            "Pushed, but the central build was refused (${result.httpCode}): ${result.message}"
+                        )
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(getApplication(), "Pushed. Publishing was refused: ${result.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
                 }
-
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 logHandler.onBuildLog("Deploy failed: ${e.message}")
             }
         }
@@ -699,55 +717,53 @@ class MainViewModel(
     private var pollingJob: Job? = null
     private var aiveWatch: Job? = null
 
-    private fun startWebDeploymentPolling(user: String, repo: String) {
+    /**
+     * Follows the commit status the central build reports on [sha]. Keyed to
+     * the pushed commit, so a site built from an earlier push never reads as
+     * this deploy's success.
+     */
+    private fun startWebDeploymentPolling(token: String, repository: String, sha: String, context: String) {
         pollingJob?.cancel()
+        val (owner, repo) = repository.split("/", limit = 2).let { it[0] to it[1] }
         pollingJob = viewModelScope.launch {
-            logHandler.onBuildLog("Polling GitHub Pages status for $user/$repo...")
             val startTime = System.currentTimeMillis()
-            val timeout = 10 * 60 * 1000L // 10 minutes
+            val timeout = 15 * 60 * 1000L
+            var lastState: String? = null
 
             while (System.currentTimeMillis() - startTime < timeout) {
-                val token = settingsViewModel.getGithubToken()
-                if (token.isNullOrBlank()) {
-                    logHandler.onBuildLog("GitHub token missing, stopping poll.")
-                    break
-                }
-
                 try {
                     val service = GitHubApiClient.createService(token)
-                    val response = service.getPages(user, repo)
-
-                    if (response.isSuccessful) {
-                        val body = response.body()
-                        val status = body?.status
-                        val url = body?.htmlUrl
-
-                        if (status == "built" && url != null) {
+                    // Newest first; the first entry for the context is current.
+                    val status = service.listCommitStatuses(owner, repo, sha).firstOrNull { it.context == context }
+                    when (status?.state) {
+                        "success" -> {
                             // Don't swap the WebView to the public URL automatically — the user
-                            // is likely still iterating on local edits served from
-                            // appassets.androidplatform.net, and silently switching away from
-                            // them was a confusing surprise (userflow audit #11). Just announce
-                            // the deployed URL prominently; the user can open it in a browser
-                            // when they're ready.
+                            // is likely still iterating on local edits (userflow audit #11).
+                            val url = status?.targetUrl.orEmpty()
                             logHandler.onBuildLog("Deployment successful: $url")
                             logHandler.onAiLog("Deployment successful: $url (open in browser to verify the live site)")
-                            break
-                        } else {
-                            logHandler.onBuildLog("Deployment status: $status...")
+                            return@launch
                         }
-                    } else if (response.code() == 404) {
-                        logHandler.onBuildLog("Waiting for GitHub Pages to be available (404)...")
-                    } else {
-                        logHandler.onBuildLog("Error polling pages: Code ${response.code()}")
+                        "failure", "error" -> {
+                            logHandler.onBuildLog(
+                                "Deployment failed: ${status?.description.orEmpty()} ${status?.targetUrl.orEmpty()}".trim()
+                            )
+                            return@launch
+                        }
+                        else -> {
+                            val state = status?.state ?: "queued"
+                            if (state != lastState) logHandler.onBuildLog("Deployment status: $state...")
+                            lastState = state
+                        }
                     }
-
                 } catch (e: Exception) {
-                    logHandler.onBuildLog("Error polling pages: ${e.message}")
+                    if (e is CancellationException) throw e
+                    logHandler.onBuildLog("Error polling deployment status: ${e.message}")
                     android.util.Log.w("MainViewModel", "Operation failed", e)
                 }
-
-                delay(15_000) // 15 seconds
+                delay(15_000)
             }
+            logHandler.onBuildLog("Stopped waiting for the deployment after 15 minutes; it may still finish.")
         }
     }
 
@@ -901,7 +917,7 @@ class MainViewModel(
                 // below the AI's own checkpoints, and nothing to push when the
                 // user finally did connect an account.
                 //
-                // The initial commit is unconditional, not gated on whether the
+                // The initial commit is not gated on whether the
                 // starter was just scaffolded. An imported folder is the case
                 // that gating broke: files present, nothing scaffolded, so it got
                 // `init` and no commit - a repository with no HEAD, which is a
@@ -909,9 +925,16 @@ class MainViewModel(
                 // fine (verified in GitManagerTest), so there is nothing to guard.
                 val git = GitManager(projectDir)
                 if (!git.isRepo()) {
+                    // Before the first `git add`: an imported folder can hold a
+                    // .env or a keystore, and nothing may ever commit it.
+                    val ignored = runCatching { com.hereliesaz.ideaz.utils.DeployIgnore.ensure(projectDir) }
+                        .onFailure { logHandler.onBuildLog("[GIT] No initial commit: could not write .gitignore: ${it.message}\n") }
+                        .isSuccess
                     git.init()
-                    runCatching { git.addAll(); git.commit("Initial commit") }
-                        .onFailure { logHandler.onBuildLog("[GIT] Initial commit failed: ${it.message}\n") }
+                    if (ignored) {
+                        runCatching { git.addAll(); git.commit("Initial commit") }
+                            .onFailure { logHandler.onBuildLog("[GIT] Initial commit failed: ${it.message}\n") }
+                    }
                 }
             }
 

@@ -155,6 +155,29 @@ class GitManager(private val projectDir: File) {
         }
     }
 
+    /** Every path in the index (tracked files), project-relative and `/`-separated. */
+    fun trackedFiles(): List<String> {
+        Git.open(projectDir).use { git ->
+            val cache = git.repository.readDirCache()
+            return (0 until cache.entryCount).map { cache.getEntry(it).pathString }
+        }
+    }
+
+    /**
+     * Removes [paths] from the index only (`git rm --cached`): the next commit
+     * stops tracking them, the files stay on disk. Also stages the deletion of a
+     * tracked path that is already gone from the working tree, which [addPaths]
+     * does not.
+     */
+    fun untrack(paths: Collection<String>) {
+        if (paths.isEmpty()) return
+        Git.open(projectDir).use { git ->
+            val cmd = git.rm().setCached(true)
+            paths.forEach { cmd.addFilepattern(it) }
+            cmd.call()
+        }
+    }
+
     /**
      * Commits staged changes.
      *
