@@ -18,13 +18,6 @@ fun IdeNavHost(
     settingsViewModel: SettingsViewModel,
     onThemeToggle: (Boolean) -> Unit
 ) {
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
-
-    LaunchedEffect(currentRoute) {
-        viewModel.flushNonFatalErrors()
-    }
-
     // Handle Pending Navigation from Intent or Rail here to ensure graph is set
     val pendingRoute by viewModel.pendingRoute.collectAsState()
     LaunchedEffect(pendingRoute) {

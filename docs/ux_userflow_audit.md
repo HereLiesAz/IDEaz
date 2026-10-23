@@ -52,7 +52,7 @@
 | F17 | Configure signing | Settings → keystore import/save/reset | Controls exist, but destructive reset and invalid-keystore states need stronger confirmation, validation, and recovery. Secrets must never be echoed or logged. | Blocked |
 | F18 | Manage local models | Settings → On-device Models → download/select/delete | Availability and downloads exist. Storage/network preflight, pause/resume, checksum/integrity state, model-size consequences, and recoverable partial downloads require product evidence. | High risk |
 | F19 | Update IDEaz/install APK | Settings or artifact dialog → download/pick → Android installer → relaunch | Version comparison and downgrade warning exist. Unknown-sources denial, installer cancellation, signature mismatch, download integrity, post-install return, and launch failure need a coherent state machine. | Blocked |
-| F20 | Recover from failures | Any operation → logs/toast/dialog/reporting | Infrastructure reporting exists, but user-facing errors do not share a stable model with plain-language cause, retained details, retry, copy/export, and support route. | Blocked |
+| F20 | Recover from failures | Any operation → logs/toast/dialog/reporting | IDEaz deliberately sends no automatic error reports, and user-facing errors do not share a stable model with plain-language cause, retained details, retry, copy/export, and support route. | Blocked |
 | F21 | Android target loop | Project type Android → App View/build/install/select | Android is recognized for existing-repository integrity but release-gated from creation, initialization, and App View until Phase 2 completes the loop. | Mitigated |
 | F22 | Resume after interruption | Rotate, background, kill, reconnect → continue task | Local Compose state and transient toasts dominate several flows. Evidence of process-death restoration, durable queues, idempotency, and interrupted-operation reconciliation is absent. | Blocked |
 
@@ -121,7 +121,7 @@ Release approval requires artifacts, not optimism:
 - Compose/instrumentation suite passes on the minimum SDK, target SDK, current Android, phone, tablet/large screen, and at least one low-memory device profile.
 - Critical flows pass with network offline/slow/flapping, API 401/403/429/5xx, Git conflicts, disk full, permission denial/revocation, process death, and interrupted install/update.
 - TalkBack and switch/keyboard audit passes; font scale 200% and display-size extremes retain all primary actions.
-- Security/privacy review approves permission inventory, backup behavior, credential storage/export, logs, crash reports, WebView bridge, downloads, APK verification, and external intents.
+- Security/privacy review approves permission inventory, backup behavior, credential storage/export, logs, the absence of automatic error/crash reporting, WebView bridge, downloads, APK verification, and external intents.
 - Google Play policy review approves or eliminates restricted permissions before store submission.
 - No Sev-0/Sev-1 defects; every accepted lower-severity defect has owner, rationale, and expiry.
 - Funnel metrics meet targets defined before beta: onboarding completion, project activation, first successful prompt, edit acceptance/undo, build/deploy completion, crash-free users, and task-recovery success.

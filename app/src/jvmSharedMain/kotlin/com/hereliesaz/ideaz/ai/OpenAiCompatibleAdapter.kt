@@ -154,6 +154,9 @@ class OpenAiCompatibleAdapter(
                 restorePendingEdit()
                 // Cancelling the call surfaces as an IOException; report it as the cancellation.
                 ensureActive()
+                // Quota / rate limit: let the failover layer switch provider and retry the same
+                // request. The edit was restored above, so the next provider starts clean.
+                if (e is ProviderQuotaException) throw e
                 return@withContext "Error: $currentModel request failed: ${e.message}"
             }
             val choice = (response["choices"] as? JsonArray)?.firstOrNull() as? JsonObject
@@ -238,8 +241,14 @@ class OpenAiCompatibleAdapter(
                 return JSON.parseToJsonElement(reply.body) as? JsonObject
                     ?: error("Unexpected response shape from $baseUrl: ${reply.body.take(200)}")
             }
+            val failure = "OpenAI-compatible call failed: HTTP ${reply.code}: ${reply.body.take(500)}"
+            val quota = QuotaClassifier.classify(reply.code, reply.body, reply.retryAfter)
+            // A reset hours away is not worth waiting for: hand over to the next provider now.
+            // A short Retry-After keeps the ordinary retry policy below.
+            if (quota != null && quota.isLongWait) throw ProviderQuotaException(quota.cooldownSeconds, failure)
             if (!isRetryableStatus(reply.code) || attempt >= MAX_HTTP_ATTEMPTS) {
-                error("OpenAI-compatible call failed: HTTP ${reply.code}: ${reply.body.take(500)}")
+                if (quota != null) throw ProviderQuotaException(quota.cooldownSeconds, failure)
+                error(failure)
             }
             delay(retryDelayMs(attempt, reply.retryAfter, retryBaseDelayMs))
             attempt++

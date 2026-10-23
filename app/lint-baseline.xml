@@ -595,17 +595,6 @@
 
     <issue
         id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="                    prefs.edit().putLong(timestampKey, System.currentTimeMillis()).apply()"
-        errorLine2="                    ~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/com/hereliesaz/ideaz/utils/GithubIssueReporter.kt"
-            line="61"
-            column="21"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
         message="Use the KTX extension function `String.toUri` instead?"
         errorLine1="                    Uri.parse(&quot;package:${application.packageName}&quot;)"
         errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
@@ -767,28 +756,6 @@
             file="src/main/kotlin/com/hereliesaz/ideaz/ui/SettingsViewModel.kt"
             line="183"
             column="47"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="    fun setAutoDebugBuildsEnabled(enabled: Boolean) = sharedPreferences.edit().putBoolean(KEY_AUTO_DEBUG_BUILDS, enabled).apply()"
-        errorLine2="                                                      ~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/com/hereliesaz/ideaz/ui/SettingsViewModel.kt"
-            line="186"
-            column="55"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="    fun setReportIdeErrorsEnabled(enabled: Boolean) = sharedPreferences.edit().putBoolean(KEY_REPORT_IDE_ERRORS, enabled).apply()"
-        errorLine2="                                                      ~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/kotlin/com/hereliesaz/ideaz/ui/SettingsViewModel.kt"
-            line="189"
-            column="55"/>
     </issue>
 
     <issue

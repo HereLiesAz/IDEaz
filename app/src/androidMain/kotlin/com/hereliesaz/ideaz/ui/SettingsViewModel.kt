@@ -180,7 +180,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
          * overwrite them: a foreign absolute path in project_paths would be returned by
          * getProjectPath while project creation uses filesDir.
          */
-        val DEVICE_LOCAL_KEYS: Set<String> = setOf(KEY_PROJECT_LIST, KEY_PROJECT_PATHS, KEY_APP_NAME, KEY_KEYSTORE_PATH)
+        /** Provider cooldown expiries ("id=epochMillis;..."); see [com.hereliesaz.ideaz.ai.ProviderCooldowns]. */
+        const val KEY_PROVIDER_COOLDOWNS = "provider_cooldowns"
+        val DEVICE_LOCAL_KEYS: Set<String> = setOf(KEY_PROJECT_LIST, KEY_PROJECT_PATHS, KEY_APP_NAME, KEY_KEYSTORE_PATH, KEY_PROVIDER_COOLDOWNS)
         const val KEY_GOOGLE_API_KEY = "google_api_key"
         const val KEY_GITHUB_TOKEN = "github_token"
         const val KEY_JULES_PROJECT_ID = "jules_project_id"
@@ -214,7 +216,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         )
 
         const val KEY_BRIDGE_FIRST_RUN_SHOWN = "bridge_first_run_shown"
-        const val KEY_CRASH_REPORTING_FIRST_RUN_SHOWN = "crash_reporting_first_run_shown"
 
         const val KEY_REPO_CAN_PUSH = "repo_can_push"
         const val KEY_REPO_IS_ADMIN = "repo_is_admin"
@@ -227,8 +228,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
         const val KEY_SHOW_CANCEL_WARNING = "show_cancel_warning"
         const val KEY_DEPLOY_CONFIRMED = "deploy_confirmed"
-        const val KEY_AUTO_DEBUG_BUILDS = "auto_debug_builds"
-        const val KEY_REPORT_IDE_ERRORS = "report_ide_errors"
 
         const val KEY_THEME_MODE = "theme_mode"
         const val THEME_AUTO = "auto"
@@ -286,6 +285,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
 
     init {
+        removeLegacyReportingState()
         loadLocalProjects()
         _themeMode.value = getThemeMode()
         sharedPreferences.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
@@ -296,17 +296,27 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         sharedPreferences.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
     }
 
+    /**
+     * IDEaz no longer reports errors, crashes or build logs anywhere. Earlier versions kept a
+     * consent flag, an on/off toggle and a duplicate-report ledger for that; drop what they left
+     * behind so a settings export no longer carries it.
+     */
+    private fun removeLegacyReportingState() {
+        runCatching {
+            sharedPreferences.edit {
+                remove("report_ide_errors")
+                remove("crash_reporting_first_run_shown")
+                remove("auto_debug_builds")
+            }
+            getApplication<Application>().deleteSharedPreferences("bug_report_prefs")
+        }
+    }
+
     fun isDeployConfirmed() = sharedPreferences.getBoolean(KEY_DEPLOY_CONFIRMED, false)
     fun setDeployConfirmed(confirmed: Boolean) = sharedPreferences.edit { putBoolean(KEY_DEPLOY_CONFIRMED, confirmed) }
 
     fun getShowCancelWarning() = sharedPreferences.getBoolean(KEY_SHOW_CANCEL_WARNING, true)
     fun setShowCancelWarning(show: Boolean) = sharedPreferences.edit { putBoolean(KEY_SHOW_CANCEL_WARNING, show) }
-
-    fun isAutoDebugBuildsEnabled() = sharedPreferences.getBoolean(KEY_AUTO_DEBUG_BUILDS, false)
-    fun setAutoDebugBuildsEnabled(enabled: Boolean) = sharedPreferences.edit { putBoolean(KEY_AUTO_DEBUG_BUILDS, enabled) }
-
-    fun isReportIdeErrorsEnabled() = sharedPreferences.getBoolean(KEY_REPORT_IDE_ERRORS, true)
-    fun setReportIdeErrorsEnabled(enabled: Boolean) = sharedPreferences.edit { putBoolean(KEY_REPORT_IDE_ERRORS, enabled) }
 
     fun getThemeMode() = sharedPreferences.getString(KEY_THEME_MODE, THEME_AUTO) ?: THEME_AUTO
     fun setThemeMode(mode: String) {
@@ -347,6 +357,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun wireModelKey(modelId: String) = "wire_model_$modelId"
+
+    /** Persists which providers are cooling down after a quota error, so a restart does not forget. */
+    fun providerCooldownStore(): com.hereliesaz.ideaz.ai.CooldownStore = object : com.hereliesaz.ideaz.ai.CooldownStore {
+        override fun read(): String? = sharedPreferences.getString(KEY_PROVIDER_COOLDOWNS, null)
+        override fun write(value: String) {
+            sharedPreferences.edit { putString(KEY_PROVIDER_COOLDOWNS, value) }
+        }
+    }
 
     fun getAivePairingCode(): String? = getApiKey(KEY_AIVE_PAIRING_CODE)?.takeIf { it.isNotBlank() }
 
@@ -418,13 +436,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun markBridgeFirstRunShown() {
         sharedPreferences.edit { putBoolean(KEY_BRIDGE_FIRST_RUN_SHOWN, true) }
-    }
-
-    fun hasShownCrashReportingFirstRun(): Boolean =
-        sharedPreferences.getBoolean(KEY_CRASH_REPORTING_FIRST_RUN_SHOWN, false)
-
-    fun markCrashReportingFirstRunShown() {
-        sharedPreferences.edit { putBoolean(KEY_CRASH_REPORTING_FIRST_RUN_SHOWN, true) }
     }
 
     fun saveAiAssignment(taskKey: String, modelId: String) = sharedPreferences.edit { putString(taskKey, modelId) }

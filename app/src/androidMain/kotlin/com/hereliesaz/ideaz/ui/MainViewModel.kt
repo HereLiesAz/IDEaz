@@ -11,9 +11,7 @@ import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.api.GitHubRepoResponse
 import com.hereliesaz.ideaz.api.WebDeployClient
 import com.hereliesaz.ideaz.git.GitManager
-import com.hereliesaz.ideaz.services.CrashReportingService
 import com.hereliesaz.ideaz.ui.delegates.*
-import com.hereliesaz.ideaz.utils.ErrorCollector
 import com.hereliesaz.ideaz.ui.web.WebProjectUrlUtils
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ProjectFileObserver
@@ -221,6 +219,22 @@ class MainViewModel(
             return
         }
 
+        // A quota or rate-limit failure moves this same request to the next provider (keyless
+        // ones first, then any the user has a key for); see ProviderFailover.
+        com.hereliesaz.ideaz.ai.ProviderCooldowns.process.attachStore(settingsViewModel.providerCooldownStore())
+        val failover = if (AiModels.defaultRanking.any { it.id == model.id }) {
+            AiAdapterFactory.withFailover(
+                model = model,
+                existing = client,
+                context = getApplication(),
+                tools = tools,
+                settings = settingsViewModel,
+                needsImages = referenceParts.any { it is com.hereliesaz.ideaz.ai.ChatPart.Image },
+                onSwitch = { notice -> stateDelegate.appendChatMessage(ChatMessage.notice(notice)) },
+            )
+        } else null
+        val chatClient: com.hereliesaz.ideaz.ai.ConversationalAiClient = failover ?: client
+
         val userParts = buildList {
             add(com.hereliesaz.ideaz.ai.ChatPart.Text(text))
             addAll(referenceParts)
@@ -231,7 +245,8 @@ class MainViewModel(
 
         viewModelScope.launch {
             try {
-                val response = client.chat(stateDelegate.chatMessages.value)
+                // Status notices are for the user; they are not part of the conversation.
+                val response = chatClient.chat(stateDelegate.chatMessages.value.filterNot { it.isNotice })
                 // chat() signals a handled failure (network error, unexpected
                 // response shape) by returning an "Error: " string rather than
                 // throwing - see IdeTools' class doc for the same contract on
@@ -240,7 +255,7 @@ class MainViewModel(
                 val message = if (response.startsWith("Error: ")) {
                     ChatMessage.error(response)
                 } else {
-                    ChatMessage("model", response, model.displayName)
+                    ChatMessage("model", response, failover?.activeLabel ?: model.displayName)
                 }
                 stateDelegate.appendChatMessage(message)
                 // chat() only returns here (rather than throwing
@@ -263,6 +278,9 @@ class MainViewModel(
                 stateDelegate.setEditReview(EditReviewState(e.approval))
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: com.hereliesaz.ideaz.ai.AllProvidersExhaustedException) {
+                // Plain one-liner with the reset time; the raw provider error sits behind "Details".
+                stateDelegate.appendChatMessage(ChatMessage.error(e.userMessage, details = e.details.ifBlank { null }))
             } catch (e: Exception) {
                 stateDelegate.appendChatMessage(
                     ChatMessage.error("Error: ${e.message}")
@@ -629,39 +647,6 @@ class MainViewModel(
      */
     fun releaseResources() {
         onCleared()
-    }
-
-    /**
-     * Called by UI when a screen transition occurs to flush non-fatal errors.
-     *
-     * **Logic:**
-     * 1. Retrieves unique, non-fatal errors collected by [ErrorCollector].
-     * 2. If errors exist, starts the [CrashReportingService] with an intent to report them as a GitHub issue.
-     * This ensures that "silent" errors don't pile up without user/dev visibility.
-     */
-    fun flushNonFatalErrors() {
-        val errors = ErrorCollector.getAndClear()
-        if (errors != null) {
-            val githubToken = settingsViewModel.getGithubToken()
-            val githubUser = settingsViewModel.getGithubUser() ?: "Unknown"
-            val reportToGithub = settingsViewModel.isReportIdeErrorsEnabled()
-
-            // Mirrors CrashHandler.handleCrash: reporting needs the user's
-            // consent (KEY_REPORT_IDE_ERRORS) and a GitHub token to file the
-            // issue with. This intent only ever carries GitHub extras - the
-            // Jules API key is unrelated to this path and must never bypass
-            // consent on its own.
-            val canReportToGithub = reportToGithub && !githubToken.isNullOrBlank()
-            if (canReportToGithub) {
-                val intent = Intent(getApplication(), CrashReportingService::class.java).apply {
-                    action = CrashReportingService.ACTION_REPORT_NON_FATAL
-                    putExtra(CrashReportingService.EXTRA_GITHUB_TOKEN, githubToken)
-                    putExtra(CrashReportingService.EXTRA_STACK_TRACE, errors)
-                    putExtra(CrashReportingService.EXTRA_GITHUB_USER, githubUser)
-                }
-                getApplication<Application>().startService(intent)
-            }
-        }
     }
 
     // --- Proxy Methods (Forwarding calls to Delegates) ---
@@ -1448,54 +1433,6 @@ class MainViewModel(
 
     private suspend fun applyUnidiffPatchInternal(diff: String): Boolean {
         return gitDelegate.applyUnidiffPatch(diff)
-    }
-
-    private fun handleBuildFailure(log: String) {
-        val isAutoDebug = settingsViewModel.isAutoDebugBuildsEnabled()
-        if (!isAutoDebug) return
-
-        // Heuristics to separate IDE errors from User Project errors.
-        // The IDE app id appears in every project file path under filesDir
-        // (e.g. "/data/user/0/com.hereliesaz.ideaz/files/foo"), so matching
-        // the bare package name treated every missing-file error in a user
-        // project as an IDE failure. Anchor to the stack-frame format
-        // ("\tat com.hereliesaz.ideaz") so we only flag actual IDE-code
-        // throws, not project paths embedded in error text.
-        val isIdeError = log.contains("[IDE] Failed") ||
-                log.contains("tools not found") ||
-                log.contains("\tat com.hereliesaz.ideaz") ||
-                (log.contains("FileNotFoundException") && !log.contains("build.gradle")) ||
-                log.contains("OutOfMemoryError") ||
-                log.contains("No space left on device") ||
-                log.contains("Exit code 139") || // Segfault
-                log.contains("Exit code 134") || // Abort
-                log.contains("Signal 11") ||
-                log.contains("Signal 6")
-
-        if (isIdeError) {
-            if (settingsViewModel.isReportIdeErrorsEnabled()) {
-                val token = settingsViewModel.getGithubToken()
-                viewModelScope.launch {
-                    val result = com.hereliesaz.ideaz.utils.GithubIssueReporter.reportError(
-                        context = getApplication(),
-                        token = token,
-                        error = null,
-                        contextMessage = "Build failed with suspected IDE/Environment error",
-                        stackTraceOverride = log
-                    )
-                    logHandler.onOverlayLog("Environment/IDE Error reported: $result")
-                }
-            } else {
-                logHandler.onOverlayLog("Environment/IDE Error detected. Reporting disabled.")
-            }
-        } else {
-            // Project Error -> route the failing log to the assigned fixer:
-            // Jules if it's assigned, otherwise the selected conversational
-            // provider (e.g. the Gemini app bridge) so it gets the log and can
-            // fix the build automatically.
-            val prompt = "Build failed. Fix this:\n$log"
-            sendChatMessage(prompt)
-        }
     }
 }
 

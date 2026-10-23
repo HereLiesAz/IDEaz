@@ -146,20 +146,6 @@ data class GitHubJob(
 )
 // --- End Release & Artifact Data Classes ---
 
-// --- NEW: Issue Data Classes ---
-@Serializable
-data class CreateIssueRequest(
-    val title: String,
-    val body: String,
-    val labels: List<String> = listOf("bug", "automated-report")
-)
-
-@Serializable
-data class GitHubIssueResponse(
-    val number: Int,
-    @SerialName("html_url") val htmlUrl: String
-)
-
 @Serializable
 data class GitHubPublicKey(
     @SerialName("key_id") val keyId: String,
@@ -266,15 +252,6 @@ interface GitHubApi {
         @Path("ref") ref: String,
         @retrofit2.http.Query("per_page") perPage: Int = 100
     ): List<GitHubCommitStatus>
-
-    // --- NEW: Create Issue Endpoint ---
-    @POST("repos/{owner}/{repo}/issues")
-    suspend fun createIssue(
-        @Path("owner") owner: String,
-        @Path("repo") repo: String,
-        @Body request: CreateIssueRequest
-    ): GitHubIssueResponse
-    // --- END NEW ---
 
     @retrofit2.http.GET("repos/{owner}/{repo}")
     suspend fun getRepo(

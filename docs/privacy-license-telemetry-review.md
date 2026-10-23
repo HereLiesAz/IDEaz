@@ -1,7 +1,13 @@
 # Privacy and telemetry review
 
+Effective 2026-10-23. Policy text: [`../PRIVACY.md`](../PRIVACY.md).
+
 Scope: what IDEaz collects and transmits by default. Findings are cited
 against the actual code/config, not asserted.
+
+**Summary: IDEaz sends no automatic error, crash or build-log reports. The only data
+leaving the device is what the user sends to the AI providers and the GitHub /
+Cloudflare services they configure.**
 
 ## Telemetry / analytics
 
@@ -18,6 +24,14 @@ configured**, via that provider's own API — never to any IDEaz-operated
 endpoint. There is no local buffering, queuing, or store of prompt/response
 content outside the in-memory chat history the UI already shows.
 
+**Automatic provider switching.** When a provider reports an exhausted quota or rate
+limit, `FailoverClient` (`ai/ProviderFailover.kt`) resends the same request to the next
+provider: keyless ones first, then any provider the user saved a key for. Each provider is
+tried at most once per request, and the chat shows a notice. So a prompt can reach a
+provider other than the one assigned in Settings; `PRIVACY.md` discloses this. The only
+state kept is which providers are cooling down and until when (`provider_cooldowns`, device
+local, not part of a settings import).
+
 Two choices route prompts elsewhere, and only when the user selects them:
 
 - **Keyless models** (Kilo Gateway, LLM7, OVHcloud) are called without a key.
@@ -32,35 +46,29 @@ Two choices route prompts elsewhere, and only when the user selects them:
   online state) only. The code is stored in the credential store with the API
   keys.
 
-## Crash / error reporting — the one real default-on data flow
+## Crash / error reporting - removed
 
-`CrashHandler.handleCrash` and a build-failure heuristic in
-`MainViewModel.kt:~1650` both call `GithubIssueReporter.reportError`, which —
-when a GitHub token is configured — files an issue directly on the **public**
-`HereLiesAz/IDEaz` repository containing: a context message, device
-manufacturer/model/SDK version, and a `LogSanitizer`-redacted stack trace or
-build-log excerpt (capped at 4000 characters). It never includes prompts,
-source files, or project content — confirmed by reading the `bodyContent`
-template in `GithubIssueReporter.kt`; the `logContent` parameter it accepts is
-never actually interpolated into the body (dead parameter, not a leak).
+Earlier versions had one default-on data flow: `CrashHandler` and a build-failure heuristic
+in `MainViewModel` called `GithubIssueReporter.reportError`, which, when a GitHub token was
+configured, filed an issue on the public `HereLiesAz/IDEaz` repository with device
+manufacturer/model/SDK and a `LogSanitizer`-redacted stack trace or build-log excerpt. A
+non-fatal `ErrorCollector` batched errors to the same place on screen changes, and a
+first-run dialog and a Settings toggle (`KEY_REPORT_IDE_ERRORS`, default on) governed it.
 
-**The finding:** `SettingsViewModel.isReportIdeErrorsEnabled()` defaulted to
-`true` with no first-run disclosure — only a post-hoc, discoverable Settings
-toggle ("Report IDE errors to HereLiesAz/IDEaz (Issues)"). A user who never
-opens Settings is opted into automatic public issue-filing on their first
-crash without ever having agreed to it. `LogSanitizer` mitigates the *content*
-risk but doesn't address the *consent* gap — sanitization catches known secret
-patterns, not the general question of whether data should leave the device by
-default at all.
+**All of it is deleted.** Removed: `CrashHandler` and its installation in `MainApplication`,
+`CrashReportingService` (and its `:crash_reporter` manifest entry), `ErrorCollector` and its
+flush on navigation, `MainViewModel.handleBuildFailure`, `GithubIssueReporter` (and the
+`createIssue` call and its request/response types in `GithubApiClient`), the first-run
+consent dialog, `hasShownCrashReportingFirstRun`, `KEY_REPORT_IDE_ERRORS` and the Settings
+row, and their tests. The "Auto-send build failures" Settings row was removed with
+`handleBuildFailure`, the only code that read it. `SettingsViewModel` deletes the leftover
+preference keys and the `bug_report_prefs` file on startup.
 
-**Fixed this session:** added a one-time, unconditional first-run disclosure
-dialog (`MainScreen.kt`, mirroring the existing Gemini-bridge first-run
-pattern) that states exactly what's collected and where it goes, before the
-default can ever take effect silently. "Allow" keeps the default; "Don't
-allow" flips it off. Backed by `hasShownCrashReportingFirstRun()` /
-`markCrashReportingFirstRunShown()` in `SettingsViewModel.kt`, with a unit
-test. Sequenced to appear before (not stacked with) the pre-existing
-Gemini-bridge dialog on a genuinely first launch.
+Verified by grep over `app/src`: no remaining reference to any of those symbols, and no
+call that posts an error, crash or log to any endpoint. `LogSanitizer` stays: it redacts the
+console's "Copy Log" output and the project snapshot (`RepoSnapshot`) that goes to the AI
+provider the user chose. No user-initiated "report a problem" action exists; if one is added
+it must be explicit per use and show what will be sent first.
 
 ## What this review does not and cannot cover
 

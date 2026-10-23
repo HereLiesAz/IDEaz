@@ -291,6 +291,25 @@ private fun ChatBubble(msg: ChatMessage, fallbackProviderDisplayName: String, on
                 style = MaterialTheme.typography.bodySmall,
                 color = if (msg.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
             )
+            // The raw provider error (for example the JSON of an HTTP 429) stays secondary: one tap away.
+            val details = msg.details
+            if (msg.isError && !details.isNullOrBlank()) {
+                var showDetails by remember { mutableStateOf(false) }
+                TextButton(onClick = { showDetails = !showDetails }) {
+                    Text(
+                        text = if (showDetails) "Hide details" else "Details",
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+                if (showDetails) {
+                    Text(
+                        text = details,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    )
+                }
+            }
             if (msg.isError && mentionsSettings(msg.content)) {
                 Spacer(Modifier.height(4.dp))
                 AzButton(onClick = onOpenSettings, text = "Open Settings", shape = AzButtonShape.RECTANGLE)

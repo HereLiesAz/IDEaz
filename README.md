@@ -99,4 +99,8 @@ Two facts about Deploy that are easy to miss:
 
 ---
 
+**Privacy.** IDEaz sends no automatic error, crash or build-log reports. The only
+data that leaves your device is what you send to the AI providers and the
+GitHub/Cloudflare services you configure; see [`PRIVACY.md`](PRIVACY.md).
+
 See [`docs/architecture.md`](docs/architecture.md) for how it fits together.

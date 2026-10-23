@@ -87,6 +87,8 @@ JVM targets depend on.
 *   `ai/AnthropicAdapter.kt`, `ai/OpenAiCompatibleAdapter.kt` — cloud adapters;
     the OpenAI-compatible one serves OpenAI, DeepSeek, Groq, Cerebras, Hugging
     Face and Mistral.
+*   `ai/ProviderFailover.kt` — pure quota classification, per-provider cooldowns, next-provider
+    selection, hours/minutes formatting, and `FailoverClient` (automatic provider failover).
 *   `ai/ToolSchema.kt` — provider-neutral tool-argument description.
 *   `utils/RepoSnapshot.kt` — redacted, bounded snapshot for providers with no
     file tools. Rejects symlinks and canonical paths outside the project root.
@@ -110,7 +112,7 @@ JVM targets depend on.
 *   `ui/delegates/StateDelegate.kt` — UI state, including edit-review lifecycle.
 *   `ui/web/WebProjectUrlUtils.kt` — asset-loader origin and root mount rules.
 *   `utils/RepoMapper.kt`, `utils/SourceContextHelper.kt`, `utils/LogSanitizer.kt`,
-    `utils/OperationController.kt`, `utils/ErrorCollector.kt`
+    `utils/OperationController.kt`
     — supporting utilities.
 
 ### androidMain — the phone IDE
@@ -170,11 +172,8 @@ JVM targets depend on.
 *   `utils/TemplateManager.kt` — copies the bundled React starter.
 *   `utils/ProjectAssetImporter.kt` — copies a SAF-picked file into `assets/`.
 *   `utils/ProjectFileObserver.kt` — watches the tree and triggers preview reloads.
-*   `utils/BackupManager.kt`, `utils/SecurityUtils.kt`, `utils/CrashHandler.kt`,
-    `utils/GithubIssueReporter.kt`, `utils/LogcatReader.kt` — backup, crypto,
-    crash capture and reporting.
-*   `services/CrashReportingService.kt` — files opted-in crashes as GitHub issues
-    from a separate `:crash_reporter` process.
+*   `utils/BackupManager.kt`, `utils/SecurityUtils.kt`, `utils/LogcatReader.kt` — backup,
+    crypto, on-device log capture. IDEaz has no error, crash or build-log reporting.
 
 ### desktopMain
 

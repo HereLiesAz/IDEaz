@@ -52,6 +52,40 @@ object AiAdapterFactory {
         return RepoAwareClient(base, tools, appName)
     }
 
+    /**
+     * Wraps [existing] (the client already built for [model]) so a quota or rate-limit failure
+     * moves the same request to the next provider: keyless ones first, then any the user has a
+     * key for, skipping providers cooling down. Each is tried at most once per request.
+     */
+    fun withFailover(
+        model: AiModel,
+        existing: ConversationalAiClient,
+        context: Context,
+        tools: IdeTools,
+        settings: SettingsViewModel,
+        needsImages: Boolean,
+        onSwitch: (String) -> Unit,
+    ): FailoverClient {
+        val catalog = AiModels.defaultRanking.map { m ->
+            FailoverCandidate(
+                id = m.id,
+                label = m.displayName,
+                keyless = m.keyless,
+                usable = m.keyless || (m.providerKey.isNotEmpty() && !settings.getApiKey(m.providerKey).isNullOrBlank()),
+                supportsImages = m.supportsImages,
+            )
+        }
+        return FailoverClient(
+            order = ProviderFailover.order(model.id, catalog, needsImages),
+            clientFor = { candidate ->
+                if (candidate.id == model.id) existing
+                else AiModels.findById(candidate.id)?.let { create(it, context, tools, settings) }
+            },
+            cooldowns = ProviderCooldowns.process,
+            onSwitch = onSwitch,
+        )
+    }
+
     private fun createRaw(
         model: AiModel,
         tools: IdeTools,

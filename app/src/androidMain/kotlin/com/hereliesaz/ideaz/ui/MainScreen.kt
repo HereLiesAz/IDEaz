@@ -69,58 +69,10 @@ fun MainScreen(viewModel: MainViewModel) {
 
     var isPromptPopupVisible by remember { mutableStateOf(false) }
     var showHelp by remember { mutableStateOf(false) }
-    var showCrashReportingFirstRun by remember { mutableStateOf(false) }
 
     val settingsViewModel = viewModel.settingsViewModel
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-
-    LaunchedEffect(Unit) {
-        // isReportIdeErrorsEnabled() defaults to true, so without this a crash
-        // could be reported to a public GitHub repo before the user ever opens
-        // Settings and discovers the toggle. This is the actual consent point.
-        if (!settingsViewModel.hasShownCrashReportingFirstRun()) {
-            showCrashReportingFirstRun = true
-        }
-    }
-
-    if (showCrashReportingFirstRun) {
-        AlertDialog(
-            onDismissRequest = {
-                // Scrim-tap or back-press is a dismissal, not a choice - and
-                // the setting defaults to true, so treat it the same as
-                // "Don't allow" rather than silently leaving reporting on.
-                settingsViewModel.setReportIdeErrorsEnabled(false)
-                settingsViewModel.markCrashReportingFirstRunShown()
-                showCrashReportingFirstRun = false
-            },
-            title = { Text("Report crashes to help fix bugs?") },
-            text = {
-                Text(
-                    "If IDEaz crashes, it can automatically file a GitHub issue on " +
-                        "HereLiesAz/IDEaz - a public repository. The report includes a " +
-                        "sanitized stack trace and your device model/Android version, " +
-                        "not your prompts, source code, or project files. You can " +
-                        "change this anytime in Settings."
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    settingsViewModel.setReportIdeErrorsEnabled(true)
-                    settingsViewModel.markCrashReportingFirstRunShown()
-                    showCrashReportingFirstRun = false
-                }) { Text("Allow") }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    settingsViewModel.setReportIdeErrorsEnabled(false)
-                    settingsViewModel.markCrashReportingFirstRunShown()
-                    showCrashReportingFirstRun = false
-                }) { Text("Don't allow") }
-            },
-        )
-    }
-
 
     val deployConfirmationVisible by viewModel.deployConfirmationVisible.collectAsState()
     val deployResult by viewModel.deployResult.collectAsState()

@@ -75,6 +75,16 @@ data class ChatMessage(
      * with the same provider attribution and styling as an actual answer.
      */
     val isError: Boolean = false,
+    /**
+     * Raw provider output behind a short [content] line (for example the JSON of an HTTP 429).
+     * The chat UI hides it behind a "Details" toggle; never sent to any provider.
+     */
+    val details: String? = null,
+    /**
+     * True for a short status line IDEaz itself posts (for example "X hit its daily limit.
+     * Switched to Y."). Shown in the chat, but not sent back to a provider as a model turn.
+     */
+    val isNotice: Boolean = false,
 ) {
     /** Joined text from every [ChatPart.Text] in [parts]. Empty if no text parts. */
     val content: String
@@ -94,7 +104,11 @@ data class ChatMessage(
             ChatMessage(role, listOf(ChatPart.Text(content)), provider = provider)
 
         /** Builds a synthetic error turn - see [isError]. */
-        fun error(content: String): ChatMessage =
-            ChatMessage(role = "model", parts = listOf(ChatPart.Text(content)), isError = true)
+        fun error(content: String, details: String? = null): ChatMessage =
+            ChatMessage(role = "model", parts = listOf(ChatPart.Text(content)), isError = true, details = details)
+
+        /** Builds a short IDEaz status line - see [isNotice]. */
+        fun notice(content: String): ChatMessage =
+            ChatMessage(role = "model", parts = listOf(ChatPart.Text(content)), provider = "IDEaz", isNotice = true)
     }
 }

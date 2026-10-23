@@ -49,7 +49,7 @@ Per-task model assignment (Default / Prompt Popup / Overlay Chat) is configured 
 
 ### 4.2 IDE Infrastructure Error
 *   **Detection:** Stack trace from `com.hereliesaz.ideaz.*`, or an unhandled exception in IDEaz itself.
-*   **Action:** `GithubIssueReporter` posts to `HereLiesAz/IDEaz` with label `jules`. Never sent to the user's AI.
+*   **Action:** Shown to the user and logged on the device. Never reported anywhere automatically (no GitHub issue, no upload) and never sent to the user's AI.
 
 ## 5. CI/CD for IDEaz Itself
 
