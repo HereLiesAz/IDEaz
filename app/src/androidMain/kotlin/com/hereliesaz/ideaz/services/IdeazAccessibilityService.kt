@@ -2,11 +2,14 @@ package com.hereliesaz.ideaz.services
 
 import android.accessibilityservice.AccessibilityService
 import android.content.ClipData
+import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PersistableBundle
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
@@ -232,8 +235,19 @@ class IdeazAccessibilityService : AccessibilityService() {
         field.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
         return runCatching {
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipboard.setPrimaryClip(ClipData.newPlainText("IDEaz prompt", text))
-            field.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+            val clip = ClipData.newPlainText("IDEaz prompt", text)
+            // The prompt can hold project code and secrets: ask the system not to
+            // show it in the clipboard preview (API 33+), and drop it after pasting.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                clip.description.extras = PersistableBundle().apply {
+                    putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+                }
+            }
+            clipboard.setPrimaryClip(clip)
+            val pasted = field.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+            // ACTION_PASTE is handled asynchronously by the target app, so clear a moment later.
+            handler.postDelayed({ runCatching { clipboard.clearPrimaryClip() } }, CLIPBOARD_CLEAR_DELAY_MS)
+            pasted
         }.getOrDefault(false)
     }
 
@@ -288,5 +302,6 @@ class IdeazAccessibilityService : AccessibilityService() {
         private const val INPUT_STABLE_MS = 500L
         private const val RESPONSE_STABLE_MS = 1_250L
         private const val CLIPBOARD_DELAY_MS = 300L
+        private const val CLIPBOARD_CLEAR_DELAY_MS = 2_000L
     }
 }
