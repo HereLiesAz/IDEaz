@@ -1,6 +1,7 @@
 package com.hereliesaz.ideaz.services
 
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.os.IBinder
 import android.util.Log
@@ -42,6 +43,23 @@ class CrashReportingService : Service() {
 
         /** Minimum delay between batched non-fatal reports, so a loop can't spam the API. */
         private const val BATCH_DELAY_MS = 5000L
+
+        /**
+         * Files one report: (context, token, title message, sanitized trace). A seam so tests
+         * can observe the report instead of making a real GitHub request; production never
+         * replaces it.
+         */
+        @Volatile
+        internal var reportIssue: suspend (Context, String, String, String) -> Unit =
+            { context, token, message, trace ->
+                GithubIssueReporter.reportError(
+                    context = context,
+                    token = token,
+                    error = null,
+                    contextMessage = message,
+                    stackTraceOverride = trace,
+                )
+            }
     }
 
     private var lastReportTime = 0L
@@ -87,13 +105,7 @@ class CrashReportingService : Service() {
             try {
                 val type = if (isFatal) "CRASH" else "NON-FATAL ERROR(S)"
                 Log.d(TAG, "Submitting $type report...")
-                GithubIssueReporter.reportError(
-                    context = applicationContext,
-                    token = githubToken,
-                    error = null,
-                    contextMessage = "$type from $githubUser",
-                    stackTraceOverride = errorData,
-                )
+                reportIssue(applicationContext, githubToken, "$type from $githubUser", errorData)
                 Log.d(TAG, "Report submitted via GitHub Issues.")
             } catch (e: Throwable) {
                 // Nothing useful left to do if the network or API is down.
