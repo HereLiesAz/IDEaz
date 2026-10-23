@@ -33,6 +33,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.hereliesaz.aznavrail.bottomsheet.AzSheetController
 import com.hereliesaz.aznavrail.model.AzSheetDetent
@@ -119,6 +121,9 @@ private fun LogTicker(messages: List<String>, maxLines: Int) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            // Each line is clipped to one visual line; the live region lets a screen reader
+            // announce the newest status text in full as it arrives.
+            .semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite }
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.Bottom
     ) {

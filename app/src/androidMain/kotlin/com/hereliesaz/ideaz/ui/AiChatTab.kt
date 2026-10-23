@@ -10,7 +10,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.hereliesaz.aznavrail.AzButton
+import com.hereliesaz.aznavrail.model.AzButtonShape
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.hereliesaz.ideaz.ai.ChatMessage
 import com.hereliesaz.ideaz.ui.delegates.EditReviewState
 import com.hereliesaz.ideaz.ui.delegates.EditReviewStatus
@@ -63,7 +71,7 @@ fun AiChatTab(
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             itemsIndexed(messages, key = { index, _ -> index }) { _, msg ->
-                ChatBubble(msg, providerDisplayName)
+                ChatBubble(msg, providerDisplayName, onOpenSettings = { viewModel.requestOpenSettings() })
                 Spacer(modifier = Modifier.height(6.dp))
             }
 
@@ -76,7 +84,17 @@ fun AiChatTab(
                         ),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text(message, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(12.dp))
+                        Column(Modifier.padding(12.dp).semantics { liveRegion = LiveRegionMode.Polite }) {
+                            Text(message, style = MaterialTheme.typography.bodySmall)
+                            if (mentionsSettings(message)) {
+                                Spacer(Modifier.height(8.dp))
+                                AzButton(
+                                    onClick = { viewModel.requestOpenSettings() },
+                                    text = "Open Settings",
+                                    shape = AzButtonShape.RECTANGLE,
+                                )
+                            }
+                        }
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                 }
@@ -96,7 +114,8 @@ fun AiChatTab(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 4.dp),
+                            .padding(vertical = 4.dp)
+                            .semantics { liveRegion = LiveRegionMode.Polite },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         CircularProgressIndicator(
@@ -143,11 +162,44 @@ private fun EditReviewCard(state: EditReviewState, viewModel: MainViewModel) {
                 review.changedFiles.joinToString(separator = "\n") { "• $it" },
                 style = MaterialTheme.typography.bodySmall,
             )
+            var showChanges by remember(checkpointId) { mutableStateOf(false) }
+            val diffs by produceState<Map<String, String>>(emptyMap(), checkpointId, showChanges) {
+                value = if (showChanges) {
+                    withContext(Dispatchers.IO) {
+                        review.changedFiles.take(MAX_DIFF_FILES).associateWith {
+                            viewModel.editDiff(review.checkpoint, it)
+                        }
+                    }
+                } else {
+                    emptyMap()
+                }
+            }
+            if (review.changedFiles.isNotEmpty()) {
+                TextButton(onClick = { showChanges = !showChanges }) {
+                    Text(if (showChanges) "Hide changes" else "Show changes")
+                }
+            }
+            if (showChanges) {
+                diffs.forEach { (file, diff) ->
+                    Text(file, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    Text(
+                        diff,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
+                if (review.changedFiles.size > MAX_DIFF_FILES) {
+                    Text(
+                        "…and ${review.changedFiles.size - MAX_DIFF_FILES} more file(s)",
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+            }
             Text(
                 if (review.validationErrors.isEmpty()) {
-                    "Validated · checkpoint ${checkpointId.take(8)}"
+                    "Checked. Reject puts your files back as they were."
                 } else {
-                    "Validation failed · checkpoint ${checkpointId.take(8)}"
+                    "Checks failed. Reject puts your files back as they were."
                 },
                 style = MaterialTheme.typography.labelSmall,
             )
@@ -163,28 +215,38 @@ private fun EditReviewCard(state: EditReviewState, viewModel: MainViewModel) {
             }
             if (state.restoreConflict && state.status != EditReviewStatus.PROCESSING) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { viewModel.forceRestoreEdit(checkpointId) }) {
-                        Text("Restore anyway")
-                    }
-                    OutlinedButton(onClick = { viewModel.keepCurrentFiles(checkpointId) }) {
-                        Text("Keep current files")
-                    }
+                    AzButton(
+                        onClick = { viewModel.forceRestoreEdit(checkpointId) },
+                        text = "Restore anyway",
+                        shape = AzButtonShape.RECTANGLE,
+                    )
+                    AzButton(
+                        onClick = { viewModel.keepCurrentFiles(checkpointId) },
+                        text = "Keep current files",
+                        shape = AzButtonShape.RECTANGLE,
+                    )
                 }
             } else when (state.status) {
                 EditReviewStatus.PENDING -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { viewModel.approveEdit(checkpointId) }) {
-                        Text(if (review.validationErrors.isEmpty()) "Approve & reload" else "Recheck files")
-                    }
+                    AzButton(
+                        onClick = { viewModel.approveEdit(checkpointId) },
+                        text = if (review.validationErrors.isEmpty()) "Approve & reload" else "Recheck files",
+                        shape = AzButtonShape.RECTANGLE,
+                    )
                     if (review.rollbackAllowed) {
-                        OutlinedButton(onClick = { viewModel.rejectEdit(checkpointId) }) {
-                            Text("Reject")
-                        }
+                        AzButton(
+                            onClick = { viewModel.rejectEdit(checkpointId) },
+                            text = "Reject",
+                            shape = AzButtonShape.RECTANGLE,
+                        )
                     }
                 }
                 EditReviewStatus.APPROVED -> if (review.rollbackAllowed) {
-                    OutlinedButton(onClick = { viewModel.undoEdit(checkpointId) }) {
-                        Text("Undo edit")
-                    }
+                    AzButton(
+                        onClick = { viewModel.undoEdit(checkpointId) },
+                        text = "Undo edit",
+                        shape = AzButtonShape.RECTANGLE,
+                    )
                 }
                 EditReviewStatus.PROCESSING -> Unit
                 EditReviewStatus.REJECTED, EditReviewStatus.UNDONE -> Unit
@@ -194,7 +256,7 @@ private fun EditReviewCard(state: EditReviewState, viewModel: MainViewModel) {
 }
 
 @Composable
-private fun ChatBubble(msg: ChatMessage, fallbackProviderDisplayName: String) {
+private fun ChatBubble(msg: ChatMessage, fallbackProviderDisplayName: String, onOpenSettings: () -> Unit) {
     val isUser = msg.role == "user"
     // msg.provider is set at the point each reply was actually produced, so
     // switching the "Default" AI assignment mid-conversation no longer
@@ -229,6 +291,16 @@ private fun ChatBubble(msg: ChatMessage, fallbackProviderDisplayName: String) {
                 style = MaterialTheme.typography.bodySmall,
                 color = if (msg.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
             )
+            if (msg.isError && mentionsSettings(msg.content)) {
+                Spacer(Modifier.height(4.dp))
+                AzButton(onClick = onOpenSettings, text = "Open Settings", shape = AzButtonShape.RECTANGLE)
+            }
         }
     }
 }
+
+/** Most files whose before/after text the review card expands. */
+private const val MAX_DIFF_FILES = 10
+
+/** True for an error that tells the user to fix something in Settings, so the card can offer a button. */
+private fun mentionsSettings(message: String): Boolean = message.contains("Settings")

@@ -34,6 +34,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -211,7 +212,11 @@ class MainViewModel(
         )
         if (client == null) {
             stateDelegate.appendChatMessage(
-                ChatMessage.error("Error: No API key set for ${model.displayName}. Go to Settings → AI Providers.")
+                ChatMessage.error(
+                    "Error: No API key set for ${model.displayName}. Open Settings and add it under " +
+                        "\"API Keys\", \"Free Providers\" or \"Paid Providers\", or pick a free model that needs no key " +
+                        "under \"AI Assignments\"."
+                )
             )
             return
         }
@@ -518,6 +523,47 @@ class MainViewModel(
     val filteredLog = stateDelegate.filteredLog
     val pendingRoute = stateDelegate.pendingRoute
     val webReloadTrigger = stateDelegate.webReloadTrigger
+
+    /** True while the "Deploy this project?" confirmation dialog should show. */
+    private val _deployConfirmationVisible = MutableStateFlow(false)
+    val deployConfirmationVisible = _deployConfirmationVisible.asStateFlow()
+
+    /** What the last Deploy did, for a snackbar: [url] is the live site on success, else null. */
+    data class DeployResult(val message: String, val url: String? = null, val id: Long = System.nanoTime())
+    private val _deployResult = MutableStateFlow<DeployResult?>(null)
+    val deployResult = _deployResult.asStateFlow()
+    fun consumeDeployResult(id: Long) {
+        if (_deployResult.value?.id == id) _deployResult.value = null
+    }
+    private fun postDeployResult(message: String, url: String? = null) {
+        _deployResult.value = DeployResult(message, url)
+    }
+
+    /** One-shot "open the Settings screen" requests from chat error messages. */
+    private val _openSettingsRequests = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val openSettingsRequests = _openSettingsRequests.asSharedFlow()
+    fun requestOpenSettings() {
+        _openSettingsRequests.tryEmit(Unit)
+    }
+
+    /**
+     * Entry point for the rail's Deploy item. The first deploy asks for confirmation
+     * because it creates a GitHub repository and publishes a public site; once confirmed
+     * it runs directly.
+     */
+    fun requestDeploy() {
+        if (settingsViewModel.isDeployConfirmed()) deployWebProject() else _deployConfirmationVisible.value = true
+    }
+
+    fun confirmDeploy() {
+        _deployConfirmationVisible.value = false
+        settingsViewModel.setDeployConfirmed(true)
+        deployWebProject()
+    }
+
+    fun dismissDeployConfirmation() {
+        _deployConfirmationVisible.value = false
+    }
     val webHardReloadTrigger = stateDelegate.webHardReloadTrigger
 
     val isSelectMode = selectionDelegate.isSelectMode
@@ -703,13 +749,7 @@ class MainViewModel(
                 // if this project has never been published. Everything before
                 // this point works offline.
                 if (!repoDelegate.ensureRemoteRepository(appName)) {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(
-                            getApplication(),
-                            "Deploy needs a GitHub token. Add one in Settings.",
-                            Toast.LENGTH_LONG,
-                        ).show()
-                    }
+                    postDeployResult("Deploy needs a GitHub token. Add one in Settings under \"API Keys\", then try again.")
                     return@launch
                 }
 
@@ -723,13 +763,12 @@ class MainViewModel(
                 // already in the build log from gitDelegate's own onLog calls.
                 if (!gitDelegate.commit("Deploy: ${System.currentTimeMillis()}")) {
                     logHandler.onBuildLog("Deploy failed: could not commit changes. See the log above for details.")
+                    postDeployResult("Deploy failed: could not commit your changes. Check the log for the reason, then try again.")
                     return@launch
                 }
                 if (!gitDelegate.push()) {
                     logHandler.onBuildLog("Deploy failed: push did not complete. See the log above for details.")
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(getApplication(), "Deploy failed: could not push to GitHub.", Toast.LENGTH_LONG).show()
-                    }
+                    postDeployResult("Deploy failed: could not push to GitHub. Check your connection and that your token can write to the repository.")
                     return@launch
                 }
 
@@ -740,6 +779,7 @@ class MainViewModel(
                 val sha = gitDelegate.getHeadSha()
                 if (token.isNullOrBlank() || repository == null || sha == null) {
                     logHandler.onBuildLog("Pushed, but could not request a build: no token, GitHub origin or commit.")
+                    postDeployResult("Pushed, but the build could not be requested: the GitHub token, repository or commit is missing.")
                     return@launch
                 }
 
@@ -747,6 +787,7 @@ class MainViewModel(
                 when (val result = WebDeployClient().requestDeploy(token, repository, sha)) {
                     is WebDeployClient.Result.Accepted -> {
                         logHandler.onBuildLog("Build requested. The site will be served at ${result.siteUrl}")
+                        postDeployResult("Deploy started. The build is running; the site will be at ${result.siteUrl}")
                         startWebDeploymentPolling(token, repository, sha, result.statusContext)
                     }
                     is WebDeployClient.Result.Refused -> {
@@ -755,14 +796,13 @@ class MainViewModel(
                         logHandler.onBuildLog(
                             "Pushed, but the central build was refused (${result.httpCode}): ${result.message}"
                         )
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(getApplication(), "Pushed. Publishing was refused: ${result.message}", Toast.LENGTH_LONG).show()
-                        }
+                        postDeployResult("Pushed to your private repository, but publishing was refused: ${result.message}")
                     }
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 logHandler.onBuildLog("Deploy failed: ${e.message}")
+                postDeployResult("Deploy failed: ${e.message ?: "unexpected error"}. See the log for details.")
             } finally {
                 deployInFlight.set(false)
             }
@@ -799,11 +839,17 @@ class MainViewModel(
                             val url = status?.targetUrl.orEmpty()
                             logHandler.onBuildLog("Deployment successful: $url")
                             logHandler.onAiLog("Deployment successful: $url (open in browser to verify the live site)")
+                            postDeployResult("Deployment successful.", url.takeIf { it.isNotBlank() })
                             return@launch
                         }
                         "failure", "error" -> {
                             logHandler.onBuildLog(
                                 "Deployment failed: ${status?.description.orEmpty()} ${status?.targetUrl.orEmpty()}".trim()
+                            )
+                            postDeployResult(
+                                "Deployment failed: ${status?.description.orEmpty().ifBlank { "the central build reported an error" }}. " +
+                                    "Fix the problem and Deploy again; the build log has details.",
+                                status?.targetUrl?.takeIf { it.isNotBlank() },
                             )
                             return@launch
                         }
@@ -888,6 +934,10 @@ class MainViewModel(
     }
 
     fun clearSelection() = selectionDelegate.clearContext()
+
+    /** Before/after text preview of one reviewed file; blocking file IO, call off the main thread. */
+    fun editDiff(checkpoint: com.hereliesaz.ideaz.ai.IdeEditCheckpoint, relativePath: String): String =
+        IdeTools(File(checkpoint.projectPath)).editDiff(checkpoint, relativePath)
     fun closeContextualChat() = selectionDelegate.dismissContextualChat()
     fun setPendingRoute(r: String?) = stateDelegate.setPendingRoute(r)
 
@@ -1355,7 +1405,7 @@ class MainViewModel(
 
     /**
      * Returns the list of credentials the user still needs to configure before any
-     * project flow (Create / Save & Initialize / Clone-select) can succeed.
+     * project flow (Create / Open project / Clone-select) can succeed.
      *
      * The AI credential checked here follows whichever model the "Default" AI
      * Assignment actually resolves to (SettingsViewModel.getAiAssignment ranks

@@ -19,7 +19,7 @@ The on-device toolchain (`aapt2`, `d8`, `kotlinc`, Maven Aether) was removed in 
 *   **Note:** Loading does *not* start a build.
 
 ### 2.2 Initialization (Activation)
-*   **Trigger:** User clicks **Save & Initialize** on the Setup tab.
+*   **Trigger:** User clicks **Open project** on the Setup tab.
 *   **Actions:** Scaffold the directory from the bundled React starter if it has nothing previewable in it, then open the preview. Nothing is pushed.
 *   **Publishing is separate and explicit.** The rail's **Deploy** item (`MainViewModel.deployWebProject`):
     1. `RepoDelegate.ensureRemoteRepository` links `origin`, creating a **private** repository on first publish (an existing public one is reused, with a warning).

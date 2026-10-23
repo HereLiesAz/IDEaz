@@ -483,114 +483,80 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.semantics { heading() }
             )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Every key is optional. Without any key IDEaz uses a free model that needs none; " +
+                    "add a key below to use that provider instead.",
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.bodySmall,
+            )
 
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Jules API Key", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
-            }
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                AzTextBox(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = apiKey,
-                    onValueChange = { apiKey = it },
-                    hint = "Jules API Key",
-                    secret = true,
-                    onSubmit = {
-                        val saved = settingsViewModel.saveApiKey(apiKey)
-                        Toast.makeText(
-                            context,
-                            if (saved) "Jules Key Saved" else withCredentialError("Jules Key Save Failed", settingsViewModel.lastCredentialError),
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    },
-                    submitButtonContent = { Text("Save") }
-                )
-            }
-            Row(Modifier.width(60.dp), verticalAlignment = Alignment.CenterVertically) {
-                AzButton(onClick = {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://jules.google.com/settings")))
-                }, text = "Get Key", shape = AzButtonShape.NONE)
-            }
+            ApiKeyRow(
+                label = "GitHub Personal Access Token",
+                help = "Needed only to publish (Deploy) and to list or fork your repositories. " +
+                    "Create a token with the \"repo\" scope (classic) or, for a fine-grained token, " +
+                    "Contents and Administration (read and write) on the repositories you publish.",
+                value = githubToken,
+                onValueChange = { githubToken = it },
+                hint = "GitHub Personal Access Token",
+                getKeyUrl = "https://github.com/settings/tokens",
+                onSave = {
+                    val saved = settingsViewModel.saveGithubToken(githubToken)
+                    if (saved) viewModel.fetchGitHubRepos()
+                    Toast.makeText(
+                        context,
+                        if (saved) "GitHub Token Saved" else withCredentialError("GitHub Token Save Failed", settingsViewModel.lastCredentialError),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                },
+            )
 
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("GitHub Personal Access Token", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
-            }
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                AzTextBox(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = githubToken,
-                    onValueChange = { githubToken = it },
-                    hint = "GitHub Token",
-                    secret = true,
-                    onSubmit = {
-                        val saved = settingsViewModel.saveGithubToken(githubToken)
-                        if (saved) viewModel.fetchGitHubRepos()
-                        Toast.makeText(
-                            context,
-                            if (saved) "GitHub Token Saved" else withCredentialError("GitHub Token Save Failed", settingsViewModel.lastCredentialError),
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    },
-                    submitButtonContent = { Text("Save") }
-                )
-            }
-            Row(Modifier.width(60.dp), verticalAlignment = Alignment.CenterVertically) {
-                AzButton(onClick = {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/settings/tokens")))
-                }, text = "Get Key", shape = AzButtonShape.NONE)
-            }
+            ApiKeyRow(
+                label = "Google AI Studio API Key (Gemini)",
+                help = "Lets IDEaz use Gemini models. Free to create in Google AI Studio.",
+                value = googleApiKey,
+                onValueChange = { googleApiKey = it },
+                hint = "Google AI Studio API Key",
+                getKeyUrl = "https://aistudio.google.com/app/api-keys",
+                onSave = {
+                    val saved = settingsViewModel.saveGoogleApiKey(googleApiKey)
+                    Toast.makeText(
+                        context,
+                        if (saved) "AI Studio Key Saved Securely" else withCredentialError("AI Studio Key Save Failed", settingsViewModel.lastCredentialError),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                },
+            )
 
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("AI Studio API Key", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
-            }
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                AzTextBox(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = googleApiKey,
-                    onValueChange = { googleApiKey = it },
-                    hint = "AI Studio API Key",
-                    secret = true,
-                    onSubmit = {
-                        val saved = settingsViewModel.saveGoogleApiKey(googleApiKey)
-                        Toast.makeText(
-                            context,
-                            if (saved) "AI Studio Key Saved Securely" else withCredentialError("AI Studio Key Save Failed", settingsViewModel.lastCredentialError),
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    },
-                    submitButtonContent = { Text("Save") }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Google Cloud Project Number", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelSmall)
-            }
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                AzTextBox(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = julesProjectId,
-                    onValueChange = { julesProjectId = it },
-                    hint = "Google Cloud Project Number",
-                    onSubmit = {
-                        settingsViewModel.saveJulesProjectId(julesProjectId)
-                        Toast.makeText(context, "Project Number Saved", Toast.LENGTH_SHORT).show()
-                    },
-                    submitButtonContent = { Text("Save") }
-                )
-            }
-
-            Row(Modifier.width(60.dp), verticalAlignment = Alignment.CenterVertically) {
-                AzButton(onClick = {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/api-keys")))
-                }, text = "Get Key", shape = AzButtonShape.NONE)
-            }
+            ApiKeyRow(
+                label = "Jules API Key (legacy, optional)",
+                help = "Only for the retired Jules provider; you can leave this empty.",
+                value = apiKey,
+                onValueChange = { apiKey = it },
+                hint = "Jules API Key",
+                getKeyUrl = "https://jules.google.com/settings",
+                onSave = {
+                    val saved = settingsViewModel.saveApiKey(apiKey)
+                    Toast.makeText(
+                        context,
+                        if (saved) "Jules Key Saved" else withCredentialError("Jules Key Save Failed", settingsViewModel.lastCredentialError),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                },
+            )
+            ApiKeyRow(
+                label = "Google Cloud Project Number (Jules, legacy)",
+                help = "Goes with the Jules API Key above.",
+                value = julesProjectId,
+                onValueChange = { julesProjectId = it },
+                hint = "Google Cloud Project Number",
+                secret = false,
+                getKeyUrl = null,
+                onSave = {
+                    settingsViewModel.saveJulesProjectId(julesProjectId)
+                    Toast.makeText(context, "Project Number Saved", Toast.LENGTH_SHORT).show()
+                },
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -640,9 +606,6 @@ fun SettingsScreen(
             )
 
             Spacer(modifier = Modifier.height(24.dp))
-            AivePairingSection(settingsViewModel)
-
-            Spacer(modifier = Modifier.height(24.dp))
             Text("Paid Providers", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
             Spacer(modifier = Modifier.height(4.dp))
             Text(
@@ -679,7 +642,9 @@ fun SettingsScreen(
                 },
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+            AivePairingSection(settingsViewModel)
+
             Spacer(modifier = Modifier.height(24.dp))
 
             Text("AI Assignments", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
@@ -877,11 +842,17 @@ private fun AivePairingSection(settingsViewModel: SettingsViewModel) {
     var testing by remember { mutableStateOf(false) }
     val pairedRelay = AivePairingCode.parseOrNull(saved)?.relay
 
-    Text("The Aive on another device", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+    Text("The Aive (/aive and remote pairing)", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
     Spacer(modifier = Modifier.height(4.dp))
     Text(
         "Paste the pairing code from The Aive's Remote access screen. It is a secret: anyone holding it can use your Aive. " +
             "IDEaz uses The Aive installed on this device first and this pairing otherwise.",
+        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+        style = MaterialTheme.typography.bodySmall,
+    )
+    Spacer(modifier = Modifier.height(4.dp))
+    Text(
+        "Once The Aive is available (installed here or paired), type /aive followed by an objective in the chat to start a workflow in it, for example: /aive add a dark mode.",
         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
         style = MaterialTheme.typography.bodySmall,
     )
@@ -998,6 +969,45 @@ private fun FreeProviderKeyRow(
             onClick = {
                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(signupUrl)))
             },
+            text = "Get Key",
+            shape = AzButtonShape.NONE,
+        )
+    }
+}
+
+/** One credential: label, what it is for, the field, and its "Get Key" link on its own line. */
+@Composable
+private fun ApiKeyRow(
+    label: String,
+    help: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    hint: String,
+    getKeyUrl: String?,
+    onSave: () -> Unit,
+    secret: Boolean = true,
+) {
+    val context = LocalContext.current
+    Spacer(modifier = Modifier.height(16.dp))
+    Text(label, color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelLarge)
+    Text(
+        help,
+        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+        style = MaterialTheme.typography.bodySmall,
+    )
+    Spacer(modifier = Modifier.height(4.dp))
+    AzTextBox(
+        modifier = Modifier.fillMaxWidth(),
+        value = value,
+        onValueChange = onValueChange,
+        hint = hint,
+        secret = secret,
+        onSubmit = { onSave() },
+        submitButtonContent = { Text("Save") }
+    )
+    if (getKeyUrl != null) {
+        AzButton(
+            onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(getKeyUrl))) },
             text = "Get Key",
             shape = AzButtonShape.NONE,
         )

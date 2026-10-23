@@ -226,6 +226,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_AI_ASSIGNMENT_OVERLAY = "ai_assignment_overlay"
 
         const val KEY_SHOW_CANCEL_WARNING = "show_cancel_warning"
+        const val KEY_DEPLOY_CONFIRMED = "deploy_confirmed"
         const val KEY_AUTO_DEBUG_BUILDS = "auto_debug_builds"
         const val KEY_REPORT_IDE_ERRORS = "report_ide_errors"
 
@@ -294,6 +295,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         super.onCleared()
         sharedPreferences.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
     }
+
+    fun isDeployConfirmed() = sharedPreferences.getBoolean(KEY_DEPLOY_CONFIRMED, false)
+    fun setDeployConfirmed(confirmed: Boolean) = sharedPreferences.edit { putBoolean(KEY_DEPLOY_CONFIRMED, confirmed) }
 
     fun getShowCancelWarning() = sharedPreferences.getBoolean(KEY_SHOW_CANCEL_WARNING, true)
     fun setShowCancelWarning(show: Boolean) = sharedPreferences.edit { putBoolean(KEY_SHOW_CANCEL_WARNING, show) }

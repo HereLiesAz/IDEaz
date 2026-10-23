@@ -158,7 +158,7 @@ fun AzNavHostScope.ideNavRail(
         color = railItemColor,
         onClick = {
             handleActionClick {
-                viewModel.deployWebProject()
+                viewModel.requestDeploy()
             }
         }
     )
