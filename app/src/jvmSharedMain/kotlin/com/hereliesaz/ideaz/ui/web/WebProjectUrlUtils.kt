@@ -35,4 +35,26 @@ object WebProjectUrlUtils {
      * a project could pass the previewability check and still get refused.
      */
     fun localProjectUrl(entryPointPath: String): String = "$ASSET_ROOT_URL$entryPointPath"
+
+    /**
+     * Whether the preview WebView may navigate its top-level frame to [target]: only within
+     * the asset-loader origin, or - when a remote page is being previewed - within the origin
+     * of [remoteBaseUrl] (null for a local project). A page cannot send the WebView, and the
+     * privileged bridge it was given, to any other site; non-http(s) schemes never pass.
+     */
+    fun isAllowedNavigation(target: String, remoteBaseUrl: String?): Boolean {
+        val targetOrigin = originOf(target) ?: return false
+        if (targetOrigin == originOf(ASSET_ROOT_URL)) return true
+        val base = remoteBaseUrl?.let(::originOf) ?: return false
+        return targetOrigin == base
+    }
+
+    private fun originOf(url: String): Triple<String, String, Int>? {
+        val uri = try { java.net.URI(url.trim()) } catch (e: Exception) { return null }
+        val scheme = uri.scheme?.lowercase() ?: return null
+        if (scheme != "https" && scheme != "http") return null
+        val host = uri.host?.lowercase() ?: return null
+        val port = if (uri.port != -1) uri.port else if (scheme == "https") 443 else 80
+        return Triple(scheme, host, port)
+    }
 }
