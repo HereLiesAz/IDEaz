@@ -221,6 +221,22 @@ class MainViewModel(
             return
         }
 
+        // A quota or rate-limit failure moves this same request to the next provider (keyless
+        // ones first, then any the user has a key for); see ProviderFailover.
+        com.hereliesaz.ideaz.ai.ProviderCooldowns.process.attachStore(settingsViewModel.providerCooldownStore())
+        val failover = if (AiModels.defaultRanking.any { it.id == model.id }) {
+            AiAdapterFactory.withFailover(
+                model = model,
+                existing = client,
+                context = getApplication(),
+                tools = tools,
+                settings = settingsViewModel,
+                needsImages = referenceParts.any { it is com.hereliesaz.ideaz.ai.ChatPart.Image },
+                onSwitch = { notice -> stateDelegate.appendChatMessage(ChatMessage.notice(notice)) },
+            )
+        } else null
+        val chatClient: com.hereliesaz.ideaz.ai.ConversationalAiClient = failover ?: client
+
         val userParts = buildList {
             add(com.hereliesaz.ideaz.ai.ChatPart.Text(text))
             addAll(referenceParts)
@@ -231,7 +247,8 @@ class MainViewModel(
 
         viewModelScope.launch {
             try {
-                val response = client.chat(stateDelegate.chatMessages.value)
+                // Status notices are for the user; they are not part of the conversation.
+                val response = chatClient.chat(stateDelegate.chatMessages.value.filterNot { it.isNotice })
                 // chat() signals a handled failure (network error, unexpected
                 // response shape) by returning an "Error: " string rather than
                 // throwing - see IdeTools' class doc for the same contract on
@@ -240,7 +257,7 @@ class MainViewModel(
                 val message = if (response.startsWith("Error: ")) {
                     ChatMessage.error(response)
                 } else {
-                    ChatMessage("model", response, model.displayName)
+                    ChatMessage("model", response, failover?.activeLabel ?: model.displayName)
                 }
                 stateDelegate.appendChatMessage(message)
                 // chat() only returns here (rather than throwing
@@ -263,6 +280,9 @@ class MainViewModel(
                 stateDelegate.setEditReview(EditReviewState(e.approval))
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: com.hereliesaz.ideaz.ai.AllProvidersExhaustedException) {
+                // Plain one-liner with the reset time; the raw provider error sits behind "Details".
+                stateDelegate.appendChatMessage(ChatMessage.error(e.userMessage, details = e.details.ifBlank { null }))
             } catch (e: Exception) {
                 stateDelegate.appendChatMessage(
                     ChatMessage.error("Error: ${e.message}")

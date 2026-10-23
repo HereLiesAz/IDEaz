@@ -118,6 +118,11 @@ class GeminiAdapter(
                 // rate-limited backends) - restore instead of leaving the edit
                 // applied and unreviewed.
                 restorePendingEdit()
+                // Quota / rate limit (HTTP 429, RESOURCE_EXHAUSTED): the failover layer retries the
+                // same request on another provider. The SDK hides the status line, so classify the text.
+                QuotaClassifier.classifyMessage(e.message)?.let {
+                    throw ProviderQuotaException(it.cooldownSeconds, "Gemini request failed: ${e.message}".take(600))
+                }
                 return@withContext "Error: Gemini request failed: ${e.message}"
             }
 

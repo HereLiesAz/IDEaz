@@ -87,6 +87,8 @@ JVM targets depend on.
 *   `ai/AnthropicAdapter.kt`, `ai/OpenAiCompatibleAdapter.kt` — cloud adapters;
     the OpenAI-compatible one serves OpenAI, DeepSeek, Groq, Cerebras, Hugging
     Face and Mistral.
+*   `ai/ProviderFailover.kt` — pure quota classification, per-provider cooldowns, next-provider
+    selection, hours/minutes formatting, and `FailoverClient` (automatic provider failover).
 *   `ai/ToolSchema.kt` — provider-neutral tool-argument description.
 *   `utils/RepoSnapshot.kt` — redacted, bounded snapshot for providers with no
     file tools. Rejects symlinks and canonical paths outside the project root.

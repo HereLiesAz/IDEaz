@@ -180,7 +180,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
          * overwrite them: a foreign absolute path in project_paths would be returned by
          * getProjectPath while project creation uses filesDir.
          */
-        val DEVICE_LOCAL_KEYS: Set<String> = setOf(KEY_PROJECT_LIST, KEY_PROJECT_PATHS, KEY_APP_NAME, KEY_KEYSTORE_PATH)
+        /** Provider cooldown expiries ("id=epochMillis;..."); see [com.hereliesaz.ideaz.ai.ProviderCooldowns]. */
+        const val KEY_PROVIDER_COOLDOWNS = "provider_cooldowns"
+        val DEVICE_LOCAL_KEYS: Set<String> = setOf(KEY_PROJECT_LIST, KEY_PROJECT_PATHS, KEY_APP_NAME, KEY_KEYSTORE_PATH, KEY_PROVIDER_COOLDOWNS)
         const val KEY_GOOGLE_API_KEY = "google_api_key"
         const val KEY_GITHUB_TOKEN = "github_token"
         const val KEY_JULES_PROJECT_ID = "jules_project_id"
@@ -347,6 +349,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun wireModelKey(modelId: String) = "wire_model_$modelId"
+
+    /** Persists which providers are cooling down after a quota error, so a restart does not forget. */
+    fun providerCooldownStore(): com.hereliesaz.ideaz.ai.CooldownStore = object : com.hereliesaz.ideaz.ai.CooldownStore {
+        override fun read(): String? = sharedPreferences.getString(KEY_PROVIDER_COOLDOWNS, null)
+        override fun write(value: String) {
+            sharedPreferences.edit { putString(KEY_PROVIDER_COOLDOWNS, value) }
+        }
+    }
 
     fun getAivePairingCode(): String? = getApiKey(KEY_AIVE_PAIRING_CODE)?.takeIf { it.isNotBlank() }
 

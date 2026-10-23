@@ -111,4 +111,18 @@ class RetryInterceptorTest {
         assertEquals("busy", response.body.string())
         response.close()
     }
+
+    @Test
+    fun longRetryAfter_isNotWaitedOut_andReturnedOpen() {
+        // A daily quota (Retry-After of hours) must not be retried: the caller needs the reply now.
+        server.enqueue(MockResponse().setResponseCode(429).addHeader("Retry-After", "88446").setBody("quota"))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("never reached"))
+
+        val response = client(maxRetries = 3).newCall(Request.Builder().url(server.url("/")).build()).execute()
+
+        assertEquals(429, response.code)
+        assertEquals("quota", response.body.string())
+        assertEquals(1, server.requestCount)
+        response.close()
+    }
 }

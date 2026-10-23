@@ -112,6 +112,8 @@ class AnthropicAdapter(
                 // Same failure mode for a network/API error after a successful
                 // write in an earlier round (a rate limit here is common).
                 restorePendingEdit()
+                // Quota / rate limit: the failover layer retries the same request elsewhere.
+                if (e is ProviderQuotaException) throw e
                 return@withContext "Error: Anthropic request failed: ${e.message}"
             }
 
@@ -229,7 +231,10 @@ class AnthropicAdapter(
         httpClient.newCall(request).execute().use { resp ->
             val text = resp.body.string()
             if (!resp.isSuccessful) {
-                error("Anthropic call failed: HTTP ${resp.code}: ${text.take(500)}")
+                val failure = "Anthropic call failed: HTTP ${resp.code}: ${text.take(500)}"
+                // No in-place retry here, so any quota-class failure (short or long) switches provider.
+                throw QuotaClassifier.toException(resp.code, text, resp.header("Retry-After"), failure)
+                    ?: IllegalStateException(failure)
             }
             return OpenAiCompatibleAdapter.JSON.parseToJsonElement(text) as? JsonObject
                 ?: error("Unexpected response shape from Anthropic: ${text.take(200)}")

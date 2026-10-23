@@ -177,6 +177,43 @@ class OpenAiCompatibleAdapterTest {
     }
 
     @Test
+    fun `a daily quota 429 is not waited out - it surfaces as a quota failure after one call`() = runBlocking {
+        File(tempFolder.root, "app.js").writeText("original content")
+        server.enqueue(MockResponse().setResponseCode(200).setBody(toolCallResponse))
+        server.enqueue(
+            MockResponse().setResponseCode(429).setBody(
+                """{"error":{"message":"Daily token quota exceeded. Retry after 88446 seconds.","type":"insufficient_quota","code":"quota_exceeded","retry_after":88446}}"""
+            )
+        )
+
+        try {
+            adapter().chat(listOf(ChatMessage("user", "add a console.log")))
+            fail("Expected a ProviderQuotaException")
+        } catch (e: ProviderQuotaException) {
+            assertEquals(88_446L, e.cooldownSeconds)
+            assertTrue(e.message!!.contains("HTTP 429"))
+        }
+        // One call for the tool round, one for the refused round: no retries.
+        assertEquals(2, server.requestCount)
+        // The earlier round's write is rolled back so the next provider starts clean.
+        assertEquals("original content", File(tempFolder.root, "app.js").readText())
+    }
+
+    @Test
+    fun `a 429 that outlasts the short retries also becomes a quota failure`() = runBlocking {
+        repeat(OpenAiCompatibleAdapter.MAX_HTTP_ATTEMPTS) {
+            server.enqueue(MockResponse().setResponseCode(429).addHeader("Retry-After", "0").setBody("slow down"))
+        }
+        try {
+            adapter().chat(listOf(ChatMessage("user", "hi")))
+            fail("Expected a ProviderQuotaException")
+        } catch (e: ProviderQuotaException) {
+            assertTrue("A short reset keeps the cooldown short: ${e.cooldownSeconds}", e.cooldownSeconds <= QuotaClassifier.SHORT_WAIT_SECONDS)
+        }
+        assertEquals(OpenAiCompatibleAdapter.MAX_HTTP_ATTEMPTS, server.requestCount)
+    }
+
+    @Test
     fun `a client error is not retried`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(401).setBody("bad key"))
 

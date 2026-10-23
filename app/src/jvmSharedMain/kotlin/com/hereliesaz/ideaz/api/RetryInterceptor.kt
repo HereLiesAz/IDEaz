@@ -1,5 +1,6 @@
 package com.hereliesaz.ideaz.api
 
+import com.hereliesaz.ideaz.ai.QuotaClassifier
 import okhttp3.Interceptor
 import okhttp3.Response
 import java.io.IOException
@@ -37,6 +38,14 @@ class RetryInterceptor(
                 exception = null
 
                 if (!retryableStatuses.contains(response.code)) {
+                    return response
+                }
+
+                // A reset further away than a short wait (a daily quota, say) is not worth
+                // sleeping through: every retry would fail the same way. Hand the response back
+                // open so the caller can react (the AI layer switches provider on it).
+                val retryAfterSeconds = QuotaClassifier.parseRetryAfterSeconds(response.header("Retry-After"))
+                if (retryAfterSeconds != null && retryAfterSeconds > QuotaClassifier.SHORT_WAIT_SECONDS) {
                     return response
                 }
 
