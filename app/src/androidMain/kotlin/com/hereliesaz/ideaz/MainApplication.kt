@@ -3,7 +3,6 @@ package com.hereliesaz.ideaz
 import android.app.Application
 import com.hereliesaz.ideaz.ui.MainViewModel
 import com.hereliesaz.ideaz.ui.SettingsViewModel
-import com.hereliesaz.ideaz.utils.CrashHandler
 
 class MainApplication : Application() {
 
@@ -15,9 +14,6 @@ class MainApplication : Application() {
 
         val settingsViewModel = SettingsViewModel(this)
         mainViewModel = MainViewModel(this, settingsViewModel)
-
-        // Initialize Crash Reporting
-        CrashHandler.init(this)
     }
 
     override fun onTerminate() {

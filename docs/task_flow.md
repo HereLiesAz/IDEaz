@@ -43,7 +43,7 @@
 
 ### 4.2 IDE Infrastructure Error
 *   **Detect:** Stack trace from `com.hereliesaz.ideaz.*`, missing tool, etc.
-*   **Route:** `GithubIssueReporter` posts to `HereLiesAz/IDEaz` with the `jules` label.
+*   **Route:** Shown to the user and logged on the device. IDEaz does not report it anywhere.
 *   **Constraint:** Never sent to the user's AI session.
 
 ## 5. On-device AI Recovery

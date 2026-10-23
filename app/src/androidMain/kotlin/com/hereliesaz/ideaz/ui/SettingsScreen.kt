@@ -105,14 +105,6 @@ fun SettingsScreen(
         mutableStateOf(settingsViewModel.getShowCancelWarning())
     }
 
-    var autoDebugBuilds by remember(settingsVersion) {
-        mutableStateOf(settingsViewModel.isAutoDebugBuildsEnabled())
-    }
-
-    var reportIdeErrors by remember(settingsVersion) {
-        mutableStateOf(settingsViewModel.isReportIdeErrorsEnabled())
-    }
-
     var externalAiWindowMode by remember {
         mutableStateOf(ExternalAiWindowHost.preferredMode(context))
     }
@@ -740,7 +732,7 @@ fun SettingsScreen(
 
             PermissionCheckRow(
                 name = "Post Notifications",
-                description = "Shows build, download, crash-report and long-running task progress outside the app.",
+                description = "Shows build, download and long-running task progress outside the app.",
                 granted = hasNotify,
                 onClick = {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -771,48 +763,6 @@ fun SettingsScreen(
                     onCheckedChange = null
                 )
                 Text("Show warning when cancelling AI task", color = MaterialTheme.colorScheme.onBackground)
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .toggleable(
-                        value = autoDebugBuilds,
-                        onValueChange = {
-                            autoDebugBuilds = it
-                            settingsViewModel.setAutoDebugBuildsEnabled(it)
-                        },
-                        role = Role.Checkbox
-                    )
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Checkbox(
-                    checked = autoDebugBuilds,
-                    onCheckedChange = null
-                )
-                Text("Auto-send build failures to your default AI to fix", color = MaterialTheme.colorScheme.onBackground)
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .toggleable(
-                        value = reportIdeErrors,
-                        onValueChange = {
-                            reportIdeErrors = it
-                            settingsViewModel.setReportIdeErrorsEnabled(it)
-                        },
-                        role = Role.Checkbox
-                    )
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Checkbox(
-                    checked = reportIdeErrors,
-                    onCheckedChange = null
-                )
-                Text("Report IDE errors to HereLiesAz/IDEaz (Issues)", color = MaterialTheme.colorScheme.onBackground)
             }
 
             Spacer(modifier = Modifier.height(16.dp))

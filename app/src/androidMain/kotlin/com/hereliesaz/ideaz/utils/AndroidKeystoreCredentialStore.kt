@@ -18,20 +18,6 @@ interface CredentialStore {
 }
 
 /**
- * Read-only, migration-side-effect-free credential lookup for call sites that
- * don't hold a [com.hereliesaz.ideaz.ui.SettingsViewModel] instance (services,
- * static crash handlers). Checks the Keystore-backed store first, falling back
- * to the legacy plaintext preference of the same name for a value that hasn't
- * been migrated yet - [com.hereliesaz.ideaz.ui.SettingsViewModel.getApiKey]
- * still performs the actual one-time migration whenever Settings is opened.
- */
-fun readSecureOrLegacyCredential(context: Context, key: String): String? {
-    val secure = runCatching { AndroidKeystoreCredentialStore(context).get(key) }.getOrNull()
-    if (secure != null) return secure
-    return androidx.preference.PreferenceManager.getDefaultSharedPreferences(context).getString(key, null)
-}
-
-/**
  * Encrypts one credential into a versioned AES-GCM envelope.
  *
  * Deliberately does NOT pass a caller-generated IV via GCMParameterSpec on
@@ -101,14 +87,12 @@ class AndroidKeystoreCredentialStore(context: Context) : CredentialStore {
         check(preferences.edit().remove(storageKey(key)).commit()) { "Credential deletion failed" }
     }
 
-    // A per-instance @Synchronized lock is worthless here: readSecureOrLegacyCredential
-    // constructs a fresh AndroidKeystoreCredentialStore on every call, so it never shares
-    // a monitor with SettingsViewModel's long-lived instance. Locking on the companion
-    // object at least serializes every caller within this process. It cannot serialize
-    // against CrashReportingService, which runs in a separate ":crash_reporter" process -
-    // no JVM monitor spans processes - but AndroidKeyStore's own keystore daemon
-    // serializes concurrent generateKey() calls for the same alias, so the worst case
-    // there is redundant (not corrupting) key generation, not two divergent keys.
+    // A per-instance @Synchronized lock is worthless when callers construct a fresh
+    // AndroidKeystoreCredentialStore each time, since they never share a monitor with
+    // SettingsViewModel's long-lived instance. Locking on the companion object serializes
+    // every caller within this process. AndroidKeyStore's own keystore daemon serializes
+    // concurrent generateKey() calls for the same alias, so even a caller outside this
+    // lock only causes redundant (not corrupting) key generation, not two divergent keys.
     private fun secretKey(): SecretKey = synchronized(keyGenerationLock) {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
         (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return@synchronized it }

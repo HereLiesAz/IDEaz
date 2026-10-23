@@ -22,7 +22,7 @@ IDEaz is not a text editor. It is an **Overlay IDE**.
 *   Update `TODO.md` when completing tasks.
 
 ### 3. Error Handling
-*   **Crash Reporting:** The IDE has a built-in `CrashHandler`. Use it.
+*   **No automatic reporting:** IDEaz never sends errors, crashes or build logs anywhere on its own, and you must not add a path that does. Show the error to the user and log it; anything shared must be an explicit per-use user action, redacted with `LogSanitizer`.
 *   **User Feedback:** Use `MainViewModel.updateMessage` to communicate status to the user.
 *   **Logs:** Use standard `Log.d/i/e` with tags. The `BuildService` captures these for the user console.
 

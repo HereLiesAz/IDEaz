@@ -54,6 +54,5 @@ only artifact IDEaz builds is IDEaz.
 ## Tips
 
 *   **Logs:** `adb logcat -s IDEaz ProjectConfigManager TemplateManager MainViewModel`.
-*   **Crash reports:** `CrashReportingService` runs in a separate
-    `:crash_reporter` process so it outlives the main one, and files issues
-    against `HereLiesAz/IDEaz`.
+*   **Crash reports:** none are sent. IDEaz has no automatic error, crash or build-log reporting;
+    use `adb logcat` or the console's "Copy log" (redacted by `LogSanitizer`) and share it yourself.

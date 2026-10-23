@@ -24,7 +24,7 @@ On project initialization IDEaz writes the appropriate CI workflow through `Proj
 
 ## 4. Build Failures
 
-Web/PWA projects have no Android build. A future Android target can route workflow failures back into the active AI/task surface. IDE infrastructure failures may be reported to `HereLiesAz/IDEaz` when the user has error reporting enabled.
+Web/PWA projects have no Android build. A future Android target can route workflow failures back into the active AI/task surface. IDE infrastructure failures are shown to the user and logged on the device; IDEaz does not report them anywhere.
 
 ## 5. Secrets
 
@@ -149,6 +149,6 @@ The workflow intentionally still honors `ANDROID_BUILD_FILE` and legacy `BUNDLE_
 
 The **Play build does not declare** the GitHub distribution's installed-AI accessibility service, `SYSTEM_ALERT_WINDOW`, or special-use foreground overlay service. Those permissions therefore are not part of the Play review/data-safety surface.
 
-The Play Data safety form must still match data actually sent by the Play build: prompts/source/context sent to user-selected hosted AI providers, and repository/account data sent to GitHub when the user uses GitHub-backed features. Crash reports are opt-in and may be filed to the public IDEaz issue tracker as disclosed in-app.
+The Play Data safety form must still match data actually sent by the Play build: prompts/source/context sent to user-selected hosted AI providers, and repository/account data sent to GitHub when the user uses GitHub-backed features. IDEaz collects no crash, error or build-log data and sends none automatically, so the Data safety form declares no crash logs, diagnostics or analytics collection (see [`play-data-safety.md`](play-data-safety.md)).
 
 The **GitHub APK** has a separate permission story: its installed-Gemini bridge is user-enabled, package-scoped to supported Gemini packages, idle outside an in-flight handoff, and shares a redacted bounded project snapshot plus explicit prompt attachments. Keep that disclosure accurate in Settings and `docs/architecture.md` whenever the bridge changes.

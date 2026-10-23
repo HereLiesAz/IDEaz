@@ -28,15 +28,19 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `crash reporting defaults on but the first-run disclosure is unseen until marked`() {
-        assertTrue(viewModel.isReportIdeErrorsEnabled())
-        assertFalse(viewModel.hasShownCrashReportingFirstRun())
+    fun `reporting flags from older versions are removed on startup`() {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(application)
+        prefs.edit()
+            .putBoolean("report_ide_errors", true)
+            .putBoolean("crash_reporting_first_run_shown", true)
+            .putBoolean("auto_debug_builds", true)
+            .commit()
 
-        viewModel.setReportIdeErrorsEnabled(false)
-        viewModel.markCrashReportingFirstRunShown()
+        SettingsViewModel(application)
 
-        assertFalse(viewModel.isReportIdeErrorsEnabled())
-        assertTrue(viewModel.hasShownCrashReportingFirstRun())
+        assertFalse(prefs.contains("report_ide_errors"))
+        assertFalse(prefs.contains("crash_reporting_first_run_shown"))
+        assertFalse(prefs.contains("auto_debug_builds"))
     }
 
     @Test

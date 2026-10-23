@@ -47,10 +47,8 @@ There are none. A project's working tree *is* the app: `WebProjectHost` mounts i
 
 Three generations of the opposite lived here and are all gone: the on-device APK toolchain (`aapt2`, `d8`, `kotlinc`) removed in Phase 0; `RemoteBuildManager`, which downloaded a GitHub Actions artifact into `cacheDir` to install; and `WasmCompilerService`, which compiled Compose Multiplatform sources to `.wasm` under `filesDir/www` for a local preview.
 
-## 5. Reporting Deduplication
-`GithubIssueReporter` uses a dedicated `SharedPreferences` file or keys to track reported error hashes.
-*   **Mechanism:** Stores a hash of the stack trace + timestamp.
-*   **Policy:** Prevents duplicate reports for the same error within 24 hours.
+## 5. Error Reporting
+None. IDEaz stores no report ledger, consent flag or reporting toggle, and sends no error, crash or build log anywhere. On startup `SettingsViewModel` deletes the preference keys and the `bug_report_prefs` file that earlier versions left behind.
 
 ## 6. Static Data & Assets
 *   **Templates:** `assets/templates/react/` — the one bundled starter, copied into an empty project directory by `TemplateManager.ensureTemplate`.

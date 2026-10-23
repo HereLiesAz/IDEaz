@@ -2,7 +2,7 @@
 
 ## 1. The "Hidden Error"
 **Bad:** `catch (e: Exception) { Log.e("Tag", "Error") }`
-**Good:** Report the error to the user (`viewModel.updateMessage`) or the collection service (`ErrorCollector`). Silent failures make debugging impossible.
+**Good:** Report the error to the user (`viewModel.updateMessage`) or the on-device log. Silent failures make debugging impossible. Never send the error anywhere automatically.
 
 ## 2. The "Main Thread IO"
 **Bad:** Reading files or network on the Main Thread.

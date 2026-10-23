@@ -1,26 +1,27 @@
-# Error Handling & Crash Reporting
+# Error Handling
 
 ## Overview
-IDEaz reports its own fatal crashes and batched non-fatal errors as GitHub
-issues on the configured repository, gated by an explicit first-run consent
-dialog and a Settings toggle (`KEY_REPORT_IDE_ERRORS`). Stack traces are
-sanitized ([`LogSanitizer`](../app/src/jvmSharedMain/kotlin/com/hereliesaz/ideaz/utils/LogSanitizer.kt))
-before they leave the device.
+IDEaz does **not** report errors, crashes or build logs anywhere. There is no crash handler that
+posts, no error collector, no reporting service, no first-run consent dialog and no reporting
+toggle in Settings. A failure is shown to the user and written to the on-device log, and that is
+where it stays. The only data that leaves the device is what the user sends to the AI providers
+and the GitHub / Cloudflare services they configure (see [`../PRIVACY.md`](../PRIVACY.md)).
+
+If the user wants to hand a log to someone, they do it themselves: the console's "Copy log"
+action puts a [`LogSanitizer`](../app/src/jvmSharedMain/kotlin/com/hereliesaz/ideaz/utils/LogSanitizer.kt)-redacted
+copy on the clipboard, and `RepoSnapshot` uses the same sanitizer for the project snapshot it
+shares. Nothing sends it for them.
 
 ## Mechanisms
 
 ### 1. Fatal Crashes
-- **Component:** `CrashHandler` (JVM UncaughtExceptionHandler).
-- **Behavior:** Intercepts fatal exceptions.
-- **Action:** Starts `CrashReportingService` in a separate process (`:crash_reporter`).
-- **Reporting:** Files a GitHub issue via `GithubIssueReporter.reportError` (context message, device manufacturer/model/SDK version, and the sanitized stack trace), gated on the user's `KEY_REPORT_IDE_ERRORS` consent and a configured GitHub token.
+Android's default handler runs and the process ends. IDEaz installs no uncaught-exception handler
+of its own and starts no service, so nothing is sent.
 
 ### 2. Non-Fatal Errors
-- **Component:** `ErrorCollector` (Singleton).
-- **Behavior:** Collects exceptions from ViewModels, Coroutines, and other logic.
-- **Deduplication:** Repeats of the same error are capped at 3 times.
-- **Batching:** Errors are flushed and reported when the user navigates between screens (`IdeNavHost`).
-- **Filtering:** "Noise" errors (Cancellation, etc.) are ignored.
+Surfaced where they happen: an error bubble in the chat, a toast, or a line in the console. They
+are written to logcat (`Log.*`) at the level chosen in Settings → Log Level. There is no
+collection, batching or flush on navigation.
 
 ### 3. User Project Injection
 Removed. `ProjectInitializer` wrote a `CrashReporter.kt` into the user's own source tree with their API key and repository baked into a `Secrets.kt` beside it, and needed a hook in their `MainActivity.onCreate` to do anything. It only ever applied to the Android edit target, which no longer exists.

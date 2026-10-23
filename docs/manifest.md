@@ -19,7 +19,6 @@ The common manifest declares:
 * `MainApplication`.
 * `MainActivity` — launcher activity, `singleTask`.
 * `FileProvider` — non-exported, grant-on-demand provider used when IDEaz explicitly stages and shares the redacted project snapshot or prompt attachments to another app.
-* `CrashReportingService` — non-exported, isolated `:crash_reporter` process. It is used only after the user-facing crash-reporting disclosure/setting allows it.
 
 No external-AI accessibility or overlay permission is present in this common manifest. `android.permission.INTERNET` is not declared in any IDEaz manifest or Gradle file; it is expected to arrive through manifest merging from a dependency (not verified: Gradle could not be run).
 
@@ -87,10 +86,6 @@ Coordinates project lifecycle, preview, chat, edit checkpoints/review, git and l
 ### `SettingsViewModel`
 
 Owns preferences and secure credentials. `AiModel.providerKey` names a provider's API credential; `AiModel.requiredKey` is the distribution-aware setup requirement. Thus Play's Gemini assignment requires an AI Studio key while GitHub's installed-app Gemini route may satisfy setup without one.
-
-### `CrashReportingService`
-
-Non-exported service in a separate process so opted-in fatal/non-fatal issue reporting can survive failure of the main process.
 
 ### `FileProvider`
 
