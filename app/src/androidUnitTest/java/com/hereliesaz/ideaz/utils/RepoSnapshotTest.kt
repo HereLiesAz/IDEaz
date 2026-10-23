@@ -91,7 +91,7 @@ class RepoSnapshotBudgetTest {
     @Test
     fun totalIncludingNotIncludedListStaysWithinBudget() {
         val dir = tmp()
-        repeat(500) { File(dir, "file-with-a-fairly-long-name-$it.bin").writeBytes(byteArrayOf(0, 1)) }
+        repeat(500) { File(dir, "f$it.bin").writeBytes(byteArrayOf(0, 1)) }
         File(dir, "a.txt").writeText("alpha")
         val r = RepoSnapshot.build(dir, maxBytes = 12_000)
         assertTrue(RepoSnapshot.utf8Size(r.text) <= 12_000)

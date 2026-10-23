@@ -110,7 +110,7 @@ JVM targets depend on.
 *   `ui/delegates/StateDelegate.kt` — UI state, including edit-review lifecycle.
 *   `ui/web/WebProjectUrlUtils.kt` — asset-loader origin and root mount rules.
 *   `utils/RepoMapper.kt`, `utils/SourceContextHelper.kt`, `utils/LogSanitizer.kt`,
-    `utils/OperationController.kt`, `utils/ErrorCollector.kt`, `utils/VersionUtils.kt`
+    `utils/OperationController.kt`, `utils/ErrorCollector.kt`
     — supporting utilities.
 
 ### androidMain — the phone IDE
