@@ -9,14 +9,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,10 +48,10 @@ fun ProjectLoadTab(
     if (showDeleteDialog && projectToDelete != null) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Project?") },
+            title = { Text("Delete project?") },
             text = { Text("Are you sure you want to delete '${projectToDelete}'? Changes are committed and pushed to GitHub first; if anything cannot be pushed, you will be asked again. This action cannot be undone.") },
             confirmButton = {
-                TextButton(
+                AzButton(
                     onClick = {
                         // syncAndDeleteProject, not deleteProject: commits and
                         // pushes any pending work before removing the local
@@ -64,17 +62,12 @@ fun ProjectLoadTab(
                         }
                         showDeleteDialog = false
                     },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    )
-                ) {
-                    Text("Delete")
-                }
+                    text = "Delete",
+                    shape = AzButtonShape.RECTANGLE,
+                )
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
-                }
+                AzButton(onClick = { showDeleteDialog = false }, text = "Cancel", shape = AzButtonShape.NONE)
             }
         )
     }
@@ -85,22 +78,17 @@ fun ProjectLoadTab(
             title = { Text("Delete work that is not on GitHub?") },
             text = { Text("'$name' was not deleted: $reason Deleting it now permanently loses that work.") },
             confirmButton = {
-                TextButton(
+                AzButton(
                     onClick = {
                         viewModel.syncAndDeleteProject(name, force = true)
                         unsafeDelete = null
                     },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    )
-                ) {
-                    Text("Delete anyway")
-                }
+                    text = "Delete anyway",
+                    shape = AzButtonShape.RECTANGLE,
+                )
             },
             dismissButton = {
-                TextButton(onClick = { unsafeDelete = null }) {
-                    Text("Keep project")
-                }
+                AzButton(onClick = { unsafeDelete = null }, text = "Keep project", shape = AzButtonShape.NONE)
             }
         )
     }

@@ -42,6 +42,9 @@ class AiveRemoteClient(context: Context) : AiveTransport {
 
     override val isRemote: Boolean get() = false
 
+    /** Launch ids this client queued, so [watchRun] can report their outcome. */
+    private val launches = LaunchOutcomes()
+
     data class RunStatus(
         val runId: String,
         val objective: String,
@@ -96,6 +99,9 @@ class AiveRemoteClient(context: Context) : AiveTransport {
      * Queues an orchestrated workflow in The Aive. The Aive launches it when it next shows its UI,
      * so call [openAive] afterwards. [repositoryUrl] must be `https://github.com/owner/name`.
      *
+     * When the reply carries a launch id ([P.KEY_LAUNCH_ID], protocol 2) it is remembered, and a
+     * later [P.MSG_LAUNCH_OUTCOME] reporting that launch failed ends [watchRun] with the reason.
+     *
      * @return the run id when The Aive's reply carries one ([P.KEY_RUN_ID]), else null.
      */
     override suspend fun launchWorkflow(projectName: String, objective: String, repositoryUrl: String?): String? {
@@ -104,6 +110,7 @@ class AiveRemoteClient(context: Context) : AiveTransport {
             putString(P.KEY_OBJECTIVE, objective)
             repositoryUrl?.let { putString(P.KEY_REPOSITORY_URL, it) }
         }
+        if (reply.containsKey(P.KEY_LAUNCH_ID)) launches.track(reply.getLong(P.KEY_LAUNCH_ID))
         return reply.getString(P.KEY_RUN_ID)?.takeIf { it.isNotBlank() }
     }
 
@@ -145,6 +152,13 @@ class AiveRemoteClient(context: Context) : AiveTransport {
                         progressMessage = data.getString(P.KEY_PROGRESS_MESSAGE),
                     )
                 )
+            } else if (message.what == P.MSG_LAUNCH_OUTCOME) {
+                val data = message.data
+                launches.outcome(
+                    data.getLong(P.KEY_LAUNCH_ID, -1L),
+                    data.getBoolean(P.KEY_LAUNCH_STARTED),
+                    data.getString(P.KEY_ERROR),
+                )?.let { close(IllegalStateException(it)) }
             } else if (message.what == P.MSG_ERROR) {
                 close(IllegalStateException(message.data.getString(P.KEY_ERROR)))
             }
@@ -317,5 +331,23 @@ class AiveRemoteClient(context: Context) : AiveTransport {
         fun installedPackage(context: Context): String? = PACKAGES.firstOrNull { pkg ->
             context.packageManager.queryIntentServices(Intent(P.ACTION_BIND).setPackage(pkg), 0).isNotEmpty()
         }
+    }
+}
+
+/**
+ * Launch ids queued through the Messenger path, mirroring the relay's launch tracking. An outcome
+ * for an id this client did not queue (or a protocol 1 peer that sends none) is ignored.
+ */
+internal class LaunchOutcomes {
+    private val pending = mutableSetOf<Long>()
+
+    fun track(launchId: Long) {
+        synchronized(pending) { pending.add(launchId) }
+    }
+
+    /** The failure text when [launchId] is ours and did not start; null when started or not ours. */
+    fun outcome(launchId: Long, started: Boolean, error: String?): String? = synchronized(pending) {
+        if (!pending.remove(launchId)) return null
+        if (started) null else error ?: "The Aive could not start the workflow."
     }
 }

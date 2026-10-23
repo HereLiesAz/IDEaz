@@ -13,9 +13,8 @@ val LightGrey = Color(0xFF8E8E93)
 val White = Color(0xFFFFFFFF)
 val OffWhite = Color(0xFFF2F2F7)
 
-/** Accent for the always-dark translucent nav rail (white and amber both read on it). */
-val RailItemColor = White
-val RailActiveColor = Color(0xFFFFC107)
+private val RailActiveOnDark = Color(0xFFFFC107)
+private val RailActiveOnLight = Color(0xFF8A5A00)
 
 private val SuccessOnDark = Color(0xFF81C784)
 private val SuccessOnLight = Color(0xFF1B5E20)
@@ -36,3 +35,18 @@ fun successColor(): Color = if (isDarkSurface()) SuccessOnDark else SuccessOnLig
 @Composable
 @ReadOnlyComposable
 fun selectionColor(): Color = if (isDarkSurface()) SelectionOnDark else SelectionOnLight
+
+/** Base colour of nav rail items: readable on the current theme's background. */
+@Composable
+@ReadOnlyComposable
+fun railItemColor(): Color = MaterialTheme.colorScheme.onBackground
+
+/** The nav rail's active-item accent (amber), darkened on a light theme for contrast. */
+@Composable
+@ReadOnlyComposable
+fun railActiveColor(): Color = if (isDarkSurface()) RailActiveOnDark else RailActiveOnLight
+
+/** Translucent backdrop behind the nav rail's menus and help overlay. */
+@Composable
+@ReadOnlyComposable
+fun railScrimColor(): Color = MaterialTheme.colorScheme.background.copy(alpha = 0.5f)
