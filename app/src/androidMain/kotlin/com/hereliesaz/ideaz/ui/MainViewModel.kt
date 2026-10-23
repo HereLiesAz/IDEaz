@@ -457,6 +457,11 @@ class MainViewModel(
                 stateDelegate.setEditReview(state.copy(status = targetStatus, restoreConflict = false))
                 stateDelegate.triggerFileTreeReload()
                 stateDelegate.triggerWebHardReload()
+            } catch (e: CancellationException) {
+                // CancellationException is an IllegalStateException; it must not be reported as
+                // "files changed after review".
+                stateDelegate.setEditReview(state)
+                throw e
             } catch (e: IllegalStateException) {
                 // restoreEditCheckpoint's fingerprint check throws exactly this
                 // when the files changed since review (protecting against
