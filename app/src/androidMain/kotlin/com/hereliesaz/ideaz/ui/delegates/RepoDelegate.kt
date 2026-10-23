@@ -1,22 +1,15 @@
 package com.hereliesaz.ideaz.ui.delegates
 
 import android.app.Application
-import android.content.Context
-import android.util.Log
 import com.hereliesaz.ideaz.api.CreateRepoRequest
-import com.hereliesaz.ideaz.api.CreateSecretRequest
 import com.hereliesaz.ideaz.api.GitHubApiClient
 import com.hereliesaz.ideaz.api.GitHubRepoResponse
-import com.hereliesaz.ideaz.api.GitHubPermissions
-import com.hereliesaz.ideaz.api.Source
 import com.hereliesaz.ideaz.git.GitManager
-import com.hereliesaz.ideaz.ui.AiModels
 import com.hereliesaz.ideaz.ui.ProjectMetadata
 import com.hereliesaz.ideaz.ui.SettingsViewModel
-import com.hereliesaz.ideaz.utils.GithubSecretBox
+import com.hereliesaz.ideaz.utils.DeployIgnore
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ProjectConfigManager
-import com.hereliesaz.ideaz.utils.RepoMapper
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,7 +22,6 @@ import java.io.File
  * - **Discovery:** listing repositories from Jules/GitHub.
  * - **Creation:** Creating new repos, forking existing ones.
  * - **Setup:** Initializing local project state and ensuring config files exist.
- * - **Security:** Encrypting and uploading secrets to GitHub Actions.
  *
  * @param application The Application context.
  * @param settingsViewModel ViewModel for accessing settings.
@@ -125,6 +117,10 @@ class RepoDelegate(
      *   token, or the API call failed) — the reason is reported to the log.
      */
     suspend fun ensureRemoteRepository(appName: String): Boolean = withContext(Dispatchers.IO) {
+        com.hereliesaz.ideaz.utils.ProjectNames.validate(appName)?.let {
+            onOverlayLog("Cannot publish '$appName': $it")
+            return@withContext false
+        }
         val git = GitManager(settingsViewModel.getProjectPath(appName))
         if (git.remoteUrl("origin") != null) return@withContext true
 
@@ -149,17 +145,28 @@ class RepoDelegate(
             }
 
             val repo = existing ?: run {
-                onOverlayLog("Creating $appName on GitHub...")
+                onOverlayLog("Creating $appName on GitHub (private)...")
                 service.createRepo(
                     CreateRepoRequest(
                         name = appName,
                         description = settingsViewModel.getRepoDescription(),
-                        private = false,
+                        // Private: the repository holds the source and its whole
+                        // history. What the public sees is only the build
+                        // output the central web-deploy publishes.
+                        private = true,
                         // No auto-init: the local project already has commits, and
                         // an auto-initialised remote would need a merge before the
                         // first push could fast-forward.
                         autoInit = false,
                     )
+                )
+            }
+
+            if (existing != null && existing.private == false) {
+                onOverlayLog(
+                    "Note: ${existing.fullName} is public, so everything pushed to it is visible. " +
+                        "IDEaz never commits .env files, keystores or .ideaz/, but anything " +
+                        "already in its history stays there."
                 )
             }
 
@@ -179,8 +186,9 @@ class RepoDelegate(
             // directory.
             if (!git.isRepo()) git.init()
 
-            git.addRemote("origin", "https://github.com/$owner/$appName.git")
-            onOverlayLog("Linked $appName to $owner/$appName.")
+            // GitHub's own name for the repository, not the local one.
+            git.addRemote("origin", "https://github.com/$owner/${repo.name}.git")
+            onOverlayLog("Linked $appName to $owner/${repo.name}.")
             true
         } catch (e: Exception) {
             onOverlayLog("Could not create the GitHub repository: ${e.message}")
@@ -343,9 +351,10 @@ class RepoDelegate(
     }
 
     /**
-     * Forces the regeneration and push of initialization files:
-     * `.github/workflows/web_ci_pages.yml`, `AGENTS_SETUP.md` and
-     * `version.properties`.
+     * Forces the regeneration and push of initialization files: `.gitignore`,
+     * `AGENTS_SETUP.md` and `version.properties`; deletes an unmodified copy of
+     * the Pages workflow IDEaz used to write; and stops tracking anything
+     * [DeployIgnore] excludes that an earlier commit already swept up.
      *
      * `setup_env.sh` (a JDK + Android SDK bootstrap) and the `CrashReporter`
      * injection used to ride along here. Both existed for the Android edit
@@ -370,15 +379,31 @@ class RepoDelegate(
             // stages only these paths, never unrelated uncommitted work sitting
             // in the same working tree (see GitManager.addPaths).
             val writtenPaths = mutableListOf<String>()
+            writtenPaths += ProjectConfigManager.ensureGitIgnore(projectDir)
             writtenPaths += ProjectConfigManager.ensureVersioning(projectDir)
-            writtenPaths += ProjectConfigManager.ensureWorkflow(projectDir)
             writtenPaths += ProjectConfigManager.ensureAgentsSetupMd(projectDir)
+            val removedPaths = ProjectConfigManager.retireLegacyWorkflow(projectDir).toMutableList()
 
-            if (writtenPaths.isEmpty()) {
+            // .gitignore only stops new files being added. Anything excluded
+            // that is already tracked (a .env committed before this existed)
+            // would still be pushed, so it leaves the index - kept on disk.
+            val excludedTracked = runCatching {
+                val git = GitManager(projectDir)
+                if (git.isRepo()) git.trackedFiles().filter { DeployIgnore.isExcluded(it) } else emptyList()
+            }.getOrDefault(emptyList())
+            if (excludedTracked.isNotEmpty()) {
+                onOverlayLog(
+                    "No longer tracked (still on disk): ${excludedTracked.joinToString(", ")}. " +
+                        "Earlier commits still contain them; rotate any secret among them."
+                )
+            }
+            removedPaths += excludedTracked
+
+            if (writtenPaths.isEmpty() && removedPaths.isEmpty()) {
                 onOverlayLog("Init files already up to date — nothing to regenerate.")
                 return@withContext
             }
-            onOverlayLog("Regenerated: ${writtenPaths.joinToString(", ")}")
+            if (writtenPaths.isNotEmpty()) onOverlayLog("Regenerated: ${writtenPaths.joinToString(", ")}")
 
             // 3. Git Operations (Init, Commit, Push)
             try {
@@ -413,10 +438,11 @@ class RepoDelegate(
                     }
                 }
 
-                // Commit & Push — staged to exactly writtenPaths, not addAll(),
+                // Commit & Push — staged to exactly these paths, not addAll(),
                 // so this can never silently sweep up unrelated pending work.
                 git.addPaths(writtenPaths)
-                git.commit("IDEaz: Update Init Files & Workflows")
+                git.untrack(removedPaths)
+                git.commit("IDEaz: Update init files and .gitignore")
                 if (token != null && user != null) {
                     git.push(user, token) { progress, task -> onGitProgress(progress, task) }
                     onOverlayLog("Init files pushed successfully.")

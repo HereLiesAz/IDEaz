@@ -49,7 +49,7 @@ IDEaz has two Android distributions from one source tree:
 
 The split is deliberate. The GitHub APK may expose the explicitly enabled installed-Gemini accessibility/overlay host. The Play bundle inherits only the policy-safe common manifest and uses provider APIs.
 
-[`build-and-release.yml`](../.github/workflows/build-and-release.yml) owns the GitHub APK channel. [`publish-play.yml`](../.github/workflows/publish-play.yml) owns the Play AAB channel.
+Both channels now release through the central HereLiesAz/workflows executors. [`android-github-release.yml`](../.github/workflows/android-github-release.yml) is the trigger contract for the GitHub APK channel and [`android-play-release.yml`](../.github/workflows/android-play-release.yml) for the Play AAB channel; both fire on pushes to `master` that touch the app build, or manually. The executors run [`scripts/central-release-build.sh`](../scripts/central-release-build.sh) (`aab` → `:app:bundlePlay`; `apk` → `:app:bundleRelease` fused into a universal APK by bundletool) and pass the canonical version as `-PversionCodeOverride` / `-PversionName`, which `app/build.gradle.kts` prefers over its packed formula. Sections 6.0 and 6.4 below describe the retired local `build-and-release.yml` / `publish-play.yml` and are kept for history.
 
 ### 6.0 GitHub-Release APK channel
 
@@ -90,7 +90,7 @@ export KEY_PASSWORD=••••••
 # → app/build/outputs/bundle/play/app-play.aab
 ```
 
-The release-grade signing configuration reads `KEYSTORE_FILE`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD`. Local builds without release-signing environment variables can fall back to the debug keystore for build verification; those artifacts are not uploadable to Play.
+The release-grade signing configuration reads `KEYSTORE_FILE`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD`. Without `KEYSTORE_FILE` (or AGP's injected `android.injected.signing.store.file`), packaging a `release` or `play` variant fails (`requireReleaseKeystore`); there is no debug-keystore fallback. Verify builds without a keystore with `./gradlew :app:testDebugUnitTest :app:assembleDebug`, which is what `pr-ci.yml` runs on every pull request.
 
 ### 6.2 Build-component override (`-PversionBuild`)
 
@@ -106,7 +106,7 @@ The packed formula remains `major·1e6 + minor·1e4 + patch·100 + build`; using
 
 ### 6.4 Publishing via the workflow
 
-[`publish-play.yml`](../.github/workflows/publish-play.yml) is `workflow_dispatch`-only with three inputs:
+`publish-play.yml` (retired; Play publishing now runs from [`android-play-release.yml`](../.github/workflows/android-play-release.yml), a trigger contract for the central HereLiesAz/workflows executor) was `workflow_dispatch`-only with three inputs:
 
 | Input | Options | Default | Meaning |
 |---|---|---|---|

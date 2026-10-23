@@ -17,6 +17,11 @@ enum class EditReviewStatus { PENDING, PROCESSING, APPROVED, REJECTED, UNDONE }
 data class EditReviewState(
     val approval: AiEditApproval,
     val status: EditReviewStatus = EditReviewStatus.PENDING,
+    /**
+     * A Reject/Undo found the files changed after review. The checkpoint is
+     * kept; the user chooses to restore anyway or keep the current files.
+     */
+    val restoreConflict: Boolean = false,
 )
 
 /**
@@ -352,7 +357,6 @@ class StateDelegate(
         _aiLog.value = emptyList()
         _pureBuildLog.value = emptyList()
         _systemLog.value = emptyList()
-        clearChatHistory()
     }
 
     // --- Internal Helpers ---

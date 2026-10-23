@@ -29,9 +29,10 @@ data class AiToolSpec(
 /**
  * The set of tools the AI can invoke against the project sandbox. Adapters
  * read from [all] and translate to their wire format. Tool dispatch itself
- * lives in each adapter (currently [GeminiAdapter.dispatchTool] and
- * [OpenAiCompatibleAdapter.dispatchTool]) so each adapter can decode args
- * from its provider's native shape.
+ * lives in each adapter: [GeminiAdapter.dispatchTool] wraps [dispatchIdeTool]
+ * with provider-specific decoding, while [OpenAiCompatibleAdapter] and
+ * [AnthropicAdapter] call [dispatchIdeTool] directly, so each adapter can
+ * decode args from its provider's native shape.
  */
 object IdeToolSchema {
     val readFile = AiToolSpec(
@@ -79,7 +80,10 @@ object IdeToolSchema {
 internal fun dispatchIdeTool(name: String, args: Map<String, String?>, tools: IdeTools): String =
     when (name) {
         "read_file"   -> tools.readFile(args["path"].orEmpty())
-        "write_file"  -> tools.writeFile(args["path"].orEmpty(), args["content"].orEmpty())
+        // A missing content argument (a call cut off by the token limit, or a
+        // model that omitted it) used to write "" - truncating the file.
+        "write_file"  -> args["content"]?.let { tools.writeFile(args["path"].orEmpty(), it) }
+            ?: "Error: write_file needs a 'content' argument; nothing was written."
         "list_files"  -> tools.listFiles(args["path"] ?: ".")
         "apply_patch" -> tools.applyPatch(args["patch"].orEmpty())
         else          -> "Error: Unknown tool '$name'."

@@ -1,6 +1,12 @@
 # Architectural Blueprint for IDEaz
 
 > **Authoritative source:** [`plans/2026-05-01-ideaz-revival-design.md`](plans/2026-05-01-ideaz-revival-design.md).
+>
+> **This is a phased design doc, not a snapshot of current behavior.** Several
+> items below describe a planned or since-removed state (the Android edit
+> target, the Jules provider, remote/dual-build strategies). For what's
+> actually shipped, see the [README](../README.md) and
+> [`workflow.md`](workflow.md).
 
 ## 1. Vision: The Visual, Post-Code IDE
 
@@ -32,17 +38,20 @@ Pick / Create project
 
 ## 3. AI Providers
 
-| Phase | Provider | Notes |
+As shipped today, all eight providers below are live (see `AiAdapterFactory`),
+not phased — this table is kept for historical context on the original
+rollout plan.
+
+| Phase (as originally planned) | Provider | Notes |
 |---|---|---|
 | 1 (default) | **Gemini** | Free tier on-ramp; BYO-key; PBKDF2-encrypted credentials |
-| 2 | **Jules** | Android target loop; PR-based, agentic, async |
-| 3 (post-MVP) | **Claude / OpenAI** | Slot into the same `ConversationalAiClient` interface |
+| 3 | **Claude, OpenAI, DeepSeek, Groq, Cerebras, Hugging Face, Mistral** | Slot into the same `ConversationalAiClient` interface; Claude via `AnthropicAdapter`, the rest share `OpenAiCompatibleAdapter` |
 
 ## 4. Build Pipeline
 
 There isn't one, by design. IDEaz renders the working tree directly, so a project has no build step to run, remotely or otherwise.
 
-The remote pipeline described here — force-pushed `android_ci.yml` + `release.yml`, artifact polling, `PackageInstaller` sideload — served the Android edit target and went with it. The only workflow IDEaz writes now is `web_ci_pages.yml`, on the explicit Deploy action, to publish to GitHub Pages.
+The remote pipeline described here — force-pushed `android_ci.yml` + `release.yml`, artifact polling, `PackageInstaller` sideload — served the Android edit target and went with it. IDEaz writes no workflow now: Deploy pushes to a private repository and the central HereLiesAz/workflows Worker builds and publishes the output (see `docs/workflow.md` §2.2).
 
 ## 5. Error Handling
 
@@ -55,7 +64,7 @@ The remote pipeline described here — force-pushed `android_ci.yml` + `release.
 User selects a project on the Load tab → JGit clone/pull → `ProjectAnalyzer.isPreviewable` → navigate to Setup tab.
 
 ### Initialization
-User taps "Save & Initialize" on the Setup tab → the directory is scaffolded from the bundled React starter if empty → the preview opens. Nothing is pushed; publishing is the rail's separate Deploy action.
+User taps "Open project" on the Setup tab → the directory is scaffolded from the bundled React starter if empty → the preview opens. Nothing is pushed; publishing is the rail's separate Deploy action.
 
 ## 7. Developer Tools (Escape Hatches)
 

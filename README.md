@@ -51,9 +51,21 @@ to a selector — the AI is told which it is getting.
 
 **AI**
 
-Eight hosted providers sit behind three adapter families — Gemini, Claude, and
-one OpenAI-compatible client covering OpenAI, DeepSeek, Groq, Cerebras, Hugging
-Face and Mistral. Model ids are pinned and overridable in Settings.
+Eight hosted providers sit behind three adapter families: Gemini, Claude, and
+one OpenAI-compatible client. That client covers OpenAI, DeepSeek, Groq, Cerebras,
+Hugging Face and Mistral, plus three keyless free tiers (Kilo Gateway, LLM7 and
+OVHcloud) that need no key. These are the same keyless tiers The Aive uses. They
+are anonymous, rate-limited, and may log prompts. Model ids are pinned and
+overridable in Settings.
+
+**The Aive** can serve as a model as well. It answers on whichever provider is
+linked in The Aive, and edits come back as a diff that goes through the review
+gate. Typing `/aive <objective>` in the chat hands the objective to The Aive as an
+orchestrated workflow; IDEaz opens The Aive and reports in the chat when the
+workflow needs your approval and when it finishes. Both apps must be signed with
+the same key. The Aive can also be on another device: paste its pairing code in
+Settings and IDEaz talks to it through an end-to-end encrypted relay. See
+[docs/aive-integration.md](docs/aive-integration.md).
 
 The **Google Play build** is API-only and uses BYO provider keys. The **GitHub
 APK** can additionally use a supported installed Gemini app after the user
@@ -71,7 +83,19 @@ is `git init`-ed and gets an initial commit before it has any remote.
 
 You do **not** need a GitHub account to start. Create a project, scaffold it,
 edit it with the AI, and commit locally. **Deploy** is the action that asks for a
-GitHub token, and it creates the repository for you on first publish.
+GitHub token: it creates a private repository on first publish, pushes, and has
+the central HereLiesAz/workflows Worker build the commit and publish only the
+build output (see [`docs/workflow.md`](docs/workflow.md) §2.2).
+
+Two facts about Deploy that are easy to miss:
+
+- The Worker serves only repositories owned by HereLiesAz. For any other owner
+  Deploy still creates and pushes your private repository, then reports that the
+  Worker refused to build it.
+- To ask the Worker, IDEaz sends your GitHub token, the repository name and the
+  pushed commit SHA to the maintainer's Worker
+  (`workflows.hereliesaz.workers.dev`), before the Worker decides whether it will
+  serve the repository. Do not deploy if you are not comfortable with that.
 
 ---
 

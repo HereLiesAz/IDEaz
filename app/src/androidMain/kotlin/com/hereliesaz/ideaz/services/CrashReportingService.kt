@@ -1,6 +1,7 @@
 package com.hereliesaz.ideaz.services
 
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.os.IBinder
 import android.util.Log
@@ -12,6 +13,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Reports fatal crashes and batched non-fatal errors as GitHub Issues.
@@ -40,9 +43,27 @@ class CrashReportingService : Service() {
 
         /** Minimum delay between batched non-fatal reports, so a loop can't spam the API. */
         private const val BATCH_DELAY_MS = 5000L
+
+        /**
+         * Files one report: (context, token, title message, sanitized trace). A seam so tests
+         * can observe the report instead of making a real GitHub request; production never
+         * replaces it.
+         */
+        @Volatile
+        internal var reportIssue: suspend (Context, String, String, String) -> Unit =
+            { context, token, message, trace ->
+                GithubIssueReporter.reportError(
+                    context = context,
+                    token = token,
+                    error = null,
+                    contextMessage = message,
+                    stackTraceOverride = trace,
+                )
+            }
     }
 
     private var lastReportTime = 0L
+    private val batchMutex = Mutex()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -69,23 +90,22 @@ class CrashReportingService : Service() {
 
         serviceScope.launch {
             if (!isFatal) {
-                val now = System.currentTimeMillis()
-                if (now - lastReportTime < BATCH_DELAY_MS) {
-                    delay(BATCH_DELAY_MS - (now - lastReportTime))
+                // Serialized so overlapping onStartCommand launches can't both read
+                // the same stale lastReportTime and fire together, defeating the
+                // batching this delay exists for.
+                batchMutex.withLock {
+                    val now = System.currentTimeMillis()
+                    if (now - lastReportTime < BATCH_DELAY_MS) {
+                        delay(BATCH_DELAY_MS - (now - lastReportTime))
+                    }
+                    lastReportTime = System.currentTimeMillis()
                 }
-                lastReportTime = System.currentTimeMillis()
             }
 
             try {
                 val type = if (isFatal) "CRASH" else "NON-FATAL ERROR(S)"
                 Log.d(TAG, "Submitting $type report...")
-                GithubIssueReporter.reportError(
-                    context = applicationContext,
-                    token = githubToken,
-                    error = null,
-                    contextMessage = "$type from $githubUser",
-                    stackTraceOverride = errorData,
-                )
+                reportIssue(applicationContext, githubToken, "$type from $githubUser", errorData)
                 Log.d(TAG, "Report submitted via GitHub Issues.")
             } catch (e: Throwable) {
                 // Nothing useful left to do if the network or API is down.

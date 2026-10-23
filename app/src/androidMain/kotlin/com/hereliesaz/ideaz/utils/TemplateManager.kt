@@ -28,7 +28,7 @@ object TemplateManager {
      * Copy the bundled starter into [destinationDir] only when it doesn't
      * already contain something previewable.
      *
-     * Used by `Save & Initialize` so a brand-new project gets scaffolded instead
+     * Used by `Open project` so a brand-new project gets scaffolded instead
      * of failing its first preview because the directory is empty. Returns true
      * when files were copied, false when an existing project was preserved.
      */

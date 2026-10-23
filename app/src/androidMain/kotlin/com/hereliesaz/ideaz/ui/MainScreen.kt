@@ -11,6 +11,10 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -28,11 +32,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.hereliesaz.ideaz.ui.theme.railActiveColor
+import com.hereliesaz.ideaz.ui.theme.railItemColor
+import com.hereliesaz.ideaz.ui.theme.railScrimColor
 import com.hereliesaz.ideaz.ui.web.WebProjectHost
 import androidx.compose.ui.platform.LocalConfiguration
 import com.hereliesaz.aznavrail.AzHostActivityLayout
 import com.hereliesaz.aznavrail.bottomsheet.rememberAzSheetController
 import com.hereliesaz.aznavrail.model.AzSheetDetent
+import com.hereliesaz.aznavrail.AzButton
+import com.hereliesaz.aznavrail.model.AzButtonShape
 import kotlinx.coroutines.launch
 
 const val Z_INDEX_WEB_VIEW = 0f
@@ -72,7 +81,6 @@ fun MainScreen(viewModel: MainViewModel) {
         // Settings and discovers the toggle. This is the actual consent point.
         if (!settingsViewModel.hasShownCrashReportingFirstRun()) {
             showCrashReportingFirstRun = true
-        } else {
         }
     }
 
@@ -114,8 +122,71 @@ fun MainScreen(viewModel: MainViewModel) {
     }
 
 
+    val deployConfirmationVisible by viewModel.deployConfirmationVisible.collectAsState()
+    val deployResult by viewModel.deployResult.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit) {
+        // "Open Settings" from a chat error message.
+        viewModel.openSettingsRequests.collect {
+            viewModel.clearSelection()
+            viewModel.stateDelegate.setTargetAppVisible(false)
+            navController.navigate("settings") {
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
+
+    LaunchedEffect(deployResult?.id) {
+        val result = deployResult ?: return@LaunchedEffect
+        val outcome = snackbarHostState.showSnackbar(
+            message = result.message,
+            actionLabel = if (result.url != null) "Open" else null,
+            withDismissAction = true,
+            duration = if (result.url != null) SnackbarDuration.Long else SnackbarDuration.Indefinite,
+        )
+        if (outcome == SnackbarResult.ActionPerformed && result.url != null) {
+            runCatching {
+                context.startActivity(
+                    android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(result.url))
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            }
+        }
+        viewModel.consumeDeployResult(result.id)
+    }
+
+    if (deployConfirmationVisible) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissDeployConfirmation() },
+            title = { Text("Deploy this project?") },
+            text = {
+                Text(
+                    "Deploy will create a private GitHub repository for this project if it has none, " +
+                        "push your changes to it, and publish the built site to a public web address. " +
+                        "It sends your GitHub token, the repository name and the commit to the IDEaz " +
+                        "build service. Only repositories owned by HereLiesAz can be published today; " +
+                        "for any other account the push still happens and publishing is refused."
+                )
+            },
+            confirmButton = {
+                AzButton(onClick = { viewModel.confirmDeploy() }, text = "Deploy", shape = AzButtonShape.RECTANGLE)
+            },
+            dismissButton = {
+                AzButton(onClick = { viewModel.dismissDeployConfirmation() }, text = "Cancel", shape = AzButtonShape.RECTANGLE)
+            },
+        )
+    }
+
+    // Resolved here: the rail DSL scope below is not composable.
+    val railItem = railItemColor()
+    val railActive = railActiveColor()
+    val railScrim = railScrimColor()
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { innerPadding ->
@@ -140,6 +211,10 @@ fun MainScreen(viewModel: MainViewModel) {
                     }
                 },
                 sheetController = sheetController,
+                activeRoute = currentDestination?.destination?.route,
+                itemColor = railItem,
+                activeColor = railActive,
+                scrimColor = railScrim,
                 showHelp = showHelp,
                 onDismissHelp = { showHelp = false },
                 onNavigateToMainApp = { route ->
@@ -242,7 +317,6 @@ fun MainScreen(viewModel: MainViewModel) {
                     controller = sheetController,
                     viewModel = viewModel,
                     screenHeight = screenHeight,
-                    onSendPrompt = { viewModel.sendPrompt(it) }
                 )
             }
         }

@@ -1,0 +1,52 @@
+name: PR CI
+
+# Compiles and unit-tests every pull request before it can merge. Until this
+# existed nothing built a PR: the only Gradle runs were the post-merge release
+# and dependency-submission workflows, so a PR that broke :app merged green.
+#
+# This is target CI: it runs here, in IDEaz's own Actions (HereLiesAz/workflows
+# provides no reusable CI workflow; its policy is that each repository runs its
+# own CI and reports it), and the ci-report step records the result on the
+# central ci-status ledger. Using that action is also what tells the central sync
+# this file is local CI, so it is kept rather than replaced by a tracker.
+#
+# No secrets: debug builds need no release keystore (requireReleaseKeystore
+# guards only the release/play variants).
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # ci-report authenticates with the run's OIDC token
+    steps:
+      - uses: actions/checkout@v7
+
+      # foojay-resolver was removed, so the jvmToolchain(21) request must be satisfied
+      # by an installed JDK rather than auto-downloaded.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Unit tests and debug build
+        run: ./gradlew :app:testDebugUnitTest :app:assembleDebug
+
+      - if: always()
+        uses: HereLiesAz/workflows/.github/actions/ci-report@4ae30430e415ed78fbffbbc0d6724e8d47b8f082 # main
+        with:
+          summary: ":app:testDebugUnitTest :app:assembleDebug ${{ job.status }}"

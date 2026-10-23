@@ -1,4 +1,13 @@
-node_modules
-dist
+node_modules/
+dist/
+build/
+out/
 *.local
 .DS_Store
+.env*
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+.ideaz/
