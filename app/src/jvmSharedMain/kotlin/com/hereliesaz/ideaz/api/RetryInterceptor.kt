@@ -33,6 +33,8 @@ class RetryInterceptor(
         while (attempt <= maxRetries) {
             try {
                 response = chain.proceed(chain.request())
+                // This attempt reached the server: an exception from an earlier attempt is stale.
+                exception = null
 
                 if (!retryableStatuses.contains(response.code)) {
                     return response
@@ -50,6 +52,9 @@ class RetryInterceptor(
             } catch (e: IOException) {
                 log.log(Level.WARNING, "Request failed with exception: ${e.message}. Retrying...", e)
                 exception = e
+                // The previous response (if any) was closed before this retry and no longer
+                // describes the latest attempt.
+                response = null
                 // Network error, retry
             }
 
