@@ -24,8 +24,9 @@ import kotlinx.coroutines.sync.withLock
  * the device — [LogSanitizer] strips provider keys and tokens — because these
  * reports are filed against a public repository.
  *
- * Reporting is opt-in: [com.hereliesaz.ideaz.utils.CrashHandler] only starts this
- * service once the user has accepted the first-run disclosure.
+ * [com.hereliesaz.ideaz.utils.CrashHandler] starts this service whenever the
+ * KEY_REPORT_IDE_ERRORS setting (default true) is on and a GitHub token is stored.
+ * The first-run consent flag is not consulted.
  */
 class CrashReportingService : Service() {
 

@@ -59,7 +59,8 @@
 
         <!--
             Isolated process so a crash in the main process can still be reported.
-            Opt-in: CrashHandler only starts it after the first-run disclosure.
+            CrashHandler starts it when KEY_REPORT_IDE_ERRORS (default true) is on and a
+            GitHub token is stored; the first-run consent flag is not consulted.
         -->
         <service
             android:name=".services.CrashReportingService"

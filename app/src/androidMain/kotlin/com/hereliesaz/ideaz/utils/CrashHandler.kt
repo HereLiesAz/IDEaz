@@ -40,8 +40,10 @@ object CrashHandler {
             val githubUser = prefs.getString(SettingsViewModel.KEY_GITHUB_USER, "Unknown")
             val reportToGithub = prefs.getBoolean(SettingsViewModel.KEY_REPORT_IDE_ERRORS, true)
 
-            // Reporting needs the user's first-run consent and a GitHub token to
-            // file the issue with. Without both there is nowhere to send it.
+            // Reporting needs the KEY_REPORT_IDE_ERRORS setting (on by default) and a
+            // GitHub token to file the issue with. The first-run consent flag is not
+            // consulted here, so with the default setting a crash is reported as
+            // soon as a token exists.
             if (reportToGithub && !githubToken.isNullOrBlank()) {
                 val intent = Intent(context, CrashReportingService::class.java).apply {
                     putExtra(CrashReportingService.EXTRA_GITHUB_TOKEN, githubToken)
