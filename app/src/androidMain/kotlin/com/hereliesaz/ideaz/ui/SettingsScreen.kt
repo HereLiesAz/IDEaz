@@ -234,6 +234,36 @@ fun SettingsScreen(
         }
     )
 
+    var showAccessibilityConsent by remember { mutableStateOf(false) }
+    if (showAccessibilityConsent) {
+        AlertDialog(
+            onDismissRequest = { showAccessibilityConsent = false },
+            title = { Text("Allow IDEaz to read the Gemini app?") },
+            text = {
+                Text(
+                    "IDEaz's accessibility service reads only the Gemini app's windows, and only while an IDEaz prompt " +
+                        "is in flight. To hand the prompt over and bring the answer back it uses the clipboard: it places " +
+                        "your prompt on the clipboard (other apps can read the clipboard) and reads the copied response from it. " +
+                        "Do not copy secrets while an IDEaz prompt is running. You can turn this off at any time in Android's " +
+                        "Accessibility settings. Continue to those settings?"
+                )
+            },
+            confirmButton = {
+                AzButton(
+                    onClick = {
+                        showAccessibilityConsent = false
+                        accessibilitySettingsLauncher.launch(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    },
+                    text = "Continue",
+                    shape = AzButtonShape.RECTANGLE,
+                )
+            },
+            dismissButton = {
+                AzButton(onClick = { showAccessibilityConsent = false }, text = "Cancel", shape = AzButtonShape.NONE)
+            }
+        )
+    }
+
     if (showKeystoreResetConfirm) {
         AlertDialog(
             onDismissRequest = { showKeystoreResetConfirm = false },
@@ -739,9 +769,7 @@ fun SettingsScreen(
                     name = "External AI Accessibility",
                     description = "Reads only supported Gemini app windows while an IDEaz prompt is in flight, so IDEaz can submit the prompt and capture the completed response.",
                     granted = hasAccessibility,
-                    onClick = {
-                        accessibilitySettingsLauncher.launch(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                    }
+                    onClick = { showAccessibilityConsent = true }
                 )
             }
 
@@ -1011,7 +1039,7 @@ fun PermissionCheckRow(
             }
         }
         if (granted) {
-            Icon(Icons.Default.Check, contentDescription = "Granted", tint = Color.Green)
+            Icon(Icons.Default.Check, contentDescription = "Granted", tint = com.hereliesaz.ideaz.ui.theme.successColor())
         } else {
             Icon(Icons.Default.Close, contentDescription = "Not Granted", tint = MaterialTheme.colorScheme.error)
         }

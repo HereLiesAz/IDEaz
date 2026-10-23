@@ -139,6 +139,7 @@ fun MainScreen(viewModel: MainViewModel) {
                     }
                 },
                 sheetController = sheetController,
+                activeRoute = currentDestination?.destination?.route,
                 showHelp = showHelp,
                 onDismissHelp = { showHelp = false },
                 onNavigateToMainApp = { route ->

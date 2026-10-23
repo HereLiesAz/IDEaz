@@ -20,6 +20,8 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
+import com.hereliesaz.ideaz.ui.theme.DarkColorScheme
+import com.hereliesaz.ideaz.ui.theme.LightColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -74,21 +76,8 @@ fun IdeBottomSheet(
         SettingsViewModel.THEME_LIGHT -> false
         else -> isSystemDark
     }
-    val customColorScheme = if (isDark) {
-        darkColorScheme(
-            surface = Color(0xFF1E1E1E),
-            onSurface = Color.White,
-            background = Color(0xFF1E1E1E),
-            onBackground = Color.White
-        )
-    } else {
-        lightColorScheme(
-            surface = Color(0xFFEEEEEE),
-            onSurface = Color.Black,
-            background = Color(0xFFEEEEEE),
-            onBackground = Color.Black
-        )
-    }
+    // The app's own palette (theme/Theme.kt), not a private copy that drifts from it.
+    val customColorScheme = if (isDark) DarkColorScheme else LightColorScheme
 
     MaterialTheme(colorScheme = customColorScheme) {
         Box(
