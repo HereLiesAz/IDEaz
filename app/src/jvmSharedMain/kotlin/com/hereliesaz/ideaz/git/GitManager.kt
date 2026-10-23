@@ -10,6 +10,8 @@ import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import org.eclipse.jgit.lib.ProgressMonitor
 import java.io.File
 import java.io.ByteArrayInputStream
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
 
 /**
  * Thrown when JGit reports a remote-side rejection or an unsuccessful merge that
@@ -32,6 +34,33 @@ class GitOperationRejectedException(message: String) : Exception(message)
  * @property projectDir The local directory of the project (the repository root).
  */
 class GitManager(private val projectDir: File) {
+
+    /**
+     * Runs [block] (an `add`) with the per-repository in-JVM lock held, retrying once after
+     * removing a *stale* `.git/index.lock` when the first attempt failed. The lock file is
+     * deleted only when no other add in this JVM is running on the repository (we hold the
+     * lock) and the file is older than [STALE_LOCK_MS], so a live commit or a concurrent
+     * add is never pulled out from under itself.
+     */
+    private fun <T> withStaleLockRecovery(block: () -> T): T {
+        val lock = addLocks.computeIfAbsent(projectDir.absoluteFile.path) { ReentrantLock() }
+        lock.lock()
+        try {
+            return try {
+                block()
+            } catch (e: Exception) {
+                val indexLock = File(projectDir, ".git/index.lock")
+                if (indexLock.exists() && isStaleLock(indexLock.lastModified(), System.currentTimeMillis())) {
+                    indexLock.delete()
+                    block()
+                } else {
+                    throw e
+                }
+            }
+        } finally {
+            lock.unlock()
+        }
+    }
 
     /**
      * Clones a repository from GitHub.
@@ -113,19 +142,9 @@ class GitManager(private val projectDir: File) {
      * stages all changes in the working directory (equivalent to `git add .`).
      */
     fun addAll() {
-        try {
+        withStaleLockRecovery {
             Git.open(projectDir).use { git ->
                 git.add().addFilepattern(".").call()
-            }
-        } catch (e: Exception) {
-            val indexLock = File(projectDir, ".git/index.lock")
-            if (indexLock.exists()) {
-                indexLock.delete()
-                Git.open(projectDir).use { git ->
-                    git.add().addFilepattern(".").call()
-                }
-            } else {
-                throw e
             }
         }
     }
@@ -137,21 +156,35 @@ class GitManager(private val projectDir: File) {
      */
     fun addPaths(paths: Collection<String>) {
         if (paths.isEmpty()) return
-        fun doAdd() = Git.open(projectDir).use { git ->
-            val cmd = git.add()
+        withStaleLockRecovery {
+            Git.open(projectDir).use { git ->
+                val cmd = git.add()
+                paths.forEach { cmd.addFilepattern(it) }
+                cmd.call()
+            }
+        }
+    }
+
+    /** Every path in the index (tracked files), project-relative and `/`-separated. */
+    fun trackedFiles(): List<String> {
+        Git.open(projectDir).use { git ->
+            val cache = git.repository.readDirCache()
+            return (0 until cache.entryCount).map { cache.getEntry(it).pathString }
+        }
+    }
+
+    /**
+     * Removes [paths] from the index only (`git rm --cached`): the next commit
+     * stops tracking them, the files stay on disk. Also stages the deletion of a
+     * tracked path that is already gone from the working tree, which [addPaths]
+     * does not.
+     */
+    fun untrack(paths: Collection<String>) {
+        if (paths.isEmpty()) return
+        Git.open(projectDir).use { git ->
+            val cmd = git.rm().setCached(true)
             paths.forEach { cmd.addFilepattern(it) }
             cmd.call()
-        }
-        try {
-            doAdd()
-        } catch (e: Exception) {
-            val indexLock = File(projectDir, ".git/index.lock")
-            if (indexLock.exists()) {
-                indexLock.delete()
-                doAdd()
-            } else {
-                throw e
-            }
         }
     }
 
@@ -265,16 +298,23 @@ class GitManager(private val projectDir: File) {
     }
 
     /**
-     * Checks out an existing branch.
+     * Checks out [branch]. A name that exists only as `origin/<branch>` - which
+     * [getBranches] lists alongside local ones - gets a local branch tracking it,
+     * as `git switch` does; JGit alone fails with RefNotFoundException for it.
      *
      * @param branch The name of the branch to check out.
      */
     fun checkout(branch: String) {
         Git.open(projectDir).use { git ->
+            val repository = git.repository
             val cmd = git.checkout().setName(branch)
-            // If the branch doesn't exist locally but exists on remote, JGit might handle it if we set start point.
-            // But simple checkout usually requires local branch.
-            // For now, let's just try to check out.
+            if (repository.findRef("refs/heads/$branch") == null &&
+                repository.findRef("refs/remotes/origin/$branch") != null
+            ) {
+                cmd.setCreateBranch(true)
+                    .setStartPoint("refs/remotes/origin/$branch")
+                    .setUpstreamMode(org.eclipse.jgit.api.CreateBranchCommand.SetupUpstreamMode.TRACK)
+            }
             cmd.call()
         }
     }
@@ -316,6 +356,7 @@ class GitManager(private val projectDir: File) {
         Git.open(projectDir).use { git ->
             val repository = git.repository
             val ref = repository.findRef(branch)
+                ?: throw GitOperationRejectedException("No such branch: $branch")
             git.merge().include(ref).call()
         }
     }
@@ -362,6 +403,23 @@ class GitManager(private val projectDir: File) {
         } catch (e: Exception) {
             Platform.logWarn("GitManager", "isAhead($branch, $base) failed", e)
             false
+        }
+    }
+
+    /**
+     * Local branches whose commits are not all on `origin`: no
+     * `refs/remotes/origin/<name>` at all, or ahead of it. Empty means deleting
+     * the local copy loses no commit.
+     */
+    fun unpushedBranches(): List<String> {
+        val local = Git.open(projectDir).use { git ->
+            git.branchList().call().map { it.name }
+        }
+        return local.mapNotNull { ref ->
+            val name = ref.removePrefix("refs/heads/")
+            val remote = "refs/remotes/origin/$name"
+            val hasRemote = Git.open(projectDir).use { it.repository.findRef(remote) != null }
+            if (!hasRemote || isAhead(ref, remote)) name else null
         }
     }
 
@@ -423,13 +481,23 @@ class GitManager(private val projectDir: File) {
     }
 
     /**
-     * Adds a remote to the repository configuration.
+     * Adds a remote to the repository configuration, and makes it the upstream
+     * of the current branch (same name) when that branch has none yet, so the
+     * link Deploy creates is recorded the way `git push -u` records it (JGit's
+     * own pull/push fall back to the same name without it; other git clients
+     * and ahead/behind counts do not).
      */
     fun addRemote(name: String, url: String) {
         Git.open(projectDir).use { git ->
             val config = git.repository.config
             config.setString("remote", name, "url", url)
             config.setString("remote", name, "fetch", "+refs/heads/*:refs/remotes/$name/*")
+            val branch = git.repository.fullBranch?.takeIf { it.startsWith("refs/heads/") }
+                ?.removePrefix("refs/heads/")
+            if (branch != null && config.getString("branch", branch, "remote") == null) {
+                config.setString("branch", branch, "remote", name)
+                config.setString("branch", branch, "merge", "refs/heads/$branch")
+            }
             config.save()
         }
     }
@@ -468,15 +536,17 @@ class GitManager(private val projectDir: File) {
     }
 
     /**
-     * Stashes current changes (dirty working directory).
+     * Stashes current changes to tracked files (untracked files stay put).
      *
      * @param message The optional message for the stash entry.
+     * @return true when a stash entry was created; false when there was nothing
+     *   to stash (JGit returns no commit then).
      */
-    fun stash(message: String? = null) {
+    fun stash(message: String? = null): Boolean {
         Git.open(projectDir).use { git ->
             val cmd = git.stashCreate()
             if (message != null) cmd.setWorkingDirectoryMessage(message)
-            cmd.call()
+            return cmd.call() != null
         }
     }
 
@@ -637,5 +707,16 @@ class GitManager(private val projectDir: File) {
 
         override fun isCancelled(): Boolean = false
         override fun showDuration(enabled: Boolean) {}
+    }
+
+    companion object {
+        /** An index.lock younger than this may belong to a live git process. */
+        const val STALE_LOCK_MS = 60_000L
+
+        private val addLocks = ConcurrentHashMap<String, ReentrantLock>()
+
+        /** True when a lock file last touched at [lastModifiedMs] is old enough to be abandoned. */
+        fun isStaleLock(lastModifiedMs: Long, nowMs: Long): Boolean =
+            lastModifiedMs > 0 && nowMs - lastModifiedMs >= STALE_LOCK_MS
     }
 }

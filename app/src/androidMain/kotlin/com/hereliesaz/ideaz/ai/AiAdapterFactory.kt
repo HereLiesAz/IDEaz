@@ -2,6 +2,8 @@ package com.hereliesaz.ideaz.ai
 
 import android.content.Context
 import com.hereliesaz.ideaz.BuildConfig
+import com.hereliesaz.ideaz.ai.aive.AiveAdapter
+import com.hereliesaz.ideaz.ai.aive.AiveTransports
 import com.hereliesaz.ideaz.ai.bridge.FallbackAdapter
 import com.hereliesaz.ideaz.ai.bridge.GeminiAppBridgeAdapter
 import com.hereliesaz.ideaz.ui.AiModel
@@ -41,6 +43,11 @@ object AiAdapterFactory {
             return FallbackAdapter(bridge, apiFallback)
         }
 
+        if (model.id == AiModels.THE_AIVE) {
+            // The Aive injects no repo preamble of its own; AiveAdapter sends a project snapshot.
+            return AiveAdapter(AiveTransports.create(context, settings), tools)
+        }
+
         val base = createRaw(model, tools, settings) ?: return null
         return RepoAwareClient(base, tools, appName)
     }
@@ -50,8 +57,8 @@ object AiAdapterFactory {
         tools: IdeTools,
         settings: SettingsViewModel,
     ): ConversationalAiClient? {
-        val key = settings.getApiKey(model.providerKey).orEmpty()
-        if (key.isBlank()) return null
+        val key = model.providerKey.takeIf { it.isNotEmpty() }?.let { settings.getApiKey(it) }.orEmpty()
+        if (key.isBlank() && !model.keyless) return null
         val wireModel = settings.getWireModelOverride(model.id) ?: model.defaultWireModel
 
         return when (model.id) {
@@ -63,6 +70,9 @@ object AiAdapterFactory {
             AiModels.CEREBRAS_LLAMA -> openAiCompat("https://api.cerebras.ai/v1", key, wireModel, tools)
             AiModels.HF_INFERENCE -> openAiCompat("https://router.huggingface.co/v1", key, wireModel, tools)
             AiModels.MISTRAL_SMALL -> openAiCompat("https://api.mistral.ai/v1", key, wireModel, tools)
+            AiModels.KILO_FREE -> openAiCompat("https://api.kilo.ai/api/gateway", key, wireModel, tools)
+            AiModels.LLM7_DEFAULT -> openAiCompat("https://api.llm7.io/v1", key, wireModel, tools)
+            AiModels.OVHCLOUD_FREE -> openAiCompat("https://oai.endpoints.kepler.ai.cloud.ovh.net/v1", key, wireModel, tools)
             else -> null
         }
     }

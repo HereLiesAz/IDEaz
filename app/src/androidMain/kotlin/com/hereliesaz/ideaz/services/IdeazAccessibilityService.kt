@@ -113,8 +113,13 @@ class IdeazAccessibilityService : AccessibilityService() {
         }
 
         val copy = findClickable(root, BridgeHeuristics::isCopyHint)
+        // What the clipboard held before the click: if it still holds exactly
+        // that afterwards, the click copied nothing (it opened a menu, or hit
+        // the wrong node) and the old clip - a password, a URL - must not
+        // become the "response".
+        val clipBefore = readClipboardText()
         if (copy != null && copy.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-            handler.postDelayed({ deliverClipboardOrScrape(currentSnapshot) }, CLIPBOARD_DELAY_MS)
+            handler.postDelayed({ deliverClipboardOrScrape(currentSnapshot, clipBefore) }, CLIPBOARD_DELAY_MS)
         } else {
             deliverScraped(currentSnapshot)
         }
@@ -128,19 +133,21 @@ class IdeazAccessibilityService : AccessibilityService() {
             (GeminiAppBridge.observedGenerating && copyActions > 0)
     }
 
-    private fun deliverClipboardOrScrape(snapshot: String) {
-        if (!GeminiAppBridge.isWaiting) return
-        val text = runCatching {
-            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipboard.primaryClip
-                ?.takeIf { it.itemCount > 0 }
-                ?.getItemAt(0)
-                ?.coerceToText(this)
-                ?.toString()
-                ?.trim()
-        }.getOrNull()
+    private fun readClipboardText(): String? = runCatching {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.primaryClip
+            ?.takeIf { it.itemCount > 0 }
+            ?.getItemAt(0)
+            ?.coerceToText(this)
+            ?.toString()
+            ?.trim()
+    }.getOrNull()
 
-        if (!text.isNullOrBlank() && text != GeminiAppBridge.pendingPrompt) {
+    private fun deliverClipboardOrScrape(snapshot: String, clipBefore: String?) {
+        if (!GeminiAppBridge.isWaiting) return
+        val text = readClipboardText()
+
+        if (!text.isNullOrBlank() && text != clipBefore && text != GeminiAppBridge.pendingPrompt) {
             finish(text)
         } else {
             deliverScraped(snapshot)

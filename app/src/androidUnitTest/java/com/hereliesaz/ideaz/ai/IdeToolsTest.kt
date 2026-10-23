@@ -320,4 +320,135 @@ class IdeToolsTest {
         assertTrue(refreshed.validationErrors.isEmpty())
         tools.discardEditCheckpoint(checkpoint)
     }
+
+    // --- patch target capture ---
+
+    @Test
+    fun `patchTargetPaths reads headers, not removed lines that look like headers`() {
+        val patch = "--- a/notes.md\n+++ b/notes.md\n@@ -1,2 +1,1 @@\n--- ../escape.md\n keep\n"
+        assertEquals(listOf("notes.md"), patchTargetPaths(patch))
+    }
+
+    @Test
+    fun `patchTargetPaths refuses renames, copies, quoted and prefix-less paths`() {
+        listOf(
+            "diff --git a/app.js b/moved.js\nsimilarity index 100%\nrename from app.js\nrename to moved.js\n",
+            "diff --git a/app.js b/copy.js\ncopy from app.js\ncopy to copy.js\n--- a/app.js\n+++ b/copy.js\n@@ -1 +1 @@\n-a\n+b\n",
+            "--- \"a/sp ace.js\"\n+++ \"b/sp ace.js\"\n@@ -1 +1 @@\n-a\n+b\n",
+            // JGit strips the first component, so this would patch app.js at the root.
+            "--- src/app.js\n+++ src/app.js\n@@ -1 +1 @@\n-a\n+b\n",
+            "--- a/app.js\n+++ b/app.js\n",
+        ).forEach { patch ->
+            try {
+                patchTargetPaths(patch)
+                fail("accepted: $patch")
+            } catch (expected: IllegalArgumentException) {
+            }
+        }
+    }
+
+    @Test
+    fun `a rename-only patch is refused before anything moves`() {
+        tempFolder.newFile("app.js").writeText("a\n")
+        val result = tools.applyPatch(
+            "diff --git a/app.js b/moved.js\nsimilarity index 100%\nrename from app.js\nrename to moved.js\n"
+        )
+        assertTrue(result, result.startsWith("Error:"))
+        assertTrue(File(tempFolder.root, "app.js").exists())
+        assertFalse(File(tempFolder.root, "moved.js").exists())
+    }
+
+    // --- confinement: traversal, reserved paths, symlinks ---
+
+    private fun assertRefused(result: String, label: String) {
+        assertTrue("$label: expected an Error, got: $result", result.startsWith("Error:"))
+    }
+
+    @Test
+    fun `readFile and writeFile refuse paths that climb out of the project`() {
+        val outside = File(tempFolder.root.parentFile, "ideaz-outside-${System.nanoTime()}.txt")
+        outside.writeText("secret")
+        try {
+            val climbing = listOf(
+                "../${outside.name}",
+                "a/../../${outside.name}",
+                "./../${outside.name}",
+            )
+            climbing.forEach { path ->
+                assertRefused(tools.readFile(path), "readFile($path)")
+                assertRefused(tools.writeFile(path, "overwritten"), "writeFile($path)")
+                assertRefused(tools.listFiles(path), "listFiles($path)")
+            }
+            assertEquals("secret", outside.readText())
+        } finally {
+            outside.delete()
+        }
+    }
+
+    @Test
+    fun `a sibling directory sharing the project's name prefix is not inside the project`() {
+        // A string-prefix containment check would accept "<project>-evil" as "inside" <project>.
+        val sibling = File(tempFolder.root.parentFile, tempFolder.root.name + "-evil")
+        sibling.mkdirs()
+        try {
+            val path = "../${sibling.name}/loot.txt"
+            assertRefused(tools.writeFile(path, "x"), "writeFile($path)")
+            assertFalse(File(sibling, "loot.txt").exists())
+        } finally {
+            sibling.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `the git directory is reserved for reading and writing`() {
+        File(tempFolder.root, ".git/hooks").mkdirs()
+        File(tempFolder.root, ".git/config").writeText("[core]")
+        listOf(".git/config", ".git/hooks/pre-commit", "./.git/config", "src/../.git/config").forEach { path ->
+            assertRefused(tools.readFile(path), "readFile($path)")
+            assertRefused(tools.writeFile(path, "x"), "writeFile($path)")
+        }
+        assertFalse(File(tempFolder.root, ".git/hooks/pre-commit").exists())
+        assertEquals("[core]", File(tempFolder.root, ".git/config").readText())
+    }
+
+    @Test
+    fun `a symlink pointing out of the project cannot be read or written through`() {
+        val outsideDir = File(tempFolder.root.parentFile, "ideaz-link-target-${System.nanoTime()}")
+        outsideDir.mkdirs()
+        val target = File(outsideDir, "target.txt").apply { writeText("outside") }
+        try {
+            val link = File(tempFolder.root, "link")
+            val fileLink = File(tempFolder.root, "filelink.txt")
+            try {
+                java.nio.file.Files.createSymbolicLink(link.toPath(), outsideDir.toPath())
+                java.nio.file.Files.createSymbolicLink(fileLink.toPath(), target.toPath())
+            } catch (e: Exception) {
+                // No symlink support here (some Windows setups): nothing to test.
+                org.junit.Assume.assumeNoException(e)
+            }
+            assertRefused(tools.readFile("link/target.txt"), "readFile(link/target.txt)")
+            assertRefused(tools.writeFile("link/new.txt", "x"), "writeFile(link/new.txt)")
+            assertRefused(tools.readFile("filelink.txt"), "readFile(filelink.txt)")
+            assertRefused(tools.writeFile("filelink.txt", "overwritten"), "writeFile(filelink.txt)")
+            assertEquals("outside", target.readText())
+            assertFalse(File(outsideDir, "new.txt").exists())
+        } finally {
+            outsideDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `a symlink that stays inside the project still works`() {
+        File(tempFolder.root, "real").mkdirs()
+        File(tempFolder.root, "real/a.txt").writeText("inside")
+        try {
+            java.nio.file.Files.createSymbolicLink(
+                File(tempFolder.root, "alias").toPath(),
+                File(tempFolder.root, "real").toPath(),
+            )
+        } catch (e: Exception) {
+            org.junit.Assume.assumeNoException(e)
+        }
+        assertEquals("inside", tools.readFile("alias/a.txt"))
+    }
 }

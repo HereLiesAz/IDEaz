@@ -6,6 +6,10 @@ import com.hereliesaz.ideaz.ai.AiEditApproval
 import com.hereliesaz.ideaz.ai.AiEditApprovalRequiredException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -22,6 +26,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.concurrent.TimeUnit
 
 private val MUTATING_TOOLS = setOf("write_file", "apply_patch")
 
@@ -52,6 +57,8 @@ class OpenAiCompatibleAdapter(
     private val modelResolver: () -> String,
     private val tools: IdeTools,
     private val httpClient: OkHttpClient = sharedClient,
+    /** First backoff after a 429/5xx; doubles per retry. Tests shrink it. */
+    private val retryBaseDelayMs: Long = RETRY_BASE_DELAY_MS,
 ) : ConversationalAiClient {
 
     private var resolvedModel: String? = null
@@ -64,8 +71,8 @@ class OpenAiCompatibleAdapter(
         
         val history = messages.map { it.toOpenAiMessage() }.toMutableList()
 
-        // Same checkpoint/review/approval contract LocalLlmAdapter, GeminiAdapter,
-        // and AnthropicAdapter use — see AiEditApproval's doc comment.
+        // Same checkpoint/review/approval contract GeminiAdapter and
+        // AnthropicAdapter use — see AiEditApproval's doc comment.
         var editCheckpoint: IdeEditCheckpoint? = null
         var expectedEditFingerprint: String? = null
 
@@ -130,6 +137,9 @@ class OpenAiCompatibleAdapter(
         var rounds = 0
         while (rounds < MAX_TOOL_ROUNDS) {
             val response = try {
+                // Checked every round, and the in-flight call is cancelled with the coroutine
+                // (see executeOnce), so a cancel really does reach this handler.
+                ensureActive()
                 postChatCompletion(history, currentModel)
             } catch (e: CancellationException) {
                 // A mutating tool call in an earlier round may have already
@@ -139,9 +149,11 @@ class OpenAiCompatibleAdapter(
                 throw e
             } catch (e: Exception) {
                 // Same failure mode for a network/API error after a successful
-                // write in an earlier round - an HTTP 429 here is common on
-                // rate-limited free-tier backends (Groq, Cerebras, HF).
+                // write in an earlier round - an HTTP 429 that outlasted the
+                // retries is common on rate-limited free-tier backends.
                 restorePendingEdit()
+                // Cancelling the call surfaces as an IOException; report it as the cancellation.
+                ensureActive()
                 return@withContext "Error: $currentModel request failed: ${e.message}"
             }
             val choice = (response["choices"] as? JsonArray)?.firstOrNull() as? JsonObject
@@ -167,7 +179,16 @@ class OpenAiCompatibleAdapter(
 
             for (call in toolCalls.filterIsInstance<JsonObject>()) {
                 val callId = (call["id"] as? JsonPrimitive)?.contentOrNullSafe().orEmpty()
-                val function = call["function"] as? JsonObject ?: continue
+                val function = call["function"] as? JsonObject
+                if (function == null) {
+                    // Every tool_call_id must be answered or the next request is rejected (HTTP 400).
+                    history.add(buildJsonObject {
+                        put("role", "tool")
+                        put("tool_call_id", callId)
+                        put("content", "Error: malformed tool call (no function).")
+                    })
+                    continue
+                }
                 val name = (function["name"] as? JsonPrimitive)?.contentOrNullSafe().orEmpty()
                 val argsJson = (function["arguments"] as? JsonPrimitive)?.contentOrNullSafe().orEmpty()
                 val argMap = parseToolArgs(argsJson)
@@ -190,7 +211,7 @@ class OpenAiCompatibleAdapter(
         "Error: Tool-use loop exceeded $MAX_TOOL_ROUNDS rounds."
     }
 
-    private fun postChatCompletion(history: List<JsonObject>, currentModel: String): JsonObject {
+    private suspend fun postChatCompletion(history: List<JsonObject>, currentModel: String): JsonObject {
         val body = buildJsonObject {
             put("model", currentModel)
             putJsonArray("messages") { history.forEach { add(it) } }
@@ -202,25 +223,77 @@ class OpenAiCompatibleAdapter(
 
         val request = Request.Builder()
             .url("${baseUrl.trimEnd('/')}/chat/completions")
-            .addHeader("Authorization", "Bearer $apiKey")
+            // Keyless providers reject an empty bearer token; send none.
+            .apply { if (apiKey.isNotBlank()) addHeader("Authorization", "Bearer $apiKey") }
             .addHeader("Accept", "application/json")
             .post(body.toRequestBody(jsonMediaType))
             .build()
 
-        httpClient.newCall(request).execute().use { resp ->
-            val text = resp.body.string()
-            if (!resp.isSuccessful) {
-                error("OpenAI-compatible call failed: HTTP ${resp.code}: ${text.take(500)}")
+        // Rate limits and transient 5xx are routine on free tiers. Retrying a completion is safe:
+        // no tool has run for this request yet, and the retry interceptor skips POST.
+        var attempt = 1
+        while (true) {
+            val reply = executeOnce(request)
+            if (reply.code in 200..299) {
+                return JSON.parseToJsonElement(reply.body) as? JsonObject
+                    ?: error("Unexpected response shape from $baseUrl: ${reply.body.take(200)}")
             }
-            return JSON.parseToJsonElement(text) as? JsonObject
-                ?: error("Unexpected response shape from $baseUrl: ${text.take(200)}")
+            if (!isRetryableStatus(reply.code) || attempt >= MAX_HTTP_ATTEMPTS) {
+                error("OpenAI-compatible call failed: HTTP ${reply.code}: ${reply.body.take(500)}")
+            }
+            delay(retryDelayMs(attempt, reply.retryAfter, retryBaseDelayMs))
+            attempt++
+        }
+    }
+
+    private class HttpReply(val code: Int, val body: String, val retryAfter: String?)
+
+    /** One blocking call, cancelled when the calling coroutine is. */
+    private suspend fun executeOnce(request: Request): HttpReply {
+        val call = httpClient.newCall(request)
+        val hook = currentCoroutineContext()[Job]?.invokeOnCompletion { cause ->
+            if (cause != null) call.cancel()
+        }
+        try {
+            val reply = call.execute().use { resp ->
+                HttpReply(resp.code, resp.body.string(), resp.header("Retry-After"))
+            }
+            return reply
+        } finally {
+            hook?.dispose()
         }
     }
 
     companion object {
         const val MAX_TOOL_ROUNDS = 10
+        const val MAX_HTTP_ATTEMPTS = 4
+        const val RETRY_BASE_DELAY_MS = 1_000L
+        private const val MAX_RETRY_DELAY_MS = 30_000L
+
+        /** 429 and server errors are worth retrying; 501 (not implemented) never changes. */
+        internal fun isRetryableStatus(code: Int): Boolean = code == 429 || (code in 500..599 && code != 501)
+
+        /**
+         * Wait before the retry that follows failed attempt number [attempt] (1-based): the
+         * server's Retry-After seconds when given, else [baseMs] doubling each time, capped.
+         */
+        internal fun retryDelayMs(attempt: Int, retryAfter: String?, baseMs: Long): Long {
+            val seconds = retryAfter?.trim()?.toLongOrNull()
+            if (seconds != null && seconds >= 0) return (seconds * 1000).coerceAtMost(MAX_RETRY_DELAY_MS)
+            return (baseMs * (1L shl (attempt - 1).coerceIn(0, 10))).coerceAtMost(MAX_RETRY_DELAY_MS)
+        }
         private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
-        internal val sharedClient: OkHttpClient = OkHttpClient.Builder().build()
+        // The calls are not streamed: nothing arrives until the whole
+        // completion (a full write_file body included) is generated, which
+        // routinely takes longer than OkHttp's 10 s default read timeout. That
+        // timeout failed the round and rolled back earlier rounds' edits.
+        // Shared by AnthropicAdapter.
+        internal val sharedClient: OkHttpClient = OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.MINUTES)
+            .callTimeout(6, TimeUnit.MINUTES)
+            .build()
         internal val JSON = Json { ignoreUnknownKeys = true; isLenient = true }
     }
 }

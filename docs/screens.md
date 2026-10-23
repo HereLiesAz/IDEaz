@@ -12,7 +12,7 @@
 ## 2. Project Screen (`ProjectScreen.kt`)
 *   **Role:** Entry point for project selection and creation.
 *   **Tabs (in this order):**
-    *   **Setup:** Initialization + workflow injection. "Save & Initialize" only runs for web-like project types (see `docs/workflow.md` §2.2); it force-pushes `web_ci_pages.yml` plus the two `antigravity-*.yml` automation workflows (Android projects would instead get `build.yml`/`release.yml`, but Setup does not offer Android initialization in this release — see §7 below) and starts the first remote build.
+    *   **Setup:** Initialization + workflow injection. "Open project" scaffolds the project, writes `.gitignore` and makes the initial commit; nothing is pushed. Publishing is the rail's Deploy action (see `docs/workflow.md` §2.2).
     *   **Load:** Open an existing local project; transitions to Setup tab.
     *   **Clone:** Clone from a GitHub URL; transitions to Setup tab.
 

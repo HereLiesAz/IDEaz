@@ -19,7 +19,7 @@ Nearly every credential-shaped value is the exception, not just Gemini/Hugging F
 `SettingsViewModel.SECURE_CREDENTIAL_KEYS` in a dedicated private preferences file,
 backed by a non-exportable Android Keystore key. That set covers the GitHub PAT,
 every AI provider key (Jules, Gemini, Hugging Face, Groq, Cerebras, Mistral, OpenAI,
-Anthropic, DeepSeek), and the keystore/key-signing passwords — 12 keys total, see
+Anthropic, DeepSeek), the Aive relay pairing code, and the keystore/key-signing passwords — 13 keys total, see
 `docs/auth.md` §2 for the full accounting. Both credential-bearing preference files are excluded
 from backup and device transfer.
 *   **File:** Default shared preferences (values in `SECURE_CREDENTIAL_KEYS` instead live in the separate `ideaz_secure_credentials` file).
@@ -30,6 +30,7 @@ from backup and device transfer.
     *   `google_api_key` (**secure store**): Gemini API key used by the default provider and consented local-model consultation.
     *   `hf_api_key` (**secure store**): Hugging Face token used by gated model downloads and hosted inference.
     *   `groq_api_key`, `cerebras_api_key`, `mistral_api_key`, `openai_api_key`, `anthropic_api_key`, `deepseek_api_key` (**secure store**): the remaining OpenAI-compatible provider keys, all routed through `AiAdapterFactory`/`OpenAiCompatibleAdapter`.
+    *   `aive_pairing_code` (**secure store**): bearer pairing code for a remote Aive device.
     *   `keystore_pass`, `key_pass` (**secure store**): Android app-signing passwords.
     *   `project_type` (String/Enum): Current project type (`ANDROID`, `WEB`; Phase 1 adds `PWA`).
     *   `last_opened_project` (String): Name of the last loaded project.
