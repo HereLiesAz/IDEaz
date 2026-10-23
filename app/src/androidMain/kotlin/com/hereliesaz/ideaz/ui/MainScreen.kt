@@ -32,6 +32,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.hereliesaz.ideaz.ui.theme.railActiveColor
+import com.hereliesaz.ideaz.ui.theme.railItemColor
+import com.hereliesaz.ideaz.ui.theme.railScrimColor
 import com.hereliesaz.ideaz.ui.web.WebProjectHost
 import androidx.compose.ui.platform.LocalConfiguration
 import com.hereliesaz.aznavrail.AzHostActivityLayout
@@ -176,6 +179,11 @@ fun MainScreen(viewModel: MainViewModel) {
         )
     }
 
+    // Resolved here: the rail DSL scope below is not composable.
+    val railItem = railItemColor()
+    val railActive = railActiveColor()
+    val railScrim = railScrimColor()
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -204,6 +212,9 @@ fun MainScreen(viewModel: MainViewModel) {
                 },
                 sheetController = sheetController,
                 activeRoute = currentDestination?.destination?.route,
+                itemColor = railItem,
+                activeColor = railActive,
+                scrimColor = railScrim,
                 showHelp = showHelp,
                 onDismissHelp = { showHelp = false },
                 onNavigateToMainApp = { route ->
