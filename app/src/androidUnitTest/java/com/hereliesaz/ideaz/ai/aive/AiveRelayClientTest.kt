@@ -64,7 +64,7 @@ class AiveRelayClientTest {
         clients.forEach { it.close() }
         // MockWebServer.shutdown() throws if a server-side socket is still open; that failure is
         // exactly the leak this guards against, so it is not swallowed.
-        hostSockets.forEach { it.cancel() }
+        hostSockets.forEach { runCatching { it.close(1001, "test over") } }
         try {
             server.shutdown()
         } finally {
