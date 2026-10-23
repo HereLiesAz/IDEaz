@@ -30,8 +30,8 @@ object ProjectNames {
     fun sanitize(raw: String?, fallback: String = "Imported"): String {
         val cleaned = (raw ?: "")
             .replace(Regex("[^A-Za-z0-9._-]"), "_")
-            .replace(Regex("\\.{2,}"), "_")
             .trimStart('.', '-')
+            .replace(Regex("\\.{2,}"), "_")
             .take(MAX_LENGTH)
         return if (isValid(cleaned)) cleaned else fallback
     }
