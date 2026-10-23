@@ -21,6 +21,9 @@ interface AiveTransport {
 
     /** Brings The Aive to the front on this device. False when it cannot be opened. */
     fun openAive(): Boolean
+
+    /** Releases connections and background work. A transport built per message must be closed. */
+    fun close() {}
 }
 
 /** The bound service is missing or refused the connection (as opposed to failing a request). */

@@ -318,3 +318,45 @@ class SettingsViewModelTest {
         }
     }
 }
+
+class AiModelsDefaultTest {
+    @org.junit.Test
+    fun `keyless models are the last fallback in the ranking`() {
+        val ranking = AiModels.defaultRanking
+        val firstKeyless = ranking.indexOfFirst { it.keyless }
+        org.junit.Assert.assertTrue(firstKeyless > 0)
+        org.junit.Assert.assertTrue(ranking.drop(firstKeyless).all { it.keyless })
+    }
+
+    @org.junit.Test
+    fun `no keys and no bridge picks a keyless model`() {
+        val id = AiModels.pickDefault(hasKey = { false }, bridgeAvailable = false)
+        org.junit.Assert.assertEquals(AiModels.KILO_FREE, id)
+    }
+
+    @org.junit.Test
+    fun `no keys with the bridge keeps Gemini`() {
+        org.junit.Assert.assertEquals(
+            AiModels.GEMINI_FLASH,
+            AiModels.pickDefault(hasKey = { false }, bridgeAvailable = true),
+        )
+    }
+
+    @org.junit.Test
+    fun `a saved key outranks keyless models`() {
+        org.junit.Assert.assertEquals(
+            AiModels.GROQ_LLAMA,
+            AiModels.pickDefault(hasKey = { it.id == AiModels.GROQ_LLAMA }, bridgeAvailable = false),
+        )
+    }
+}
+
+class SettingsImportKeysTest {
+    @org.junit.Test
+    fun `device-local project settings are never imported`() {
+        val keys = SettingsViewModel.DEVICE_LOCAL_KEYS
+        org.junit.Assert.assertTrue(SettingsViewModel.KEY_PROJECT_PATHS in keys)
+        org.junit.Assert.assertTrue(SettingsViewModel.KEY_PROJECT_LIST in keys)
+        org.junit.Assert.assertTrue(SettingsViewModel.KEY_APP_NAME in keys)
+    }
+}

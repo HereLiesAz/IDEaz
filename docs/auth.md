@@ -17,7 +17,10 @@ Failures are logged and surfaced through `SettingsViewModel.lastCredentialError`
 * `KEY_API_KEY` — Jules.
 * `KEY_GROQ_API_KEY`, `KEY_CEREBRAS_API_KEY`, `KEY_HF_API_KEY`, `KEY_MISTRAL_API_KEY`.
 * `KEY_OPENAI_API_KEY`, `KEY_ANTHROPIC_API_KEY`, `KEY_DEEPSEEK_API_KEY`.
+* `KEY_AIVE_PAIRING_CODE` — bearer pairing code for a remote Aive device (grants use of that Aive; treat it like a password).
 * `KEY_KEYSTORE_PASS`, `KEY_KEY_PASS` — Android signing secrets.
+
+Thirteen secure slots in all (`SettingsViewModel.SECURE_CREDENTIAL_KEYS`).
 
 Non-secret preferences such as theme, model assignment, project paths and branch names remain in ordinary default `SharedPreferences`.
 

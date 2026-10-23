@@ -121,7 +121,20 @@ object AiModels {
     )
 
     val availableModels = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL, KILO, LLM7, OVHCLOUD, AIVE)
-    val defaultRanking = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL)
+    /** Keyed providers by preference, then the keyless ones as the last fallback. */
+    val defaultRanking = listOf(
+        GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL,
+        KILO, LLM7, OVHCLOUD,
+    )
+
+    /**
+     * The model id used when the user has not chosen one: the highest-ranked provider with a
+     * saved key; else Gemini when the installed-Gemini bridge exists (GitHub builds); else the
+     * first keyless model, so a fresh Play install works without any key.
+     */
+    fun pickDefault(hasKey: (AiModel) -> Boolean, bridgeAvailable: Boolean): String =
+        defaultRanking.firstOrNull { !it.keyless && it.providerKey.isNotEmpty() && hasKey(it) }?.id
+            ?: if (bridgeAvailable) GEMINI_FLASH else (defaultRanking.firstOrNull { it.keyless }?.id ?: GEMINI_FLASH)
 
     fun findById(id: String?): AiModel? = availableModels.find { it.id == id }
 }
@@ -161,6 +174,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_BRANCH_NAME = "branch_name"
         const val KEY_PROJECT_LIST = "project_list"
         const val KEY_PROJECT_PATHS = "project_paths"
+
+        /**
+         * Settings that describe this device's own projects. An export from another device must not
+         * overwrite them: a foreign absolute path in project_paths would be returned by
+         * getProjectPath while project creation uses filesDir.
+         */
+        val DEVICE_LOCAL_KEYS: Set<String> = setOf(KEY_PROJECT_LIST, KEY_PROJECT_PATHS, KEY_APP_NAME, KEY_KEYSTORE_PATH)
         const val KEY_GOOGLE_API_KEY = "google_api_key"
         const val KEY_GITHUB_TOKEN = "github_token"
         const val KEY_JULES_PROJECT_ID = "jules_project_id"
@@ -206,6 +226,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_AI_ASSIGNMENT_OVERLAY = "ai_assignment_overlay"
 
         const val KEY_SHOW_CANCEL_WARNING = "show_cancel_warning"
+        const val KEY_DEPLOY_CONFIRMED = "deploy_confirmed"
         const val KEY_AUTO_DEBUG_BUILDS = "auto_debug_builds"
         const val KEY_REPORT_IDE_ERRORS = "report_ide_errors"
 
@@ -274,6 +295,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         super.onCleared()
         sharedPreferences.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
     }
+
+    fun isDeployConfirmed() = sharedPreferences.getBoolean(KEY_DEPLOY_CONFIRMED, false)
+    fun setDeployConfirmed(confirmed: Boolean) = sharedPreferences.edit { putBoolean(KEY_DEPLOY_CONFIRMED, confirmed) }
 
     fun getShowCancelWarning() = sharedPreferences.getBoolean(KEY_SHOW_CANCEL_WARNING, true)
     fun setShowCancelWarning(show: Boolean) = sharedPreferences.edit { putBoolean(KEY_SHOW_CANCEL_WARNING, show) }
@@ -410,12 +434,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         return sharedPreferences.getString(taskKey, defaultModelId)
     }
 
-    /** Highest-ranked configured API model; falls back to Gemini, whose GitHub path may be keyless. */
-    private fun defaultModelId(): String =
-        AiModels.defaultRanking
-            .firstOrNull { it.providerKey.isNotEmpty() && !getApiKey(it.providerKey).isNullOrBlank() }
-            ?.id
-            ?: AiModels.GEMINI_FLASH
+    /** Highest-ranked configured API model; else Gemini on bridge builds, else a keyless model. */
+    private fun defaultModelId(): String = AiModels.pickDefault(
+        hasKey = { !getApiKey(it.providerKey).isNullOrBlank() },
+        bridgeAvailable = com.hereliesaz.ideaz.BuildConfig.EXTERNAL_AI_AUTOMATION,
+    )
+
+    /** The default model the Settings dropdowns show for a task that has no explicit choice. */
+    fun effectiveDefaultModelId(): String = getAiAssignment(KEY_AI_ASSIGNMENT_DEFAULT) ?: defaultModelId()
 
     /**
      * Copies the picked keystore to [KEYSTORE_FILENAME] and records its path.
@@ -530,13 +556,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 }
 
                 sharedPreferences.edit {
-                    export.strings.filterKeys { it !in SECURE_CREDENTIAL_KEYS }
+                    export.strings.filterKeys { it !in SECURE_CREDENTIAL_KEYS && it !in DEVICE_LOCAL_KEYS }
                         .forEach { (k, v) -> putString(k, v) }
                     export.booleans.forEach { (k, v) -> putBoolean(k, v) }
                     export.ints.forEach { (k, v) -> putInt(k, v) }
                     export.longs.forEach { (k, v) -> putLong(k, v) }
                     export.floats.forEach { (k, v) -> putFloat(k, v) }
-                    export.stringSets.forEach { (k, v) -> putStringSet(k, v) }
+                    export.stringSets.filterKeys { it !in DEVICE_LOCAL_KEYS }.forEach { (k, v) -> putStringSet(k, v) }
                 }
                 SECURE_CREDENTIAL_KEYS.forEach { key ->
                     check(sharedPreferences.edit().remove(key).commit()) {

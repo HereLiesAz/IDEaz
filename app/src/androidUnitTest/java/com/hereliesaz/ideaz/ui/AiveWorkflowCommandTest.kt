@@ -48,4 +48,12 @@ class AiveWorkflowCommandTest {
         assertFalse(tracker.accept(run("r0", "x", "Running")))
         assertTrue(tracker.accept(run("r1", "something else", "Completed")))
     }
+
+    @Test
+    fun `a bare aive command is usage, not a prompt`() {
+        assertTrue(isBareAiveCommand("/aive"))
+        assertTrue(isBareAiveCommand("  /aive  "))
+        assertFalse(isBareAiveCommand("/aive add dark mode"))
+        assertFalse(isBareAiveCommand("tell me about /aive"))
+    }
 }

@@ -73,3 +73,52 @@ class RepoSnapshotTest {
         }
     }
 }
+
+class RepoSnapshotBudgetTest {
+    private fun tmp(): File = Files.createTempDirectory("snapb").toFile()
+
+    @Test
+    fun budgetCountsUtf8BytesNotChars() {
+        val dir = tmp()
+        // 3 bytes per char: 4_000 chars = 12_000 bytes.
+        File(dir, "cjk.txt").writeText("日".repeat(4_000))
+        val r = RepoSnapshot.build(dir, maxBytes = 10_000)
+        assertFalse(r.text.contains("日日日"))
+        assertTrue(r.truncated)
+        assertTrue(RepoSnapshot.utf8Size(r.text) <= 10_000)
+    }
+
+    @Test
+    fun totalIncludingNotIncludedListStaysWithinBudget() {
+        val dir = tmp()
+        repeat(500) { File(dir, "f$it.bin").writeBytes(byteArrayOf(0, 1)) }
+        File(dir, "a.txt").writeText("alpha")
+        val r = RepoSnapshot.build(dir, maxBytes = 12_000)
+        assertTrue(RepoSnapshot.utf8Size(r.text) <= 12_000)
+        assertTrue(r.text.contains("alpha"))
+        assertTrue(r.text.contains("more"))
+    }
+
+    @Test
+    fun oversizedFileIsSkippedUnread() {
+        val dir = tmp()
+        File(dir, "huge.txt").writeText("x".repeat(50_000))
+        File(dir, "small.txt").writeText("tiny")
+        val r = RepoSnapshot.build(dir, maxBytes = 20_000)
+        assertTrue(r.skipped.any { it.contains("huge.txt") })
+        assertTrue(r.text.contains("tiny"))
+    }
+
+    @Test
+    fun ideazStateAndEnvrcAreNeverSent() {
+        val dir = tmp()
+        File(dir, ".ideaz").mkdirs()
+        File(dir, ".ideaz/prompt_history.json").writeText("PROMPT_HISTORY_MARKER")
+        File(dir, ".envrc").writeText("export TOKEN=ENVRC_MARKER")
+        File(dir, "google-services.json").writeText("GOOGLE_SERVICES_MARKER")
+        val r = RepoSnapshot.build(dir)
+        assertFalse(r.text.contains("PROMPT_HISTORY_MARKER"))
+        assertFalse(r.text.contains("ENVRC_MARKER"))
+        assertFalse(r.text.contains("GOOGLE_SERVICES_MARKER"))
+    }
+}

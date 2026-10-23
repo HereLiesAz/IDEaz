@@ -17,13 +17,7 @@ import java.io.File
 object DeployIgnore {
 
     /** gitignore entries, in the order they are written. */
-    val ENTRIES: List<String> = listOf(
-        ".env*",
-        "*.jks",
-        "*.keystore",
-        "*.p12",
-        "*.pem",
-        "*.key",
+    val ENTRIES: List<String> = SecretFiles.GLOBS + listOf(
         ".ideaz/",
         "node_modules/",
         "dist/",
@@ -34,7 +28,6 @@ object DeployIgnore {
     private const val HEADER = "# Added by IDEaz: secrets, local IDE state and build output are never committed."
 
     private val dirNames = ENTRIES.filter { it.endsWith("/") }.map { it.removeSuffix("/") }.toSet()
-    private val suffixes = ENTRIES.filter { it.startsWith("*.") }.map { it.removePrefix("*") }
 
     /**
      * Writes or completes `.gitignore` in [projectDir], appending only the
@@ -66,6 +59,6 @@ object DeployIgnore {
         if (segments.isEmpty()) return false
         if (segments.dropLast(1).any { it in dirNames }) return true
         val name = segments.last()
-        return name.startsWith(".env") || suffixes.any { name.endsWith(it) }
+        return SecretFiles.isSecretName(name)
     }
 }

@@ -29,7 +29,8 @@ class AiveTransportSelector(
     relayFactory: () -> AiveTransport?,
 ) : AiveTransport {
 
-    private val relay: AiveTransport? by lazy(relayFactory)
+    private val relayLazy = lazy(relayFactory)
+    private val relay: AiveTransport? get() = relayLazy.value
 
     @Volatile private var active: AiveTransport? = null
 
@@ -60,6 +61,12 @@ class AiveTransportSelector(
     }
 
     override fun openAive(): Boolean = (active ?: preferred())?.openAive() ?: false
+
+    override fun close() {
+        // Do not build a relay client just to close it.
+        if (relayLazy.isInitialized()) relayLazy.value?.close()
+        local.close()
+    }
 
     companion object {
         const val OR_PAIR = "Or pair an Aive on another device: paste its pairing code in Settings."

@@ -27,6 +27,7 @@ fun OverlayCanvas(
 ) {
     var dragStart by remember { mutableStateOf<Offset?>(null) }
     var dragCurrent by remember { mutableStateOf<Offset?>(null) }
+    val selectionColor = com.hereliesaz.ideaz.ui.theme.selectionColor()
 
     Canvas(
         modifier = Modifier
@@ -70,7 +71,7 @@ fun OverlayCanvas(
         // Draw confirmed selection
         selectionRect?.let { rect ->
             drawRect(
-                color = Color.Green,
+                color = selectionColor,
                 topLeft = Offset(rect.left.toFloat(), rect.top.toFloat()),
                 size = Size(rect.width().toFloat(), rect.height().toFloat()),
                 style = Stroke(width = 8f)
@@ -90,8 +91,8 @@ fun OverlayCanvas(
             val topLeft = Offset(topLeftX, topLeftY)
             val size = Size(sizeX, sizeY)
 
-            drawRect(color = Color.Green.copy(alpha = 0.3f), topLeft = topLeft, size = size, style = Fill)
-            drawRect(color = Color.Green, topLeft = topLeft, size = size, style = Stroke(width = 5f))
+            drawRect(color = selectionColor.copy(alpha = 0.3f), topLeft = topLeft, size = size, style = Fill)
+            drawRect(color = selectionColor, topLeft = topLeft, size = size, style = Stroke(width = 5f))
         }
     }
 }

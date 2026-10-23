@@ -106,7 +106,7 @@ The packed formula remains `major·1e6 + minor·1e4 + patch·100 + build`; using
 
 ### 6.4 Publishing via the workflow
 
-[`publish-play.yml`](../.github/workflows/publish-play.yml) is `workflow_dispatch`-only with three inputs:
+`publish-play.yml` (retired; Play publishing now runs from [`android-play-release.yml`](../.github/workflows/android-play-release.yml), a trigger contract for the central HereLiesAz/workflows executor) was `workflow_dispatch`-only with three inputs:
 
 | Input | Options | Default | Meaning |
 |---|---|---|---|

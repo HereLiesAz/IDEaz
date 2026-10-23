@@ -27,7 +27,7 @@ Typing `/aive <objective>` in the chat does the following:
 
 1. The objective is queued in The Aive. The project name is the IDEaz app name, and `origin` is passed along when it is a GitHub repository; credentials are stripped from the URL.
 2. On this device, IDEaz opens The Aive, which launches the workflow through the same path as its own launch form. If The Aive cannot be opened, the chat says the workflow is only queued and starts when you open The Aive.
-3. IDEaz watches the run and posts to the chat when the workflow waits for approval and when it completes, fails or is cancelled. It follows the run id when The Aive's launch reply carries one; otherwise the first run with the same objective seen while still unfinished, so an earlier finished run with that objective is ignored.
+3. IDEaz watches the run and posts to the chat when the workflow waits for approval and when it completes, fails or is cancelled. It follows the run id when The Aive's launch reply carries one (`KEY_RUN_ID`; the launch id and `MSG_LAUNCH_OUTCOME` added in protocol version 2 are defined in the copy but not yet consumed on the Messenger path); otherwise the first run with the same objective seen while still unfinished, so an earlier finished run with that objective is ignored.
 
 Over the relay, step 2 differs: IDEaz cannot open The Aive on another device, so the chat says "Queued on your Aive device. It starts when you open The Aive there." and follows the run from the status the device sends back. If The Aive refuses the launch, the chat shows its reason.
 
@@ -58,3 +58,7 @@ The code is `aive1:` followed by base64url JSON holding the relay address (https
 ## Keyless models
 
 Kilo Gateway, LLM7 and OVHcloud are OpenAI-compatible endpoints that IDEaz calls without a key. When the key is blank, `OpenAiCompatibleAdapter` omits the `Authorization` header. These endpoints and models mirror The Aive's `HostedLlmProviders`, so keep the two lists in sync.
+
+## Deploy and your GitHub token
+
+Unrelated to The Aive but worth stating here with the other network flows: **Deploy** (the rail item) sends your GitHub token, the repository name and the pushed commit SHA to the maintainer's Worker at `workflows.hereliesaz.workers.dev`, which verifies that the token can push to the repository. The Worker builds and publishes only repositories owned by HereLiesAz; for other owners it refuses after receiving that request. Details: [`workflow.md`](workflow.md) §2.2.

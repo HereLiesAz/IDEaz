@@ -17,7 +17,6 @@ import com.hereliesaz.ideaz.utils.ErrorCollector
 import com.hereliesaz.ideaz.ui.web.WebProjectUrlUtils
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ProjectFileObserver
-import com.hereliesaz.ideaz.utils.VersionUtils
 import com.hereliesaz.ideaz.ai.AiAdapterFactory
 import com.hereliesaz.ideaz.ai.AiEditApproval
 import com.hereliesaz.ideaz.ai.AiEditApprovalRequiredException
@@ -35,6 +34,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -181,6 +181,11 @@ class MainViewModel(
             )
             return
         }
+        // A bare "/aive" is a request for help, not a prompt for the model.
+        if (isBareAiveCommand(text)) {
+            stateDelegate.appendChatMessage(ChatMessage("model", AIVE_USAGE, AIVE_LABEL))
+            return
+        }
         val appName = settingsViewModel.getAppName()
         if (appName == null) {
             stateDelegate.appendChatMessage(ChatMessage.error("Error: No project open."))
@@ -207,7 +212,11 @@ class MainViewModel(
         )
         if (client == null) {
             stateDelegate.appendChatMessage(
-                ChatMessage.error("Error: No API key set for ${model.displayName}. Go to Settings → AI Providers.")
+                ChatMessage.error(
+                    "Error: No API key set for ${model.displayName}. Open Settings and add it under " +
+                        "\"API Keys\", \"Free Providers\" or \"Paid Providers\", or pick a free model that needs no key " +
+                        "under \"AI Assignments\"."
+                )
             )
             return
         }
@@ -310,6 +319,8 @@ class MainViewModel(
                 throw e
             } catch (e: Exception) {
                 stateDelegate.appendChatMessage(ChatMessage.error("Error: ${e.message}"))
+            } finally {
+                client.close()
             }
         }
     }
@@ -455,6 +466,11 @@ class MainViewModel(
                 stateDelegate.setEditReview(state.copy(status = targetStatus, restoreConflict = false))
                 stateDelegate.triggerFileTreeReload()
                 stateDelegate.triggerWebHardReload()
+            } catch (e: CancellationException) {
+                // CancellationException is an IllegalStateException; it must not be reported as
+                // "files changed after review".
+                stateDelegate.setEditReview(state)
+                throw e
             } catch (e: IllegalStateException) {
                 // restoreEditCheckpoint's fingerprint check throws exactly this
                 // when the files changed since review (protecting against
@@ -507,6 +523,47 @@ class MainViewModel(
     val filteredLog = stateDelegate.filteredLog
     val pendingRoute = stateDelegate.pendingRoute
     val webReloadTrigger = stateDelegate.webReloadTrigger
+
+    /** True while the "Deploy this project?" confirmation dialog should show. */
+    private val _deployConfirmationVisible = MutableStateFlow(false)
+    val deployConfirmationVisible = _deployConfirmationVisible.asStateFlow()
+
+    /** What the last Deploy did, for a snackbar: [url] is the live site on success, else null. */
+    data class DeployResult(val message: String, val url: String? = null, val id: Long = System.nanoTime())
+    private val _deployResult = MutableStateFlow<DeployResult?>(null)
+    val deployResult = _deployResult.asStateFlow()
+    fun consumeDeployResult(id: Long) {
+        if (_deployResult.value?.id == id) _deployResult.value = null
+    }
+    private fun postDeployResult(message: String, url: String? = null) {
+        _deployResult.value = DeployResult(message, url)
+    }
+
+    /** One-shot "open the Settings screen" requests from chat error messages. */
+    private val _openSettingsRequests = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val openSettingsRequests = _openSettingsRequests.asSharedFlow()
+    fun requestOpenSettings() {
+        _openSettingsRequests.tryEmit(Unit)
+    }
+
+    /**
+     * Entry point for the rail's Deploy item. The first deploy asks for confirmation
+     * because it creates a GitHub repository and publishes a public site; once confirmed
+     * it runs directly.
+     */
+    fun requestDeploy() {
+        if (settingsViewModel.isDeployConfirmed()) deployWebProject() else _deployConfirmationVisible.value = true
+    }
+
+    fun confirmDeploy() {
+        _deployConfirmationVisible.value = false
+        settingsViewModel.setDeployConfirmed(true)
+        deployWebProject()
+    }
+
+    fun dismissDeployConfirmation() {
+        _deployConfirmationVisible.value = false
+    }
     val webHardReloadTrigger = stateDelegate.webHardReloadTrigger
 
     val isSelectMode = selectionDelegate.isSelectMode
@@ -674,6 +731,11 @@ class MainViewModel(
      * used to put `.env` files and `.ideaz/` history on GitHub Pages.
      */
     fun deployWebProject() {
+        // A double tap used to run two commit/addAll/push sequences on the same repository.
+        if (!deployInFlight.compareAndSet(false, true)) {
+            logHandler.onBuildLog("A deploy is already running.")
+            return
+        }
         val appName = settingsViewModel.getAppName()
         viewModelScope.launch {
             logHandler.onBuildLog("Deploying: push to GitHub, then build and publish centrally...")
@@ -687,13 +749,7 @@ class MainViewModel(
                 // if this project has never been published. Everything before
                 // this point works offline.
                 if (!repoDelegate.ensureRemoteRepository(appName)) {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(
-                            getApplication(),
-                            "Deploy needs a GitHub token. Add one in Settings.",
-                            Toast.LENGTH_LONG,
-                        ).show()
-                    }
+                    postDeployResult("Deploy needs a GitHub token. Add one in Settings under \"API Keys\", then try again.")
                     return@launch
                 }
 
@@ -707,13 +763,12 @@ class MainViewModel(
                 // already in the build log from gitDelegate's own onLog calls.
                 if (!gitDelegate.commit("Deploy: ${System.currentTimeMillis()}")) {
                     logHandler.onBuildLog("Deploy failed: could not commit changes. See the log above for details.")
+                    postDeployResult("Deploy failed: could not commit your changes. Check the log for the reason, then try again.")
                     return@launch
                 }
                 if (!gitDelegate.push()) {
                     logHandler.onBuildLog("Deploy failed: push did not complete. See the log above for details.")
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(getApplication(), "Deploy failed: could not push to GitHub.", Toast.LENGTH_LONG).show()
-                    }
+                    postDeployResult("Deploy failed: could not push to GitHub. Check your connection and that your token can write to the repository.")
                     return@launch
                 }
 
@@ -724,6 +779,7 @@ class MainViewModel(
                 val sha = gitDelegate.getHeadSha()
                 if (token.isNullOrBlank() || repository == null || sha == null) {
                     logHandler.onBuildLog("Pushed, but could not request a build: no token, GitHub origin or commit.")
+                    postDeployResult("Pushed, but the build could not be requested: the GitHub token, repository or commit is missing.")
                     return@launch
                 }
 
@@ -731,6 +787,7 @@ class MainViewModel(
                 when (val result = WebDeployClient().requestDeploy(token, repository, sha)) {
                     is WebDeployClient.Result.Accepted -> {
                         logHandler.onBuildLog("Build requested. The site will be served at ${result.siteUrl}")
+                        postDeployResult("Deploy started. The build is running; the site will be at ${result.siteUrl}")
                         startWebDeploymentPolling(token, repository, sha, result.statusContext)
                     }
                     is WebDeployClient.Result.Refused -> {
@@ -739,17 +796,20 @@ class MainViewModel(
                         logHandler.onBuildLog(
                             "Pushed, but the central build was refused (${result.httpCode}): ${result.message}"
                         )
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(getApplication(), "Pushed. Publishing was refused: ${result.message}", Toast.LENGTH_LONG).show()
-                        }
+                        postDeployResult("Pushed to your private repository, but publishing was refused: ${result.message}")
                     }
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 logHandler.onBuildLog("Deploy failed: ${e.message}")
+                postDeployResult("Deploy failed: ${e.message ?: "unexpected error"}. See the log for details.")
+            } finally {
+                deployInFlight.set(false)
             }
         }
     }
+
+    private val deployInFlight = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private var pollingJob: Job? = null
     private var aiveWatch: Job? = null
@@ -779,11 +839,17 @@ class MainViewModel(
                             val url = status?.targetUrl.orEmpty()
                             logHandler.onBuildLog("Deployment successful: $url")
                             logHandler.onAiLog("Deployment successful: $url (open in browser to verify the live site)")
+                            postDeployResult("Deployment successful.", url.takeIf { it.isNotBlank() })
                             return@launch
                         }
                         "failure", "error" -> {
                             logHandler.onBuildLog(
                                 "Deployment failed: ${status?.description.orEmpty()} ${status?.targetUrl.orEmpty()}".trim()
+                            )
+                            postDeployResult(
+                                "Deployment failed: ${status?.description.orEmpty().ifBlank { "the central build reported an error" }}. " +
+                                    "Fix the problem and Deploy again; the build log has details.",
+                                status?.targetUrl?.takeIf { it.isNotBlank() },
                             )
                             return@launch
                         }
@@ -868,6 +934,10 @@ class MainViewModel(
     }
 
     fun clearSelection() = selectionDelegate.clearContext()
+
+    /** Before/after text preview of one reviewed file; blocking file IO, call off the main thread. */
+    fun editDiff(checkpoint: com.hereliesaz.ideaz.ai.IdeEditCheckpoint, relativePath: String): String =
+        IdeTools(File(checkpoint.projectPath)).editDiff(checkpoint, relativePath)
     fun closeContextualChat() = selectionDelegate.dismissContextualChat()
     fun setPendingRoute(r: String?) = stateDelegate.setPendingRoute(r)
 
@@ -888,6 +958,13 @@ class MainViewModel(
     fun forceUpdateInitFiles() {
         viewModelScope.launch { repoDelegate.forceUpdateInitFiles() }
     }
+    /** Toast from any thread. */
+    private fun showToast(message: String) {
+        viewModelScope.launch(Dispatchers.Main) {
+            Toast.makeText(getApplication(), message, Toast.LENGTH_LONG).show()
+        }
+    }
+
     /**
      * Creates a new project. Entirely local and offline: no GitHub account, no
      * token, no network.
@@ -907,6 +984,12 @@ class MainViewModel(
         initialPrompt: String? = null,
         onSuccess: () -> Unit,
     ) {
+        val nameError = com.hereliesaz.ideaz.utils.ProjectNames.validate(appName)
+        if (nameError != null) {
+            logHandler.onOverlayLog(nameError)
+            showToast(nameError)
+            return
+        }
         // Held for the first Deploy - there is no repository to attach it to yet.
         settingsViewModel.saveRepoDescription(description)
         // SetupTab's "GitHub User" and "Branch" fields are editable in Create
@@ -935,6 +1018,16 @@ class MainViewModel(
      * Common exit path for Setup/Clone/Load flows.
      */
     fun saveAndInitialize(appName: String, user: String, branch: String, context: Context, initialPrompt: String? = null) {
+        // Projects made before names were validated may contain spaces; keep them openable as
+        // long as the name is a plain existing directory name (never a path).
+        val legacyExisting = com.hereliesaz.ideaz.utils.ProjectNames.safeFileName(appName) != null &&
+            !appName.startsWith(".") && context.filesDir.resolve(appName).isDirectory
+        val nameError = com.hereliesaz.ideaz.utils.ProjectNames.validate(appName)
+        if (nameError != null && !legacyExisting) {
+            logHandler.onOverlayLog("Cannot open '$appName': $nameError")
+            showToast(nameError)
+            return
+        }
         viewModelScope.launch {
             settingsViewModel.saveProjectConfig(appName, user, branch)
 
@@ -1064,6 +1157,11 @@ class MainViewModel(
      */
     fun registerExternalProject(u: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
+            // Set once the copy exists; cleared only when the import succeeds. A failure or a
+            // cancellation mid-copy would otherwise leave a half-copied folder that
+            // scanLocalProjects lists as a project.
+            var partialDir: File? = null
+            var keepDir = false
             try {
                 // Convert to DocumentFile
                 val documentFile = if (u.scheme == "file" && u.path != null) {
@@ -1086,15 +1184,20 @@ class MainViewModel(
                 }
 
                 // Handle Name Collision
-                var projectName = documentFile.name ?: "Imported_${System.currentTimeMillis()}"
+                // The provider supplies the folder name: make it a valid project name.
+                val baseName = com.hereliesaz.ideaz.utils.ProjectNames.sanitize(
+                    documentFile.name, "Imported_${System.currentTimeMillis()}"
+                )
+                var projectName = baseName
                 var destDir = getApplication<Application>().filesDir.resolve(projectName)
 
                 var counter = 1
                 while (destDir.exists()) {
-                    projectName = "${documentFile.name ?: "Imported"}_$counter"
+                    projectName = "${baseName}_$counter"
                     destDir = getApplication<Application>().filesDir.resolve(projectName)
                     counter++
                 }
+                partialDir = destDir
 
                 logHandler.onOverlayLog("Importing project '$projectName'...")
                 logHandler.onProgress(0)
@@ -1111,6 +1214,7 @@ class MainViewModel(
                 // project type this app no longer edits.
                 if (!com.hereliesaz.ideaz.utils.ProjectAnalyzer.isPreviewable(destDir)) {
                     destDir.deleteRecursively()
+                    partialDir = null
                     val message = "$projectName has no index.html or package.json, so IDEaz " +
                         "cannot preview it. The imported folder was not kept."
                     logHandler.onOverlayLog(message)
@@ -1129,14 +1233,18 @@ class MainViewModel(
                 val owner = settingsViewModel.getGithubUser() ?: "local"
                 val branch = "main"
 
+                keepDir = true
                 withContext(Dispatchers.Main) {
                     saveAndInitialize(projectName, owner, branch, getApplication())
                 }
 
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 logHandler.onOverlayLog("Failed to import project: ${e.message}")
                 android.util.Log.w("MainViewModel", "Operation failed", e)
             } finally {
+                if (!keepDir) runCatching { partialDir?.deleteRecursively() }
                 logHandler.onProgress(null)
             }
         }
@@ -1145,8 +1253,17 @@ class MainViewModel(
     private fun copyDocumentFileToLocal(src: androidx.documentfile.provider.DocumentFile, dest: File) {
         if (src.isDirectory) {
             if (!dest.exists()) dest.mkdirs()
+            val root = dest.canonicalFile
             src.listFiles().forEach { file ->
-                val destFile = File(dest, file.name ?: "unknown")
+                // A hostile provider can return names like "../x": skip anything that is not a
+                // plain file name or that would resolve outside the destination.
+                val safeName = com.hereliesaz.ideaz.utils.ProjectNames.safeFileName(file.name)
+                if (safeName == null) {
+                    logHandler.onBuildLog("[IMPORT] Skipped an entry with an unsafe name: ${file.name}\n")
+                    return@forEach
+                }
+                val destFile = File(dest, safeName)
+                if (!destFile.canonicalPath.startsWith(root.path + File.separator)) return@forEach
                 copyDocumentFileToLocal(file, destFile)
             }
         } else {
@@ -1288,7 +1405,7 @@ class MainViewModel(
 
     /**
      * Returns the list of credentials the user still needs to configure before any
-     * project flow (Create / Save & Initialize / Clone-select) can succeed.
+     * project flow (Create / Open project / Clone-select) can succeed.
      *
      * The AI credential checked here follows whichever model the "Default" AI
      * Assignment actually resolves to (SettingsViewModel.getAiAssignment ranks
@@ -1403,6 +1520,11 @@ internal class AiveRunTracker(private val objective: String, private var runId: 
 /** `/aive <objective>` in the chat sends the objective to The Aive as a workflow. */
 private val AIVE_WORKFLOW_COMMAND = Regex("""(?s)^/aive\s+(\S.*)$""")
 private const val AIVE_LABEL = "The Aive"
+private const val AIVE_USAGE = "Usage: /aive <objective>. It queues the objective as a workflow in The Aive, " +
+    "for example: /aive add a dark mode toggle."
+
+/** True for "/aive" with nothing after it. */
+internal fun isBareAiveCommand(text: String): Boolean = text.trim().equals("/aive", ignoreCase = true)
 
 /** The project's `origin` as `https://github.com/owner/name`, or null when it is not on GitHub. */
 internal fun gitHubOriginUrl(projectDir: java.io.File): String? = runCatching {

@@ -64,7 +64,7 @@ The remote pipeline described here — force-pushed `android_ci.yml` + `release.
 User selects a project on the Load tab → JGit clone/pull → `ProjectAnalyzer.isPreviewable` → navigate to Setup tab.
 
 ### Initialization
-User taps "Save & Initialize" on the Setup tab → the directory is scaffolded from the bundled React starter if empty → the preview opens. Nothing is pushed; publishing is the rail's separate Deploy action.
+User taps "Open project" on the Setup tab → the directory is scaffolded from the bundled React starter if empty → the preview opens. Nothing is pushed; publishing is the rail's separate Deploy action.
 
 ## 7. Developer Tools (Escape Hatches)
 

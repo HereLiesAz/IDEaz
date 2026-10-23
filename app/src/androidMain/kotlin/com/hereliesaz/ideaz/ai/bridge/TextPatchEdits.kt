@@ -129,10 +129,37 @@ context needed for the patch to apply."""
         } catch (e: AiEditApprovalRequiredException) {
             throw e
         } catch (e: Exception) {
-            expectedFingerprint?.let { fingerprint ->
-                runCatching { tools.restoreEditCheckpoint(checkpoint, fingerprint) }
+            val fingerprint = expectedFingerprint
+            var restoreFailure: Exception? = null
+            if (fingerprint != null) {
+                try {
+                    tools.restoreEditCheckpoint(checkpoint, fingerprint)
+                } catch (r: Exception) {
+                    restoreFailure = r
+                }
+            } else {
+                // Failed before any file could change (no fingerprint was ever recorded), so the
+                // checkpoint is an orphan nothing would restore or discard later.
+                runCatching { tools.discardEditCheckpoint(checkpoint) }
             }
-            "$response\n\nIDEaz could not safely apply the patch: ${e.message}"
+            failureNote(response, e.message, restoreFailure?.message, restoreFailed = restoreFailure != null)
+        }
+    }
+
+    /** The reply shown when applying failed; says so plainly when the restore failed too. */
+    internal fun failureNote(
+        response: String,
+        applyError: String?,
+        restoreError: String?,
+        restoreFailed: Boolean,
+    ): String {
+        val base = "$response\n\nIDEaz could not safely apply the patch: $applyError"
+        return if (restoreFailed) {
+            "$base\n\nIDEaz also could not restore the files (${restoreError ?: "unknown error"}), " +
+                "so some project files may have been left modified. Review the project files " +
+                "(or use Git) before continuing."
+        } else {
+            base
         }
     }
 }

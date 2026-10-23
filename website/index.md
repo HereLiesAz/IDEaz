@@ -47,13 +47,13 @@ title: IDEaz - The Post-Code IDE
         <li><strong>Run App:</strong> Launch your project on the device.</li>
         <li><strong>Visual Select:</strong> Tap any UI element to inspect it.</li>
         <li><strong>AI Prompt:</strong> Describe your changes in plain English.</li>
-        <li><strong>AI Edit:</strong> The AI reads and edits your project's source directly.</li>
+        <li><strong>AI Edit:</strong> The AI edits your project's source behind a checkpoint; you review the change and approve or reject it.</li>
         <li><strong>Reload:</strong> The live preview updates instantly, no rebuild step.</li>
     </ol>
 
     <h2>Architecture</h2>
     <p>
-        Every project is a real git repository living on your device, and git is the source of truth from the very first commit — you don't need a GitHub account to start. Pages you build render live in an embedded preview as you edit; when you're ready, connect a GitHub account and publish with one tap — the source stays in a private repository; only the built site goes live.
+        Every project is a real git repository living on your device, and git is the source of truth from the very first commit — you don't need a GitHub account to start. Pages you build render live in an embedded preview as you edit; when you're ready, connect a GitHub account and publish with one tap (with a confirmation first) — the source stays in a private repository; only the built site goes live. Note that publishing currently builds only repositories owned by HereLiesAz, and your GitHub token is sent to the maintainer's build service to do it; see the README for details.
     </p>
 
 </div>

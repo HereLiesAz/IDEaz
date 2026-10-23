@@ -96,4 +96,19 @@ class RetryInterceptorTest {
         assertEquals(1, server.requestCount)
         response.close()
     }
+
+    @Test
+    fun ioFailureThenRetryableStatusOnLastAttempt_returnsTheResponseNotTheStaleException() {
+        // Attempt 1: connection dropped (IOException). Attempt 2 (the last): a 503.
+        server.enqueue(MockResponse().setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.DISCONNECT_AT_START))
+        server.enqueue(MockResponse().setResponseCode(503).setBody("busy"))
+
+        val response = client(maxRetries = 1)
+            .newCall(Request.Builder().url(server.url("/")).build())
+            .execute()
+
+        assertEquals(503, response.code)
+        assertEquals("busy", response.body.string())
+        response.close()
+    }
 }

@@ -196,6 +196,19 @@ class AiveRelayCodecTest {
     }
 
     @Test
+    fun `timestamp skew is reported as a clock skew failure`() {
+        val now = 1_700_000_000_000L
+        val h = host(clock = { now })
+        try {
+            h.open(client(clock = { now - 11 * 60_000 }).seal(msg()))
+            fail("should be rejected")
+        } catch (e: AiveClockSkewException) {
+            // A subclass of AiveFrameException, so existing handlers still drop it.
+            assertTrue(e is AiveFrameException)
+        }
+    }
+
+    @Test
     fun `oversize plaintext is refused on send`() {
         val big = "x".repeat(AiveRelayCodec.MAX_PLAINTEXT_BYTES)
         try {

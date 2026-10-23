@@ -285,6 +285,48 @@ class IdeTools(private val projectDir: File) {
         )
     }
 
+    /**
+     * A compact before/after text preview of [relativePath] for the review card: the lines
+     * between the first and last difference, prefixed `-` (before) and `+` (after), capped at
+     * [maxLines] lines. Read-only; returns a short note for binary, oversized or unreadable files.
+     */
+    fun editDiff(checkpoint: IdeEditCheckpoint, relativePath: String, maxLines: Int = 60): String {
+        return try {
+            requireCheckpointProject(checkpoint)
+            val root = checkpointRoot(checkpoint)
+            val current = resolvedFile(relativePath)
+            val before = root.resolve("files/$relativePath")
+            val state = root.resolve("states/$relativePath.state").takeIf { it.isFile }?.readText()
+            if ((before.isFile && before.length() > MAX_REVIEW_FILE_BYTES) ||
+                (current.isFile && current.length() > MAX_REVIEW_FILE_BYTES)
+            ) {
+                return "(file too large to preview)"
+            }
+            val oldLines = if (state == "file" && before.isFile) before.readText().lines() else emptyList()
+            val newLines = if (current.isFile) current.readText().lines() else emptyList()
+            if (oldLines.any { '\u0000' in it } || newLines.any { '\u0000' in it }) return "(binary file)"
+            var start = 0
+            while (start < oldLines.size && start < newLines.size && oldLines[start] == newLines[start]) start++
+            var endOld = oldLines.size
+            var endNew = newLines.size
+            while (endOld > start && endNew > start && oldLines[endOld - 1] == newLines[endNew - 1]) {
+                endOld--
+                endNew--
+            }
+            val out = buildList {
+                oldLines.subList(start, endOld).forEach { add("- $it") }
+                newLines.subList(start, endNew).forEach { add("+ $it") }
+            }
+            when {
+                out.isEmpty() -> "(no textual change)"
+                out.size > maxLines -> out.take(maxLines).joinToString("\n") + "\n… ${out.size - maxLines} more line(s)"
+                else -> out.joinToString("\n")
+            }
+        } catch (e: Exception) {
+            "(preview unavailable)"
+        }
+    }
+
     /** Restores captured AI paths if they still match the reviewed fingerprint. */
     fun restoreEditCheckpoint(checkpoint: IdeEditCheckpoint, expectedFingerprint: String? = null) {
         requireCheckpointProject(checkpoint)

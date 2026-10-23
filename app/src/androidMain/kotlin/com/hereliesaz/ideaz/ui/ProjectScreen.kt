@@ -77,13 +77,25 @@ fun ProjectScreen(
     var requirementMessage by remember { mutableStateOf("") }
     var requirementBtnText by remember { mutableStateOf("") }
     var requirementAction by remember { mutableStateOf<() -> Unit>({}) }
+    var requirementAltText by remember { mutableStateOf("") }
+    var requirementAltAction by remember { mutableStateOf<() -> Unit>({}) }
 
     fun checkKeys(): Boolean {
         val missing = viewModel.checkRequiredKeys()
         if (missing.isNotEmpty()) {
             requirementTitle = "Configuration Missing"
-            requirementMessage = "The following keys are required:\n\n${missing.joinToString("\n")}"
-            requirementBtnText = "Go to Settings"
+            requirementMessage = "The AI model you picked needs a key you have not added yet:\n\n" +
+                "${missing.joinToString("\n")}\n\n" +
+                "Add it in Settings, or switch to a free model that needs no key."
+            requirementBtnText = "Open Settings"
+            requirementAltText = "Use a free model"
+            requirementAltAction = {
+                viewModel.settingsViewModel.saveAiAssignment(
+                    SettingsViewModel.KEY_AI_ASSIGNMENT_DEFAULT,
+                    AiModels.KILO.id,
+                )
+                showRequirementDialog = false
+            }
             requirementAction = {
                 showRequirementDialog = false
                 navController.navigate("settings")
@@ -106,7 +118,7 @@ fun ProjectScreen(
     // LaunchedEffect(Unit). That meant first-launch users got a system dialog
     // before they'd done anything. checkLoadRequirements/checkKeys are still
     // invoked at action time — Load
-    // tab project-pick, SetupTab Save & Initialize / Create & Save — so the
+    // tab project-pick, SetupTab Open project / Create project — so the
     // user is prompted only when a path actually needs the permission/keys.
 
     // --- UI ---
@@ -116,7 +128,13 @@ fun ProjectScreen(
             title = { Text(requirementTitle) },
             text = { Text(requirementMessage) },
             confirmButton = { AzButton(onClick = requirementAction, text = requirementBtnText, shape = AzButtonShape.RECTANGLE) },
-            dismissButton = { TextButton(onClick = { showRequirementDialog = false }) { Text("Cancel") } }
+            dismissButton = {
+                if (requirementAltText.isNotEmpty()) {
+                    AzButton(onClick = requirementAltAction, text = requirementAltText, shape = AzButtonShape.RECTANGLE)
+                } else {
+                    AzButton(onClick = { showRequirementDialog = false }, text = "Cancel", shape = AzButtonShape.RECTANGLE)
+                }
+            }
         )
     }
 
@@ -132,7 +150,7 @@ fun ProjectScreen(
             // screen behind it until the request timed out on its own.
             // Dismissing only hides the dialog; the operation keeps running
             // and still updates its own state when it finishes.
-            dismissButton = { TextButton(onClick = { viewModel.dismissLoadingDialog() }) { Text("Dismiss") } }
+            dismissButton = { AzButton(onClick = { viewModel.dismissLoadingDialog() }, text = "Dismiss", shape = AzButtonShape.RECTANGLE) }
         )
     }
 

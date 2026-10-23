@@ -45,6 +45,10 @@ class AiveRelayClient(
     private val code: AivePairingCode,
     private val http: OkHttpClient = defaultHttp(),
     private val clock: () -> Long = System::currentTimeMillis,
+    /** Reply deadline for launch/ping; overridable so tests need not wait 20 s. */
+    private val requestTimeoutMs: Long = REQUEST_TIMEOUT_MS,
+    /** Reply deadline for a prompt; overridable so tests need not wait 3 minutes. */
+    private val promptTimeoutMs: Long = PROMPT_TIMEOUT_MS,
 ) : AiveTransport {
 
     override val isRemote: Boolean get() = true
@@ -66,6 +70,7 @@ class AiveRelayClient(
     private val lock = Any()
     private var current: Connection? = null
     private val nextId = AtomicLong(1)
+    private var closed = false
 
     /** launchId -> failure text (null while pending or started), for launches made by this client. */
     private val launches = object : LinkedHashMap<String, String?>() {
@@ -150,6 +155,13 @@ class AiveRelayClient(
             // A frame that fails any check is dropped; it never reaches the caller.
             val message = try {
                 codec.open(data)
+            } catch (_: AiveClockSkewException) {
+                // Authentic but stale or from the future: every frame will fail the same way, so
+                // say why now instead of letting the caller wait out its timeout.
+                val hint = AiveRelayException(CLOCK_SKEW_HINT, retryable = false)
+                failPending(hint)
+                events.tryEmit(RelayEvent.Closed(hint))
+                return
             } catch (_: AiveFrameException) {
                 return
             }
@@ -223,6 +235,7 @@ class AiveRelayClient(
     }
 
     private fun acquire(): Connection = synchronized(lock) {
+        if (closed) throw AiveRelayException("The relay client is closed.", retryable = false)
         val connection = current?.takeIf { it.failure == null } ?: Connection().also {
             current = it
             it.start()
@@ -235,6 +248,12 @@ class AiveRelayClient(
         synchronized(lock) {
             connection.users--
             if (connection.users > 0) return
+            if (closed) {
+                // close() already cancelled the linger scope; close the socket here.
+                if (current === connection) current = null
+                connection.close()
+                return
+            }
         }
         scope.launch {
             delay(IDLE_LINGER_MS)
@@ -248,9 +267,10 @@ class AiveRelayClient(
     }
 
     /** Closes the connection and any pending work. The client is unusable afterwards. */
-    fun close() {
+    override fun close() {
         scope.cancel()
         synchronized(lock) {
+            closed = true
             current?.close()
             current = null
         }
@@ -322,7 +342,7 @@ class AiveRelayClient(
                     "Use a smaller project or a shorter conversation."
             )
         }
-        val reply = request(PROMPT_TIMEOUT_MS) { id ->
+        val reply = request(promptTimeoutMs) { id ->
             buildJsonObject {
                 put("t", "prompt")
                 put("id", id)
@@ -339,7 +359,7 @@ class AiveRelayClient(
      * is not known yet, so this returns null; a launch The Aive refuses surfaces through [watchRun].
      */
     override suspend fun launchWorkflow(projectName: String, objective: String, repositoryUrl: String?): String? {
-        request(REQUEST_TIMEOUT_MS) { id ->
+        request(requestTimeoutMs) { id ->
             buildJsonObject {
                 put("t", "launch")
                 put("id", id)
@@ -389,7 +409,7 @@ class AiveRelayClient(
     /** Round trip to The Aive, in milliseconds: the Settings "Test connection". */
     suspend fun ping(): Long {
         val started = System.nanoTime()
-        val reply = request(REQUEST_TIMEOUT_MS) { id ->
+        val reply = request(requestTimeoutMs) { id ->
             buildJsonObject {
                 put("t", "ping")
                 put("id", id)
@@ -405,6 +425,10 @@ class AiveRelayClient(
 
         /** Project snapshot budget when the prompt travels over the relay. */
         const val MAX_SNAPSHOT_BYTES = 200_000
+
+        /** Shown when frames from The Aive are rejected for timestamp skew. */
+        const val CLOCK_SKEW_HINT = "Your Aive device's clock and this device's clock differ by more than " +
+            "10 minutes, so its replies were rejected. Set the date and time to automatic on both devices."
 
         private const val PROMPT_TIMEOUT_MS = 180_000L
         private const val REQUEST_TIMEOUT_MS = 20_000L

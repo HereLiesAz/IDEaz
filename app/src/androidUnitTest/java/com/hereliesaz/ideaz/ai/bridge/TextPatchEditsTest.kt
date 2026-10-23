@@ -52,4 +52,13 @@ class TextPatchEditsTest {
             TextPatchEdits.extractUnifiedDiff("```diff\n$diff\n```\nand\n```patch\n$second\n```"),
         )
     }
+
+    @Test
+    fun `failure note warns when the restore failed too`() {
+        val plain = TextPatchEdits.failureNote("R", "boom", null, restoreFailed = false)
+        assertEquals("R\n\nIDEaz could not safely apply the patch: boom", plain)
+        val warned = TextPatchEdits.failureNote("R", "boom", "mismatch", restoreFailed = true)
+        org.junit.Assert.assertTrue(warned.contains("may have been left modified"))
+        org.junit.Assert.assertTrue(warned.contains("mismatch"))
+    }
 }

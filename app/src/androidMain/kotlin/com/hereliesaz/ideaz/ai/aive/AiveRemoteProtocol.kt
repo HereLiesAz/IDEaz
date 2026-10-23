@@ -7,7 +7,8 @@ package com.hereliesaz.ideaz.ai.aive
  * together and bump [VERSION].
  */
 object AiveRemoteProtocol {
-    const val VERSION = 1
+    /** 2 added [KEY_LAUNCH_ID] and [MSG_LAUNCH_OUTCOME]; version 1 peers keep working. */
+    const val VERSION = 2
 
     /** Bind with this action and the target package set. */
     const val ACTION_BIND = "com.hereliesaz.aive.action.REMOTE"
@@ -27,6 +28,8 @@ object AiveRemoteProtocol {
     const val MSG_RESULT = 101
     const val MSG_ERROR = 102
     const val MSG_RUN_STATUS = 103
+    /** To watchers: a queued launch started ([KEY_LAUNCH_STARTED]) or failed ([KEY_ERROR]). */
+    const val MSG_LAUNCH_OUTCOME = 104
 
     const val KEY_VERSION = "version"
     const val KEY_REQUEST_ID = "requestId"
@@ -41,6 +44,10 @@ object AiveRemoteProtocol {
     const val KEY_OBJECTIVE = "objective"
     /** Optional `https://github.com/owner/name` the workflow works on. */
     const val KEY_REPOSITORY_URL = "repositoryUrl"
+    /** Long: Aive's id for a queued launch, echoed in its [MSG_LAUNCH_OUTCOME]. */
+    const val KEY_LAUNCH_ID = "launchId"
+    /** Boolean: true when the launch started; false with [KEY_ERROR] when it failed or expired. */
+    const val KEY_LAUNCH_STARTED = "launchStarted"
     const val KEY_RUN_ID = "runId"
     /** A [com.hereliesaz.geministrator.domain.WorkflowRunStatus] name. */
     const val KEY_RUN_STATUS = "runStatus"
