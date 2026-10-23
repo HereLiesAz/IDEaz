@@ -1,8 +1,6 @@
 package com.hereliesaz.ideaz.ui
 
 import androidx.compose.ui.graphics.Color
-import com.hereliesaz.ideaz.ui.theme.RailActiveColor
-import com.hereliesaz.ideaz.ui.theme.RailItemColor
 import androidx.compose.ui.unit.dp
 import com.hereliesaz.aznavrail.AzNavHostScope
 import com.hereliesaz.aznavrail.bottomsheet.AzSheetController
@@ -10,12 +8,6 @@ import com.hereliesaz.aznavrail.model.AzButtonShape
 import com.hereliesaz.aznavrail.model.AzDockingSide
 import com.hereliesaz.aznavrail.model.AzHeaderIconShape
 import com.hereliesaz.aznavrail.model.AzSheetDetent
-
-// Every item's own base/unselected colour. AzNavRail falls back to the rail's
-// resolved accent (activeColor, below) for any item that doesn't set its own
-// `color` — without this, every item renders in the active-item's yellow
-// highlight instead of just the one that's actually active.
-private val railItemColor = RailItemColor
 
 private val ideHelpList: Map<String, String> = mapOf(
     "project_settings" to "Open the project's settings and switches.",
@@ -47,7 +39,18 @@ fun AzNavHostScope.ideNavRail(
     onNavigateToMainApp: (String) -> Unit = { navController?.navigate(it) },
     /** Route currently shown, so the active item can be marked by more than its colour. */
     activeRoute: String? = null,
+    /**
+     * Theme-derived colours (see theme/Color.kt railItemColor, railActiveColor,
+     * railScrimColor), passed in because this scope is not composable.
+     * [itemColor] is every item's own base/unselected colour: AzNavRail falls back to the
+     * rail's accent ([activeColor]) for any item that sets no `color`, which would render
+     * every item in the active highlight.
+     */
+    itemColor: Color,
+    activeColor: Color,
+    scrimColor: Color,
 ) {
+    val railItemColor = itemColor
     // Colour alone must not carry the active state: an outlined shape (rail items) and a
     // "(current)" label (menu items) say it too.
     fun shapeFor(route: String) = if (route == activeRoute) AzButtonShape.RECTANGLE else AzButtonShape.NONE
@@ -71,8 +74,8 @@ fun AzNavHostScope.ideNavRail(
         headerIconShape = AzHeaderIconShape.NONE,
         // The app palette is monochrome, so the active rail item is otherwise
         // indistinguishable; give it a distinct accent.
-        activeColor = RailActiveColor,
-        translucentBackground = Color.Black.copy(alpha = 0.5f),
+        activeColor = activeColor,
+        translucentBackground = scrimColor,
     )
 
     azAdvanced(
