@@ -41,9 +41,17 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        intent?.getStringExtra("route")?.let { route ->
+        // The activity is exported, so any app can send this extra. Only a fixed
+        // set of top-level screens may be opened this way; in particular never
+        // file_content/{path}, which would show an arbitrary file.
+        intent?.getStringExtra("route")?.takeIf { isAllowedIntentRoute(it) }?.let { route ->
             val app = application as MainApplication
             app.mainViewModel.setPendingRoute(route)
         }
     }
 }
+
+/** Routes an external intent may open through the exported [MainActivity]. */
+private val INTENT_ROUTES = setOf("settings", "project_settings", "file_explorer", "git")
+
+internal fun isAllowedIntentRoute(route: String): Boolean = route in INTENT_ROUTES
