@@ -45,6 +45,10 @@ class AiveRelayClient(
     private val code: AivePairingCode,
     private val http: OkHttpClient = defaultHttp(),
     private val clock: () -> Long = System::currentTimeMillis,
+    /** Reply deadline for launch/ping; overridable so tests need not wait 20 s. */
+    private val requestTimeoutMs: Long = REQUEST_TIMEOUT_MS,
+    /** Reply deadline for a prompt; overridable so tests need not wait 3 minutes. */
+    private val promptTimeoutMs: Long = PROMPT_TIMEOUT_MS,
 ) : AiveTransport {
 
     override val isRemote: Boolean get() = true
@@ -338,7 +342,7 @@ class AiveRelayClient(
                     "Use a smaller project or a shorter conversation."
             )
         }
-        val reply = request(PROMPT_TIMEOUT_MS) { id ->
+        val reply = request(promptTimeoutMs) { id ->
             buildJsonObject {
                 put("t", "prompt")
                 put("id", id)
@@ -355,7 +359,7 @@ class AiveRelayClient(
      * is not known yet, so this returns null; a launch The Aive refuses surfaces through [watchRun].
      */
     override suspend fun launchWorkflow(projectName: String, objective: String, repositoryUrl: String?): String? {
-        request(REQUEST_TIMEOUT_MS) { id ->
+        request(requestTimeoutMs) { id ->
             buildJsonObject {
                 put("t", "launch")
                 put("id", id)
@@ -405,7 +409,7 @@ class AiveRelayClient(
     /** Round trip to The Aive, in milliseconds: the Settings "Test connection". */
     suspend fun ping(): Long {
         val started = System.nanoTime()
-        val reply = request(REQUEST_TIMEOUT_MS) { id ->
+        val reply = request(requestTimeoutMs) { id ->
             buildJsonObject {
                 put("t", "ping")
                 put("id", id)
