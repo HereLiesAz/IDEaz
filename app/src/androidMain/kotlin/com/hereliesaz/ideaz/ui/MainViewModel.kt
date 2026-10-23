@@ -674,6 +674,11 @@ class MainViewModel(
      * used to put `.env` files and `.ideaz/` history on GitHub Pages.
      */
     fun deployWebProject() {
+        // A double tap used to run two commit/addAll/push sequences on the same repository.
+        if (!deployInFlight.compareAndSet(false, true)) {
+            logHandler.onBuildLog("A deploy is already running.")
+            return
+        }
         val appName = settingsViewModel.getAppName()
         viewModelScope.launch {
             logHandler.onBuildLog("Deploying: push to GitHub, then build and publish centrally...")
@@ -747,9 +752,13 @@ class MainViewModel(
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 logHandler.onBuildLog("Deploy failed: ${e.message}")
+            } finally {
+                deployInFlight.set(false)
             }
         }
     }
+
+    private val deployInFlight = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private var pollingJob: Job? = null
     private var aiveWatch: Job? = null

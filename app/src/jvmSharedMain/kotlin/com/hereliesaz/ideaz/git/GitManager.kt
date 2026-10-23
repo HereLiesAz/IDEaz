@@ -10,6 +10,8 @@ import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import org.eclipse.jgit.lib.ProgressMonitor
 import java.io.File
 import java.io.ByteArrayInputStream
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
 
 /**
  * Thrown when JGit reports a remote-side rejection or an unsuccessful merge that
@@ -32,6 +34,33 @@ class GitOperationRejectedException(message: String) : Exception(message)
  * @property projectDir The local directory of the project (the repository root).
  */
 class GitManager(private val projectDir: File) {
+
+    /**
+     * Runs [block] (an `add`) with the per-repository in-JVM lock held, retrying once after
+     * removing a *stale* `.git/index.lock` when the first attempt failed. The lock file is
+     * deleted only when no other add in this JVM is running on the repository (we hold the
+     * lock) and the file is older than [STALE_LOCK_MS], so a live commit or a concurrent
+     * add is never pulled out from under itself.
+     */
+    private fun <T> withStaleLockRecovery(block: () -> T): T {
+        val lock = addLocks.computeIfAbsent(projectDir.absoluteFile.path) { ReentrantLock() }
+        lock.lock()
+        try {
+            return try {
+                block()
+            } catch (e: Exception) {
+                val indexLock = File(projectDir, ".git/index.lock")
+                if (indexLock.exists() && isStaleLock(indexLock.lastModified(), System.currentTimeMillis())) {
+                    indexLock.delete()
+                    block()
+                } else {
+                    throw e
+                }
+            }
+        } finally {
+            lock.unlock()
+        }
+    }
 
     /**
      * Clones a repository from GitHub.
@@ -113,19 +142,9 @@ class GitManager(private val projectDir: File) {
      * stages all changes in the working directory (equivalent to `git add .`).
      */
     fun addAll() {
-        try {
+        withStaleLockRecovery {
             Git.open(projectDir).use { git ->
                 git.add().addFilepattern(".").call()
-            }
-        } catch (e: Exception) {
-            val indexLock = File(projectDir, ".git/index.lock")
-            if (indexLock.exists()) {
-                indexLock.delete()
-                Git.open(projectDir).use { git ->
-                    git.add().addFilepattern(".").call()
-                }
-            } else {
-                throw e
             }
         }
     }
@@ -137,20 +156,11 @@ class GitManager(private val projectDir: File) {
      */
     fun addPaths(paths: Collection<String>) {
         if (paths.isEmpty()) return
-        fun doAdd() = Git.open(projectDir).use { git ->
-            val cmd = git.add()
-            paths.forEach { cmd.addFilepattern(it) }
-            cmd.call()
-        }
-        try {
-            doAdd()
-        } catch (e: Exception) {
-            val indexLock = File(projectDir, ".git/index.lock")
-            if (indexLock.exists()) {
-                indexLock.delete()
-                doAdd()
-            } else {
-                throw e
+        withStaleLockRecovery {
+            Git.open(projectDir).use { git ->
+                val cmd = git.add()
+                paths.forEach { cmd.addFilepattern(it) }
+                cmd.call()
             }
         }
     }
@@ -697,5 +707,16 @@ class GitManager(private val projectDir: File) {
 
         override fun isCancelled(): Boolean = false
         override fun showDuration(enabled: Boolean) {}
+    }
+
+    companion object {
+        /** An index.lock younger than this may belong to a live git process. */
+        const val STALE_LOCK_MS = 60_000L
+
+        private val addLocks = ConcurrentHashMap<String, ReentrantLock>()
+
+        /** True when a lock file last touched at [lastModifiedMs] is old enough to be abandoned. */
+        fun isStaleLock(lastModifiedMs: Long, nowMs: Long): Boolean =
+            lastModifiedMs > 0 && nowMs - lastModifiedMs >= STALE_LOCK_MS
     }
 }
