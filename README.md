@@ -87,6 +87,16 @@ GitHub token: it creates a private repository on first publish, pushes, and has
 the central HereLiesAz/workflows Worker build the commit and publish only the
 build output (see [`docs/workflow.md`](docs/workflow.md) §2.2).
 
+Two facts about Deploy that are easy to miss:
+
+- The Worker serves only repositories owned by HereLiesAz. For any other owner
+  Deploy still creates and pushes your private repository, then reports that the
+  Worker refused to build it.
+- To ask the Worker, IDEaz sends your GitHub token, the repository name and the
+  pushed commit SHA to the maintainer's Worker
+  (`workflows.hereliesaz.workers.dev`), before the Worker decides whether it will
+  serve the repository. Do not deploy if you are not comfortable with that.
+
 ---
 
 See [`docs/architecture.md`](docs/architecture.md) for how it fits together.
