@@ -277,4 +277,16 @@ class AiveRelayClientTest {
         const val ONLINE = """{"event":"host-online"}"""
         const val OFFLINE = """{"event":"host-offline"}"""
     }
+
+    @Test
+    fun `a closed client refuses new work`() = runBlocking {
+        val client = newClient()
+        client.close()
+        try {
+            client.prompt("hello")
+            org.junit.Assert.fail("a closed client must not connect")
+        } catch (e: AiveRelayException) {
+            org.junit.Assert.assertTrue(e.message!!.contains("closed"))
+        }
+    }
 }

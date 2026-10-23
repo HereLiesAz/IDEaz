@@ -20,7 +20,14 @@ class AiveAdapter(
     private val tools: IdeTools,
 ) : ConversationalAiClient {
 
-    override suspend fun chat(messages: List<ChatMessage>): String {
+    override suspend fun chat(messages: List<ChatMessage>): String = try {
+        chatOnce(messages)
+    } finally {
+        // One adapter serves one message; a relay client left open would linger on its socket.
+        client.close()
+    }
+
+    private suspend fun chatOnce(messages: List<ChatMessage>): String {
         val snapshot = withContext(Dispatchers.IO) {
             RepoSnapshot.build(
                 File(tools.projectPath()),

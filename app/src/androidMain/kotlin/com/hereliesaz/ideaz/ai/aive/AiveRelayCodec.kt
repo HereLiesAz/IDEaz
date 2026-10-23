@@ -25,7 +25,10 @@ class AiveHostOfflineException : AiveRelayException(OFFLINE_MESSAGE, retryable =
 }
 
 /** A frame that failed authentication, replay, freshness or size checks. */
-class AiveFrameException(message: String) : IllegalArgumentException(message)
+open class AiveFrameException(message: String) : IllegalArgumentException(message)
+
+/** An authentic frame whose timestamp is too far from this device's clock. */
+class AiveClockSkewException : AiveFrameException("Frame timestamp is out of range.")
 
 /**
  * A parsed Aive pairing code: `aive1:` + base64url(no padding) of UTF-8 JSON
@@ -190,7 +193,7 @@ class AiveRelayCodec internal constructor(
             ?: throw AiveFrameException("Frame has no session id.")
         if (json.lng("seq") != seq) throw AiveFrameException("Frame sequence mismatch.")
         val ts = json.lng("ts") ?: throw AiveFrameException("Frame has no timestamp.")
-        if (kotlin.math.abs(clock() - ts) > MAX_SKEW_MS) throw AiveFrameException("Frame timestamp is out of range.")
+        if (kotlin.math.abs(clock() - ts) > MAX_SKEW_MS) throw AiveClockSkewException()
         val last = lastSeen[sid]
         if (last != null && seq <= last) throw AiveFrameException("Replayed frame.")
         lastSeen[sid] = seq

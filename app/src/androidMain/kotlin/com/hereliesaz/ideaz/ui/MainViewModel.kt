@@ -310,6 +310,8 @@ class MainViewModel(
                 throw e
             } catch (e: Exception) {
                 stateDelegate.appendChatMessage(ChatMessage.error("Error: ${e.message}"))
+            } finally {
+                client.close()
             }
         }
     }
