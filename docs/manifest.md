@@ -14,12 +14,14 @@ IDEaz has one common Android manifest plus distribution-specific overlays.
 The common manifest declares:
 
 * `POST_NOTIFICATIONS` — progress/results for long-running work.
+* `uses-permission com.hereliesaz.aive.permission.REMOTE` — the signature permission The Aive defines; IDEaz only requests it (never declares it) so it can bind The Aive's remote service. Not granted unless both apps share a signing key.
+* `<queries>` for `com.hereliesaz.aive` and `com.hereliesaz.haive`, so IDEaz can see an installed Aive (Play and GitHub flavors).
 * `MainApplication`.
 * `MainActivity` — launcher activity, `singleTask`.
 * `FileProvider` — non-exported, grant-on-demand provider used when IDEaz explicitly stages and shares the redacted project snapshot or prompt attachments to another app.
 * `CrashReportingService` — non-exported, isolated `:crash_reporter` process. It is used only after the user-facing crash-reporting disclosure/setting allows it.
 
-No external-AI accessibility or overlay permission is present in this common manifest.
+No external-AI accessibility or overlay permission is present in this common manifest. `android.permission.INTERNET` is not declared in any IDEaz manifest or Gradle file; it is expected to arrive through manifest merging from a dependency (not verified: Gradle could not be run).
 
 ## GitHub APK manifest additions
 
@@ -56,6 +58,8 @@ The `play` build type inherits only the common manifest. It does **not** declare
 * `IdeazAccessibilityService`
 * `ExternalAiOverlayService`
 * Gemini package-visibility queries used by the GitHub host
+
+It does inherit the Aive `REMOTE` permission request and the `com.hereliesaz.aive` / `com.hereliesaz.haive` queries from the common manifest.
 
 The shared Settings UI is gated by `BuildConfig.EXTERNAL_AI_AUTOMATION`, so Play users do not see controls for permissions or services their build does not contain.
 

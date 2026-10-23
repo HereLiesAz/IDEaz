@@ -33,3 +33,14 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+
+  # npm dependencies of the React project template that IDEaz copies into
+  # new projects.
+  - package-ecosystem: "npm"
+    directory: "/templates/react"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "npm"

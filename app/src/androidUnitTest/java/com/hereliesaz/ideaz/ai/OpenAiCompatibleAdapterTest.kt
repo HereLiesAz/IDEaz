@@ -43,12 +43,13 @@ class OpenAiCompatibleAdapterTest {
         server.shutdown()
     }
 
-    private fun adapter() = OpenAiCompatibleAdapter(
+    private fun adapter(apiKey: String = "test-key") = OpenAiCompatibleAdapter(
         baseUrl = server.url("/").toString().removeSuffix("/"),
-        apiKey = "test-key",
+        apiKey = apiKey,
         modelResolver = { "test-model" },
         tools = tools,
         httpClient = OkHttpClient.Builder().build(),
+        retryBaseDelayMs = 1,
     )
 
     private val toolCallResponse = """
@@ -82,6 +83,18 @@ class OpenAiCompatibleAdapterTest {
     """.trimIndent()
 
     @Test
+    fun `keyless providers get no Authorization header, keyed ones get a bearer`() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(finalTextResponse))
+        server.enqueue(MockResponse().setResponseCode(200).setBody(finalTextResponse))
+
+        adapter(apiKey = "").chat(listOf(ChatMessage("user", "hi")))
+        assertEquals(null, server.takeRequest().getHeader("Authorization"))
+
+        adapter().chat(listOf(ChatMessage("user", "hi")))
+        assertEquals("Bearer test-key", server.takeRequest().getHeader("Authorization"))
+    }
+
+    @Test
     fun `successful round trip applies the edit and requires review, not a silent reload`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(200).setBody(toolCallResponse))
         server.enqueue(MockResponse().setResponseCode(200).setBody(finalTextResponse))
@@ -107,7 +120,10 @@ class OpenAiCompatibleAdapterTest {
         // Round 2 fails - a 429/500 here is the common real-world case (a
         // rate-limited free-tier backend) that used to leave the edit applied
         // with no review card and an orphaned checkpoint.
-        server.enqueue(MockResponse().setResponseCode(500).setBody("rate limited"))
+        // The adapter retries 5xx, so the failure must outlast every attempt.
+        repeat(OpenAiCompatibleAdapter.MAX_HTTP_ATTEMPTS) {
+            server.enqueue(MockResponse().setResponseCode(500).setBody("rate limited"))
+        }
 
         val reply = adapter().chat(listOf(ChatMessage("user", "add a console.log")))
 
@@ -147,5 +163,38 @@ class OpenAiCompatibleAdapterTest {
 
         assertTrue("Expected a clean error string, got: $reply", reply.startsWith("Error:"))
         assertEquals("original content", File(tempFolder.root, "app.js").readText())
+    }
+
+    @Test
+    fun `a transient 429 is retried and the next attempt succeeds`() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(429).setBody("slow down"))
+        server.enqueue(MockResponse().setResponseCode(200).setBody(finalTextResponse))
+
+        val reply = adapter().chat(listOf(ChatMessage("user", "hi")))
+
+        assertTrue("Expected a normal reply, got: $reply", !reply.startsWith("Error:"))
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun `a client error is not retried`() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(401).setBody("bad key"))
+
+        val reply = adapter().chat(listOf(ChatMessage("user", "hi")))
+
+        assertTrue(reply.startsWith("Error:"))
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun `retry policy honours Retry-After and backs off exponentially`() {
+        assertTrue(OpenAiCompatibleAdapter.isRetryableStatus(429))
+        assertTrue(OpenAiCompatibleAdapter.isRetryableStatus(503))
+        assertTrue(!OpenAiCompatibleAdapter.isRetryableStatus(501))
+        assertTrue(!OpenAiCompatibleAdapter.isRetryableStatus(400))
+        assertEquals(3_000L, OpenAiCompatibleAdapter.retryDelayMs(1, "3", 1_000))
+        assertEquals(1_000L, OpenAiCompatibleAdapter.retryDelayMs(1, null, 1_000))
+        assertEquals(4_000L, OpenAiCompatibleAdapter.retryDelayMs(3, null, 1_000))
+        assertEquals(30_000L, OpenAiCompatibleAdapter.retryDelayMs(1, "999", 1_000))
     }
 }

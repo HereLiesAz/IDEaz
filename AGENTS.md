@@ -5,7 +5,7 @@
 Before committing ANY changes, you **MUST** strictly adhere to the following workflow. **NO EXCEPTIONS.**
 
 1.  **Code Review:** You must request and receive a complete code review.
-2.  **Verify Build & Tests:** You must run a full build and ensure all tests pass. Use `./gradlew build` or specific task like `./gradlew :app:assembleDebug`.
+2.  **Verify Build & Tests:** You must run a full build and ensure all tests pass. Use `./gradlew :app:testDebugUnitTest :app:assembleDebug` (what `pr-ci.yml` runs). A full `./gradlew build` also packages the release/play variants, which fail without a release keystore (`KEYSTORE_FILE`).
 3.  **Update documentation that is now wrong.** Correct anything your change
     falsified, in place. Do **not** append a changelog entry describing what you
     did — the commit already says that, and saying it twice is how `docs/TODO.md`
@@ -38,7 +38,7 @@ If a doc and the design doc disagree, the design doc wins.
 
 ## Critical Known Issues / Discrepancies
 
-*   **`RepoDelegate.uploadProjectSecrets` — RESTORED (Phase 2).** The sealed-box encryption is reimplemented in pure JVM as `utils/GithubSecretBox` (libsodium-compatible `crypto_box_seal` via BouncyCastle: X25519 + HSalsa20 + XSalsa20-Poly1305 + Blake2b), so no native libsodium binding returns. `uploadProjectSecrets` again fetches the repo Actions public key, seals each secret, and PUTs it. Release builds now run R8 (`isMinifyEnabled = true`) to strip the unused remainder of bcprov. See `docs/plans/phase-0-followups.md`.
+*   **`RepoDelegate.uploadProjectSecrets` does not exist.** `utils/GithubSecretBox` (a pure-JVM, libsodium-compatible `crypto_box_seal` over BouncyCastle) and its test are still in the tree, but nothing calls them: no code uploads Actions secrets to a user's repository, and Deploy no longer needs any (the central HereLiesAz/workflows Worker builds and publishes with its own credentials — see `docs/workflow.md` §2.2). Wire it up or delete it; do not describe it as working. See `docs/plans/phase-0-followups.md` for the history.
 *   **WebView `file://` URI exposure — RESOLVED (Phase 1).** The `WebViewAssetLoader` migration to `https://appassets.androidplatform.net` is complete. `WebProjectHost` now sets `allowFileAccess = false` / `allowContentAccess = false`, and the deprecated `allowFileAccessFromFileURLs` / `allowUniversalAccessFromFileURLs` flags have been removed (see `WebProjectHost.kt`). `SourceContextHelper` additionally enforces project-directory containment on the JS-bridge `__source:` tag.
 
 ## Documentation Index
@@ -54,19 +54,23 @@ The `docs/` folder contains the documentation for this project. These files are 
 *   **`docs/UI_UX.md`**: Visual design and interaction patterns.
 *   **`docs/architecture.md`**: High-level system architecture.
 *   **`docs/auth.md`**: Authentication mechanisms.
-*   **`docs/blueprint.md`**: Core vision and roadmap.
+*   **`docs/AZNAVRAIL_COMPLETE_GUIDE.md`**: Guide to the AzNavRail UI library.
+*   **`docs/blueprint.md`**: Core vision and roadmap (historical/phased — see its own staleness note).
 *   **`docs/build_pipeline.md`**: Remote-build pipeline (GitHub Actions).
 *   **`docs/conduct.md`**: Code of conduct for agents.
 *   **`docs/data_layer.md`**: Data storage, API, and state management.
 *   **`docs/error_handling.md`**: Strategy for handling and reporting errors.
+*   **`docs/external-ai-app-host.md`**: Installed-AI-app overlay/bridge automation.
 *   **`docs/fauxpas.md`**: Common mistakes and anti-patterns.
 *   **`docs/manifest.md`**: AndroidManifest explanation.
 *   **`docs/misc.md`**: Miscellaneous info (templates, logs).
 *   **`docs/performance.md`**: Performance guidelines.
 *   **`docs/platform_decision_helper.md`**: PWA vs Android-native decision.
+*   **`docs/privacy-license-telemetry-review.md`**: What IDEaz collects and transmits by default.
 *   **`docs/screens.md`**: Overview of application screens.
 *   **`docs/task_flow.md`**: Operational workflows.
 *   **`docs/testing.md`**: Testing strategy.
+*   **`docs/ux_userflow_audit.md`**: UX/user-flow audit and release-blocker tracking.
 *   **`docs/workflow.md`**: CI/CD and build processes.
 
 ## Recent Changes (Summary)

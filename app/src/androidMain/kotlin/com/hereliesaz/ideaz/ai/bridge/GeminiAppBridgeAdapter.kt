@@ -6,7 +6,6 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.hereliesaz.ideaz.BuildConfig
-import com.hereliesaz.ideaz.ai.AiEditApproval
 import com.hereliesaz.ideaz.ai.AiEditApprovalRequiredException
 import com.hereliesaz.ideaz.ai.ChatMessage
 import com.hereliesaz.ideaz.ai.ChatPart
@@ -52,7 +51,7 @@ class GeminiAppBridgeAdapter(
             ?: error("No user message to send to Gemini.")
         val projectDir = File(tools.projectPath())
         val snapshot = withContext(Dispatchers.IO) { RepoSnapshot.build(projectDir) }
-        val transcript = serializeConversation(messages)
+        val transcript = TextPatchEdits.serializeConversation(messages)
 
         val protocol = """
             You are acting as IDEaz's coding agent for the attached project.txt.
@@ -130,52 +129,17 @@ class GeminiAppBridgeAdapter(
             withContext(NonCancellable + Dispatchers.IO) { staged.forEach { it.delete() } }
         }
 
-        val patch = extractUnifiedDiff(response) ?: return response
+        val patch = TextPatchEdits.extractUnifiedDiff(response) ?: return response
         return applyForReview(patch, response)
     }
 
     private suspend fun applyForReview(patch: String, response: String): String =
-        withContext(Dispatchers.IO + NonCancellable) {
-            val checkpoint = tools.createEditCheckpoint("IDEaz: checkpoint before installed Gemini edit")
-            var expectedFingerprint: String? = null
-            try {
-                tools.captureToolEdit(checkpoint, "apply_patch", mapOf("patch" to patch))
-                expectedFingerprint = tools.reviewEdits(checkpoint).contentFingerprint.also {
-                    tools.updateEditCheckpointFingerprint(checkpoint, it)
-                }
-                tools.markEditMutationStarted(checkpoint)
-
-                val result = tools.applyPatch(patch)
-                val review = tools.reviewEdits(checkpoint)
-                expectedFingerprint = review.contentFingerprint
-                tools.updateEditCheckpointFingerprint(checkpoint, review.contentFingerprint)
-                tools.markEditAwaitingReview(checkpoint)
-
-                if (result.startsWith("Error:")) {
-                    tools.restoreEditCheckpoint(checkpoint, review.contentFingerprint)
-                    return@withContext "$response\n\nIDEaz could not apply Gemini's patch: $result"
-                }
-                if (review.validationErrors.isNotEmpty()) {
-                    tools.restoreEditCheckpoint(checkpoint, review.contentFingerprint)
-                    return@withContext "$response\n\nIDEaz rejected and restored the patch: ${review.validationErrors.joinToString()}"
-                }
-                if (review.changedFiles.isEmpty()) {
-                    tools.discardEditCheckpoint(checkpoint)
-                    return@withContext response
-                }
-
-                throw AiEditApprovalRequiredException(
-                    AiEditApproval(review = review, response = response, source = "Gemini app")
-                )
-            } catch (e: AiEditApprovalRequiredException) {
-                throw e
-            } catch (e: Exception) {
-                expectedFingerprint?.let { fingerprint ->
-                    runCatching { tools.restoreEditCheckpoint(checkpoint, fingerprint) }
-                }
-                "$response\n\nIDEaz could not safely apply the patch: ${e.message}"
-            }
-        }
+        TextPatchEdits.applyForReview(
+            tools, patch, response,
+            source = "Gemini app",
+            checkpointLabel = "installed Gemini",
+            senderPossessive = "Gemini's",
+        )
 
     companion object {
         private const val RESPONSE_TIMEOUT_MS = 120_000L
@@ -214,40 +178,8 @@ class GeminiAppBridgeAdapter(
             }
         }
 
-        private fun serializeConversation(messages: List<ChatMessage>): String =
-            messages.joinToString("\n\n") { message ->
-                val role = when (message.role) {
-                    "model", "assistant" -> "ASSISTANT"
-                    else -> "USER"
-                }
-                val body = message.parts.joinToString("\n") { part ->
-                    when (part) {
-                        is ChatPart.Text -> part.text
-                        is ChatPart.Image -> "[attached image: ${part.mimeType}]"
-                        is ChatPart.FileBlob -> "[attached file: ${part.fileName ?: part.mimeType}]"
-                    }
-                }.ifBlank { "(no text)" }
-                "$role:\n$body"
-            }
-
         private fun safeAttachmentName(name: String): Boolean =
             name.isNotBlank() && name == File(name).name && '/' !in name && '\\' !in name
-
-        private fun extractUnifiedDiff(response: String): String? {
-            val fenced = Regex("```(?:diff|patch)\\s*([\\s\\S]*?)```", RegexOption.IGNORE_CASE)
-                .find(response)
-                ?.groupValues
-                ?.getOrNull(1)
-                ?.trim()
-            if (!fenced.isNullOrBlank() &&
-                fenced.contains("--- ") && fenced.contains("+++ ") && fenced.contains("@@")
-            ) return fenced
-
-            val start = response.lineSequence().indexOfFirst { it.startsWith("--- ") }
-            if (start < 0) return null
-            val raw = response.lineSequence().drop(start).joinToString("\n").trim()
-            return raw.takeIf { it.contains("+++ ") && it.contains("@@") }
-        }
 
         private fun extensionFor(mime: String): String = when (mime.lowercase()) {
             "image/png" -> "png"

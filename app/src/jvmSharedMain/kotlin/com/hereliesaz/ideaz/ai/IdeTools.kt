@@ -127,10 +127,9 @@ class IdeTools(private val projectDir: File) {
      * Returns "OK" on success, or "Error: ..." if the patch is invalid or cannot apply.
      */
     fun applyPatch(patchText: String): String = try {
-        // Reject trivially invalid patches before touching the filesystem.
-        if (!patchText.contains("--- ") || !patchText.contains("+++ ") || !patchText.contains("@@")) {
-            return "Error: Malformed patch: missing unified diff headers"
-        }
+        // Reject a patch whose targets cannot be read exactly as JGit will
+        // read them before touching the filesystem (see patchTargetPaths).
+        patchTargetPaths(patchText)
 
         val gitDir = File(projectDir, ".git")
         val ownedGitDir = !gitDir.exists()
@@ -235,27 +234,7 @@ class IdeTools(private val projectDir: File) {
     ) {
         val paths = when (toolName) {
             "write_file" -> listOf(arguments["path"].orEmpty())
-            "apply_patch" -> arguments["patch"].orEmpty().lineSequence()
-                .mapNotNull { line ->
-                    // Unified diff convention: a "---" line is always prefixed
-                    // "a/" and a "+++" line always "b/" - never both, and never
-                    // the other way round. Stripping only the prefix that
-                    // matches the line's own type (rather than chaining both
-                    // strips unconditionally) avoids double-stripping a real
-                    // path whose own top-level directory happens to be named
-                    // "a" or "b" - a chained strip silently turned a deleted
-                    // "b/config.js" into the nonexistent "config.js", making
-                    // the deletion vanish from review entirely.
-                    val prefix = when {
-                        line.startsWith("--- ") -> "a/"
-                        line.startsWith("+++ ") -> "b/"
-                        else -> return@mapNotNull null
-                    }
-                    line.substring(4).substringBefore('\t').trim().removePrefix(prefix)
-                }
-                .filter { it != "/dev/null" }
-                .distinct()
-                .toList()
+            "apply_patch" -> patchTargetPaths(arguments["patch"].orEmpty())
             else -> emptyList()
         }
         require(paths.isNotEmpty()) { "Mutating tool did not identify a project path" }
@@ -304,6 +283,48 @@ class IdeTools(private val projectDir: File) {
             validationErrors = errors,
             contentFingerprint = changedFilesFingerprint(changedFiles),
         )
+    }
+
+    /**
+     * A compact before/after text preview of [relativePath] for the review card: the lines
+     * between the first and last difference, prefixed `-` (before) and `+` (after), capped at
+     * [maxLines] lines. Read-only; returns a short note for binary, oversized or unreadable files.
+     */
+    fun editDiff(checkpoint: IdeEditCheckpoint, relativePath: String, maxLines: Int = 60): String {
+        return try {
+            requireCheckpointProject(checkpoint)
+            val root = checkpointRoot(checkpoint)
+            val current = resolvedFile(relativePath)
+            val before = root.resolve("files/$relativePath")
+            val state = root.resolve("states/$relativePath.state").takeIf { it.isFile }?.readText()
+            if ((before.isFile && before.length() > MAX_REVIEW_FILE_BYTES) ||
+                (current.isFile && current.length() > MAX_REVIEW_FILE_BYTES)
+            ) {
+                return "(file too large to preview)"
+            }
+            val oldLines = if (state == "file" && before.isFile) before.readText().lines() else emptyList()
+            val newLines = if (current.isFile) current.readText().lines() else emptyList()
+            if (oldLines.any { '\u0000' in it } || newLines.any { '\u0000' in it }) return "(binary file)"
+            var start = 0
+            while (start < oldLines.size && start < newLines.size && oldLines[start] == newLines[start]) start++
+            var endOld = oldLines.size
+            var endNew = newLines.size
+            while (endOld > start && endNew > start && oldLines[endOld - 1] == newLines[endNew - 1]) {
+                endOld--
+                endNew--
+            }
+            val out = buildList {
+                oldLines.subList(start, endOld).forEach { add("- $it") }
+                newLines.subList(start, endNew).forEach { add("+ $it") }
+            }
+            when {
+                out.isEmpty() -> "(no textual change)"
+                out.size > maxLines -> out.take(maxLines).joinToString("\n") + "\n… ${out.size - maxLines} more line(s)"
+                else -> out.joinToString("\n")
+            }
+        } catch (e: Exception) {
+            "(preview unavailable)"
+        }
     }
 
     /** Restores captured AI paths if they still match the reviewed fingerprint. */
@@ -475,4 +496,68 @@ class IdeTools(private val projectDir: File) {
         // that's already unreachable via a different check.
         val PROTECTED_ROOTS = setOf(".git")
     }
+}
+
+private val HUNK_HEADER = Regex("""^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@""")
+private val UNSUPPORTED_PATCH_HEADERS = listOf("rename from ", "rename to ", "copy from ", "copy to ", "GIT binary patch")
+
+/**
+ * Every project path a unified diff touches, read the way JGit's ApplyCommand
+ * reads it - or [IllegalArgumentException] for a patch whose effect could not be
+ * captured exactly, so it is refused instead of applied unchecked:
+ *
+ * - git `rename`/`copy` sections and binary patches (they change files that
+ *   have no `---`/`+++` pair to capture, so a reject could not restore them);
+ * - quoted paths, and paths without the `a/`/`b/` prefix (JGit strips the first
+ *   component of any path, so `--- src/app.js` would patch `app.js`);
+ * - no `---`/`+++`/`@@` at all.
+ *
+ * Hunk bodies are skipped by their line counts, so a removed line whose text
+ * begins "-- " is not mistaken for a `---` header.
+ */
+internal fun patchTargetPaths(patch: String): List<String> {
+    val paths = mutableListOf<String>()
+    var oldLeft = 0
+    var newLeft = 0
+    var sawHunk = false
+    for (line in patch.replace("\r\n", "\n").lineSequence()) {
+        if (oldLeft > 0 || newLeft > 0) {
+            when {
+                line.startsWith("\\") -> Unit // "\ No newline at end of file"
+                line.startsWith("+") -> newLeft--
+                line.startsWith("-") -> oldLeft--
+                else -> { oldLeft--; newLeft-- } // context (" x", or "" once trimmed)
+            }
+            continue
+        }
+        val hunk = HUNK_HEADER.find(line)
+        when {
+            hunk != null -> {
+                sawHunk = true
+                oldLeft = hunk.groupValues[1].ifEmpty { "1" }.toInt()
+                newLeft = hunk.groupValues[2].ifEmpty { "1" }.toInt()
+            }
+            UNSUPPORTED_PATCH_HEADERS.any { line.startsWith(it) } ->
+                throw IllegalArgumentException(
+                    "Patches that rename, copy or binary-patch files are not supported; use write_file."
+                )
+            line.startsWith("--- ") -> paths += patchHeaderPath(line, "a/")
+            line.startsWith("+++ ") -> paths += patchHeaderPath(line, "b/")
+        }
+    }
+    require(paths.isNotEmpty() && sawHunk) { "Malformed patch: missing unified diff headers" }
+    return paths.filter { it != "/dev/null" }.distinct()
+}
+
+private fun patchHeaderPath(line: String, prefix: String): String {
+    val raw = line.substring(4).substringBefore('\t').trim()
+    if (raw == "/dev/null") return raw
+    require(!raw.startsWith("\"")) { "Quoted patch paths are not supported: $raw" }
+    // Unified diff convention: "---" is prefixed "a/", "+++" "b/". Only the
+    // line's own prefix is stripped: chaining both turned a deleted
+    // "b/config.js" into "config.js" and hid the deletion from review.
+    require(raw.startsWith(prefix) && raw.length > prefix.length) {
+        "Patch paths must use the $prefix prefix (got \"$raw\")"
+    }
+    return raw.removePrefix(prefix)
 }

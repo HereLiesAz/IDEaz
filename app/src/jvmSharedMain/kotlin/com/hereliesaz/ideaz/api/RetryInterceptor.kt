@@ -1,0 +1,108 @@
+package com.hereliesaz.ideaz.api
+
+import okhttp3.Interceptor
+import okhttp3.Response
+import java.io.IOException
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.util.concurrent.TimeUnit
+import java.util.logging.Level
+import java.util.logging.Logger
+
+class RetryInterceptor(
+    private val maxRetries: Int = 5,
+    private val initialDelayMs: Long = 500,
+    private val maxDelayMs: Long = 30000
+) : Interceptor {
+
+    private val log = Logger.getLogger("RetryInterceptor")
+    private val retryableStatuses = listOf(408, 429, 500, 502, 503, 504)
+    private val idempotentMethods = setOf("GET", "HEAD", "PUT", "DELETE", "OPTIONS", "TRACE")
+
+    override fun intercept(chain: Interceptor.Chain): Response {
+        // POST/PATCH are not idempotent: a timeout or 5xx after the server
+        // already acted (created the repository, filed the issue) would act
+        // twice on a retry. Only methods that are safe to repeat are retried.
+        if (chain.request().method !in idempotentMethods) {
+            return chain.proceed(chain.request())
+        }
+        var attempt = 0
+        var response: Response? = null
+        var exception: IOException? = null
+
+        while (attempt <= maxRetries) {
+            try {
+                response = chain.proceed(chain.request())
+                // This attempt reached the server: an exception from an earlier attempt is stale.
+                exception = null
+
+                if (!retryableStatuses.contains(response.code)) {
+                    return response
+                }
+
+                // Retryable status. Only close (and discard) this response if we are
+                // going to retry. On the final attempt we must fall through and return
+                // it OPEN — closing it here would hand the caller a closed body that
+                // throws IllegalStateException when read.
+                if (attempt < maxRetries) {
+                    log.warning("Request failed with code ${response.code}. Closing and retrying...")
+                    response.close()
+                }
+
+            } catch (e: IOException) {
+                log.log(Level.WARNING, "Request failed with exception: ${e.message}. Retrying...", e)
+                exception = e
+                // The previous response (if any) was closed before this retry and no longer
+                // describes the latest attempt.
+                response = null
+                // Network error, retry
+            }
+
+            attempt++
+            if (attempt > maxRetries) break
+
+            val delay = calculateDelay(attempt, response)
+            log.fine("Retrying attempt $attempt in ${delay}ms...")
+            try {
+                TimeUnit.MILLISECONDS.sleep(delay)
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw IOException("Interrupted during retry delay", e)
+            }
+        }
+
+        // If we exhausted retries
+        if (exception != null) {
+            throw exception
+        }
+        // If we have a response (even if it was a failure code that exhausted retries)
+        return response!!
+    }
+
+    private fun calculateDelay(attempt: Int, response: Response?): Long {
+        // Check for Retry-After header
+        val retryAfter = response?.header("Retry-After")
+        if (retryAfter != null) {
+            try {
+                // Try seconds
+                val seconds = retryAfter.toLong()
+                return (seconds * 1000).coerceAtMost(maxDelayMs)
+            } catch (e: NumberFormatException) {
+                // Not numeric seconds — try the RFC 7231 HTTP-date form
+                // (e.g. "Wed, 21 Oct 2025 07:28:00 GMT").
+                val untilMs = runCatching {
+                    ZonedDateTime.parse(retryAfter, DateTimeFormatter.RFC_1123_DATE_TIME)
+                        .toInstant().toEpochMilli() - System.currentTimeMillis()
+                }.getOrNull()
+                if (untilMs != null && untilMs > 0) {
+                    return untilMs.coerceAtMost(maxDelayMs)
+                }
+            }
+        }
+
+        // Exponential backoff: initial * 2^(attempt-1)
+        // attempt starts at 1 here (after increment)
+        val delay = initialDelayMs * Math.pow(2.0, (attempt - 1).toDouble()).toLong()
+        return Math.min(delay, maxDelayMs)
+    }
+}

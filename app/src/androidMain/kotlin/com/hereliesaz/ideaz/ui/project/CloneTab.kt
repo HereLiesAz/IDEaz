@@ -89,7 +89,7 @@ fun ProjectCloneTab(
 
         if (ownedRepos.isNotEmpty()) {
             item {
-                Text("Your Repositories:", style = MaterialTheme.typography.titleMedium)
+                Text("Your Repositories", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
             }
             items(ownedRepos) { repo ->
