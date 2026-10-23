@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
@@ -18,6 +19,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -25,6 +28,8 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -116,6 +121,10 @@ class AiveRemoteClient(context: Context) : AiveTransport {
                 afterSend()
                 pending.await()
             }
+        } catch (e: TimeoutCancellationException) {
+            // A timeout is a CancellationException; callers rethrow those, which would end the
+            // job silently. Surface it as a real error instead.
+            throw IllegalStateException(timeoutMessage(timeoutMs), e)
         } finally {
             reply?.cancel()
         }
@@ -142,8 +151,10 @@ class AiveRemoteClient(context: Context) : AiveTransport {
             true
         }
         val replyTo = Messenger(handler)
+        val connectedFlag = AtomicBoolean(false)
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName, service: IBinder) {
+                connectedFlag.set(true)
                 runCatching { send(Messenger(service), P.MSG_WATCH_RUN, nextRequestId.getAndIncrement(), replyTo) {} }
                     .onFailure { close(it) }
             }
@@ -151,8 +162,21 @@ class AiveRemoteClient(context: Context) : AiveTransport {
             override fun onServiceDisconnected(name: ComponentName) {
                 close(IllegalStateException("The Aive disconnected"))
             }
+
+            override fun onBindingDied(name: ComponentName) {
+                close(AiveUnavailableException("The Aive's service died"))
+            }
+
+            override fun onNullBinding(name: ComponentName) {
+                close(AiveUnavailableException("The Aive refused the connection"))
+            }
         }
         bind(connection)
+        // A service that never answers the bind must not hold this flow (and the binding) forever.
+        launch {
+            delay(REQUEST_TIMEOUT_MS)
+            if (!connectedFlag.get()) close(IllegalStateException(timeoutMessage(REQUEST_TIMEOUT_MS)))
+        }
         awaitClose { runCatching { context.unbindService(connection) } }
     }.flowOn(Dispatchers.Main)
 
@@ -234,6 +258,13 @@ class AiveRemoteClient(context: Context) : AiveTransport {
 
     private fun bind(connection: ServiceConnection) {
         val pkg = installedPackage(context) ?: throw AiveUnavailableException("The Aive is not installed.")
+        // The prompt carries a project snapshot: never hand it to an app that merely claims the package name.
+        if (!isSignedLikeUs(pkg)) {
+            throw AiveUnavailableException(
+                "The installed $pkg is not signed with the same key as IDEaz, so IDEaz will not send it your project. " +
+                    "Install both apps from the same source (Play or GitHub)."
+            )
+        }
         val bound = try {
             context.bindService(Intent(P.ACTION_BIND).setPackage(pkg), connection, Context.BIND_AUTO_CREATE)
         } catch (_: SecurityException) {
@@ -243,6 +274,19 @@ class AiveRemoteClient(context: Context) : AiveTransport {
             runCatching { context.unbindService(connection) }
             throw AiveUnavailableException("IDEaz cannot reach The Aive. Both apps must come from the same source (Play or GitHub) and be signed by the same key.")
         }
+    }
+
+    /** True when [pkg] and this app are signed by exactly the same certificates. */
+    private fun isSignedLikeUs(pkg: String): Boolean = try {
+        sameSigners(signerDigests(context.packageName), signerDigests(pkg))
+    } catch (_: Exception) {
+        false
+    }
+
+    private fun signerDigests(pkg: String): Set<String> {
+        val info = context.packageManager.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES)
+        val signers = info.signingInfo?.apkContentsSigners ?: return emptySet()
+        return signers.map { sha256Hex(it.toByteArray()) }.toSet()
     }
 
     companion object {
@@ -255,6 +299,16 @@ class AiveRemoteClient(context: Context) : AiveTransport {
          * full pipe cannot be cancelled, and the caller must not wait for it.
          */
         private val pipeWriters = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+        internal fun timeoutMessage(timeoutMs: Long): String =
+            "The Aive did not answer in ${timeoutMs / 1000} s. Open The Aive once and try again."
+
+        /** Signer sets match only when ours is non-empty and identical to theirs. */
+        internal fun sameSigners(ours: Set<String>, theirs: Set<String>): Boolean =
+            ours.isNotEmpty() && ours == theirs
+
+        internal fun sha256Hex(bytes: ByteArray): String =
+            MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
         /** Play and GitHub package names of The Aive, in preference order. */
         val PACKAGES = listOf("com.hereliesaz.aive", "com.hereliesaz.haive")
