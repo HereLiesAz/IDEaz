@@ -536,7 +536,10 @@ class MainViewModel(
         if (_deployResult.value?.id == id) _deployResult.value = null
     }
     private fun postDeployResult(message: String, url: String? = null) {
-        _deployResult.value = DeployResult(message, url)
+        // The URL comes from a commit status on the user's repository, which a
+        // collaborator or the build service controls, so it is only offered as
+        // "Open" when it is plain https on GitHub or Cloudflare Pages.
+        _deployResult.value = DeployResult(message, url?.takeIf { isSafeDeployUrl(it) })
     }
 
     /** One-shot "open the Settings screen" requests from chat error messages. */
@@ -751,6 +754,13 @@ class MainViewModel(
                 if (!repoDelegate.ensureRemoteRepository(appName)) {
                     postDeployResult("Deploy needs a GitHub token. Add one in Settings under \"API Keys\", then try again.")
                     return@launch
+                }
+
+                // The token is only ever sent to https://github.com. A project's
+                // .git/config can point origin anywhere, so refuse before any push
+                // (including the init-files push below) rather than after it.
+                withContext(Dispatchers.IO) {
+                    GitManager(settingsViewModel.getProjectPath(appName)).requireGitHubRemote("origin")
                 }
 
                 // Write .gitignore / AGENTS_SETUP.md / version.properties and
@@ -1538,4 +1548,12 @@ internal fun normalizeGitHubUrl(url: String): String? {
     val match = Regex("""^(?:https://(?:[^@/]+@)?github\.com/|git@github\.com:|ssh://git@github\.com/)([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?/?$""")
         .find(url.trim()) ?: return null
     return "https://github.com/${match.groupValues[1]}/${match.groupValues[2]}"
+}
+
+/** True for an `https` URL on github.com or a `*.pages.dev` host, with no user-info. */
+internal fun isSafeDeployUrl(url: String): Boolean {
+    val uri = runCatching { java.net.URI(url.trim()) }.getOrNull() ?: return false
+    if (!"https".equals(uri.scheme, ignoreCase = true) || uri.rawUserInfo != null) return false
+    val host = uri.host?.lowercase() ?: return false
+    return host == "github.com" || host.endsWith(".pages.dev")
 }

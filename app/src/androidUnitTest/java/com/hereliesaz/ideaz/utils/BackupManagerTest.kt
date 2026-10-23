@@ -75,4 +75,34 @@ class BackupManagerTest {
         assertTrue("import should succeed", ok)
         assertEquals("hello", File(filesDir, "myproj/src/App.jsx").readText())
     }
+
+    @Test
+    fun shouldSkip_dropsTopLevelSigningKeysAndEncryptedSettings() {
+        listOf(
+            "user_release.keystore", "user_release.keystore.part", "upload.jks",
+            "ideaz_settings.enc", "User_Release.KEYSTORE",
+        ).forEach { assertTrue(it, BackupManager.shouldSkip(it)) }
+        listOf(
+            "myproj/index.html", "myproj/notes.enc", "myproj/ideaz_settings.enc.md", "keystore-guide.md",
+        ).forEach { assertFalse(it, BackupManager.shouldSkip(it)) }
+    }
+
+    @Test
+    fun exportData_leavesSigningKeysOutOfTheArchive() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val filesDir = context.filesDir
+        File(filesDir, "user_release.keystore").writeText("k")
+        File(filesDir, "user_release.keystore.part").writeText("k")
+        File(filesDir, "ideaz_settings.enc").writeText("s")
+        File(filesDir, "keepme/index.html").apply { parentFile?.mkdirs(); writeText("x") }
+
+        val outZip = tempFolder.newFile("secrets.zip")
+        assertTrue(runBlocking { BackupManager.exportData(context, android.net.Uri.fromFile(outZip)) })
+
+        val entries = zipEntryNames(outZip)
+        assertTrue(entries.contains("keepme/index.html"))
+        assertFalse(entries.contains("user_release.keystore"))
+        assertFalse(entries.contains("user_release.keystore.part"))
+        assertFalse(entries.contains("ideaz_settings.enc"))
+    }
 }

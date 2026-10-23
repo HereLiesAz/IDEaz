@@ -83,7 +83,7 @@ object BackupManager {
         }
     }
 
-    private fun shouldSkip(path: String): Boolean {
+    internal fun shouldSkip(path: String): Boolean {
         // Plain substring matching here used to drop any real project file
         // whose path merely contained "cache" or ".ideaz" anywhere -
         // src/CacheManager.js, a project literally named my-cache-app,
@@ -92,6 +92,11 @@ object BackupManager {
         // directories this is meant to skip.
         if (path.endsWith("debug.keystore")) return true
         val segments = path.split('/')
+        // Signing keys and the encrypted settings export sit at the top level of
+        // filesDir (user_release.keystore, its .part download, ideaz_settings.enc).
+        // A backup is a plain zip the user may park in cloud storage, so none of
+        // them may go in it.
+        if (segments.size == 1 && isSigningOrSettingsSecret(segments[0])) return true
         // Same top-level "is this actually a project" exclusions
         // RepoDelegate.scanLocalProjects() uses.
         val topLevel = segments.firstOrNull()
@@ -99,5 +104,11 @@ object BackupManager {
         // Per-project AI-edit checkpoint scratch data (IdeTools) can appear
         // at any depth inside a project, not just at its root.
         return segments.any { it == ".ideaz-edit-checkpoints" }
+    }
+
+    private fun isSigningOrSettingsSecret(name: String): Boolean {
+        val lower = name.lowercase()
+        return lower.endsWith(".keystore") || lower.endsWith(".keystore.part") ||
+            lower.endsWith(".jks") || lower == "ideaz_settings.enc"
     }
 }

@@ -9,7 +9,11 @@ object LogSanitizer {
     /** Names whose value is a secret: api_key, accessToken, DB_PASSWORD, client_secret, pwd... */
     private const val SECRET_NAME = "[A-Za-z0-9_.-]*(?:key|token|secret|password|passwd|pwd)"
 
-    private val REPLACEMENTS = listOf(
+    private val SECRET_REPLACEMENTS = listOf(
+        // Aive pairing codes: `aive1:` + base64url JSON holding the room token and the
+        // encryption key, i.e. a bearer secret.
+        Regex("aive1:[A-Za-z0-9_-]+") to REDACTED,
+
         // Private keys, wherever they appear: a PEM block in any file, or one
         // JSON-escaped onto a single line ("-----BEGIN ...-----\nMIIE..."). An
         // unterminated block (a truncated log) is redacted to the end.
@@ -43,8 +47,12 @@ object LogSanitizer {
         Regex("gsk_[a-zA-Z0-9]{20,}") to REDACTED,
         Regex("csk-[a-zA-Z0-9]{20,}") to REDACTED,
 
-        // Bearer tokens - keep "Bearer " prefix
-        Regex("(Bearer\\s+)[a-zA-Z0-9_\\-\\.]+") to "$1$REDACTED",
+        // Bearer tokens, any case - keep "Bearer " prefix
+        Regex("(?i)(Bearer\\s+)[a-zA-Z0-9_\\-\\.]+") to "$1$REDACTED",
+        // `Authorization: Basic <b64>` / `Authorization: token <pat>`
+        Regex("(?i)(authorization:\\s*(?:basic|token)\\s+)\\S+") to "$1$REDACTED",
+        // `x-api-key: value` header form (a quoted value is handled by the by-name rule below)
+        Regex("(?i)(\\bx-api-key\\s*:\\s*)(?![\"'])\\S+") to "$1$REDACTED",
 
         // Generic secrets by name. This used to redact any value after
         // key/token/password and ':' or '=', which mangled ordinary source
@@ -66,11 +74,32 @@ object LogSanitizer {
     )
 
     /**
-     * Redacts sensitive patterns from the input string.
+     * Identifying (not secret) details that logs and error reports should not carry off the
+     * device: which GitHub repository a project lives in and what the user named it.
+     */
+    private val IDENTIFIER_REPLACEMENTS = listOf(
+        // github.com/<owner>/<repo> (also the scp-style github.com:<owner>/<repo>)
+        Regex("github\\.com[/:][A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+") to "github.com/<owner>/<repo>",
+        // App-private storage: .../files/<project>/... under /data/user/N/<pkg>, /data/data/<pkg>
+        // or /storage/emulated/N/Android/data/<pkg>.
+        Regex("(/(?:data/(?:user/\\d+|data)|storage/emulated/\\d+/Android/data)/[^/\\s]+/files/)[^/\\s\"'<>]+") to "$1<project>",
+    )
+
+    /** Redacts only secrets. For content that must stay otherwise intact, e.g. source sent to the AI. */
+    fun redactSecrets(text: String): String {
+        var result = text
+        SECRET_REPLACEMENTS.forEach { (regex, replacement) ->
+            result = regex.replace(result, replacement)
+        }
+        return result
+    }
+
+    /**
+     * Redacts secrets and identifying repository/project names from logs and error reports.
      */
     fun sanitize(text: String): String {
-        var result = text
-        REPLACEMENTS.forEach { (regex, replacement) ->
+        var result = redactSecrets(text)
+        IDENTIFIER_REPLACEMENTS.forEach { (regex, replacement) ->
             result = regex.replace(result, replacement)
         }
         return result

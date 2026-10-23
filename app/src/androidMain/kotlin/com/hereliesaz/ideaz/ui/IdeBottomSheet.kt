@@ -269,13 +269,15 @@ private fun ExpandedContent(
                 modifier = Modifier.weight(1f)
             )
             IconButton(onClick = {
-                val payload = if (selectionMode) {
+                val rawPayload = if (selectionMode) {
                     selectedIndices.sorted()
                         .mapNotNull { filteredMessages.getOrNull(it) }
                         .joinToString("\n")
                 } else {
                     filteredMessages.joinToString("\n")
                 }
+                // Logs can hold tokens and pairing codes; never put them on the clipboard raw.
+                val payload = com.hereliesaz.ideaz.utils.LogSanitizer.sanitize(rawPayload)
                 coroutineScope.launch {
                     clipboard.setClipEntry(
                         androidx.compose.ui.platform.ClipEntry(

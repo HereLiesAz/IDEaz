@@ -141,6 +141,9 @@ fun WebProjectHost(
     // long-lived) asset loader always serves the currently-previewed project
     // without recreating the WebView when the user switches projects.
     val projectDirState = remember { mutableStateOf(projectDir) }
+    // The remote page being previewed (null for a local project), read by the
+    // WebViewClient below to decide which top-level navigations are allowed.
+    val currentUrl by rememberUpdatedState(url)
 
     // AssetLoader mounts the active project at the origin root
     // (https://appassets.androidplatform.net/) via WebProjectPathHandler, so
@@ -202,6 +205,22 @@ fun WebProjectHost(
                     view: WebView,
                     request: WebResourceRequest
                 ): WebResourceResponse? = assetLoader.shouldInterceptRequest(request.url)
+
+                // Top-level navigation stays inside the origin being previewed: the
+                // asset-loader origin for a local project, or the previewed site's own
+                // origin for a remote one. Anything else - a link or script sending
+                // the page to another site - is blocked (and logged), not followed.
+                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                    if (!request.isForMainFrame) return false
+                    val base = if (projectDirState.value != null) null else currentUrl
+                    if (WebProjectUrlUtils.isAllowedNavigation(request.url.toString(), base)) return false
+                    val intent = Intent(ACTION_AI_LOG).apply {
+                        putExtra(EXTRA_MESSAGE, "[WEB] Blocked navigation to another origin: ${request.url.host ?: request.url.scheme}")
+                        setPackage(context.packageName)
+                    }
+                    context.sendBroadcast(intent)
+                    return true
+                }
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
