@@ -50,6 +50,19 @@ class DeployIgnoreTest {
     }
 
     @Test
+    fun deployAndSnapshotShareOneDenyList() {
+        listOf(
+            "secrets.json", "credentials.json", "local.properties", "google-services.json",
+            "id_rsa", "cert.pfx", "release.jks", "debug.keystore", ".env", ".envrc", ".env.local",
+            "app/google-services.json",
+        ).forEach {
+            assertTrue(it, DeployIgnore.isExcluded(it))
+            assertTrue(it, RepoSnapshot.isSecret(it.substringAfterLast('/')))
+        }
+        SecretFiles.GLOBS.forEach { assertTrue(it, it in DeployIgnore.ENTRIES) }
+    }
+
+    @Test
     fun excludedTrackedFilesCanBeUntrackedAndStayOnDisk() {
         val dir = tempFolder.newFolder("repo")
         val git = GitManager(dir)
