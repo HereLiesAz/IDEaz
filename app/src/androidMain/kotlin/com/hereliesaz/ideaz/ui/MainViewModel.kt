@@ -753,6 +753,13 @@ class MainViewModel(
                     return@launch
                 }
 
+                // The token is only ever sent to https://github.com. A project's
+                // .git/config can point origin anywhere, so refuse before any push
+                // (including the init-files push below) rather than after it.
+                withContext(Dispatchers.IO) {
+                    GitManager(settingsViewModel.getProjectPath(appName)).requireGitHubRemote("origin")
+                }
+
                 // Write .gitignore / AGENTS_SETUP.md / version.properties and
                 // untrack anything secret-shaped before the commit below, whose
                 // addAll() would otherwise sweep it up.

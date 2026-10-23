@@ -1,10 +1,12 @@
 package com.hereliesaz.ideaz.git
 
 import com.hereliesaz.ideaz.platform.Platform
+import com.hereliesaz.ideaz.utils.DeployIgnore
 
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.errors.NoHeadException
 import org.eclipse.jgit.api.errors.GitAPIException
+import org.eclipse.jgit.transport.RemoteConfig
 import org.eclipse.jgit.transport.RemoteRefUpdate
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import org.eclipse.jgit.lib.ProgressMonitor
@@ -109,10 +111,7 @@ class GitManager(private val projectDir: File) {
                 cmd.setProgressMonitor(SimpleProgressMonitor(onProgress))
             }
 
-            if (!token.isNullOrBlank()) {
-                val user = if (!username.isNullOrBlank()) username else token
-                cmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(user, token))
-            }
+            credentialsFor(git, branchRemote(git), username, token)?.let { cmd.setCredentialsProvider(it) }
 
             val result = cmd.call()
             if (!result.isSuccessful) {
@@ -142,11 +141,18 @@ class GitManager(private val projectDir: File) {
      * stages all changes in the working directory (equivalent to `git add .`).
      */
     fun addAll() {
+        val before = trackedFiles().toSet()
         withStaleLockRecovery {
             Git.open(projectDir).use { git ->
                 git.add().addFilepattern(".").call()
             }
         }
+        // The .gitignore globs are case-sensitive but DeployIgnore.isExcluded is not, so
+        // `Secrets.json`, `.ENV` or `MyKey.PEM` slip past the ignore file and get staged here.
+        // Take back anything newly staged that the deny-list covers (files that were already
+        // tracked are left alone; Deploy untracks those explicitly).
+        val leaked = trackedFiles().filter { it !in before && DeployIgnore.isExcluded(it) }
+        untrack(leaked)
     }
 
     /**
@@ -163,6 +169,42 @@ class GitManager(private val projectDir: File) {
                 cmd.call()
             }
         }
+    }
+
+    /** The remote the current branch pushes to and pulls from: its configured one, else `origin`. */
+    private fun branchRemote(git: Git): String {
+        val branch = git.repository.branch ?: return "origin"
+        return git.repository.config.getString("branch", branch, "remote")?.takeIf { it.isNotBlank() } ?: "origin"
+    }
+
+    /**
+     * Throws [UntrustedRemoteException] unless every fetch and push URL of remote [name] (as
+     * JGit resolves them, `insteadOf` rewrites applied) is `https://github.com/...`.
+     */
+    private fun requireGitHubRemote(git: Git, name: String) {
+        val config = RemoteConfig(git.repository.config, name)
+        val uris = config.getURIs() + config.getPushURIs()
+        if (!GitHubRemote.areAllTrusted(uris.map { it.toString() })) {
+            val hosts = uris.map { it.host ?: it.scheme ?: "unknown" }.distinct()
+            throw UntrustedRemoteException(
+                "Remote '$name' " + (if (uris.isEmpty()) "has no URL" else "points at ${hosts.joinToString(", ")}") +
+                    ", not https://github.com. Your GitHub token was not sent. " +
+                    "Fix the remote URL (Git settings or .git/config) and try again."
+            )
+        }
+    }
+
+    /** Public form of the credential check, for callers that must fail before doing other work. */
+    fun requireGitHubRemote(name: String = "origin") {
+        Git.open(projectDir).use { requireGitHubRemote(it, name) }
+    }
+
+    /** Credentials for [remote], or null when no token is set. Never offered to a non-GitHub remote. */
+    private fun credentialsFor(git: Git, remote: String, username: String?, token: String?): UsernamePasswordCredentialsProvider? {
+        if (token.isNullOrBlank()) return null
+        requireGitHubRemote(git, remote)
+        val user = if (!username.isNullOrBlank()) username else token
+        return UsernamePasswordCredentialsProvider(user, token)
     }
 
     /** Every path in the index (tracked files), project-relative and `/`-separated. */
@@ -230,10 +272,7 @@ class GitManager(private val projectDir: File) {
     fun push(username: String? = null, token: String? = null, onProgress: ((Int, String) -> Unit)? = null) {
         Git.open(projectDir).use { git ->
             val cmd = git.push()
-            if (!token.isNullOrBlank()) {
-                val user = if (!username.isNullOrBlank()) username else token
-                cmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(user, token))
-            }
+            credentialsFor(git, branchRemote(git), username, token)?.let { cmd.setCredentialsProvider(it) }
             if (onProgress != null) {
                 cmd.setProgressMonitor(SimpleProgressMonitor(onProgress))
             }
@@ -258,10 +297,7 @@ class GitManager(private val projectDir: File) {
     fun fetch(username: String? = null, token: String? = null, onProgress: ((Int, String) -> Unit)? = null) {
         Git.open(projectDir).use { git ->
             val cmd = git.fetch().setRemote("origin")
-            if (!token.isNullOrBlank()) {
-                val user = if (!username.isNullOrBlank()) username else token
-                cmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(user, token))
-            }
+            credentialsFor(git, "origin", username, token)?.let { cmd.setCredentialsProvider(it) }
             if (onProgress != null) {
                 cmd.setProgressMonitor(SimpleProgressMonitor(onProgress))
             }
@@ -286,10 +322,7 @@ class GitManager(private val projectDir: File) {
                 .setRemote("origin")
                 .setRefSpecs(org.eclipse.jgit.transport.RefSpec("refs/pull/$prId/head:$localBranch"))
 
-            if (!token.isNullOrBlank()) {
-                val user = if (!username.isNullOrBlank()) username else token
-                cmd.setCredentialsProvider(UsernamePasswordCredentialsProvider(user, token))
-            }
+            credentialsFor(git, "origin", username, token)?.let { cmd.setCredentialsProvider(it) }
             if (onProgress != null) {
                 cmd.setProgressMonitor(SimpleProgressMonitor(onProgress))
             }

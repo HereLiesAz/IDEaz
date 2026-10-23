@@ -85,4 +85,38 @@ class DeployIgnoreTest {
         git.addAll()
         assertFalse(".env" in git.trackedFiles())
     }
+
+    @Test
+    fun isExcludedFoldsCaseOnFileNamesOnly() {
+        listOf("Secrets.json", ".ENV", "config/.Env.Local", "MyKey.PEM", "Release.KeyStore")
+            .forEach { assertTrue(it, DeployIgnore.isExcluded(it)) }
+        // Directory entries match the exact name, like git does.
+        listOf("Node_Modules/x.js", ".IDEAZ/prompt_history.json", "Dist/index.html")
+            .forEach { assertFalse(it, DeployIgnore.isExcluded(it)) }
+    }
+
+    @Test
+    fun addAllDoesNotStageSecretsThatTheCaseSensitiveGitignoreMisses() {
+        val dir = tempFolder.newFolder("case")
+        val git = GitManager(dir)
+        git.init()
+        DeployIgnore.ensure(dir)
+        File(dir, "index.html").writeText("<h1>hi</h1>")
+        File(dir, "Secrets.json").writeText("{}")
+        File(dir, ".ENV").writeText("SECRET=1")
+        File(dir, "MyKey.PEM").writeText("key")
+
+        git.addAll()
+        git.commit("first")
+
+        assertEquals(listOf(".gitignore", "index.html"), git.trackedFiles().sorted())
+        assertTrue(File(dir, "Secrets.json").exists())
+        assertTrue(File(dir, ".ENV").exists())
+        assertTrue(File(dir, "MyKey.PEM").exists())
+
+        // And again after a later edit: still never re-staged.
+        File(dir, "Secrets.json").writeText("{\"k\":1}")
+        git.addAll()
+        assertEquals(listOf(".gitignore", "index.html"), git.trackedFiles().sorted())
+    }
 }
