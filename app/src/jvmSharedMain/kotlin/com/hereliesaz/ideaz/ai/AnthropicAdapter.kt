@@ -35,8 +35,8 @@ class AnthropicAdapter(
 
         val history = messages.map { it.toAnthropicMessage() }.toMutableList()
 
-        // Same checkpoint/review/approval contract LocalLlmAdapter and
-        // GeminiAdapter use — see AiEditApproval's doc comment.
+        // Same checkpoint/review/approval contract GeminiAdapter and
+        // OpenAiCompatibleAdapter use — see AiEditApproval's doc comment.
         var editCheckpoint: IdeEditCheckpoint? = null
         var expectedEditFingerprint: String? = null
 
@@ -136,8 +136,22 @@ class AnthropicAdapter(
                 }
             }
 
+            // Cut off at max_tokens: the last tool_use block's input can be
+            // incomplete (a write_file without its content, half a patch), so
+            // none of this turn's tool calls may run.
+            val truncated = (response["stop_reason"] as? JsonPrimitive)?.contentOrNullSafe() == "max_tokens"
+            if (truncated && toolUses.isNotEmpty()) {
+                val restored = restorePendingEdit()
+                return@withContext "Error: $currentModel's response hit the $MAX_RESPONSE_TOKENS-token limit " +
+                    "mid tool call; nothing from it was applied" +
+                    (if (restored) " and earlier edits were restored." else ", and earlier edits could not be restored.")
+            }
+
             if (toolUses.isEmpty()) {
-                return@withContext complete(textContent.ifBlank { "No response from $currentModel." })
+                val text = textContent.ifBlank { "No response from $currentModel." }
+                return@withContext complete(
+                    if (truncated) "$text\n\n(Response cut off at the $MAX_RESPONSE_TOKENS-token limit.)" else text
+                )
             }
 
             // Echo assistant turn

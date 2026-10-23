@@ -109,14 +109,4 @@ object ProjectAssetImporter {
             sizeBytes = destFile.length(),
         )
     }
-
-    /**
-     * Delete a previously-imported asset by relative path. Used when the user
-     * removes a chip from the attachment row before submitting.
-     */
-    suspend fun deleteByRelativePath(projectDir: File, relativePath: String): Boolean =
-        withContext(Dispatchers.IO) {
-            val target = File(projectDir, relativePath)
-            target.exists() && target.delete()
-        }
 }

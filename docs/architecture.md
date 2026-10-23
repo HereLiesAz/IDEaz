@@ -151,9 +151,11 @@ AI transport: Play's hosted-provider path needs its provider key; GitHub's
 installed-Gemini path can satisfy the default Gemini assignment without one.
 
 Creating is local: scaffold from the bundled starter, `git init`, initial commit.
-`RepoDelegate.ensureRemoteRepository` runs on the first **Deploy**, creates the
-repository if `origin` is missing, and reuses an existing one rather than making
-a second. Deploy is also the only place that reports a missing GitHub token.
+`RepoDelegate.ensureRemoteRepository` runs on the first **Deploy**, creates a
+private repository if `origin` is missing, and reuses an existing one rather than
+making a second. Deploy is also the only place that reports a missing GitHub token.
+The site itself is built and published by the central HereLiesAz/workflows Worker
+from the pushed commit (`docs/workflow.md` §2.2), never served from the repository.
 
 The AI itself may still require network access, including the installed consumer
 app. "No GitHub account" is not the same promise as "fully offline AI."

@@ -9,7 +9,7 @@
 2.  **System:** Clones / pulls via `GitManager`; `ProjectAnalyzer.isPreviewable` checks for an entry point; navigate to the **Setup** tab.
 
 ### 1.2 Initialization (Activation)
-1.  **User:** Clicks **Save & Initialize** in the Setup tab.
+1.  **User:** Clicks **Open project** in the Setup tab.
 2.  **System:** Scaffolds the directory from the bundled React starter if it is empty, then opens the preview. Nothing is pushed — publishing is the rail's separate **Deploy** action.
 
 ## 2. The PWA Edit Loop (Phase 1)

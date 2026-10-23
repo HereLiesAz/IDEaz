@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
@@ -30,6 +31,9 @@ import com.hereliesaz.ideaz.MainActivity
 class ExternalAiOverlayService : Service() {
     private lateinit var windowManager: WindowManager
     private val panels = mutableListOf<View>()
+
+    /** Params of the currently-shown frame, so a rotation can rebuild it at the new bounds. */
+    private var currentFrame: Pair<String, Boolean>? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -56,12 +60,25 @@ class ExternalAiOverlayService : Service() {
     override fun onDestroy() {
         panels.toList().forEach(::removePanel)
         panels.clear()
+        currentFrame = null
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /**
+     * A rotated device is never recreated the way an Activity is, so without
+     * this the four overlay panels keep the bounds computed for the old
+     * orientation - the touchable "hole" stops lining up with the app
+     * underneath. Rebuild at the new bounds whenever the frame is showing.
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        currentFrame?.let { (label, compact) -> showFrame(label, compact) }
+    }
+
     private fun showFrame(label: String, compact: Boolean) {
+        currentFrame = label to compact
         panels.toList().forEach(::removePanel)
         panels.clear()
 

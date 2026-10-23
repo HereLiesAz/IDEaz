@@ -59,8 +59,10 @@ subprojects {
             eachDependency {
                 when {
                     // Jackson arrives as core/databind/annotations + datatype modules and a
-                    // BOM; pin the whole family to a patched 2.18.x line - currently 2.18.10,
-                    // the latest patch. See docs/TODO.md's Production Readiness section for
+                    // BOM; pin the whole family to a patched 2.18.x line - currently 2.18.11,
+                    // the latest patch (closes GHSA-p6pp-m3f8-5c89, GHSA-7hhh-6rmp-j9qf,
+                    // GHSA-cxp5-3px4-pw24 and GHSA-wv8q-qhhj-9h54, Dependabot #99-#102;
+                    // 2.18.10 was the last affected 2.18 release for all four). See docs/TODO.md's Production Readiness section for
                     // the alert history.
                     //
                     // Two early attempts (2026-08-16, 2026-08-17) reverted this same version
@@ -81,7 +83,7 @@ subprojects {
                     // Moving this whole `resolutionStrategy` to `subprojects` (see file-level
                     // comment above) is what actually closes them.
                     requested.group.startsWith("com.fasterxml.jackson") ->
-                        useVersion("2.18.10")
+                        useVersion("2.18.11")
                     // Netty arrives as ~11 modules via grpc-netty (unit-test only). Pin the
                     // io.netty group to the latest patched 4.1.x — staying off 4.2.x, which
                     // grpc-netty does not support. (netty-tcnative tracks a separate scheme.)

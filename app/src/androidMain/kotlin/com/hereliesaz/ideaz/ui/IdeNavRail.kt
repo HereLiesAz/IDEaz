@@ -9,12 +9,6 @@ import com.hereliesaz.aznavrail.model.AzDockingSide
 import com.hereliesaz.aznavrail.model.AzHeaderIconShape
 import com.hereliesaz.aznavrail.model.AzSheetDetent
 
-// Every item's own base/unselected colour. AzNavRail falls back to the rail's
-// resolved accent (activeColor, below) for any item that doesn't set its own
-// `color` — without this, every item renders in the active-item's yellow
-// highlight instead of just the one that's actually active.
-private val railItemColor = Color.White
-
 private val ideHelpList: Map<String, String> = mapOf(
     "project_settings" to "Open the project's settings and switches.",
     "git" to "Git status, history, and remote actions.",
@@ -42,8 +36,26 @@ fun AzNavHostScope.ideNavRail(
     onUndock: (() -> Unit)? = null,
     enableRailDraggingOverride: Boolean? = null,
     onOverlayDrag: ((Float, Float) -> Unit)? = null,
-    onNavigateToMainApp: (String) -> Unit = { navController?.navigate(it) }
+    onNavigateToMainApp: (String) -> Unit = { navController?.navigate(it) },
+    /** Route currently shown, so the active item can be marked by more than its colour. */
+    activeRoute: String? = null,
+    /**
+     * Theme-derived colours (see theme/Color.kt railItemColor, railActiveColor,
+     * railScrimColor), passed in because this scope is not composable.
+     * [itemColor] is every item's own base/unselected colour: AzNavRail falls back to the
+     * rail's accent ([activeColor]) for any item that sets no `color`, which would render
+     * every item in the active highlight.
+     */
+    itemColor: Color,
+    activeColor: Color,
+    scrimColor: Color,
 ) {
+    val railItemColor = itemColor
+    // Colour alone must not carry the active state: an outlined shape (rail items) and a
+    // "(current)" label (menu items) say it too.
+    fun shapeFor(route: String) = if (route == activeRoute) AzButtonShape.RECTANGLE else AzButtonShape.NONE
+    fun labelFor(route: String, text: String) = if (route == activeRoute) "$text (current)" else text
+
     // v9 split configuration (azConfig + azTheme + azAdvanced) per
     // docs/AZNAVRAIL_COMPLETE_GUIDE.md §2. Replaces the legacy single
     // azSettings(...) call.
@@ -62,8 +74,8 @@ fun AzNavHostScope.ideNavRail(
         headerIconShape = AzHeaderIconShape.NONE,
         // The app palette is monochrome, so the active rail item is otherwise
         // indistinguishable; give it a distinct accent.
-        activeColor = Color(0xFFFFC107),
-        translucentBackground = Color.Black.copy(alpha = 0.5f),
+        activeColor = activeColor,
+        translucentBackground = scrimColor,
     )
 
     azAdvanced(
@@ -82,8 +94,8 @@ fun AzNavHostScope.ideNavRail(
         onDismissHelp = onDismissHelp,
     )
 
-    azRailItem(id = "project_settings", text = "Project", route = "project_settings", color = railItemColor, onClick = { onNavigateToMainApp("project_settings") })
-    azMenuItem(id = "git",  text = "Git", route = "git", color = railItemColor, onClick = { onNavigateToMainApp("git") })
+    azRailItem(id = "project_settings", text = "Project", route = "project_settings", color = railItemColor, shape = shapeFor("project_settings"), onClick = { onNavigateToMainApp("project_settings") })
+    azMenuItem(id = "git",  text = labelFor("git", "Git"), route = "git", color = railItemColor, onClick = { onNavigateToMainApp("git") })
 
     azRailHostItem(
         id = "main",
@@ -149,7 +161,7 @@ fun AzNavHostScope.ideNavRail(
         color = railItemColor,
         onClick = {
             handleActionClick {
-                viewModel.deployWebProject()
+                viewModel.requestDeploy()
             }
         }
     )
@@ -172,8 +184,8 @@ fun AzNavHostScope.ideNavRail(
         }
     )
 
-    azMenuItem(id = "file_explorer",  text = "Files", route = "file_explorer", color = railItemColor, onClick = { onNavigateToMainApp("file_explorer") })
-    azRailItem(id = "settings", text = "Settings", route = "settings", color = railItemColor, onClick = { onNavigateToMainApp("settings") })
+    azMenuItem(id = "file_explorer",  text = labelFor("file_explorer", "Files"), route = "file_explorer", color = railItemColor, onClick = { onNavigateToMainApp("file_explorer") })
+    azRailItem(id = "settings", text = "Settings", route = "settings", color = railItemColor, shape = shapeFor("settings"), onClick = { onNavigateToMainApp("settings") })
 
     // Help overlay trigger. Tapping shows ideHelpList entries for each rail
     // item (and the defaults that AzNavRail computes for items without an

@@ -20,6 +20,7 @@
          Whoever holds this file can sign updates that Play/Android trust as
          coming from this app - it must never ride along in a backup. -->
     <exclude domain="file" path="user_release.keystore"/>
+    <exclude domain="file" path="user_release.keystore.part"/>
 
     <!-- Default-shared-prefs file holds GitHub PATs, Google API keys,
          Jules API keys, and keystore passwords. Excluded from Auto Backup. -->

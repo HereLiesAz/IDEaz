@@ -6,13 +6,12 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.saveable.Saver
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import com.hereliesaz.ideaz.BuildConfig
+import com.hereliesaz.ideaz.ai.aive.AivePairingCode
 import com.hereliesaz.ideaz.utils.AndroidKeystoreCredentialStore
 import com.hereliesaz.ideaz.utils.CredentialStore
 import com.hereliesaz.ideaz.utils.SecurityUtils
@@ -34,6 +33,8 @@ import kotlinx.serialization.encodeToString
 // bridge and therefore does not require an API key, while Play remains API-only.
 //
 // supportsImages: whether the provider accepts image/reference parts in prompts.
+// keyless: the provider answers anonymous requests (the same hosted endpoints The Aive
+// ships keyless), so it has no credential slot (providerKey is empty).
 data class AiModel(
     val id: String,
     val displayName: String,
@@ -41,9 +42,10 @@ data class AiModel(
     /** Wire model id sent to the provider. Overridable per-provider in Settings. */
     val defaultWireModel: String,
     val supportsImages: Boolean = false,
+    val keyless: Boolean = false,
 ) {
     val requiredKey: String
-        get() = if (id == "GEMINI_FLASH" && BuildConfig.EXTERNAL_AI_AUTOMATION) "" else providerKey
+        get() = if (keyless || (id == "GEMINI_FLASH" && BuildConfig.EXTERNAL_AI_AUTOMATION)) "" else providerKey
 }
 
 /** Registered conversational AI providers. */
@@ -56,6 +58,10 @@ object AiModels {
     const val OPENAI_GPT4O = "OPENAI_GPT4O"
     const val ANTHROPIC_CLAUDE = "ANTHROPIC_CLAUDE"
     const val DEEPSEEK_CODER = "DEEPSEEK_CODER"
+    const val KILO_FREE = "KILO_FREE"
+    const val LLM7_DEFAULT = "LLM7_DEFAULT"
+    const val OVHCLOUD_FREE = "OVHCLOUD_FREE"
+    const val THE_AIVE = "THE_AIVE"
 
     val GEMINI = AiModel(
         GEMINI_FLASH, "Gemini 2.0 Flash", SettingsViewModel.KEY_GOOGLE_API_KEY,
@@ -90,8 +96,45 @@ object AiModels {
         defaultWireModel = "mistral-small-latest",
     )
 
-    val availableModels = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL)
-    val defaultRanking = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL)
+    // Keyless: anonymous, heavily rate-limited, so ranked last. Endpoints and models mirror
+    // The Aive's HostedLlmProviders keyless entries.
+    val KILO = AiModel(
+        KILO_FREE, "Kilo Gateway · Free (keyless)", providerKey = "",
+        defaultWireModel = "kilo-auto/free", keyless = true,
+    )
+    val LLM7 = AiModel(
+        LLM7_DEFAULT, "LLM7 · Default (keyless)", providerKey = "",
+        // LLM7's alias for whatever it currently serves; named models come and go.
+        defaultWireModel = "default", keyless = true,
+    )
+    val OVHCLOUD = AiModel(
+        OVHCLOUD_FREE, "OVHcloud · gpt-oss-120b (keyless)", providerKey = "",
+        defaultWireModel = "gpt-oss-120b", keyless = true,
+    )
+
+    // Runs on whatever provider is linked in The Aive: installed here (same signing key), or on
+    // another device through the relay once a pairing code is saved.
+    // Keys live in The Aive, so there is no slot here; the wire model is The Aive's choice.
+    val AIVE = AiModel(
+        THE_AIVE, "The Aive (linked provider)", providerKey = "",
+        defaultWireModel = "",
+    )
+
+    val availableModels = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL, KILO, LLM7, OVHCLOUD, AIVE)
+    /** Keyed providers by preference, then the keyless ones as the last fallback. */
+    val defaultRanking = listOf(
+        GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL,
+        KILO, LLM7, OVHCLOUD,
+    )
+
+    /**
+     * The model id used when the user has not chosen one: the highest-ranked provider with a
+     * saved key; else Gemini when the installed-Gemini bridge exists (GitHub builds); else the
+     * first keyless model, so a fresh Play install works without any key.
+     */
+    fun pickDefault(hasKey: (AiModel) -> Boolean, bridgeAvailable: Boolean): String =
+        defaultRanking.firstOrNull { !it.keyless && it.providerKey.isNotEmpty() && hasKey(it) }?.id
+            ?: if (bridgeAvailable) GEMINI_FLASH else (defaultRanking.firstOrNull { it.keyless }?.id ?: GEMINI_FLASH)
 
     fun findById(id: String?): AiModel? = availableModels.find { it.id == id }
 }
@@ -131,6 +174,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_BRANCH_NAME = "branch_name"
         const val KEY_PROJECT_LIST = "project_list"
         const val KEY_PROJECT_PATHS = "project_paths"
+
+        /**
+         * Settings that describe this device's own projects. An export from another device must not
+         * overwrite them: a foreign absolute path in project_paths would be returned by
+         * getProjectPath while project creation uses filesDir.
+         */
+        val DEVICE_LOCAL_KEYS: Set<String> = setOf(KEY_PROJECT_LIST, KEY_PROJECT_PATHS, KEY_APP_NAME, KEY_KEYSTORE_PATH)
         const val KEY_GOOGLE_API_KEY = "google_api_key"
         const val KEY_GITHUB_TOKEN = "github_token"
         const val KEY_JULES_PROJECT_ID = "jules_project_id"
@@ -144,6 +194,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_ANTHROPIC_API_KEY = "anthropic_api_key"
         const val KEY_DEEPSEEK_API_KEY = "deepseek_api_key"
 
+        /** The Aive pairing code for a remote device. A bearer secret (room token + key), so it is kept like an API key. */
+        const val KEY_AIVE_PAIRING_CODE = "aive_pairing_code"
+
         private val SECURE_CREDENTIAL_KEYS = setOf(
             KEY_GOOGLE_API_KEY,
             KEY_HF_API_KEY,
@@ -155,6 +208,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             KEY_OPENAI_API_KEY,
             KEY_ANTHROPIC_API_KEY,
             KEY_DEEPSEEK_API_KEY,
+            KEY_AIVE_PAIRING_CODE,
             KEY_KEYSTORE_PASS,
             KEY_KEY_PASS,
         )
@@ -172,6 +226,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_AI_ASSIGNMENT_OVERLAY = "ai_assignment_overlay"
 
         const val KEY_SHOW_CANCEL_WARNING = "show_cancel_warning"
+        const val KEY_DEPLOY_CONFIRMED = "deploy_confirmed"
         const val KEY_AUTO_DEBUG_BUILDS = "auto_debug_builds"
         const val KEY_REPORT_IDE_ERRORS = "report_ide_errors"
 
@@ -187,6 +242,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val LOG_LEVEL_VERBOSE = "verbose"
 
         const val KEY_KEYSTORE_PATH = "keystore_path"
+        /** The only name a keystore is stored under; excluded in backup_rules / data_extraction_rules. */
+        const val KEYSTORE_FILENAME = "user_release.keystore"
         const val KEY_KEYSTORE_PASS = "keystore_pass"
         const val KEY_KEY_ALIAS = "key_alias"
         const val KEY_KEY_PASS = "key_pass"
@@ -194,7 +251,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
         val aiTasks = mapOf(
             KEY_AI_ASSIGNMENT_DEFAULT to "Default",
-            KEY_AI_ASSIGNMENT_CONTEXTLESS to "Prompt Popup (Jules routing)",
+            KEY_AI_ASSIGNMENT_CONTEXTLESS to "Prompt Popup",
             KEY_AI_ASSIGNMENT_OVERLAY to "Overlay Chat"
         )
     }
@@ -238,6 +295,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         super.onCleared()
         sharedPreferences.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
     }
+
+    fun isDeployConfirmed() = sharedPreferences.getBoolean(KEY_DEPLOY_CONFIRMED, false)
+    fun setDeployConfirmed(confirmed: Boolean) = sharedPreferences.edit { putBoolean(KEY_DEPLOY_CONFIRMED, confirmed) }
 
     fun getShowCancelWarning() = sharedPreferences.getBoolean(KEY_SHOW_CANCEL_WARNING, true)
     fun setShowCancelWarning(show: Boolean) = sharedPreferences.edit { putBoolean(KEY_SHOW_CANCEL_WARNING, show) }
@@ -287,6 +347,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun wireModelKey(modelId: String) = "wire_model_$modelId"
+
+    fun getAivePairingCode(): String? = getApiKey(KEY_AIVE_PAIRING_CODE)?.takeIf { it.isNotBlank() }
+
+    /** Validates and stores [code] (blank removes it). Returns null on success, else a message for the user. */
+    fun saveAivePairingCode(code: String): String? {
+        val trimmed = code.trim()
+        if (trimmed.isNotEmpty()) {
+            try {
+                AivePairingCode.parse(trimmed)
+            } catch (e: IllegalArgumentException) {
+                return e.message ?: "Invalid pairing code."
+            }
+        }
+        return if (saveString(KEY_AIVE_PAIRING_CODE, trimmed)) null
+        else lastCredentialError?.let { "Could not store the pairing code: $it" } ?: "Could not store the pairing code."
+    }
 
     fun getApiKey() = getApiKey(KEY_API_KEY)
     fun getApiKey(keyName: String): String? {
@@ -358,26 +434,38 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         return sharedPreferences.getString(taskKey, defaultModelId)
     }
 
-    /** Highest-ranked configured API model; falls back to Gemini, whose GitHub path may be keyless. */
-    private fun defaultModelId(): String =
-        AiModels.defaultRanking
-            .firstOrNull { it.providerKey.isNotEmpty() && !getApiKey(it.providerKey).isNullOrBlank() }
-            ?.id
-            ?: AiModels.GEMINI_FLASH
+    /** Highest-ranked configured API model; else Gemini on bridge builds, else a keyless model. */
+    private fun defaultModelId(): String = AiModels.pickDefault(
+        hasKey = { !getApiKey(it.providerKey).isNullOrBlank() },
+        bridgeAvailable = com.hereliesaz.ideaz.BuildConfig.EXTERNAL_AI_AUTOMATION,
+    )
 
+    /** The default model the Settings dropdowns show for a task that has no explicit choice. */
+    fun effectiveDefaultModelId(): String = getAiAssignment(KEY_AI_ASSIGNMENT_DEFAULT) ?: defaultModelId()
+
+    /**
+     * Copies the picked keystore to [KEYSTORE_FILENAME] and records its path.
+     * Returns null - recording nothing - when it could not be read or copied:
+     * this used to save the path even when openInputStream returned null, and
+     * a copy failing mid-stream left a truncated file that stayed in use. The
+     * copy goes to a temporary file first and replaces the keystore only once
+     * complete.
+     */
     fun importKeystore(context: Context, uri: Uri): String? {
+        val destFile = File(context.filesDir, KEYSTORE_FILENAME)
+        val partFile = File(context.filesDir, "$KEYSTORE_FILENAME.part")
         return try {
-            val destFile = File(context.filesDir, "user_release.keystore")
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                FileOutputStream(destFile).use { output ->
-                    input.copyTo(output)
-                }
-            }
+            val input = context.contentResolver.openInputStream(uri)
+                ?: throw java.io.IOException("Could not open $uri")
+            input.use { source -> FileOutputStream(partFile).use { source.copyTo(it) } }
+            if (partFile.length() == 0L) throw java.io.IOException("The keystore file is empty")
+            if (!partFile.renameTo(destFile)) throw java.io.IOException("Could not replace $KEYSTORE_FILENAME")
             val path = destFile.absolutePath
             sharedPreferences.edit { putString(KEY_KEYSTORE_PATH, path) }
             path
         } catch (e: Exception) {
             Log.e(TAG, "Failed to import keystore", e)
+            partFile.delete()
             null
         }
     }
@@ -398,7 +486,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         sharedPreferences.edit { remove(KEY_KEYSTORE_PATH).remove(KEY_KEY_ALIAS) }
         runCatching { credentialStore.remove(KEY_KEYSTORE_PASS) }
         runCatching { credentialStore.remove(KEY_KEY_PASS) }
-        runCatching { File(getApplication<Application>().filesDir, "user_release.keystore").delete() }
+        runCatching { File(getApplication<Application>().filesDir, KEYSTORE_FILENAME).delete() }
     }
 
     fun exportSettings(context: Context, uri: Uri, password: String) {
@@ -468,13 +556,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 }
 
                 sharedPreferences.edit {
-                    export.strings.filterKeys { it !in SECURE_CREDENTIAL_KEYS }
+                    export.strings.filterKeys { it !in SECURE_CREDENTIAL_KEYS && it !in DEVICE_LOCAL_KEYS }
                         .forEach { (k, v) -> putString(k, v) }
                     export.booleans.forEach { (k, v) -> putBoolean(k, v) }
                     export.ints.forEach { (k, v) -> putInt(k, v) }
                     export.longs.forEach { (k, v) -> putLong(k, v) }
                     export.floats.forEach { (k, v) -> putFloat(k, v) }
-                    export.stringSets.forEach { (k, v) -> putStringSet(k, v) }
+                    export.stringSets.filterKeys { it !in DEVICE_LOCAL_KEYS }.forEach { (k, v) -> putStringSet(k, v) }
                 }
                 SECURE_CREDENTIAL_KEYS.forEach { key ->
                     check(sharedPreferences.edit().remove(key).commit()) {
@@ -484,12 +572,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
                 if (export.keystore != null) {
                     val bytes = android.util.Base64.decode(export.keystore.contentBase64, android.util.Base64.NO_WRAP)
-                    val destFile = File(context.filesDir, export.keystore.filename)
-                    val canonicalDestDir = context.filesDir.canonicalFile.toPath()
-                    val canonicalDestFile = destFile.canonicalFile.toPath()
-                    if (!canonicalDestFile.startsWith(canonicalDestDir)) {
-                        throw java.io.IOException("Keystore filename is outside the target directory: ${export.keystore.filename}")
-                    }
+                    // Always under KEYSTORE_FILENAME, whatever name the export
+                    // carries: that is the one name the backup and
+                    // device-transfer rules exclude. Restoring under the exported
+                    // name ("release.jks") put the signing key into cloud backups.
+                    val destFile = File(context.filesDir, KEYSTORE_FILENAME)
                     FileOutputStream(destFile).use { it.write(bytes) }
                     sharedPreferences.edit { putString(KEY_KEYSTORE_PATH, destFile.absolutePath) }
                 }

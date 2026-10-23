@@ -94,7 +94,12 @@ JVM targets depend on.
 **GitHub and git**
 *   `api/GithubApiClient.kt`, `api/models.kt`, `api/AuthInterceptor.kt` — Retrofit
     client for the GitHub API.
+*   `api/WebDeployClient.kt` — asks the central HereLiesAz/workflows Worker
+    (`POST /web-deploy`) to build and publish a pushed commit.
 *   `git/GitManager.kt` — JGit wrapper.
+*   `utils/DeployIgnore.kt` — the `.gitignore` entries a project must never
+    commit (secrets, `.ideaz/`, dependencies, build output) and the matcher
+    Deploy uses to untrack them.
 *   `utils/GithubSecretBox.kt` — libsodium-compatible sealed box over BouncyCastle.
 
 **Project and state**
@@ -105,7 +110,7 @@ JVM targets depend on.
 *   `ui/delegates/StateDelegate.kt` — UI state, including edit-review lifecycle.
 *   `ui/web/WebProjectUrlUtils.kt` — asset-loader origin and root mount rules.
 *   `utils/RepoMapper.kt`, `utils/SourceContextHelper.kt`, `utils/LogSanitizer.kt`,
-    `utils/OperationController.kt`, `utils/ErrorCollector.kt`, `utils/VersionUtils.kt`
+    `utils/OperationController.kt`, `utils/ErrorCollector.kt`
     — supporting utilities.
 
 ### androidMain — the phone IDE
@@ -160,8 +165,8 @@ JVM targets depend on.
 **Utilities and services**
 *   `utils/AndroidKeystoreCredentialStore.kt` — AES-GCM persistence behind a
     non-exportable Keystore key.
-*   `utils/ProjectConfigManager.kt` — `.ideaz/` config, Pages workflow,
-    `AGENTS_SETUP.md`, `version.properties`.
+*   `utils/ProjectConfigManager.kt` — `.ideaz/` config, `.gitignore`,
+    `AGENTS_SETUP.md`, `version.properties`, and removal of the old Pages workflow.
 *   `utils/TemplateManager.kt` — copies the bundled React starter.
 *   `utils/ProjectAssetImporter.kt` — copies a SAF-picked file into `assets/`.
 *   `utils/ProjectFileObserver.kt` — watches the tree and triggers preview reloads.

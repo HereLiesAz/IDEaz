@@ -143,9 +143,12 @@ if (versionPropsFile.exists()) {
     versionPropsFile.inputStream().use { versionProps.load(it) }
 }
 
-val major = versionProps.getProperty("major", "1").toInt()
-val minor = versionProps.getProperty("minor", "0").toInt()
-val patch = versionProps.getProperty("patch", "0").toInt()
+// The central HereLiesAz/workflows release executors rewrite version.properties'
+// canonical `versionMajor`/`versionMinor`/`versionPatch` keys (the legacy
+// `major`/`minor`/`patch` keys are kept only as a fallback for older checkouts).
+val major = (versionProps.getProperty("versionMajor") ?: versionProps.getProperty("major", "1")).toInt()
+val minor = (versionProps.getProperty("versionMinor") ?: versionProps.getProperty("minor", "0")).toInt()
+val patch = (versionProps.getProperty("versionPatch") ?: versionProps.getProperty("patch", "0")).toInt()
 
 // versionCode override for CI: pass `-PversionBuild=<n>` (CI passes
 // `git rev-list --count HEAD`, a value that only ever grows).
@@ -184,6 +187,14 @@ val buildNumber = versionBuildOverride
     ?: gitCommitCount
     ?: (versionProps.getProperty("build", "0").toInt() + 1)
 
+// Central release executors (android-play-release / android-github-release in
+// HereLiesAz/workflows) pass the exact versionCode/versionName they publish:
+// `-PversionCodeOverride=<n>` and `-PversionName=<name>`. When present these win
+// over the local packed formula below, so Play's next-free versionCode and the
+// GitHub release tag match what is baked into the artifact.
+val versionCodeOverride = project.findProperty("versionCodeOverride")?.toString()?.toIntOrNull()
+val versionNameOverride = project.findProperty("versionName")?.toString()?.takeIf { it.isNotBlank() }
+
 extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
     namespace = "com.hereliesaz.ideaz"
     compileSdk = 37
@@ -208,8 +219,8 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
         // ...6926, not ...66326) - harmless for the arithmetic (plain addition, not
         // string concatenation, so the total stays correctly monotonic), just not
         // cleanly human-readable past two build digits.
-        versionCode = major * 1000000 + minor * 10000 + patch * 100 + buildNumber
-        versionName = "$major.$minor.$patch.$buildNumber"
+        versionCode = versionCodeOverride ?: (major * 1000000 + minor * 10000 + patch * 100 + buildNumber)
+        versionName = versionNameOverride ?: "$major.$minor.$patch.$buildNumber"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -242,16 +253,13 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
             signingConfig = signingConfigs.getByName("debug")
         }
         release {
-            // CI sets KEYSTORE_FILE (and matching password/alias env vars) to sign with
-            // the real release keystore. Local builds without those env vars fall back
-            // to the debug keystore so `./gradlew build` and `assembleRelease` work
-            // out of the box. The release signingConfig is only used when fully
-            // populated; otherwise the debug config takes over.
-            signingConfig = if (System.getenv("KEYSTORE_FILE") != null) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            // Signed only with the real release keystore: CI sets KEYSTORE_FILE (and
+            // matching password/alias env vars). There is no debug-keystore fallback -
+            // it produced a "release" APK signed with the public debug key, which
+            // anyone could update. Without a keystore, packaging a release or play
+            // variant fails (requireReleaseKeystore below); debug builds and unit
+            // tests are unaffected.
+            signingConfig = signingConfigs.getByName("release")
             // R8 strips unused library code (notably most of bcprov, of which only
             // the X25519/Salsa20/Poly1305/Blake2b primitives are reached). Keep
             // rules live in proguard-rules.pro.
@@ -283,11 +291,11 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
     }
 
     androidResources {
-        // The bundled Android template ships .github/workflows/build-apk.yml
-        // (assets/templates/android). aapt's default asset filter contains ".*",
-        // which drops every dot-prefixed entry — the workflow would never reach
-        // the APK and scaffolded projects would have no CI. This is the default
-        // list minus ".*"; .git and friends stay excluded by their own entries.
+        // aapt's default asset filter contains ".*", which drops every
+        // dot-prefixed entry from assets/templates/react (e.g. any future
+        // .github/workflows file bundled alongside it) before it reaches the
+        // APK. This is the default list minus ".*"; .git and friends stay
+        // excluded by their own entries.
         ignoreAssetsPatterns.clear()
         ignoreAssetsPatterns.addAll(
             listOf(
@@ -312,6 +320,28 @@ extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
             pickFirsts.add("**/*.kotlin_module")
         }
     }
+}
+
+// Fails release/play packaging when no release keystore is configured, either
+// through KEYSTORE_FILE or AGP's injected signing property (the central release
+// workflow sets both). Checked when packaging runs, not at configuration, so
+// `assembleDebug` and `testDebugUnitTest` never need one.
+val releaseKeystoreEnv = providers.environmentVariable("KEYSTORE_FILE")
+val injectedKeystore = providers.gradleProperty("android.injected.signing.store.file")
+val requireReleaseKeystore = tasks.register("requireReleaseKeystore") {
+    val envKeystore = releaseKeystoreEnv
+    val injected = injectedKeystore
+    doLast {
+        if (envKeystore.orNull.isNullOrBlank() && injected.orNull.isNullOrBlank()) {
+            throw GradleException(
+                "No release keystore: set KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD. " +
+                    "Release and play builds are never signed with the debug key."
+            )
+        }
+    }
+}
+tasks.configureEach {
+    if (Regex("^(package|sign)(Release|Play)(Bundle)?$").matches(name)) dependsOn(requireReleaseKeystore)
 }
 
 androidComponents.onVariants { variant ->

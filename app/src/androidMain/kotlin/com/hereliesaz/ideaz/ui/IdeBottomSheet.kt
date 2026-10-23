@@ -20,6 +20,8 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
+import com.hereliesaz.ideaz.ui.theme.DarkColorScheme
+import com.hereliesaz.ideaz.ui.theme.LightColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -31,6 +33,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.hereliesaz.aznavrail.bottomsheet.AzSheetController
 import com.hereliesaz.aznavrail.model.AzSheetDetent
@@ -41,7 +45,6 @@ fun IdeBottomSheet(
     controller: AzSheetController,
     viewModel: MainViewModel,
     screenHeight: Dp,
-    onSendPrompt: (String) -> Unit
 ) {
     val detent by controller.detentFlow.collectAsState()
 
@@ -75,21 +78,8 @@ fun IdeBottomSheet(
         SettingsViewModel.THEME_LIGHT -> false
         else -> isSystemDark
     }
-    val customColorScheme = if (isDark) {
-        darkColorScheme(
-            surface = Color(0xFF1E1E1E),
-            onSurface = Color.White,
-            background = Color(0xFF1E1E1E),
-            onBackground = Color.White
-        )
-    } else {
-        lightColorScheme(
-            surface = Color(0xFFEEEEEE),
-            onSurface = Color.Black,
-            background = Color(0xFFEEEEEE),
-            onBackground = Color.Black
-        )
-    }
+    // The app's own palette (theme/Theme.kt), not a private copy that drifts from it.
+    val customColorScheme = if (isDark) DarkColorScheme else LightColorScheme
 
     MaterialTheme(colorScheme = customColorScheme) {
         Box(
@@ -112,7 +102,6 @@ fun IdeBottomSheet(
                     editReview = editReview,
                     isChatLoading = isChatLoading,
                     onClearLog = { viewModel.clearLog() },
-                    onSendPrompt = onSendPrompt,
                     viewModel = viewModel,
                     screenHeight = screenHeight,
                 )
@@ -132,6 +121,9 @@ private fun LogTicker(messages: List<String>, maxLines: Int) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            // Each line is clipped to one visual line; the live region lets a screen reader
+            // announce the newest status text in full as it arrives.
+            .semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite }
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.Bottom
     ) {
@@ -159,7 +151,6 @@ private fun ExpandedContent(
     editReview: com.hereliesaz.ideaz.ui.delegates.EditReviewState?,
     isChatLoading: Boolean,
     onClearLog: () -> Unit,
-    onSendPrompt: (String) -> Unit,
     viewModel: MainViewModel,
     screenHeight: Dp
 ) {
