@@ -656,7 +656,7 @@ fun SettingsScreen(
 
             SettingsViewModel.aiTasks.forEach { (taskKey, taskName) ->
                 var currentModelId by remember(taskKey) {
-                    mutableStateOf(settingsViewModel.getAiAssignment(taskKey) ?: AiModels.GEMINI.id)
+                    mutableStateOf(settingsViewModel.getAiAssignment(taskKey) ?: settingsViewModel.effectiveDefaultModelId())
                 }
 
                 AiAssignmentDropdown(
