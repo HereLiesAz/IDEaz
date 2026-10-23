@@ -69,7 +69,8 @@ class DeployIgnoreTest {
         git.init()
         File(dir, "index.html").writeText("<h1>hi</h1>")
         File(dir, ".env").writeText("SECRET=1")
-        git.addAll()
+        // addAll() now takes newly staged secrets back out, so an earlier leak is staged explicitly.
+        git.addPaths(listOf("index.html", ".env"))
         git.commit("leaky")
 
         val leaked = git.trackedFiles().filter { DeployIgnore.isExcluded(it) }
