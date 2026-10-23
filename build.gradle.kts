@@ -53,7 +53,7 @@ subprojects {
             )
             dependencySubstitution {
                 substitute(module("com.google.protobuf:protobuf-javalite"))
-                    .using(module("com.google.protobuf:protobuf-java:4.36.0"))
+                    .using(module("com.google.protobuf:protobuf-java:4.36.2"))
                     .because("Android cannot have both javalite and full protobuf-java on the same classpath")
             }
             eachDependency {
