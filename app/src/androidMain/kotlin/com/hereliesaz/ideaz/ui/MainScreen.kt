@@ -72,7 +72,6 @@ fun MainScreen(viewModel: MainViewModel) {
         // Settings and discovers the toggle. This is the actual consent point.
         if (!settingsViewModel.hasShownCrashReportingFirstRun()) {
             showCrashReportingFirstRun = true
-        } else {
         }
     }
 

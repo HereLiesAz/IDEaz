@@ -17,7 +17,6 @@ import com.hereliesaz.ideaz.utils.ErrorCollector
 import com.hereliesaz.ideaz.ui.web.WebProjectUrlUtils
 import com.hereliesaz.ideaz.utils.ProjectAnalyzer
 import com.hereliesaz.ideaz.utils.ProjectFileObserver
-import com.hereliesaz.ideaz.utils.VersionUtils
 import com.hereliesaz.ideaz.ai.AiAdapterFactory
 import com.hereliesaz.ideaz.ai.AiEditApproval
 import com.hereliesaz.ideaz.ai.AiEditApprovalRequiredException
@@ -179,6 +178,11 @@ class MainViewModel(
             stateDelegate.setChatFailure(
                 "There's an edit waiting for your review. Approve or reject it, then send this."
             )
+            return
+        }
+        // A bare "/aive" is a request for help, not a prompt for the model.
+        if (isBareAiveCommand(text)) {
+            stateDelegate.appendChatMessage(ChatMessage("model", AIVE_USAGE, AIVE_LABEL))
             return
         }
         val appName = settingsViewModel.getAppName()
@@ -1466,6 +1470,11 @@ internal class AiveRunTracker(private val objective: String, private var runId: 
 /** `/aive <objective>` in the chat sends the objective to The Aive as a workflow. */
 private val AIVE_WORKFLOW_COMMAND = Regex("""(?s)^/aive\s+(\S.*)$""")
 private const val AIVE_LABEL = "The Aive"
+private const val AIVE_USAGE = "Usage: /aive <objective>. It queues the objective as a workflow in The Aive, " +
+    "for example: /aive add a dark mode toggle."
+
+/** True for "/aive" with nothing after it. */
+internal fun isBareAiveCommand(text: String): Boolean = text.trim().equals("/aive", ignoreCase = true)
 
 /** The project's `origin` as `https://github.com/owner/name`, or null when it is not on GitHub. */
 internal fun gitHubOriginUrl(projectDir: java.io.File): String? = runCatching {
