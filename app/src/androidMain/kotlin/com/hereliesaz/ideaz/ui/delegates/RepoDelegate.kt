@@ -117,6 +117,10 @@ class RepoDelegate(
      *   token, or the API call failed) — the reason is reported to the log.
      */
     suspend fun ensureRemoteRepository(appName: String): Boolean = withContext(Dispatchers.IO) {
+        com.hereliesaz.ideaz.utils.ProjectNames.validate(appName)?.let {
+            onOverlayLog("Cannot publish '$appName': $it")
+            return@withContext false
+        }
         val git = GitManager(settingsViewModel.getProjectPath(appName))
         if (git.remoteUrl("origin") != null) return@withContext true
 
@@ -182,8 +186,9 @@ class RepoDelegate(
             // directory.
             if (!git.isRepo()) git.init()
 
-            git.addRemote("origin", "https://github.com/$owner/$appName.git")
-            onOverlayLog("Linked $appName to $owner/$appName.")
+            // GitHub's own name for the repository, not the local one.
+            git.addRemote("origin", "https://github.com/$owner/${repo.name}.git")
+            onOverlayLog("Linked $appName to $owner/${repo.name}.")
             true
         } catch (e: Exception) {
             onOverlayLog("Could not create the GitHub repository: ${e.message}")

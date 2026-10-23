@@ -59,7 +59,9 @@ fun ProjectSetupTab(
 
     // Derived state for button enablement. This used to also require
     // `selectedType in ProjectType.selectable` - a one-element list.
-    val isReadyToCreate = initialPrompt.isNotBlank() && appName.isNotBlank()
+    val appNameError = if (isCreateMode && appName.isNotEmpty())
+        com.hereliesaz.ideaz.utils.ProjectNames.validate(appName) else null
+    val isReadyToCreate = initialPrompt.isNotBlank() && appName.isNotBlank() && appNameError == null
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         item {
@@ -104,8 +106,17 @@ fun ProjectSetupTab(
                 hint = "App Name",
                 onSubmit = {},
                 enabled = isCreateMode,
+                isError = appNameError != null,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
             )
+            if (appNameError != null) {
+                Text(
+                    text = appNameError,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                )
+            }
             Spacer(Modifier.height(8.dp))
 
             AzTextBox(

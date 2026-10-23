@@ -888,6 +888,13 @@ class MainViewModel(
     fun forceUpdateInitFiles() {
         viewModelScope.launch { repoDelegate.forceUpdateInitFiles() }
     }
+    /** Toast from any thread. */
+    private fun showToast(message: String) {
+        viewModelScope.launch(Dispatchers.Main) {
+            Toast.makeText(getApplication(), message, Toast.LENGTH_LONG).show()
+        }
+    }
+
     /**
      * Creates a new project. Entirely local and offline: no GitHub account, no
      * token, no network.
@@ -907,6 +914,12 @@ class MainViewModel(
         initialPrompt: String? = null,
         onSuccess: () -> Unit,
     ) {
+        val nameError = com.hereliesaz.ideaz.utils.ProjectNames.validate(appName)
+        if (nameError != null) {
+            logHandler.onOverlayLog(nameError)
+            showToast(nameError)
+            return
+        }
         // Held for the first Deploy - there is no repository to attach it to yet.
         settingsViewModel.saveRepoDescription(description)
         // SetupTab's "GitHub User" and "Branch" fields are editable in Create
@@ -935,6 +948,16 @@ class MainViewModel(
      * Common exit path for Setup/Clone/Load flows.
      */
     fun saveAndInitialize(appName: String, user: String, branch: String, context: Context, initialPrompt: String? = null) {
+        // Projects made before names were validated may contain spaces; keep them openable as
+        // long as the name is a plain existing directory name (never a path).
+        val legacyExisting = com.hereliesaz.ideaz.utils.ProjectNames.safeFileName(appName) != null &&
+            !appName.startsWith(".") && context.filesDir.resolve(appName).isDirectory
+        val nameError = com.hereliesaz.ideaz.utils.ProjectNames.validate(appName)
+        if (nameError != null && !legacyExisting) {
+            logHandler.onOverlayLog("Cannot open '$appName': $nameError")
+            showToast(nameError)
+            return
+        }
         viewModelScope.launch {
             settingsViewModel.saveProjectConfig(appName, user, branch)
 
@@ -1064,6 +1087,11 @@ class MainViewModel(
      */
     fun registerExternalProject(u: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
+            // Set once the copy exists; cleared only when the import succeeds. A failure or a
+            // cancellation mid-copy would otherwise leave a half-copied folder that
+            // scanLocalProjects lists as a project.
+            var partialDir: File? = null
+            var keepDir = false
             try {
                 // Convert to DocumentFile
                 val documentFile = if (u.scheme == "file" && u.path != null) {
@@ -1086,15 +1114,20 @@ class MainViewModel(
                 }
 
                 // Handle Name Collision
-                var projectName = documentFile.name ?: "Imported_${System.currentTimeMillis()}"
+                // The provider supplies the folder name: make it a valid project name.
+                val baseName = com.hereliesaz.ideaz.utils.ProjectNames.sanitize(
+                    documentFile.name, "Imported_${System.currentTimeMillis()}"
+                )
+                var projectName = baseName
                 var destDir = getApplication<Application>().filesDir.resolve(projectName)
 
                 var counter = 1
                 while (destDir.exists()) {
-                    projectName = "${documentFile.name ?: "Imported"}_$counter"
+                    projectName = "${baseName}_$counter"
                     destDir = getApplication<Application>().filesDir.resolve(projectName)
                     counter++
                 }
+                partialDir = destDir
 
                 logHandler.onOverlayLog("Importing project '$projectName'...")
                 logHandler.onProgress(0)
@@ -1111,6 +1144,7 @@ class MainViewModel(
                 // project type this app no longer edits.
                 if (!com.hereliesaz.ideaz.utils.ProjectAnalyzer.isPreviewable(destDir)) {
                     destDir.deleteRecursively()
+                    partialDir = null
                     val message = "$projectName has no index.html or package.json, so IDEaz " +
                         "cannot preview it. The imported folder was not kept."
                     logHandler.onOverlayLog(message)
@@ -1129,14 +1163,18 @@ class MainViewModel(
                 val owner = settingsViewModel.getGithubUser() ?: "local"
                 val branch = "main"
 
+                keepDir = true
                 withContext(Dispatchers.Main) {
                     saveAndInitialize(projectName, owner, branch, getApplication())
                 }
 
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 logHandler.onOverlayLog("Failed to import project: ${e.message}")
                 android.util.Log.w("MainViewModel", "Operation failed", e)
             } finally {
+                if (!keepDir) runCatching { partialDir?.deleteRecursively() }
                 logHandler.onProgress(null)
             }
         }
@@ -1145,8 +1183,17 @@ class MainViewModel(
     private fun copyDocumentFileToLocal(src: androidx.documentfile.provider.DocumentFile, dest: File) {
         if (src.isDirectory) {
             if (!dest.exists()) dest.mkdirs()
+            val root = dest.canonicalFile
             src.listFiles().forEach { file ->
-                val destFile = File(dest, file.name ?: "unknown")
+                // A hostile provider can return names like "../x": skip anything that is not a
+                // plain file name or that would resolve outside the destination.
+                val safeName = com.hereliesaz.ideaz.utils.ProjectNames.safeFileName(file.name)
+                if (safeName == null) {
+                    logHandler.onBuildLog("[IMPORT] Skipped an entry with an unsafe name: ${file.name}\n")
+                    return@forEach
+                }
+                val destFile = File(dest, safeName)
+                if (!destFile.canonicalPath.startsWith(root.path + File.separator)) return@forEach
                 copyDocumentFileToLocal(file, destFile)
             }
         } else {
