@@ -34,7 +34,8 @@ available in the preview runtime if you prefer them.
 > @emotion/styled. Importing a library outside that set works in a real build
 > but not in the in-app preview. A pin can lag the in-app preview's vendored
 > copy when the template's own version carries a known vulnerability the
-> preview runtime doesn't (see `axios` — the template pins the current patched
-> release even though the in-app preview still vendors an older 1.x); such
+> preview runtime doesn't (see `react-router` — the template pins the patched
+> 7.18.x release even though the in-app preview still vendors 7.15.1; `axios`
+> is vendored at the same 1.20.0 the template pins); such
 > drift doesn't affect the API surface, only unobserved behavior differences
 > between preview and build.
