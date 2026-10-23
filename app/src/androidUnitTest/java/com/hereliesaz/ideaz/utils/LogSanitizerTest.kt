@@ -131,4 +131,76 @@ class LogSanitizerTest {
         val text = "Build succeeded in 12s with 0 warnings."
         assertEquals(text, LogSanitizer.sanitize(text))
     }
+
+    @Test
+    fun `redacts Aive pairing codes`() {
+        val code = "aive1:eyJ2IjoxLCJyZWxheSI6Imh0dHBzOi8vZXhhbXBsZS5jb20iLCJrZXkiOiJhYmMtX0RFRiJ9"
+        assertRedacted(code, "paste this: $code and go")
+        assertEquals("paste this: ***REDACTED*** and go", LogSanitizer.sanitize("paste this: $code and go"))
+    }
+
+    @Test
+    fun `redacts Basic and token Authorization headers`() {
+        assertEquals(
+            "Authorization: Basic ***REDACTED***",
+            LogSanitizer.sanitize("Authorization: Basic dXNlcjpwYXNzd29yZA=="),
+        )
+        assertEquals(
+            "authorization: token ***REDACTED***",
+            LogSanitizer.sanitize("authorization: token abcdef0123456789"),
+        )
+    }
+
+    @Test
+    fun `redacts lowercase bearer tokens`() {
+        assertEquals("authorization: bearer ***REDACTED***", LogSanitizer.sanitize("authorization: bearer abc.def-123"))
+    }
+
+    @Test
+    fun `redacts the x-api-key header in colon form`() {
+        assertEquals("X-Api-Key: ***REDACTED***", LogSanitizer.sanitize("X-Api-Key: abc123def456"))
+        assertEquals("x-api-key: ***REDACTED***", LogSanitizer.sanitize("x-api-key: abc123def456"))
+        assertEquals("\"x-api-key\": \"***REDACTED***\"", LogSanitizer.sanitize("\"x-api-key\": \"abc123def456\""))
+    }
+
+    @Test
+    fun `replaces GitHub owner and repo with a placeholder`() {
+        assertEquals(
+            "cloning https://github.com/<owner>/<repo> failed",
+            LogSanitizer.sanitize("cloning https://github.com/HereLiesAz/secret-app.git failed"),
+        )
+        assertEquals("fatal: git@github.com/<owner>/<repo>", LogSanitizer.sanitize("fatal: git@github.com:me/private.git"))
+        assertEquals("see github.com/<owner>/<repo>/issues/1", LogSanitizer.sanitize("see github.com/me/app/issues/1"))
+    }
+
+    @Test
+    fun `replaces the project name in app storage paths`() {
+        assertEquals(
+            "at /data/user/0/com.hereliesaz.ideaz/files/<project>/src/App.jsx:3",
+            LogSanitizer.sanitize("at /data/user/0/com.hereliesaz.ideaz/files/MyDiary/src/App.jsx:3"),
+        )
+        assertEquals(
+            "/data/data/com.hereliesaz.ideaz/files/<project>",
+            LogSanitizer.sanitize("/data/data/com.hereliesaz.ideaz/files/MyDiary"),
+        )
+        assertEquals(
+            "/storage/emulated/0/Android/data/com.hereliesaz.ideaz/files/<project>/x",
+            LogSanitizer.sanitize("/storage/emulated/0/Android/data/com.hereliesaz.ideaz/files/MyDiary/x"),
+        )
+        // Not app storage: left alone.
+        assertEquals("https://example.com/files/report.pdf", LogSanitizer.sanitize("https://example.com/files/report.pdf"))
+    }
+
+    @Test
+    fun `sanitizing twice changes nothing more`() {
+        val once = LogSanitizer.sanitize("/data/user/0/com.hereliesaz.ideaz/files/P/a github.com/o/r aive1:abc_DEF")
+        assertEquals(once, LogSanitizer.sanitize(once))
+    }
+
+    @Test
+    fun `redactSecrets leaves repository and project names alone`() {
+        val text = "see https://github.com/o/r and /data/user/0/com.hereliesaz.ideaz/files/P/a"
+        assertEquals(text, LogSanitizer.redactSecrets(text))
+        assertEquals("aive1 code ***REDACTED***", LogSanitizer.redactSecrets("aive1 code aive1:abc123"))
+    }
 }

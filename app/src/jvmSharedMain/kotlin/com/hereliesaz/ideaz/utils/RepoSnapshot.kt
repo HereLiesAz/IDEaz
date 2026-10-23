@@ -137,7 +137,7 @@ object RepoSnapshot {
             val raw = try { file.readText() } catch (e: Exception) {
                 skipped.add("$rel (unreadable: ${e.message})"); continue
             }
-            val redacted = LogSanitizer.sanitize(raw)
+            val redacted = LogSanitizer.redactSecrets(raw)
             val header = "\n===== $rel =====\n"
             val size = utf8Size(header) + utf8Size(redacted) + 1
             if (bytes + size > contentLimit) {
