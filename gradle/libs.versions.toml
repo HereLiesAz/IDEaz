@@ -35,7 +35,7 @@ mockitoKotlin = "6.3.0"
 kotlinxCoroutinesTest = "1.11.0"
 json = "20260814"
 appcompat = "1.8.0"
-webkit = "1.17.0"
+webkit = "1.18.0"
 
 # Security-bumped versions for JGit's vulnerable transitive deps (Dependabot #26,
 # #27, #29 Bouncy Castle; #30 Apache HttpClient XSS; #31 commons-lang3 recursion).
