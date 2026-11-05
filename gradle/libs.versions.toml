@@ -5,7 +5,7 @@ cmpNavigation = "2.9.2"
 agp = "9.4.1"
 aznavrail = "11.20"
 coreKtx = "1.19.1"
-googleGenai = "1.78.0"
+googleGenai = "1.79.0"
 kotlinxCoroutinesCore = "1.11.0"
 mockwebserver = "5.5.0"
 preferenceKtx = "1.2.1"
@@ -35,7 +35,7 @@ mockitoKotlin = "6.3.0"
 kotlinxCoroutinesTest = "1.11.0"
 json = "20260814"
 appcompat = "1.8.0"
-webkit = "1.17.0"
+webkit = "1.18.0"
 
 # Security-bumped versions for JGit's vulnerable transitive deps (Dependabot #26,
 # #27, #29 Bouncy Castle; #30 Apache HttpClient XSS; #31 commons-lang3 recursion).
