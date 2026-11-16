@@ -46,7 +46,7 @@ subprojects {
             force(
                 "org.bouncycastle:bcprov-jdk18on:1.86",
                 "org.bouncycastle:bcpkix-jdk18on:1.86",
-                "org.bouncycastle:bcutil-jdk18on:1.86",
+                "org.bouncycastle:bcutil-jdk18on:1.87",
                 "org.apache.commons:commons-lang3:3.21.0",
                 "com.google.protobuf:protobuf-java:4.36.2",
                 "com.google.protobuf:protobuf-kotlin:4.36.2",
