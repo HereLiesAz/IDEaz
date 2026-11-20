@@ -135,7 +135,32 @@ object AiModels {
         defaultWireModel = "",
     )
 
-    val availableModels = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL, KILO, LLM7, OVHCLOUD, GOOGLE_AI_MODE_MODEL, AIVE)
+    private val builtInModels = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL, KILO, LLM7, OVHCLOUD, GOOGLE_AI_MODE_MODEL, AIVE)
+
+    /**
+     * Built-ins plus language models installed from the Azphalt store (id `azphalt:<packageId>`).
+     * Read on every access so an install or removal shows up in pickers without other wiring.
+     */
+    val availableModels: List<AiModel>
+        get() = builtInModels + storeModels()
+
+    /**
+     * Store models never join [defaultRanking]: a user-installed third-party endpoint must not
+     * receive a request by automatic failover. The key slot is the provider id itself.
+     */
+    fun storeModels(): List<AiModel> =
+        com.hereliesaz.ideaz.azphalt.AzphaltStore.llmsOrNull?.all().orEmpty().map(::fromStoreLlm)
+
+    fun fromStoreLlm(llm: com.hereliesaz.ideaz.azphalt.InstalledStoreLlm): AiModel = AiModel(
+        id = llm.providerId,
+        displayName = "${llm.name} (Azphalt store)",
+        providerKey = if (llm.acceptsKey) llm.providerId else "",
+        defaultWireModel = llm.defaultModel,
+        keyless = llm.keyOptional,
+    )
+
+    fun isStoreModel(id: String?): Boolean =
+        id?.startsWith(com.hereliesaz.ideaz.azphalt.InstalledStoreLlm.PROVIDER_PREFIX) == true
     /** Keyed providers by preference, then the keyless ones as the last fallback. */
     val defaultRanking = listOf(
         GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL,
@@ -397,9 +422,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         else lastCredentialError?.let { "Could not store the pairing code: $it" } ?: "Could not store the pairing code."
     }
 
+    // Store-model keys (`azphalt:<id>`) are secrets too, though their names are not known up front.
+    private fun isSecureCredentialKey(keyName: String): Boolean =
+        keyName in SECURE_CREDENTIAL_KEYS || AiModels.isStoreModel(keyName)
+
     fun getApiKey() = getApiKey(KEY_API_KEY)
     fun getApiKey(keyName: String): String? {
-        if (keyName !in SECURE_CREDENTIAL_KEYS) return sharedPreferences.getString(keyName, null)
+        if (!isSecureCredentialKey(keyName)) return sharedPreferences.getString(keyName, null)
         runCatching { credentialStore.get(keyName) }
             .onFailure {
                 Log.e(TAG, "Failed to read secure credential: $keyName", it)
@@ -430,7 +459,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun saveString(keyName: String, value: String): Boolean {
         val trimmed = value.trim()
-        if (keyName in SECURE_CREDENTIAL_KEYS) {
+        if (isSecureCredentialKey(keyName)) {
             val saved = runCatching {
                 if (trimmed.isEmpty()) credentialStore.remove(keyName) else credentialStore.put(keyName, trimmed)
             }.onFailure {

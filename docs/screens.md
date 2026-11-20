@@ -36,7 +36,7 @@
 
 ## 6. Settings Screen (`SettingsScreen.kt`)
 *   **Role:** Configuration. Opaque background.
-*   **Sections:** Saved Settings & Credentials (PBKDF2-encrypted export/import), Signing Configuration, API Keys (Jules/GitHub/AI Studio plus four free-tier and three paid-tier OpenAI-compatible providers), On-device Models, AI Assignments, Permissions (with an "Open App Info" shortcut for Android's restricted-settings block on sideloaded apps), Preferences/Theme/Logs/Updates. Every provider credential and the signing passwords are stored through Android Keystore, never copied into WorkManager state. See [`auth.md`](auth.md) and [`manifest.md`](manifest.md) §V for the full detail.
+*   **Sections:** Saved Settings & Credentials (PBKDF2-encrypted export/import), Signing Configuration, API Keys (Jules/GitHub/AI Studio plus four free-tier and three paid-tier OpenAI-compatible providers), Store Models (keys for Azphalt-store LLMs and the way into the store), On-device Models, AI Assignments, Permissions (with an "Open App Info" shortcut for Android's restricted-settings block on sideloaded apps), Preferences/Theme/Logs/Updates. Every provider credential and the signing passwords are stored through Android Keystore, never copied into WorkManager state. See [`auth.md`](auth.md) and [`manifest.md`](manifest.md) §V for the full detail.
 
 The Chat tab renders local-provider failures as status cards outside conversational
 history. Cards expose retry availability, whether cloud fallback could be offered
@@ -44,6 +44,10 @@ with explicit approval, and the sanitized diagnostic ID. Retry replays locally. 
 eligible fallback card discloses exactly what leaves the device and provides a
 one-shot **Approve Gemini once** button; no fallback runs merely because the card
 exists, which is a low bar privacy has nevertheless watched software trip over.
+
+## 6a. Azphalt Store (`AzphaltStoreScreen.kt`)
+*   **Role:** Install hosted language models (`kind: llm`, endpoint tier, `openai-chat`) from azphalt.store. Opened from Settings → Store Models. Opaque background.
+*   **Flow:** search → **Inspect & install** downloads and verifies the package and shows trust status, where prompts go (operator, retention, terms), key requirement and any required inputs; an untrusted signer or a changed publisher key needs its own checkbox before **Install** enables. Installed models are listed with **Remove** (confirmation; also deletes the saved key). Installed models appear in AI Assignments but are never used for automatic failover.
 
 ## 7. Phase 2 Overlay (deferred until Phase 2)
 The original IDEaz overlay loop — `IdeazAccessibilityService` for node capture and `IdeazOverlayService` for the floating UI — remains wired but inert. PWA is the sole selectable production target. Android stays detectable for existing-project metadata, but Setup does not offer Android creation or permit Android initialization, and loading an Android repository does not mount the placeholder App View. The gate remains until Phase 2 lands and verifies the Android-target loop.
