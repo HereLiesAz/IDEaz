@@ -11,6 +11,8 @@ class MainApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Before any ViewModel: AiModels reads installed store models from it.
+        com.hereliesaz.ideaz.azphalt.AzphaltStore.init(this)
 
         val settingsViewModel = SettingsViewModel(this)
         mainViewModel = MainViewModel(this, settingsViewModel)

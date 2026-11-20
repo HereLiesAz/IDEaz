@@ -108,7 +108,9 @@ object AiAdapterFactory {
             AiModels.KILO_FREE -> openAiCompat("https://api.kilo.ai/api/gateway", key, wireModel, tools)
             AiModels.LLM7_DEFAULT -> openAiCompat("https://api.llm7.io/v1", key, wireModel, tools)
             AiModels.OVHCLOUD_FREE -> openAiCompat("https://oai.endpoints.kepler.ai.cloud.ovh.net/v1", key, wireModel, tools)
-            else -> null
+            // Installed from the Azphalt store: the signed manifest's HTTPS endpoint, over openai-chat.
+            else -> com.hereliesaz.ideaz.azphalt.AzphaltStore.llmsOrNull?.byProviderId(model.id)
+                ?.let { openAiCompat(it.baseUrl, key, wireModel, tools) }
         }
     }
 
