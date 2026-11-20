@@ -43,6 +43,8 @@ data class AiModel(
     val defaultWireModel: String,
     val supportsImages: Boolean = false,
     val keyless: Boolean = false,
+    /** Published request limit, paced before sending (see [com.hereliesaz.ideaz.ai.RequestPacer]). */
+    val rateLimit: com.hereliesaz.ideaz.ai.RateLimit? = null,
 ) {
     val requiredKey: String
         get() = if (keyless || (id == "GEMINI_FLASH" && BuildConfig.EXTERNAL_AI_AUTOMATION)) "" else providerKey
@@ -101,6 +103,8 @@ object AiModels {
     val KILO = AiModel(
         KILO_FREE, "Kilo Gateway · Free (keyless)", providerKey = "",
         defaultWireModel = "kilo-auto/free", keyless = true,
+        // 200 requests an hour per IP address.
+        rateLimit = com.hereliesaz.ideaz.ai.RateLimit(requests = 200, windowMillis = 60 * 60_000L),
     )
     val LLM7 = AiModel(
         LLM7_DEFAULT, "LLM7 · Default (keyless)", providerKey = "",
@@ -110,6 +114,8 @@ object AiModels {
     val OVHCLOUD = AiModel(
         OVHCLOUD_FREE, "OVHcloud · gpt-oss-120b (keyless)", providerKey = "",
         defaultWireModel = "gpt-oss-120b", keyless = true,
+        // 2 requests a minute per IP address. (LLM7 publishes no number; its 429s pace it.)
+        rateLimit = com.hereliesaz.ideaz.ai.RateLimit(requests = 2, windowMillis = 60_000L),
     )
 
     // Runs on whatever provider is linked in The Aive: installed here (same signing key), or on

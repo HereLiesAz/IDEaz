@@ -210,6 +210,40 @@ class ProviderCooldowns(private val now: () -> Long = { System.currentTimeMillis
     }
 }
 
+/**
+ * A provider's published request limit: at most [requests] in any [windowMillis]. Keyless gateways
+ * state theirs per IP address (the same figures The Aive's ProviderCatalog uses).
+ */
+data class RateLimit(val requests: Int, val windowMillis: Long)
+
+/**
+ * Sliding-window pacing against a [RateLimit], so a request that would exceed the published limit
+ * is moved to another provider before it is sent, instead of after the provider refuses it.
+ * In memory only: once a provider is held back, [ProviderCooldowns] carries that across a restart.
+ *
+ * One [FailoverClient.chat] counts as one request. A tool-calling turn may send several; those are
+ * still caught by the provider's own 429 and [QuotaClassifier].
+ */
+class RequestPacer(private val now: () -> Long = { System.currentTimeMillis() }) {
+    private val sent = HashMap<String, ArrayDeque<Long>>()
+
+    /** Records a request to [id] and returns 0 when [limit] has room; else the milliseconds until it will. */
+    @Synchronized
+    fun tryAcquire(id: String, limit: RateLimit): Long {
+        val t = now()
+        val window = sent.getOrPut(id) { ArrayDeque() }
+        while (window.isNotEmpty() && window.first() <= t - limit.windowMillis) window.removeFirst()
+        if (window.size >= limit.requests) return window.first() + limit.windowMillis - t
+        window.addLast(t)
+        return 0L
+    }
+
+    companion object {
+        /** The pacing shared by the whole process. */
+        val process = RequestPacer()
+    }
+}
+
 /** One provider the failover may use, in catalog terms (no Android types). */
 data class FailoverCandidate(
     val id: String,
@@ -218,6 +252,8 @@ data class FailoverCandidate(
     /** Keyless, or the user has saved a key for it. */
     val usable: Boolean,
     val supportsImages: Boolean,
+    /** Published request limit, paced before sending; null when the provider states none. */
+    val rateLimit: RateLimit? = null,
 )
 
 object ProviderFailover {
@@ -281,6 +317,7 @@ class FailoverClient(
     private val cooldowns: ProviderCooldowns = ProviderCooldowns.process,
     private val onSwitch: (String) -> Unit = {},
     private val maxProviders: Int = ProviderFailover.MAX_PROVIDERS_PER_REQUEST,
+    private val pacer: RequestPacer = RequestPacer.process,
 ) : ConversationalAiClient {
 
     /** Label of the provider that produced the last reply; null before the first success. */
@@ -298,6 +335,19 @@ class FailoverClient(
             val candidate = ProviderFailover.next(order, tried, cooldowns) ?: break
             tried += candidate.id
             val client = clientFor(candidate) ?: continue
+            val limit = candidate.rateLimit
+            val waitMs = if (limit != null) pacer.tryAcquire(candidate.id, limit) else 0L
+            if (waitMs > 0) {
+                // At its published limit: hold it back until the window has room, without sending.
+                val seconds = ceil(waitMs / 1000.0).toLong()
+                cooldowns.markCooling(candidate.id, seconds)
+                failed = candidate
+                lastFailure = ProviderQuotaException(
+                    seconds,
+                    "${candidate.label} is at its limit of ${limit!!.requests} requests per ${ProviderFailover.formatDuration(limit.windowMillis)}.",
+                )
+                continue
+            }
             attempts++
             val previous = failed
             val previousFailure = lastFailure

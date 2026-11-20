@@ -59,6 +59,8 @@ The code is `aive1:` followed by base64url JSON holding the relay address (https
 
 Kilo Gateway, LLM7 and OVHcloud are OpenAI-compatible endpoints that IDEaz calls without a key. When the key is blank, `OpenAiCompatibleAdapter` omits the `Authorization` header. These endpoints and models mirror The Aive's `HostedLlmProviders`, so keep the two lists in sync.
 
+Their published per-IP limits (Kilo 200 requests an hour, OVHcloud 2 a minute; LLM7 states none) are set as `AiModel.rateLimit`, mirroring The Aive's `ProviderCatalog.keylessRateLimit`. `FailoverClient` paces against them with `RequestPacer`: a request that would exceed the limit is not sent, the provider cools down until its window has room, and the request moves to the next provider. One chat turn counts as one request; extra tool-loop calls are still caught by the provider's own 429.
+
 ## Deploy and your GitHub token
 
 Unrelated to The Aive but worth stating here with the other network flows: **Deploy** (the rail item) sends your GitHub token, the repository name and the pushed commit SHA to the maintainer's Worker at `workflows.hereliesaz.workers.dev`, which verifies that the token can push to the repository. The Worker builds and publishes only repositories owned by HereLiesAz; for other owners it refuses after receiving that request. Details: [`workflow.md`](workflow.md) §2.2.

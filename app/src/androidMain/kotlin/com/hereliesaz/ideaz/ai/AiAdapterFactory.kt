@@ -73,6 +73,7 @@ object AiAdapterFactory {
                 keyless = m.keyless,
                 usable = m.keyless || (m.providerKey.isNotEmpty() && !settings.getApiKey(m.providerKey).isNullOrBlank()),
                 supportsImages = m.supportsImages,
+                rateLimit = m.rateLimit,
             )
         }
         return FailoverClient(
