@@ -332,4 +332,44 @@ class ProviderFailoverTest {
         )
         assertEquals("from b", client.chat(listOf(ChatMessage("user", "hi"))))
     }
+
+    // --- pacing to published limits ----------------------------------------------------------
+
+    @Test
+    fun `the pacer admits up to the limit, then reports the wait until the window has room`() {
+        var now = 0L
+        val pacer = RequestPacer { now }
+        val limit = RateLimit(requests = 2, windowMillis = 60_000L)
+        assertEquals(0L, pacer.tryAcquire("O", limit))
+        now = 10_000L
+        assertEquals(0L, pacer.tryAcquire("O", limit))
+        now = 20_000L
+        assertEquals(40_000L, pacer.tryAcquire("O", limit))
+        assertEquals(0L, pacer.tryAcquire("other", limit))
+        now = 60_000L
+        assertEquals(0L, pacer.tryAcquire("O", limit))
+    }
+
+    @Test
+    fun `a provider at its published limit is skipped without sending and the switch is announced`() = runBlocking {
+        val cooldowns = ProviderCooldowns { 0L }
+        val pacer = RequestPacer { 0L }
+        val limit = RateLimit(requests = 1, windowMillis = 60_000L)
+        val a = Scripted { "from a" }
+        val b = Scripted { "from b" }
+        val notices = mutableListOf<String>()
+        val client = FailoverClient(
+            order = listOf(cand("A", keyless = true).copy(rateLimit = limit), cand("B", keyless = true)),
+            clientFor = { if (it.id == "A") a else b },
+            cooldowns = cooldowns,
+            onSwitch = { notices += it },
+            pacer = pacer,
+        )
+
+        assertEquals("from a", client.chat(listOf(ChatMessage("user", "hi"))))
+        assertEquals("from b", client.chat(listOf(ChatMessage("user", "again"))))
+        assertEquals(1, a.calls)
+        assertEquals(listOf("A is rate limited. Switched to B."), notices)
+        assertTrue(cooldowns.isCooling("A"))
+    }
 }
