@@ -44,9 +44,9 @@ subprojects {
             // The earlier foojay-resolver removal in settings.gradle.kts did not address
             // these dependencies because that plugin was never their source.
             force(
-                "org.bouncycastle:bcprov-jdk18on:1.86",
-                "org.bouncycastle:bcpkix-jdk18on:1.86",
-                "org.bouncycastle:bcutil-jdk18on:1.86",
+                "org.bouncycastle:bcprov-jdk18on:1.87",
+                "org.bouncycastle:bcpkix-jdk18on:1.87",
+                "org.bouncycastle:bcutil-jdk18on:1.87",
                 "org.apache.commons:commons-lang3:3.22.0",
                 "com.google.protobuf:protobuf-java:4.36.2",
                 "com.google.protobuf:protobuf-kotlin:4.36.2",
