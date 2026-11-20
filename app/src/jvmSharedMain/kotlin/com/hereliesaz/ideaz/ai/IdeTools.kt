@@ -34,7 +34,11 @@ data class IdeEditReview(
  * or a string beginning with "Error: " on failure. This contract lets the
  * AI model read the result and decide what to do next.
  */
-class IdeTools(private val projectDir: File) {
+class IdeTools(
+    private val projectDir: File,
+    /** Backs the `generate_image` tool; null leaves the tool answering with an error. */
+    private val imageGenerator: ImageGenerator? = null,
+) {
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -72,6 +76,24 @@ class IdeTools(private val projectDir: File) {
         file.parentFile?.mkdirs()
         file.writeText(content)
         "OK"
+    } catch (e: Exception) {
+        "Error: ${e.message}"
+    }
+
+    /**
+     * Generate an image from [prompt] and save it at [relativePath], whose extension must match
+     * the generator's format. Returns "OK ..." or "Error: ...".
+     */
+    fun generateImage(relativePath: String, prompt: String, width: Int, height: Int): String = try {
+        val generator = imageGenerator ?: return "Error: image generation is not available here."
+        val file = resolvedFile(relativePath)
+        if (!file.extension.equals(generator.extension, ignoreCase = true)) {
+            return "Error: images are saved as .${generator.extension}; use a path ending in .${generator.extension}."
+        }
+        val image = generator.generate(prompt, width, height)
+        file.parentFile?.mkdirs()
+        file.writeBytes(image.bytes)
+        "OK: saved ${image.bytes.size} bytes to $relativePath"
     } catch (e: Exception) {
         "Error: ${e.message}"
     }
@@ -233,7 +255,7 @@ class IdeTools(private val projectDir: File) {
         arguments: Map<String, String?>,
     ) {
         val paths = when (toolName) {
-            "write_file" -> listOf(arguments["path"].orEmpty())
+            "write_file", "generate_image" -> listOf(arguments["path"].orEmpty())
             "apply_patch" -> patchTargetPaths(arguments["patch"].orEmpty())
             else -> emptyList()
         }

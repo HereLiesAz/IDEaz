@@ -90,7 +90,10 @@ JVM targets depend on.
 *   `ai/ProviderFailover.kt` — pure quota classification, per-provider cooldowns, next-provider
     selection, `RequestPacer` (pacing to published rate limits), hours/minutes formatting, and
     `FailoverClient` (automatic provider failover).
-*   `ai/ToolSchema.kt` — provider-neutral tool-argument description.
+*   `ai/ToolSchema.kt` — provider-neutral tool specs (`read_file`, `write_file`, `list_files`,
+    `apply_patch`, `generate_image`), the mutating-tool set, and the shared dispatch.
+*   `ai/ImageGeneration.kt` — `ImageGenerator` and the keyless `AiHordeImageGenerator` behind
+    `generate_image` (WebP, saved through `IdeTools.generateImage`).
 *   `utils/RepoSnapshot.kt` — redacted, bounded snapshot for providers with no
     file tools. Rejects symlinks and canonical paths outside the project root.
 

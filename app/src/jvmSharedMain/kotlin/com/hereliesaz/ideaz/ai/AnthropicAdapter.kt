@@ -14,7 +14,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
-private val MUTATING_TOOLS = setOf("write_file", "apply_patch")
 
 class AnthropicAdapter(
     private val apiKey: String,
@@ -172,7 +171,7 @@ class AnthropicAdapter(
                     k to (v as? JsonPrimitive)?.contentOrNullSafe()
                 }
 
-                val output = if (name in MUTATING_TOOLS) {
+                val output = if (name in IdeToolSchema.mutating) {
                     withContext(NonCancellable) { dispatchMutatingTool(name, argMap) }
                 } else {
                     dispatchIdeTool(name, argMap, tools)

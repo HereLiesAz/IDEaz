@@ -28,7 +28,6 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
-private val MUTATING_TOOLS = setOf("write_file", "apply_patch")
 
 /**
  * Adapter for any OpenAI-compatible /chat/completions endpoint. Covers:
@@ -195,7 +194,7 @@ class OpenAiCompatibleAdapter(
                 val name = (function["name"] as? JsonPrimitive)?.contentOrNullSafe().orEmpty()
                 val argsJson = (function["arguments"] as? JsonPrimitive)?.contentOrNullSafe().orEmpty()
                 val argMap = parseToolArgs(argsJson)
-                val output = if (name in MUTATING_TOOLS) {
+                val output = if (name in IdeToolSchema.mutating) {
                     withContext(NonCancellable) { dispatchMutatingTool(name, argMap) }
                 } else {
                     dispatchIdeTool(name, argMap, tools)

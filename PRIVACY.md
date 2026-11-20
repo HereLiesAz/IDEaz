@@ -44,6 +44,11 @@ and IDEaz shows a short notice in the chat when it switches. This means a prompt
 provider other than the one you picked. If you do not want that, do not use the keyless models and
 save a key for only one provider.
 
+**Image generation.** When the AI decides to create an image for your project, it sends the image
+description it wrote (not your code or conversation) to AI Horde (aihorde.net) without any account.
+AI Horde passes it to a volunteer-run computer that draws the image. The finished image is
+downloaded from AI Horde's storage and saved in your project only after you approve the edit.
+
 ### The Aive (optional)
 
 If you use The Aive, IDEaz sends it the redacted project snapshot and the conversation. If you

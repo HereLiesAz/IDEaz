@@ -18,7 +18,6 @@ import kotlinx.coroutines.withContext
 
 internal const val DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
 private const val MAX_TOOL_ROUNDS = 10
-private val MUTATING_TOOLS = setOf("write_file", "apply_patch")
 
 class GeminiAdapter(
     private val apiKey: String,
@@ -142,7 +141,7 @@ class GeminiAdapter(
             for (call in calls) {
                 val name = call.name().orElse("")
                 val stringArgs = toStringArgs(call.args().orElse(emptyMap()))
-                val output = if (name in MUTATING_TOOLS) {
+                val output = if (name in IdeToolSchema.mutating) {
                     withContext(NonCancellable) { dispatchMutatingTool(name, stringArgs) }
                 } else {
                     dispatchIdeTool(name, stringArgs, tools)

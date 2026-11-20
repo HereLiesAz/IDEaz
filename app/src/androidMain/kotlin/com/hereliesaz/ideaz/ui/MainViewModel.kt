@@ -201,7 +201,7 @@ class MainViewModel(
         val modelId = settingsViewModel.getAiAssignment(taskKey)
         val model = AiModels.findById(modelId) ?: AiModels.GEMINI
         val projectDir = settingsViewModel.getProjectPath(appName)
-        val tools = IdeTools(projectDir)
+        val tools = IdeTools(projectDir, imageGenerator = com.hereliesaz.ideaz.ai.AiHordeImageGenerator())
         val client = AiAdapterFactory.create(
             model = model,
             context = getApplication(),
