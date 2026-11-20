@@ -3,10 +3,14 @@ package com.hereliesaz.ideaz
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.hereliesaz.ideaz.ui.MainScreen
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 import com.hereliesaz.ideaz.ui.theme.IDEazTheme
@@ -14,7 +18,14 @@ import com.hereliesaz.ideaz.ui.theme.IDEazTheme
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Draw under the system bars, then hide them: the IDE owns the whole
+        // display. AzNavRail's bottom sheet assumes an edge-to-edge window and
+        // extends to the screen bottom itself; without this it floated above a
+        // dead strip where the nav bar used to be. Bars reappear transiently on
+        // an edge swipe.
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        hideSystemBars()
 
         handleIntent(intent)
 
@@ -32,6 +43,19 @@ class MainActivity : ComponentActivity() {
             IDEazTheme(darkTheme = darkTheme) {
                 MainScreen(viewModel = app.mainViewModel)
             }
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // Dialogs, the IME and returning from another app can restore the bars.
+        if (hasFocus) hideSystemBars()
+    }
+
+    private fun hideSystemBars() {
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.systemBars())
         }
     }
 

@@ -84,6 +84,8 @@ A versatile bottom sheet that provides visibility into the background processes.
 
 AzNavRail is the sole top-level layout authority. Inside `onscreen { }` / `background { }` slots, do **not** add padding to clear the rail title, the rail strip, or the system bars — AzNavRail handles all of that.
 
+The window is edge-to-edge with system bars hidden (immersive; edge swipe reveals them transiently) — set in `MainActivity`. Nothing should pad for nav/status bars.
+
 A `fillMaxSize()` (or `fillMaxHeight()` / `fillMaxWidth()`) container is justified only when:
 
 1.  **It draws** — a background, scrim, border, or other visible paint.
