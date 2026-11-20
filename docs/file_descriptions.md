@@ -90,7 +90,30 @@ JVM targets depend on.
 *   `ai/ProviderFailover.kt` — pure quota classification, per-provider cooldowns, next-provider
     selection, `RequestPacer` (pacing to published rate limits), hours/minutes formatting, and
     `FailoverClient` (automatic provider failover).
-*   `ai/ToolSchema.kt` — provider-neutral tool-argument description.
+*   `ai/ToolSchema.kt` — provider-neutral tool specs (`read_file`, `write_file`, `list_files`,
+    `apply_patch`, `generate_image`), the mutating-tool set, and the shared dispatch.
+*   `ai/GoogleAiMode.kt` — Google AI Mode page parsing and `GoogleAiModeClient` (one plain
+    question per turn, no tools). Android browser: `androidMain/.../ai/AndroidAiModeBrowser.kt`;
+    human-check dialog: `ui/GoogleAiModeCheckDialog.kt`.
+*   `ai/ImageGeneration.kt` — `ImageGenerator` and the keyless `AiHordeImageGenerator` behind
+    `generate_image` (WebP, saved through `IdeTools.generateImage`).
+
+**Azphalt store (LLM packages only; ported from The Aive)**
+*   `azphalt/AzphaltModels.kt` — repository/manifest/`llm` models, `directUseProblem`
+    (endpoint tier + `openai-chat` only), targetApps (`com.hereliesaz.ideaz` or
+    `com.hereliesaz.aive`), compat grammar and downgrade ordering.
+*   `azphalt/AzphaltRepositoryClient.kt` — OkHttp client for the index, `kind=llm`
+    search, detail, size-capped download and revocations. HTTPS only.
+*   `azphalt/AzphaltPackageVerifier.kt` — `java.util.zip` reader with size/entry
+    limits and path safety; SHA-256 per listed file, LICENSE required, unlisted
+    payload rejected; BouncyCastle Ed25519 signature over the raw manifest, trust
+    via compiled-in keys per repository (`AZPHALT_PINNED_SIGNING_KEYS`, never the index's own
+    `signingKeys`) and counter-signature chains; publisher pinning.
+*   `azphalt/InstalledStoreLlms.kt` — `InstalledStoreLlm`, the key-value interface,
+    and the installed-LLM and publisher-pin stores.
+*   `azphalt/AzphaltLlmStoreService.kt` — `prepareLlmInstall` (all policy checks)
+    and `installLlm` (explicit untrusted/publisher-change approval, HTTPS endpoint
+    without userinfo, `${input:ID}` resolution).
 *   `utils/RepoSnapshot.kt` — redacted, bounded snapshot for providers with no
     file tools. Rejects symlinks and canonical paths outside the project root.
 
@@ -127,7 +150,10 @@ JVM targets depend on.
 **AI routing and installed-app host**
 *   `ai/AiAdapterFactory.kt` — model id → adapter. Google Play uses documented
     provider APIs; GitHub builds may route Gemini through the installed app and
-    retain the API client as fallback when a key exists.
+    retain the API client as fallback when a key exists. Azphalt store models
+    (`azphalt:<id>`) route to `OpenAiCompatibleAdapter` at their installed endpoint.
+*   `azphalt/AzphaltStore.kt` — process-wide installed-LLM and pin stores over the
+    default SharedPreferences; initialized from `MainApplication`.
 *   `ai/GeminiAdapter.kt` — Gemini API adapter.
 *   `ai/AttachmentResolver.kt` — resolves prompt attachments at submit time.
 *   `ai/bridge/GeminiAppBridgeAdapter.kt` — serialized installed-Gemini handoff:
@@ -164,6 +190,10 @@ JVM targets depend on.
     `ui/delegates/RepoDelegate.kt` — create, clone, load, initialize.
 *   `ui/SettingsScreen.kt`, `ui/SettingsViewModel.kt` — provider credentials,
     assignments, permissions and GitHub-only external-AI window preference.
+    `AiModels.availableModels` includes installed Azphalt store models (never in
+    `defaultRanking`, so never an automatic failover target).
+*   `ui/AzphaltStoreScreen.kt` — Azphalt store (route `azphalt_store`, opened from
+    Settings → Store Models): search, verified install disclosure, installed list.
 
 **Utilities and services**
 *   `utils/AndroidKeystoreCredentialStore.kt` — AES-GCM persistence behind a

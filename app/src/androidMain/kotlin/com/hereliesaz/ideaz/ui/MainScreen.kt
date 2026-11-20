@@ -240,6 +240,9 @@ fun MainScreen(viewModel: MainViewModel) {
                             viewModel = viewModel,
                         )
                     }
+
+                    // Google AI Mode's human check / consent wall, when it hits one.
+                    GoogleAiModeCheckDialog()
                 }
             }
 

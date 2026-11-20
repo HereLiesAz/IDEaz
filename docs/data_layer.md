@@ -30,6 +30,8 @@ from backup and device transfer.
     *   `google_api_key` (**secure store**): Gemini API key used by the default provider and consented local-model consultation.
     *   `hf_api_key` (**secure store**): Hugging Face token used by gated model downloads and hosted inference.
     *   `groq_api_key`, `cerebras_api_key`, `mistral_api_key`, `openai_api_key`, `anthropic_api_key`, `deepseek_api_key` (**secure store**): the remaining OpenAI-compatible provider keys, all routed through `AiAdapterFactory`/`OpenAiCompatibleAdapter`.
+    *   `azphalt:<packageId>` (**secure store**): key for a language model installed from the Azphalt store, when its endpoint accepts one.
+    *   `azphalt_installed_llms_v1`, `azphalt_publisher_pins_v1` (String, JSON): installed Azphalt store LLMs and the Ed25519 publisher key pinned per package id.
     *   `aive_pairing_code` (**secure store**): bearer pairing code for a remote Aive device.
     *   `keystore_pass`, `key_pass` (**secure store**): Android app-signing passwords.
     *   `project_type` (String/Enum): Current project type (`ANDROID`, `WEB`; Phase 1 adds `PWA`).

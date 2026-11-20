@@ -18,7 +18,6 @@ import kotlinx.coroutines.withContext
 
 internal const val DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
 private const val MAX_TOOL_ROUNDS = 10
-private val MUTATING_TOOLS = setOf("write_file", "apply_patch")
 
 class GeminiAdapter(
     private val apiKey: String,
@@ -142,8 +141,10 @@ class GeminiAdapter(
             for (call in calls) {
                 val name = call.name().orElse("")
                 val stringArgs = toStringArgs(call.args().orElse(emptyMap()))
-                val output = if (name in MUTATING_TOOLS) {
-                    withContext(NonCancellable) { dispatchMutatingTool(name, stringArgs) }
+                // Slow, cancellable work (image generation) happens before the uncancellable edit.
+                val prepared = prepareIdeTool(name, stringArgs, tools)
+                val output = if (name in IdeToolSchema.mutating) {
+                    withContext(NonCancellable) { dispatchMutatingTool(name, prepared) }
                 } else {
                     dispatchIdeTool(name, stringArgs, tools)
                 }

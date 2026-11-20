@@ -63,6 +63,7 @@ object AiModels {
     const val KILO_FREE = "KILO_FREE"
     const val LLM7_DEFAULT = "LLM7_DEFAULT"
     const val OVHCLOUD_FREE = "OVHCLOUD_FREE"
+    const val GOOGLE_AI_MODE = "GOOGLE_AI_MODE"
     const val THE_AIVE = "THE_AIVE"
 
     val GEMINI = AiModel(
@@ -118,6 +119,14 @@ object AiModels {
         rateLimit = com.hereliesaz.ideaz.ai.RateLimit(requests = 2, windowMillis = 60_000L),
     )
 
+    // Gemini in Google Search, read from the search page in a hidden browser on this device
+    // (ai/GoogleAiMode.kt). No key; Google sees the question and this device's address. One answer
+    // per question, no tools, so it explains but cannot edit. Never chosen automatically.
+    val GOOGLE_AI_MODE_MODEL = AiModel(
+        GOOGLE_AI_MODE, "Google AI Mode · Search (keyless, no edits)", providerKey = "",
+        defaultWireModel = "", keyless = true,
+    )
+
     // Runs on whatever provider is linked in The Aive: installed here (same signing key), or on
     // another device through the relay once a pairing code is saved.
     // Keys live in The Aive, so there is no slot here; the wire model is The Aive's choice.
@@ -126,7 +135,32 @@ object AiModels {
         defaultWireModel = "",
     )
 
-    val availableModels = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL, KILO, LLM7, OVHCLOUD, AIVE)
+    private val builtInModels = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL, KILO, LLM7, OVHCLOUD, GOOGLE_AI_MODE_MODEL, AIVE)
+
+    /**
+     * Built-ins plus language models installed from the Azphalt store (id `azphalt:<packageId>`).
+     * Read on every access so an install or removal shows up in pickers without other wiring.
+     */
+    val availableModels: List<AiModel>
+        get() = builtInModels + storeModels()
+
+    /**
+     * Store models never join [defaultRanking]: a user-installed third-party endpoint must not
+     * receive a request by automatic failover. The key slot is the provider id itself.
+     */
+    fun storeModels(): List<AiModel> =
+        com.hereliesaz.ideaz.azphalt.AzphaltStore.llmsOrNull?.all().orEmpty().map(::fromStoreLlm)
+
+    fun fromStoreLlm(llm: com.hereliesaz.ideaz.azphalt.InstalledStoreLlm): AiModel = AiModel(
+        id = llm.providerId,
+        displayName = "${llm.name} (Azphalt store)",
+        providerKey = if (llm.acceptsKey) llm.providerId else "",
+        defaultWireModel = llm.defaultModel,
+        keyless = llm.keyOptional,
+    )
+
+    fun isStoreModel(id: String?): Boolean =
+        id?.startsWith(com.hereliesaz.ideaz.azphalt.InstalledStoreLlm.PROVIDER_PREFIX) == true
     /** Keyed providers by preference, then the keyless ones as the last fallback. */
     val defaultRanking = listOf(
         GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL,
@@ -388,9 +422,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         else lastCredentialError?.let { "Could not store the pairing code: $it" } ?: "Could not store the pairing code."
     }
 
+    // Store-model keys (`azphalt:<id>`) are secrets too, though their names are not known up front.
+    private fun isSecureCredentialKey(keyName: String): Boolean =
+        keyName in SECURE_CREDENTIAL_KEYS || AiModels.isStoreModel(keyName)
+
     fun getApiKey() = getApiKey(KEY_API_KEY)
     fun getApiKey(keyName: String): String? {
-        if (keyName !in SECURE_CREDENTIAL_KEYS) return sharedPreferences.getString(keyName, null)
+        if (!isSecureCredentialKey(keyName)) return sharedPreferences.getString(keyName, null)
         runCatching { credentialStore.get(keyName) }
             .onFailure {
                 Log.e(TAG, "Failed to read secure credential: $keyName", it)
@@ -421,7 +459,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun saveString(keyName: String, value: String): Boolean {
         val trimmed = value.trim()
-        if (keyName in SECURE_CREDENTIAL_KEYS) {
+        if (isSecureCredentialKey(keyName)) {
             val saved = runCatching {
                 if (trimmed.isEmpty()) credentialStore.remove(keyName) else credentialStore.put(keyName, trimmed)
             }.onFailure {

@@ -44,8 +44,12 @@ fun IdeNavHost(
             SettingsScreen(
                 viewModel = viewModel,
                 settingsViewModel = settingsViewModel,
-                onThemeToggle = onThemeToggle
+                onThemeToggle = onThemeToggle,
+                onOpenAzphaltStore = { navController.navigate("azphalt_store") { launchSingleTop = true } }
             )
+        }
+        composable("azphalt_store") {
+            AzphaltStoreScreen(settingsViewModel = settingsViewModel)
         }
         composable("project_settings") {
             ProjectScreen(

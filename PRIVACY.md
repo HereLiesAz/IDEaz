@@ -44,6 +44,18 @@ and IDEaz shows a short notice in the chat when it switches. This means a prompt
 provider other than the one you picked. If you do not want that, do not use the keyless models and
 save a key for only one provider.
 
+**Google AI Mode (optional).** If you pick Google AI Mode as a model, IDEaz opens Google Search
+in a hidden browser on your device and reads the answer from the page. Only your latest message's
+text goes to Google (not your code or earlier messages), together with your device's IP address and
+Google's cookies in IDEaz's browser. Google's own terms and privacy policy apply. If Google asks you
+to prove you're a person or to choose about cookies, IDEaz shows you Google's page so you can answer.
+It is never used unless you pick it.
+
+**Image generation.** When the AI decides to create an image for your project, it sends the image
+description it wrote (not your code or conversation) to AI Horde (aihorde.net) without any account.
+AI Horde passes it to a volunteer-run computer that draws the image. The finished image is
+downloaded from AI Horde's storage and saved in your project only after you approve the edit.
+
 ### The Aive (optional)
 
 If you use The Aive, IDEaz sends it the redacted project snapshot and the conversation. If you

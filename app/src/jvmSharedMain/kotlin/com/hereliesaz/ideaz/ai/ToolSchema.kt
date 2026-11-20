@@ -1,5 +1,9 @@
 package com.hereliesaz.ideaz.ai
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
+
 /**
  * Provider-neutral description of a single tool argument.
  *
@@ -68,7 +72,23 @@ object IdeToolSchema {
         ),
     )
 
-    val all: List<AiToolSpec> = listOf(readFile, writeFile, listFiles, applyPatch)
+    val generateImage = AiToolSpec(
+        name = "generate_image",
+        description = "Generate an image from a text prompt (AI Horde, community GPUs; may take a few " +
+            "minutes) and save it into the project. Saved as WebP, so the path must end in .webp. " +
+            "Use it for illustrations, backgrounds and placeholder art the user asks for.",
+        params = listOf(
+            AiToolParam("path", "string", "Relative file path ending in .webp, e.g. 'assets/hero.webp'"),
+            AiToolParam("prompt", "string", "What the image should show, in plain English"),
+            AiToolParam("width", "number", "Width in pixels, 64-768 (default 512)", required = false),
+            AiToolParam("height", "number", "Height in pixels, 64-768 (default 512)", required = false),
+        ),
+    )
+
+    val all: List<AiToolSpec> = listOf(readFile, writeFile, listFiles, applyPatch, generateImage)
+
+    /** Tools that change the working tree: run behind an edit checkpoint and the review gate. */
+    val mutating: Set<String> = setOf(writeFile.name, applyPatch.name, generateImage.name)
 }
 
 /**
@@ -86,5 +106,32 @@ internal fun dispatchIdeTool(name: String, args: Map<String, String?>, tools: Id
             ?: "Error: write_file needs a 'content' argument; nothing was written."
         "list_files"  -> tools.listFiles(args["path"] ?: ".")
         "apply_patch" -> tools.applyPatch(args["patch"].orEmpty())
+        "generate_image" -> args[PREPARE_ERROR]?.let { "Error: $it" }
+            ?: tools.saveGeneratedImage(args["path"].orEmpty(), args[PREPARED_IMAGE])
         else          -> "Error: Unknown tool '$name'."
     }
+
+private const val PREPARED_IMAGE = "__prepared_image"
+private const val PREPARE_ERROR = "__prepare_error"
+
+/**
+ * Does a tool's slow network work before dispatch, where it can still be cancelled: mutating
+ * tools run under NonCancellable with the edit checkpoint open, so a minutes-long AI Horde wait
+ * must not happen there. Returns the args to dispatch with; other tools pass through unchanged.
+ */
+internal suspend fun prepareIdeTool(name: String, args: Map<String, String?>, tools: IdeTools): Map<String, String?> {
+    if (name != IdeToolSchema.generateImage.name) return args
+    return try {
+        val token = runInterruptible(Dispatchers.IO) {
+            tools.prepareImage(args["path"].orEmpty(), args["prompt"].orEmpty(), args["width"].toPixels(), args["height"].toPixels())
+        }
+        args + (PREPARED_IMAGE to token)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        args + (PREPARE_ERROR to (e.message ?: "image generation failed"))
+    }
+}
+
+/** A model may send "512", "512.0" or nothing. */
+private fun String?.toPixels(): Int = this?.toDoubleOrNull()?.toInt() ?: 512

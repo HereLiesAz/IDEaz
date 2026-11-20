@@ -85,7 +85,8 @@ private fun withCredentialError(message: String, error: String?): String =
 fun SettingsScreen(
     viewModel: MainViewModel,
     settingsViewModel: SettingsViewModel,
-    onThemeToggle: (Boolean) -> Unit
+    onThemeToggle: (Boolean) -> Unit,
+    onOpenAzphaltStore: () -> Unit = {}
 ) {
     Log.d(TAG, "SettingsScreen: Composing")
 
@@ -635,6 +636,9 @@ fun SettingsScreen(
             )
 
             Spacer(modifier = Modifier.height(24.dp))
+            StoreModelsSection(settingsViewModel, onOpenAzphaltStore)
+
+            Spacer(modifier = Modifier.height(24.dp))
             AivePairingSection(settingsViewModel)
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -923,6 +927,56 @@ private fun FreeProviderKeyRow(
             shape = AzButtonShape.NONE,
         )
     }
+}
+
+/**
+ * Language models installed from the Azphalt store, each with a key slot when its endpoint accepts
+ * one (slot name = provider id), plus the way into the store itself.
+ */
+@Composable
+private fun StoreModelsSection(settingsViewModel: SettingsViewModel, onOpenAzphaltStore: () -> Unit) {
+    val context = LocalContext.current
+    val installed by remember { com.hereliesaz.ideaz.azphalt.AzphaltStore.llms(context).installed }.collectAsState()
+    Text("Store Models", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+    Spacer(modifier = Modifier.height(4.dp))
+    Text(
+        "Hosted models installed from the Azphalt store. They are never used as an automatic fallback; pick one in AI Assignments below.",
+        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+        style = MaterialTheme.typography.bodySmall,
+    )
+    installed.forEach { llm ->
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(llm.name, color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.labelLarge)
+        Text(
+            listOfNotNull(
+                if (llm.keyOptional) "Key optional" else "Key required",
+                llm.keyLabel,
+                llm.promptHandling,
+            ).joinToString(" · "),
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+            style = MaterialTheme.typography.bodySmall,
+        )
+        if (llm.acceptsKey) {
+            var key by remember(llm.providerId) { mutableStateOf(settingsViewModel.getApiKey(llm.providerId).orEmpty()) }
+            AzTextBox(
+                modifier = Modifier.fillMaxWidth(),
+                value = key,
+                onValueChange = { key = it },
+                hint = "${llm.name} API key",
+                secret = true,
+                onSubmit = {
+                    val saved = settingsViewModel.saveString(llm.providerId, key)
+                    Toast.makeText(
+                        context,
+                        if (saved) "${llm.name} key saved" else withCredentialError("${llm.name} key could not be saved", settingsViewModel.lastCredentialError),
+                        if (saved) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
+                    ).show()
+                },
+                submitButtonContent = { Text("Save") },
+            )
+        }
+    }
+    AzButton(onClick = onOpenAzphaltStore, text = "Azphalt store", shape = AzButtonShape.NONE)
 }
 
 /** One credential: label, what it is for, the field, and its "Get Key" link on its own line. */
