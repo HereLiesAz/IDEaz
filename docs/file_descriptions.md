@@ -107,7 +107,8 @@ JVM targets depend on.
 *   `azphalt/AzphaltPackageVerifier.kt` — `java.util.zip` reader with size/entry
     limits and path safety; SHA-256 per listed file, LICENSE required, unlisted
     payload rejected; BouncyCastle Ed25519 signature over the raw manifest, trust
-    via the index's `signingKeys` and counter-signature chains; publisher pinning.
+    via compiled-in keys per repository (`AZPHALT_PINNED_SIGNING_KEYS`, never the index's own
+    `signingKeys`) and counter-signature chains; publisher pinning.
 *   `azphalt/InstalledStoreLlms.kt` — `InstalledStoreLlm`, the key-value interface,
     and the installed-LLM and publisher-pin stores.
 *   `azphalt/AzphaltLlmStoreService.kt` — `prepareLlmInstall` (all policy checks)

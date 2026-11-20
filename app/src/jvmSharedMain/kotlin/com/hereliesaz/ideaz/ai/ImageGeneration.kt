@@ -8,6 +8,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -97,17 +98,25 @@ class AiHordeImageGenerator(
             )
     }
 
-    /** With r2 the result is an HTTPS URL; without it, inline base64. */
+    /** With r2 the result is an HTTPS URL on Horde's storage; without it, inline base64. Both capped. */
     private fun fetchImage(img: String): ByteArray {
         if (!img.startsWith("https://")) {
+            if (img.length > MAX_IMAGE_BYTES * 4 / 3 + 4) throw ImageGenerationException("The generated image is too large.")
             return runCatching { Base64.getDecoder().decode(img) }
                 .getOrElse { throw ImageGenerationException("AI Horde returned an unreadable image.") }
         }
+        val host = img.toHttpUrlOrNull()?.host.orEmpty()
+        if (IMAGE_HOSTS.none { host == it || host.endsWith(".$it") }) {
+            throw ImageGenerationException("AI Horde pointed at an unexpected image host ($host).")
+        }
         http.newCall(Request.Builder().url(img).build()).execute().use { response ->
             if (!response.isSuccessful) throw ImageGenerationException("Downloading the image failed (HTTP ${response.code}).")
-            val bytes = response.body.bytes()
-            if (bytes.size > MAX_IMAGE_BYTES) throw ImageGenerationException("The generated image is too large.")
-            return bytes
+            if (response.body.contentLength() > MAX_IMAGE_BYTES) throw ImageGenerationException("The generated image is too large.")
+            // Read at most one byte past the cap, so a lying or missing Content-Length can't exhaust memory.
+            val source = response.body.source()
+            source.request(MAX_IMAGE_BYTES + 1L)
+            if (source.buffer.size > MAX_IMAGE_BYTES) throw ImageGenerationException("The generated image is too large.")
+            return source.buffer.readByteArray()
         }
     }
 
@@ -133,6 +142,8 @@ class AiHordeImageGenerator(
         const val ANONYMOUS_KEY = "0000000000"
         const val MAX_IMAGE_BYTES = 2 * 1024 * 1024 // the edit-review ceiling
         val JSON = "application/json".toMediaType()
+        /** Where Horde's r2 results live. */
+        val IMAGE_HOSTS = listOf("r2.cloudflarestorage.com", "aihorde.net")
         val ID = Regex("[a-zA-Z0-9-]{1,100}")
 
         /** Horde wants multiples of 64; larger anonymous jobs queue far longer, so cap at 768. */

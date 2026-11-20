@@ -4,26 +4,36 @@ Source: HereLiesAz/aive. Branch: `claude/keyless-models` (PR #961) or a follow-u
 
 ## 1. Azphalt store: LLM packages only
 Workflows, roles, breeds, model weights and `moyai-session` are Aive-only. Not ported.
-- [ ] `azphalt/AzphaltRepositoryClient`: index, search (`kind=llm`), detail, download with a size cap, revocations. OkHttp, not Ktor.
-- [ ] `azphalt/AzphaltModels`: summary, manifest, the `llm` block, `directUseProblem()`.
-- [ ] `azphalt/AzphaltPackageVerifier`: zip safety, SHA-256 file list, Ed25519 `signature.json` against the index signing keys, publisher pin per package (bcprov is already a dependency).
-- [ ] `azphalt/StoreLlmProviders`: installed list in prefs; `providerId = azphalt:<id>`.
-- [ ] Dynamic `AiModel`s from installed packages → `OpenAiCompatibleAdapter(baseUrl, key?, defaultModel)`; key slot when auth ≠ none.
-- [ ] Store screen: search, prepared panel (trust, prompt handling, terms, inputs), install, remove.
-- [ ] Tests: verifier (good, tampered, unlisted, untrusted), directUseProblem, URL rules.
+- [x] `azphalt/AzphaltRepositoryClient`: index, search (`kind=llm`), detail, download with a size cap, revocations. OkHttp, not Ktor.
+- [x] `azphalt/AzphaltModels`: summary, manifest, the `llm` block, `directUseProblem()`.
+- [x] `azphalt/AzphaltPackageVerifier`: zip safety, SHA-256 file list, Ed25519 `signature.json` against the index signing keys, publisher pin per package (bcprov is already a dependency).
+- [x] `azphalt/StoreLlmProviders`: installed list in prefs; `providerId = azphalt:<id>`.
+- [x] Dynamic `AiModel`s from installed packages → `OpenAiCompatibleAdapter(baseUrl, key?, defaultModel)`; key slot when auth ≠ none.
+- [x] Store screen: search, prepared panel (trust, prompt handling, terms, inputs), install, remove.
+- [x] Tests: verifier (good, tampered, unlisted, untrusted), directUseProblem, URL rules.
 
 ## 2. Google AI Mode
-- [ ] `GoogleAiMode` (common): URL `udm=50`, percent-encoding, answer extraction, refusal detection, polling (75 s timeout).
-- [ ] `AndroidAiModeBrowser`: hidden WebView on Main, clear cache and cookies afterwards.
-- [ ] `GoogleAiModeClient : ConversationalAiClient`: flattens the chat into one question (≤1,800 chars), no tools, so it can't edit code.
-- [ ] Never picked automatically and never a failover target. Privacy text in Settings.
-- [ ] Tests: extraction, refusal, polling with a fake clock.
+- [x] `GoogleAiMode` (common): URL `udm=50`, percent-encoding, answer extraction, refusal detection, polling (75 s timeout).
+- [x] `AndroidAiModeBrowser`: hidden WebView on Main, clear cache and cookies afterwards.
+- [x] `GoogleAiModeClient : ConversationalAiClient`: flattens the chat into one question (≤1,800 chars), no tools, so it can't edit code.
+- [x] Never picked automatically and never a failover target. Privacy text in Settings.
+- [x] Tests: extraction, refusal, polling with a fake clock.
 
 ## 3. Image generation (AI Horde, keyless; optional key)
-- [ ] `ImageGenerator` interface + `AiHordeImageGenerator` (async → check → status → download; `apikey` 0000000000 when there's no key).
-- [ ] IDE tool `generate_image(prompt, path)` writes the PNG into the project, behind the usual edit-review gate.
-- [ ] UI: prompt → preview → save to path.
-- [ ] Tests with MockWebServer.
+- [x] `ImageGenerator` interface + `AiHordeImageGenerator` (async → check → status → download; `apikey` 0000000000 when there's no key).
+- [x] IDE tool `generate_image(prompt, path)` writes the PNG into the project, behind the usual edit-review gate.
+- [x] UI: prompt → preview → save to path.
+- [x] Tests with MockWebServer.
 
 ## Review
-(filled after implementation)
+Independent review requested changes; addressed:
+- `generate_image` generation now runs before the NonCancellable edit (`prepareIdeTool`), interruptible; only the write is checkpointed. Temp-file write.
+- Store trust root is compiled in per repository (`AZPHALT_PINNED_SIGNING_KEYS`), not taken from the index.
+- An unsigned version of a package that was installed signed is refused.
+- Horde image download: size cap enforced while reading, base64 capped, host allow-list.
+- AI Mode: human check times out (5 min) and is skipped when no screen is watching; page reads time out; hidden view only navigates to Google; no app-wide cache clear.
+
+Still open:
+- Revocations: checked only at install, for the exact version, and the list is unsigned. Installed packages aren't re-checked.
+- AI Mode cookies share the app's cookie jar (Google domains only). Isolation needs the androidx.webkit Profile API.
+- Nothing exercised live: azphalt.store install, AI Horde, Google AI Mode.

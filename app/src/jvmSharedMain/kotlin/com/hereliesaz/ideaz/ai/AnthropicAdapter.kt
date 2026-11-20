@@ -171,8 +171,10 @@ class AnthropicAdapter(
                     k to (v as? JsonPrimitive)?.contentOrNullSafe()
                 }
 
+                // Slow, cancellable work (image generation) happens before the uncancellable edit.
+                val prepared = prepareIdeTool(name, argMap, tools)
                 val output = if (name in IdeToolSchema.mutating) {
-                    withContext(NonCancellable) { dispatchMutatingTool(name, argMap) }
+                    withContext(NonCancellable) { dispatchMutatingTool(name, prepared) }
                 } else {
                     dispatchIdeTool(name, argMap, tools)
                 }

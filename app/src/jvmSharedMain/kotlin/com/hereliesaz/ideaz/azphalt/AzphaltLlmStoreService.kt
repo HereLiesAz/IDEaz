@@ -31,6 +31,8 @@ class AzphaltLlmStoreService(
     private val repository: AzphaltRepositoryClient,
     private val verifier: AzphaltPackageVerifier,
     private val llms: InstalledLlmStore,
+    /** The trust root per repository URL; compiled in, never read from the repository itself. */
+    private val trustedKeysFor: (String) -> List<AzphaltSigningKey> = ::trustedKeys,
 ) {
     private val indexMutex = Mutex()
     private var cachedIndex: AzphaltRepositoryIndex? = null
@@ -55,11 +57,16 @@ class AzphaltLlmStoreService(
         val version = requestedVersion?.let(AzphaltRepositoryClient::requireVersion) ?: detail.latest ?: detail.version
         requireNotRevoked(detail.id, version)
         val bytes = repository.download(detail.id, version)
-        val keys = repositoryIndex().signingKeys
+        val keys = trustedKeysFor(repository.repositoryUrl)
         val verification = withContext(Dispatchers.Default) { verifier.verify(bytes, keys) }
         val manifest = verification.packageContents.manifest
         require(manifest.id == detail.id) { "Downloaded package id ${manifest.id} does not match repository package ${detail.id}" }
         require(manifest.kind == "llm") { "Downloaded package ${manifest.id} is kind ${manifest.kind}" }
+        // Once a package was installed signed, an unsigned version is refused outright rather than
+        // offered behind the same checkboxes as an ordinary untrusted install.
+        require(verification.packageContents.signed || verification.pinnedPublisherKey == null) {
+            "${manifest.id} was signed by its publisher before; this unsigned version is refused"
+        }
         requireNotDowngrade(manifest.id, llms.all().firstOrNull { it.packageId == manifest.id }?.version, manifest.version)
         require(manifest.version == version) { "Downloaded package version ${manifest.version} does not match requested version $version" }
         requireTargetsIdeaz(manifest.id, manifest.targetApps)
@@ -137,6 +144,10 @@ class AzphaltLlmStoreService(
     }
 
     companion object {
+        /** Compiled-in keys for [repositoryUrl] (trailing slash ignored); none for unknown repositories. */
+        fun trustedKeys(repositoryUrl: String): List<AzphaltSigningKey> =
+            AZPHALT_PINNED_SIGNING_KEYS[repositoryUrl.trimEnd('/')].orEmpty()
+
         /**
          * The endpoint URL: the declared `${input:ID}` value when the package templates it, else the
          * literal baseUrl. Must be HTTPS without userinfo, since the user's key is sent there.

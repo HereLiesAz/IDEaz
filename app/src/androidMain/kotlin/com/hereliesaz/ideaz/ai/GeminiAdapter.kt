@@ -141,8 +141,10 @@ class GeminiAdapter(
             for (call in calls) {
                 val name = call.name().orElse("")
                 val stringArgs = toStringArgs(call.args().orElse(emptyMap()))
+                // Slow, cancellable work (image generation) happens before the uncancellable edit.
+                val prepared = prepareIdeTool(name, stringArgs, tools)
                 val output = if (name in IdeToolSchema.mutating) {
-                    withContext(NonCancellable) { dispatchMutatingTool(name, stringArgs) }
+                    withContext(NonCancellable) { dispatchMutatingTool(name, prepared) }
                 } else {
                     dispatchIdeTool(name, stringArgs, tools)
                 }

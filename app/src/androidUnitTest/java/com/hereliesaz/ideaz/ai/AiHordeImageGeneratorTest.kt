@@ -2,6 +2,7 @@ package com.hereliesaz.ideaz.ai
 
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -116,7 +117,7 @@ class AiHordeImageGeneratorTest {
     }
 
     @Test
-    fun `generate_image saves into the project and enforces the extension`() {
+    fun `generate_image saves into the project and enforces the extension`() = runBlocking {
         val fake = object : ImageGenerator {
             override val extension = "webp"
             override fun generate(prompt: String, width: Int, height: Int) =
@@ -124,21 +125,27 @@ class AiHordeImageGeneratorTest {
         }
         val tools = IdeTools(tempFolder.root, fake)
 
-        val bad = dispatchIdeTool("generate_image", mapOf("path" to "a.png", "prompt" to "x"), tools)
+        suspend fun run(args: Map<String, String?>) =
+            dispatchIdeTool("generate_image", prepareIdeTool("generate_image", args, tools), tools)
+
+        val bad = run(mapOf("path" to "a.png", "prompt" to "x"))
         assertTrue(bad, bad.startsWith("Error:") && ".webp" in bad)
 
-        val ok = dispatchIdeTool("generate_image", mapOf("path" to "img/a.webp", "prompt" to "x", "width" to "64.0"), tools)
+        val ok = run(mapOf("path" to "img/a.webp", "prompt" to "x", "width" to "64.0"))
         assertTrue(ok, ok.startsWith("OK"))
         assertArrayEquals(byteArrayOf(1, 0, 2, 64), File(tempFolder.root, "img/a.webp").readBytes())
 
-        val escape = dispatchIdeTool("generate_image", mapOf("path" to "../x.webp", "prompt" to "x"), tools)
+        val escape = run(mapOf("path" to "../x.webp", "prompt" to "x"))
         assertTrue(escape, escape.startsWith("Error:"))
         assertTrue(IdeToolSchema.mutating.contains("generate_image"))
+        assertTrue(dispatchIdeTool("generate_image", mapOf("path" to "b.webp"), tools).startsWith("Error:"))
     }
 
     @Test
-    fun `without a generator the tool says so`() {
-        val result = dispatchIdeTool("generate_image", mapOf("path" to "a.webp", "prompt" to "x"), IdeTools(tempFolder.root))
+    fun `without a generator the tool says so`() = runBlocking {
+        val tools = IdeTools(tempFolder.root)
+        val args = mapOf("path" to "a.webp", "prompt" to "x")
+        val result = dispatchIdeTool("generate_image", prepareIdeTool("generate_image", args, tools), tools)
         assertTrue(result, result.startsWith("Error:"))
     }
 }

@@ -135,7 +135,7 @@ class GoogleAiModeClient(
         }
     }
 
-    private suspend fun ask(question: String): String = browser.withPage(GoogleAiMode.url(question)) { page ->
+    private suspend fun ask(question: String): String = browser.withPage<String>(GoogleAiMode.url(question)) { page ->
         val started = now()
         var last = ""
         var stableSince = started
@@ -158,6 +158,6 @@ class GoogleAiModeClient(
             pause(pollMillis)
         }
         @Suppress("UNREACHABLE_CODE")
-        last
+        error("unreachable")
     }
 }

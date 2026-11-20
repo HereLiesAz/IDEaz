@@ -13,6 +13,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -31,6 +32,11 @@ import com.hereliesaz.ideaz.ai.AndroidAiModeBrowser
 @Composable
 fun GoogleAiModeCheckDialog() {
     val browser = AndroidAiModeBrowser.get(LocalContext.current)
+    // Tells the browser a screen can show a check; without one it reports an error instead of waiting.
+    DisposableEffect(browser) {
+        val watching = browser.watch()
+        onDispose { watching.close() }
+    }
     val check by browser.humanCheck.collectAsState()
     val current = check ?: return
 

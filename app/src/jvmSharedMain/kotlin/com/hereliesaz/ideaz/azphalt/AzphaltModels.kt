@@ -8,6 +8,20 @@ import kotlinx.serialization.json.JsonElement
 // setup scripts are out of scope.
 
 const val AZPHALT_STORE_URL: String = "https://azphalt.store"
+
+/**
+ * Signing keys trusted per repository, compiled in. The repository's own index is never the trust
+ * root: whoever can change the index could otherwise publish a key and sign anything with it.
+ * A repository not listed here has no trusted keys, so every package from it needs the explicit
+ * untrusted-install approval. Values from https://azphalt.store/.well-known/azphalt-repository.json
+ * (2026-11-20); rotate by shipping an update.
+ */
+val AZPHALT_PINNED_SIGNING_KEYS: Map<String, List<AzphaltSigningKey>> = mapOf(
+    AZPHALT_STORE_URL to listOf(
+        AzphaltSigningKey("MCowBQYDK2VwAyEAWNptGhJCdyjabJ/pEnw+nh41woxC01z6mS8XnL8Cv+M=", keyId = "packages-v1"),
+        AzphaltSigningKey("MCowBQYDK2VwAyEAyVAYLhxRY2tGPdbjjKQ1j8GxVa1whJSjA79dKH7dum8=", keyId = "store-v1"),
+    ),
+)
 const val IDEAZ_AZPHALT_HOST_ID: String = "com.hereliesaz.ideaz"
 
 /** The Aive's id: its LLM packages are plain HTTPS endpoints, so IDEaz accepts them too. */

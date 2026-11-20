@@ -10,6 +10,7 @@ import okio.Buffer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -96,11 +97,25 @@ class AzphaltRepositoryClientTest {
         Unit
     }
 
-    private fun service(kv: MemoryKv = MemoryKv()) = AzphaltLlmStoreService(
+    private fun service(kv: MemoryKv = MemoryKv(), pinned: Boolean = true) = AzphaltLlmStoreService(
         client(),
         AzphaltPackageVerifier(KeyValuePublisherPinStore(kv)),
         InstalledLlmStore(kv),
+        trustedKeysFor = { if (pinned) listOf(AzphaltSigningKey(store.publicKey)) else emptyList() },
     )
+
+    @Test
+    fun keysPublishedOnlyInTheIndexAreNotTrusted() = runBlocking {
+        // The index served by the mock lists the signer, but nothing is compiled in for this URL.
+        val prepared = service(pinned = false).prepareLlmInstall("example.llm")
+        assertFalse(prepared.verification.trusted)
+    }
+
+    @Test
+    fun theDefaultStoreHasCompiledInKeysAndOthersHaveNone() {
+        assertTrue(AzphaltLlmStoreService.trustedKeys("https://azphalt.store/").isNotEmpty())
+        assertTrue(AzphaltLlmStoreService.trustedKeys("https://evil.example").isEmpty())
+    }
 
     @Test
     fun searchKeepsOnlyDirectlyUsableLlms() = runBlocking {

@@ -1,5 +1,9 @@
 package com.hereliesaz.ideaz.ai
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
+
 /**
  * Provider-neutral description of a single tool argument.
  *
@@ -102,14 +106,32 @@ internal fun dispatchIdeTool(name: String, args: Map<String, String?>, tools: Id
             ?: "Error: write_file needs a 'content' argument; nothing was written."
         "list_files"  -> tools.listFiles(args["path"] ?: ".")
         "apply_patch" -> tools.applyPatch(args["patch"].orEmpty())
-        "generate_image" -> tools.generateImage(
-            args["path"].orEmpty(),
-            args["prompt"].orEmpty(),
-            args["width"].toPixels(),
-            args["height"].toPixels(),
-        )
+        "generate_image" -> args[PREPARE_ERROR]?.let { "Error: $it" }
+            ?: tools.saveGeneratedImage(args["path"].orEmpty(), args[PREPARED_IMAGE])
         else          -> "Error: Unknown tool '$name'."
     }
+
+private const val PREPARED_IMAGE = "__prepared_image"
+private const val PREPARE_ERROR = "__prepare_error"
+
+/**
+ * Does a tool's slow network work before dispatch, where it can still be cancelled: mutating
+ * tools run under NonCancellable with the edit checkpoint open, so a minutes-long AI Horde wait
+ * must not happen there. Returns the args to dispatch with; other tools pass through unchanged.
+ */
+internal suspend fun prepareIdeTool(name: String, args: Map<String, String?>, tools: IdeTools): Map<String, String?> {
+    if (name != IdeToolSchema.generateImage.name) return args
+    return try {
+        val token = runInterruptible(Dispatchers.IO) {
+            tools.prepareImage(args["path"].orEmpty(), args["prompt"].orEmpty(), args["width"].toPixels(), args["height"].toPixels())
+        }
+        args + (PREPARED_IMAGE to token)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        args + (PREPARE_ERROR to (e.message ?: "image generation failed"))
+    }
+}
 
 /** A model may send "512", "512.0" or nothing. */
 private fun String?.toPixels(): Int = this?.toDoubleOrNull()?.toInt() ?: 512
