@@ -113,7 +113,8 @@ JVM targets depend on.
     and the installed-LLM and publisher-pin stores.
 *   `azphalt/AzphaltLlmStoreService.kt` — `prepareLlmInstall` (all policy checks)
     and `installLlm` (explicit untrusted/publisher-change approval, HTTPS endpoint
-    without userinfo, `${input:ID}` resolution).
+    without userinfo, `${input:ID}` resolution), and `recheckRevocations` (start-up and store open:
+    switches revoked installed models off).
 *   `utils/RepoSnapshot.kt` — redacted, bounded snapshot for providers with no
     file tools. Rejects symlinks and canonical paths outside the project root.
 

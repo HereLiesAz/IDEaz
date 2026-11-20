@@ -131,6 +131,22 @@ class AzphaltLlmStoreService(
 
     fun removeLlm(packageId: String) = llms.remove(packageId)
 
+    /**
+     * Checks every installed model against the repository's current revocation list and switches
+     * revoked ones off (they stay listed so the user sees why). A version un-revoked later is
+     * switched back on. Run at start-up and whenever the store opens; a failed fetch changes
+     * nothing. The list is not signed by the store, so a tampered response can hide a revocation
+     * but cannot enable anything.
+     */
+    suspend fun recheckRevocations(): List<InstalledStoreLlm> {
+        val revoked = revocations().associateBy { it.id to it.version }
+        llms.all().filter { it.repositoryUrl.trimEnd('/') == repository.repositoryUrl.trimEnd('/') }.forEach { llm ->
+            val hit = revoked[llm.packageId to llm.version]
+            llms.setRevoked(llm.packageId, hit?.let { it.reason?.takeIf(String::isNotBlank) ?: "revoked by the repository" })
+        }
+        return llms.all().filter { it.revoked }
+    }
+
     private suspend fun requireNotRevoked(packageId: String, version: String) {
         val revocation = revocations().firstOrNull { it.id == packageId && it.version == version }
         require(revocation == null) {

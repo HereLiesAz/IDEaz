@@ -52,6 +52,8 @@ fun GoogleAiModeCheckDialog() {
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     factory = { ctx ->
                         WebView(ctx).apply {
+                            // Same profile as the hidden view, so the passed check is in its cookies.
+                            AndroidAiModeBrowser.isolate(this)
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
                             webViewClient = WebViewClient()
