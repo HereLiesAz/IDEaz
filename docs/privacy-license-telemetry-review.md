@@ -36,6 +36,11 @@ Some choices route prompts elsewhere, and only when the user (or the model, for 
 
 - **Keyless models** (Kilo Gateway, LLM7, OVHcloud) are called without a key.
   These anonymous free tiers may log prompts.
+- **Google AI Mode** (only when assigned): the latest user message's text, nothing else, goes
+  to Google Search (`udm=50`) in a hidden WebView on the device's own connection, with
+  Google's cookies in the app cookie jar (kept so a passed human check sticks). A human check or
+  consent page is shown to the user in a dialog. Never a failover target
+  (`ai/GoogleAiMode.kt`, `ai/AndroidAiModeBrowser.kt`).
 - **Image generation**: when the model calls `generate_image`, the image prompt (not the
   source or conversation) goes to AI Horde (`aihorde.net`) anonymously and to whichever
   volunteer worker takes the job; the result is downloaded from Horde's storage

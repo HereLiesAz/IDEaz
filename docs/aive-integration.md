@@ -61,6 +61,17 @@ Kilo Gateway, LLM7 and OVHcloud are OpenAI-compatible endpoints that IDEaz calls
 
 Their published per-IP limits (Kilo 200 requests an hour, OVHcloud 2 a minute; LLM7 states none) are set as `AiModel.rateLimit`, mirroring The Aive's `ProviderCatalog.keylessRateLimit`. `FailoverClient` paces against them with `RequestPacer`: a request that would exceed the limit is not sent, the provider cools down until its window has room, and the request moves to the next provider. One chat turn counts as one request; extra tool-loop calls are still caught by the provider's own 429.
 
+## Google AI Mode
+
+Ported from The Aive's `GoogleAiMode` (page parsing is identical; keep them in sync). Differences: IDEaz keeps
+Google's cookies so a passed check persists, and shows the check page in a dialog instead of only erroring.
+It is a selectable model (`AiModels.GOOGLE_AI_MODE`), never in `defaultRanking`, and gets no repo preamble.
+
+## Image generation
+
+`generate_image` uses AI Horde exactly as The Aive's `HostedImageGeneration` does (async → check → status),
+anonymously. fal is not ported (needs a key).
+
 ## Deploy and your GitHub token
 
 Unrelated to The Aive but worth stating here with the other network flows: **Deploy** (the rail item) sends your GitHub token, the repository name and the pushed commit SHA to the maintainer's Worker at `workflows.hereliesaz.workers.dev`, which verifies that the token can push to the repository. The Worker builds and publishes only repositories owned by HereLiesAz; for other owners it refuses after receiving that request. Details: [`workflow.md`](workflow.md) §2.2.

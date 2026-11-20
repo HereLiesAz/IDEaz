@@ -43,6 +43,11 @@ object AiAdapterFactory {
             return FallbackAdapter(bridge, apiFallback)
         }
 
+        if (model.id == AiModels.GOOGLE_AI_MODE) {
+            // One plain question per turn: no repo preamble (it would blow the 1,800-char limit).
+            return GoogleAiModeClient(AndroidAiModeBrowser.get(context))
+        }
+
         if (model.id == AiModels.THE_AIVE) {
             // The Aive injects no repo preamble of its own; AiveAdapter sends a project snapshot.
             return AiveAdapter(AiveTransports.create(context, settings), tools)

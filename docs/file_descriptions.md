@@ -92,6 +92,9 @@ JVM targets depend on.
     `FailoverClient` (automatic provider failover).
 *   `ai/ToolSchema.kt` — provider-neutral tool specs (`read_file`, `write_file`, `list_files`,
     `apply_patch`, `generate_image`), the mutating-tool set, and the shared dispatch.
+*   `ai/GoogleAiMode.kt` — Google AI Mode page parsing and `GoogleAiModeClient` (one plain
+    question per turn, no tools). Android browser: `androidMain/.../ai/AndroidAiModeBrowser.kt`;
+    human-check dialog: `ui/GoogleAiModeCheckDialog.kt`.
 *   `ai/ImageGeneration.kt` — `ImageGenerator` and the keyless `AiHordeImageGenerator` behind
     `generate_image` (WebP, saved through `IdeTools.generateImage`).
 *   `utils/RepoSnapshot.kt` — redacted, bounded snapshot for providers with no

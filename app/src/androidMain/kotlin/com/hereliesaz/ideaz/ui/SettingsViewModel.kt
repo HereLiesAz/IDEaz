@@ -63,6 +63,7 @@ object AiModels {
     const val KILO_FREE = "KILO_FREE"
     const val LLM7_DEFAULT = "LLM7_DEFAULT"
     const val OVHCLOUD_FREE = "OVHCLOUD_FREE"
+    const val GOOGLE_AI_MODE = "GOOGLE_AI_MODE"
     const val THE_AIVE = "THE_AIVE"
 
     val GEMINI = AiModel(
@@ -118,6 +119,14 @@ object AiModels {
         rateLimit = com.hereliesaz.ideaz.ai.RateLimit(requests = 2, windowMillis = 60_000L),
     )
 
+    // Gemini in Google Search, read from the search page in a hidden browser on this device
+    // (ai/GoogleAiMode.kt). No key; Google sees the question and this device's address. One answer
+    // per question, no tools, so it explains but cannot edit. Never chosen automatically.
+    val GOOGLE_AI_MODE_MODEL = AiModel(
+        GOOGLE_AI_MODE, "Google AI Mode · Search (keyless, no edits)", providerKey = "",
+        defaultWireModel = "", keyless = true,
+    )
+
     // Runs on whatever provider is linked in The Aive: installed here (same signing key), or on
     // another device through the relay once a pairing code is saved.
     // Keys live in The Aive, so there is no slot here; the wire model is The Aive's choice.
@@ -126,7 +135,7 @@ object AiModels {
         defaultWireModel = "",
     )
 
-    val availableModels = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL, KILO, LLM7, OVHCLOUD, AIVE)
+    val availableModels = listOf(GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL, KILO, LLM7, OVHCLOUD, GOOGLE_AI_MODE_MODEL, AIVE)
     /** Keyed providers by preference, then the keyless ones as the last fallback. */
     val defaultRanking = listOf(
         GEMINI, ANTHROPIC, OPENAI, DEEPSEEK, GROQ, CEREBRAS, HF, MISTRAL,
