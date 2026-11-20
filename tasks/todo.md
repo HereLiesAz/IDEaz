@@ -34,6 +34,10 @@ Independent review requested changes; addressed:
 - AI Mode: human check times out (5 min) and is skipped when no screen is watching; page reads time out; hidden view only navigates to Google; no app-wide cache clear.
 
 Still open:
-- Revocations: checked only at install, for the exact version, and the list is unsigned. Installed packages aren't re-checked.
-- AI Mode cookies share the app's cookie jar (Google domains only). Isolation needs the androidx.webkit Profile API.
+- Revocation list is unsigned (the store publishes no signature): a tampered reply can hide a revocation, never enable anything.
+- AI Mode cookies fall back to the shared jar on WebViews without MULTI_PROFILE.
+
+Follow-up (claude/review-followups):
+- Installed store models are re-checked against revocations at start-up and when the store opens; revoked ones are switched off and labelled.
+- AI Mode's hidden and visible views use their own WebView profile.
 - Nothing exercised live: azphalt.store install, AI Horde, Google AI Mode.

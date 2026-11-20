@@ -139,6 +139,21 @@ class AzphaltRepositoryClientTest {
     }
 
     @Test
+    fun installedModelsRevokedLaterAreSwitchedOffAndBackOn() = runBlocking {
+        val kv = MemoryKv()
+        val svc = service(kv)
+        val installed = svc.installLlm(svc.prepareLlmInstall("example.llm"), nowEpochMillis = 1)
+
+        revocations = """{"revocations":[{"id":"example.llm","version":"${installed.version}","reason":"leaked key"}]}"""
+        assertEquals(listOf("example.llm"), svc.recheckRevocations().map { it.packageId })
+        assertEquals("leaked key", InstalledLlmStore(kv).all().single().revokedReason)
+
+        revocations = """{"revocations": []}"""
+        assertTrue(svc.recheckRevocations().isEmpty())
+        assertFalse(InstalledLlmStore(kv).all().single().revoked)
+    }
+
+    @Test
     fun untrustedAndPublisherChangeNeedExplicitApproval() = runBlocking {
         val kv = MemoryKv()
         // Not counter-signed by the store key: genuine but untrusted.

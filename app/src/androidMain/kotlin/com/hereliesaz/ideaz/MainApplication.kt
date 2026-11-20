@@ -1,6 +1,7 @@
 package com.hereliesaz.ideaz
 
 import android.app.Application
+import kotlinx.coroutines.launch
 import com.hereliesaz.ideaz.ui.MainViewModel
 import com.hereliesaz.ideaz.ui.SettingsViewModel
 
@@ -13,9 +14,19 @@ class MainApplication : Application() {
         super.onCreate()
         // Before any ViewModel: AiModels reads installed store models from it.
         com.hereliesaz.ideaz.azphalt.AzphaltStore.init(this)
+        recheckStoreRevocations()
 
         val settingsViewModel = SettingsViewModel(this)
         mainViewModel = MainViewModel(this, settingsViewModel)
+    }
+
+    /** Switches off installed store models revoked since install. Offline or failing: nothing changes. */
+    private fun recheckStoreRevocations() {
+        val store = com.hereliesaz.ideaz.azphalt.AzphaltStore
+        if (store.llms(this).all().isEmpty()) return
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO).launch {
+            runCatching { store.service(this@MainApplication).recheckRevocations() }
+        }
     }
 
     override fun onTerminate() {

@@ -149,7 +149,7 @@ object AiModels {
      * receive a request by automatic failover. The key slot is the provider id itself.
      */
     fun storeModels(): List<AiModel> =
-        com.hereliesaz.ideaz.azphalt.AzphaltStore.llmsOrNull?.all().orEmpty().map(::fromStoreLlm)
+        com.hereliesaz.ideaz.azphalt.AzphaltStore.llmsOrNull?.all().orEmpty().filterNot { it.revoked }.map(::fromStoreLlm)
 
     fun fromStoreLlm(llm: com.hereliesaz.ideaz.azphalt.InstalledStoreLlm): AiModel = AiModel(
         id = llm.providerId,

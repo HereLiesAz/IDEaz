@@ -38,7 +38,11 @@ data class InstalledStoreLlm(
     val operator: String? = null,
     val terms: String? = null,
     val installedAtEpochMillis: Long = 0,
+    /** Set when the repository revoked this exact version after install; a revoked model is not offered. */
+    val revokedReason: String? = null,
 ) {
+    val revoked: Boolean get() = revokedReason != null
+
     val providerId: String get() = providerIdFor(packageId)
 
     /** Usable without a key: the endpoint serves anonymous requests. */
@@ -81,6 +85,12 @@ class InstalledLlmStore(private val kv: AzphaltKeyValueStore) {
     fun put(value: InstalledStoreLlm) {
         state.update { current -> (current.filterNot { it.packageId == value.packageId } + value).sortedBy { it.packageId } }
         kv.putString(STORAGE_KEY, json.encodeToString(serializer, state.value))
+    }
+
+    /** Marks the installed [packageId] revoked ([reason] non-null) or clears it (null). */
+    fun setRevoked(packageId: String, reason: String?) {
+        val current = all().firstOrNull { it.packageId == packageId } ?: return
+        if (current.revokedReason != reason) put(current.copy(revokedReason = reason))
     }
 
     fun remove(packageId: String) {

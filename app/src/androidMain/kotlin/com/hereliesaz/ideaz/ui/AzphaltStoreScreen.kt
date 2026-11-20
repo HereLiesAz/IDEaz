@@ -90,7 +90,10 @@ fun AzphaltStoreScreen(settingsViewModel: SettingsViewModel) {
         searched = true
     }
 
-    LaunchedEffect(Unit) { search() }
+    LaunchedEffect(Unit) {
+        runCatching { service.recheckRevocations() }
+        search()
+    }
 
     confirmRemove?.let { llm ->
         AlertDialog(
@@ -195,6 +198,7 @@ fun AzphaltStoreScreen(settingsViewModel: SettingsViewModel) {
                 Text("${llm.name} ${llm.version}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onBackground)
                 Muted("${llm.defaultModel} at ${llm.baseUrl}")
                 Muted(llm.promptHandling)
+                llm.revokedReason?.let { Muted("Switched off: the store revoked this version ($it). Remove it or install a newer one.") }
                 AzButton(
                     onClick = { confirmRemove = llm },
                     text = "Remove",

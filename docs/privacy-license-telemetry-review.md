@@ -38,7 +38,8 @@ Some choices route prompts elsewhere, and only when the user (or the model, for 
   These anonymous free tiers may log prompts.
 - **Google AI Mode** (only when assigned): the latest user message's text, nothing else, goes
   to Google Search (`udm=50`) in a hidden WebView on the device's own connection, with
-  Google's cookies in the app cookie jar (kept so a passed human check sticks). A human check or
+  Google's cookies kept in a separate WebView profile (`google-ai-mode`, so a passed human check
+  sticks without reaching the project preview; shared jar only on WebViews without profile support). A human check or
   consent page is shown to the user in a dialog. Never a failover target
   (`ai/GoogleAiMode.kt`, `ai/AndroidAiModeBrowser.kt`).
 - **Image generation**: when the model calls `generate_image`, the image prompt (not the
