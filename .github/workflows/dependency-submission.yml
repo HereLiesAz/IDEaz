@@ -29,7 +29,7 @@ concurrency:
   # One run per repository at a time, so this repo never crowds the account's shared
   # concurrent-job limit for other repositories.
   group: ${{ github.repository }}-dependency-submission
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   dependency-submission:
